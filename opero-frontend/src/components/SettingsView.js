@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente SettingsView - v1.1 Corretto
+// # Componente SettingsView - v1.2 DEFINITIVO
 // # File: opero-frontend/src/components/SettingsView.js
 // #####################################################################
 
