@@ -22,6 +22,14 @@ const trackRoutes = require('./routes/track'); // Rotte per il tracciamento emai
 const app = express();
 const PORT = 3001;
 
+// Rotta di benvenuto o di stato per testare se il server è online
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'online', 
+    message: 'Benvenuto nell\'API di Opero!' 
+  });
+});
+
 // Creazione della cartella 'uploads' se non esiste, per gli allegati
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
