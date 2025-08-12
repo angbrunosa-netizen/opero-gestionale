@@ -6,8 +6,8 @@
 //import React, { useState } from 'react';
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_URL = 'http://localhost:3001';
-
+//const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 function SettingsView({ session, onSessionUpdate }) {
     const [nome, setNome] = useState(session.user.nome || '');
     const [cognome, setCognome] = useState(session.user.cognome || '');

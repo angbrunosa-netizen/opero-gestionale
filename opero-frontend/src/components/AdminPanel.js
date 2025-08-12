@@ -6,7 +6,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 
-const API_URL = 'http://localhost:3001';
+//const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
     
 // --- Sotto-componente per la Gestione Privacy ---
 function PrivacyManager({ session }) {

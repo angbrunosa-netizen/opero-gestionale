@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 
-const API_URL = 'http://localhost:3001';
+//const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 function RegistrationPage() {
     const [token, setToken] = useState(null);
@@ -99,7 +100,7 @@ function RegistrationPage() {
                     <input name="telefono" value={formData.telefono} onChange={handleChange} placeholder="Telefono" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
                     <input name="indirizzo" value={formData.indirizzo} onChange={handleChange} placeholder="Indirizzo" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
                     <div style={{display: 'flex', gap: '12px'}}>
-                        <input name="citta" value={formData.citta} onChange={handleChange} placeholder="Città" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', flex: 2 }} />
+                        <input name="citta" value={formData.citta} onChange={handleChange} placeholder="Cittï¿½" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', flex: 2 }} />
                         <input name="provincia" value={formData.provincia} onChange={handleChange} placeholder="Prov." style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', flex: 1 }} />
                     </div>
                     <button type="submit" style={{ padding: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', marginTop: '12px' }}>Registrati</button>

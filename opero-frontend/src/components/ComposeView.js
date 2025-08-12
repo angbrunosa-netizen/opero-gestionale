@@ -7,8 +7,8 @@ import React, { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
-const API_URL = 'http://localhost:3001';
-
+//const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const extractEmail = (str) => {
     if (!str) return '';
     const match = str.match(/<([^>]+)>/);

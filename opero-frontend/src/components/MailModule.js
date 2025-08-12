@@ -8,7 +8,8 @@ import ComposeView from './ComposeView';
 import SentView from './SentView';
 import SettingsView from './SettingsView';
 
-const API_URL = 'http://localhost:3001';
+//const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 function MailModule({ session, onSessionUpdate }) {
   // ... (tutti gli stati e le funzioni helper come fetchAccounts, fetchEmails, etc. rimangono invariate) ...

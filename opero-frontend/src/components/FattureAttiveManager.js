@@ -5,11 +5,12 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 
-const API_URL = 'http://localhost:3001';
+//const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // Importiamo il componente generico per la gestione delle tabelle
 // (Assumiamo che sia stato esportato da AmministrazioneModule.js o spostato in un file separato)
-// Per semplicità, lo ridefiniamo qui. In un progetto reale, andrebbe in un file di utilità.
+// Per semplicitï¿½, lo ridefiniamo qui. In un progetto reale, andrebbe in un file di utilitï¿½.
 function TableManager({ title, endpoint, columns, session, selectOptions = {} }) {
     const [data, setData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 function UserForm({ session, onSave, onCancel }) {
     const [newUser, setNewUser] = useState({ email: '', password: '', nome: '', cognome: '', id_ditta: '', id_ruolo: '' });
