@@ -1,12 +1,10 @@
 // #####################################################################
-// # Componente SettingsView
+// # Componente SettingsView - v1.1 Corretto
 // # File: opero-frontend/src/components/SettingsView.js
 // #####################################################################
 
-//import React, { useState } from 'react';
 import React, { useState } from 'react';
 
-//const API_URL = 'http://localhost:3001';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 function SettingsView({ session, onSessionUpdate }) {
@@ -55,8 +53,6 @@ function SettingsView({ session, onSessionUpdate }) {
             alert(`Errore di connessione: ${error.message}`);
         }
     };
-
- 
 
     return (
         <div>

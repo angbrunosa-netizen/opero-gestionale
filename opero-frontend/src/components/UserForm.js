@@ -1,10 +1,9 @@
 // #####################################################################
-// # Componente UserForm (Riutilizzabile)
+// # Componente UserForm (Riutilizzabile) - v1.1 Corretto
 // # File: opero-frontend/src/components/UserForm.js
 // #####################################################################
 
 import React, { useState, useEffect, useCallback } from 'react';
-
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
