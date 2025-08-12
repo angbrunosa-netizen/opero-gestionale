@@ -1,5 +1,5 @@
 // #####################################################################
-// # Rotte di Autenticazione - v2.3 (con Livello Utente nel Token)
+// # Rotte di Autenticazione - v2.4 (con Variabili d'Ambiente)
 // # File: opero/routes/auth.js
 // #####################################################################
 const express = require('express');
@@ -8,42 +8,41 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
-const JWT_SECRET = 'una_chiave_segreta_molto_difficile_da_indovinare_12345';
+
+// --- CONFIGURAZIONE SICURA ---
+// Ora usiamo le variabili d'ambiente. Se non esistono, usiamo un valore di default.
+const JWT_SECRET = process.env.JWT_SECRET || 'backup_secret_key';
 
 const dbPool = mysql.createPool({
-    host: 'localhost', user: 'root', password: '', database: 'operodb', port: 3306
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT || 3306,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
 // --- Middleware per Verificare l'Autenticazione (checkAuth) ---
-// Questo è il "controllore" che verifica il passaporto (token) su ogni richiesta protetta.
 const checkAuth = (req, res, next) => {
     try {
-        // Estrae il token dall'header 'Authorization' (es. "Bearer TOKEN_LUNGHISSIMO")
         const token = req.headers.authorization.split(" ")[1];
-        
-        // Verifica la validità del token usando la nostra chiave segreta
         const decodedToken = jwt.verify(token, JWT_SECRET);
-        
-        // CORREZIONE: Aggiungiamo tutte le informazioni dell'utente, incluso userLevel,
-        // all'oggetto 'req.userData' in modo che siano disponibili nelle rotte successive.
         req.userData = { 
             userId: decodedToken.userId, 
             email: decodedToken.email, 
             roleId: decodedToken.roleId, 
             dittaId: decodedToken.dittaId,
-            userLevel: decodedToken.userLevel // <-- ECCO LA MODIFICA CHIAVE
+            userLevel: decodedToken.userLevel
         };
-        
-        // Se il token è valido, permette alla richiesta di proseguire
         next();
     } catch (error) {
-        // Se il token non è valido o manca, blocca la richiesta
         return res.status(401).json({ success: false, message: 'Autenticazione fallita.' });
     }
 };
 
 // --- Funzione Helper per Verificare il Ruolo (checkRole) ---
-// Questa funzione viene usata nelle rotte per controllare se l'utente ha un ruolo specifico.
 const checkRole = (roles) => {
     return (req, res, next) => {
         if (req.userData && roles.includes(req.userData.roleId)) {
@@ -53,7 +52,6 @@ const checkRole = (roles) => {
         }
     };
 };
-
 
 // API di autenticazione
 router.post('/authenticate', async (req, res) => {
@@ -102,13 +100,12 @@ router.post('/authenticate', async (req, res) => {
             const [permissionRows] = await connection.query(permissionsQuery, [user.id_ruolo]);
             const permissions = permissionRows.map(p => p.codice);
 
-            // CORREZIONE: Aggiunto userLevel (user.livello) al payload del token
             const tokenPayload = { 
                 userId: user.id, 
                 email: user.email, 
                 roleId: user.id_ruolo, 
                 dittaId: user.id_ditta,
-                userLevel: user.livello // <-- ECCO LA MODIFICA CHIAVE
+                userLevel: user.livello
             };
             const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1h' });
             
@@ -135,7 +132,6 @@ router.post('/authenticate', async (req, res) => {
             if(connection) connection.release();
             return res.json(responsePayload);
         } else {
-            // Logica per la registrazione di un nuovo utente se non esiste
             const hashedPassword = await bcrypt.hash(password, 10);
             await connection.query('INSERT INTO utenti (email, password, id_ruolo, id_ditta, livello) VALUES (?, ?, ?, ?, ?)', [email, hashedPassword, 4, 2, 50]);
             if(connection) connection.release();
