@@ -2,7 +2,7 @@
 // # Backend Server - v6.2 (Verificato e Commentato)
 // # File: opero/server.js
 // #####################################################################
-
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
