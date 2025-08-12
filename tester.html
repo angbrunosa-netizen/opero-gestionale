@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Backend Opero - Fase 4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .response-box { min-height: 100px; max-height: 400px; overflow-y: auto; }
+        .hidden { display: none; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-100 py-12 px-4">
+
+    <div class="container mx-auto space-y-8">
+        <!-- Sezione 1: Autenticazione -->
+        <div class="w-full max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg">
+            <h1 class="text-2xl font-bold text-slate-800 text-center mb-2">1. Autenticazione</h1>
+            <p class="text-slate-500 text-center mb-6">Effettua il login. Se l'utente non esiste, verrà registrato.</p>
+            <form id="authForm" class="space-y-4">
+                 <div>
+                    <label for="email" class="block text-sm font-medium text-slate-700">Email</label>
+                    <input type="email" id="email" name="email" required class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm shadow-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
+                    <input type="password" id="password" name="password" required class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm shadow-sm">
+                </div>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    Login / Registrati
+                </button>
+            </form>
+            <div class="mt-6">
+                <h2 class="text-lg font-semibold text-slate-800">Risposta Autenticazione / Sessione Utente:</h2>
+                <pre id="authResponse" class="response-box mt-2 p-4 bg-slate-800 text-white text-sm rounded-md">Nessuna richiesta eseguita.</pre>
+            </div>
+        </div>
+
+        <!-- Sezione 2: Azioni Post-Login -->
+        <div id="actionsSection" class="w-full max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg hidden">
+            <h1 class="text-2xl font-bold text-slate-800 text-center mb-6">2. Azioni Autenticate</h1>
+             <button id="fetchEmailsBtn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 mb-6">
+                Test: Carica Email
+            </button>
+             <div class="mt-6">
+                <h2 class="text-lg font-semibold text-slate-800">Risposta API Email:</h2>
+                <pre id="emailsResponse" class="response-box mt-2 p-4 bg-slate-800 text-white text-sm rounded-md">...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let jwtToken = null;
+
+        const authForm = document.getElementById('authForm');
+        const authResponseDiv = document.getElementById('authResponse');
+        const actionsSection = document.getElementById('actionsSection');
+        
+        authForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            authResponseDiv.textContent = 'Autenticazione in corso...';
+            actionsSection.classList.add('hidden');
+            try {
+                const response = await fetch('http://localhost:3001/api/authenticate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await response.json();
+                authResponseDiv.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.success === true && data.token) {
+                    jwtToken = data.token;
+                    actionsSection.classList.remove('hidden');
+                } else {
+                    jwtToken = null;
+                }
+            } catch (error) {
+                jwtToken = null;
+                authResponseDiv.textContent = `Errore di connessione: ${error.message}`;
+            }
+        });
+
+        const fetchEmailsBtn = document.getElementById('fetchEmailsBtn');
+        const emailsResponseDiv = document.getElementById('emailsResponse');
+
+        fetchEmailsBtn.addEventListener('click', async () => {
+            if (!jwtToken) { alert('Devi prima effettuare il login!'); return; }
+            emailsResponseDiv.textContent = 'Caricamento email...';
+            try {
+                const response = await fetch('http://localhost:3001/api/emails', {
+                    headers: { 'Authorization': `Bearer ${jwtToken}` }
+                });
+                const data = await response.json();
+                emailsResponseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                 emailsResponseDiv.textContent = `Errore: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

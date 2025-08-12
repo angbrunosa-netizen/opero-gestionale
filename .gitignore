@@ -1,0 +1,18 @@
+# Dipendenze e moduli installati
+/node_modules
+/frontend/node_modules
+/backend/node_modules
+
+# File di build di React
+/frontend/build
+/build
+
+# File di ambiente con dati sensibili
+.env
+*.env
+.env.local
+
+# Log e file temporanei
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
