@@ -1,5 +1,5 @@
 // #####################################################################
-// # Rotte di Amministrazione Sistema (MASTER) - v3.2 con CRUD Completo
+// # Rotte di Amministrazione Sistema (MASTER) - v3.3 (con Connessione Centralizzata)
 // # File: opero/routes/admin.js
 // #####################################################################
 
@@ -12,26 +12,44 @@ const { checkAuth, checkRole } = require('../utils/auth');
 const nodemailer = require('nodemailer');
 
 const router = express.Router();
-const dbPool = mysql.createPool({ host: 'localhost', user: 'root', password: '', database: 'operodb', port: 3306 });
+const { dbPool } = require('../config/db');
 
 const isSystemAdmin = checkRole([1]);
 const isDittaAdmin = checkRole([1, 2]);
 
 // --- API GESTIONE DITTE (Solo MASTER) ---
+
 router.post('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
     const { ragione_sociale, mail_1, id_tipo_ditta } = req.body;
     if (!ragione_sociale || !mail_1 || !id_tipo_ditta) {
         return res.status(400).json({ success: false, message: 'Ragione Sociale, Email e Tipo Ditta sono obbligatori.' });
     }
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
-        const [result] = await connection.query('INSERT INTO ditte (ragione_sociale, mail_1, id_tipo_ditta) VALUES (?, ?, ?)', [ragione_sociale, mail_1, id_tipo_ditta]);
-        connection.release();
-        res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.insertId });
+        // La gestione della connessione è necessaria solo per MySQL
+        if (process.env.NODE_ENV !== 'production') {
+            connection = await dbPool.getConnection();
+        }
+        
+        // La query è compatibile con entrambi i DB se usiamo i placeholder corretti
+        const query = 'INSERT INTO ditte (ragione_sociale, mail_1, id_tipo_ditta) VALUES (?, ?, ?)';
+        const values = [ragione_sociale, mail_1, id_tipo_ditta];
+
+        if (process.env.NODE_ENV === 'production') {
+            const pgQuery = query.replace(/\?/g, (m, i) => `$${i + 1}`);
+            const result = await dbPool.query(pgQuery, values);
+            res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.rows[0]?.id || null });
+        } else {
+            const [result] = await connection.query(query, values);
+            res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.insertId });
+        }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore nella creazione della ditta.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
+
 
 router.get('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
     try {

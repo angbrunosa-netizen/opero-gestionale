@@ -11,7 +11,7 @@ const { checkAuth, checkRole } = require('../utils/auth');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const router = express.Router();
-const dbPool = mysql.createPool({ host: 'localhost', user: 'root', password: '', database: 'operodb', port: 3306 });
+const { dbPool } = require('../config/db');
 
 const isDittaAdmin = checkRole([1, 2]);
 const ALGORITHM = 'aes-256-cbc';
@@ -389,23 +389,40 @@ createCompositeKeyCrudEndpoints('sottoconti', ['codice', 'descrizione', 'codice_
 
 // --- API GESTIONE ANAGRAFICHE (Clienti/Fornitori) ---
 router.get('/anagrafiche', checkAuth, isDittaAdmin, async (req, res) => {
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
-        const query = `
-            SELECT 
-                d.id, d.ragione_sociale, d.mail_1, d.codice_relazione, d.id_sottoconto_collegato,
-                s.descrizione as sottoconto_collegato_desc
-            FROM ditte d
-            LEFT JOIN sottoconti s ON d.id_sottoconto_collegato = s.id
-            WHERE d.id_tipo_ditta != 1 
-            ORDER BY d.ragione_sociale
-        `;
-        const [rows] = await connection.query(query);
-        connection.release();
-        res.json({ success: true, data: rows });
+        // Questa logica ora gestisce correttamente sia MySQL che PostgreSQL
+        if (process.env.NODE_ENV === 'production') {
+            const query = `
+                SELECT 
+                    d.id, d.ragione_sociale, d.mail_1, d.codice_relazione, d.id_sottoconto_collegato,
+                    s.descrizione as sottoconto_collegato_desc
+                FROM ditte d
+                LEFT JOIN sottoconti s ON d.id_sottoconto_collegato = s.id
+                WHERE d.id_tipo_ditta != 1 
+                ORDER BY d.ragione_sociale
+            `;
+            const result = await dbPool.query(query);
+            res.json({ success: true, data: result.rows });
+        } else {
+            connection = await dbPool.getConnection();
+            const query = `
+                SELECT 
+                    d.id, d.ragione_sociale, d.mail_1, d.codice_relazione, d.id_sottoconto_collegato,
+                    s.descrizione as sottoconto_collegato_desc
+                FROM ditte d
+                LEFT JOIN sottoconti s ON d.id_sottoconto_collegato = s.id
+                WHERE d.id_tipo_ditta != 1 
+                ORDER BY d.ragione_sociale
+            `;
+            const [rows] = await connection.query(query);
+            res.json({ success: true, data: rows });
+        }
     } catch (error) {
         console.error("Errore recupero anagrafiche:", error);
         res.status(500).json({ success: false, message: 'Errore nel recupero anagrafiche.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 

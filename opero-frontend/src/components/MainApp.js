@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente MainApp - v3.1 con Dashboard
+// # Componente MainApp - v3.2 (con Gestione Dati Incompleti)
 // # File: opero-frontend/src/components/MainApp.js
 // #####################################################################
 
@@ -9,23 +9,28 @@ import MailModule from './MailModule';
 import SettingsView from './SettingsView';
 import AmministrazioneModule from './AmministrazioneModule';
 
-// --- NUOVO Componente per la Dashboard ---
+// --- Componente Dashboard (MODIFICATO) ---
+// Ho aggiunto dei controlli per evitare crash se i dati non sono completi.
 function Dashboard({ session }) {
-    const { user, ditta } = session;
+    // Usiamo l'optional chaining (?.) per accedere alle proprietà in modo sicuro.
+    // Se 'user' o 'ditta' non esistono, il valore sarà 'undefined' invece di causare un errore.
+    // Forniamo anche un valore di fallback (es. 'N/D') per la visualizzazione.
+    const user = session?.user || {};
+    const ditta = session?.ditta || {};
 
     return (
         <div className="p-8 w-full">
-            <h1 className="text-3xl font-bold text-slate-800 mb-6">Bentornato, {user.nome || user.email}!</h1>
+            <h1 className="text-3xl font-bold text-slate-800 mb-6">Bentornato, {user.nome || user.email || 'Utente'}!</h1>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* Riquadro Dati Utente */}
                 <div className="bg-white p-6 rounded-lg shadow-md">
                     <h2 className="text-xl font-semibold text-slate-700 border-b pb-2 mb-4">Dati Utente</h2>
                     <div className="space-y-3 text-sm">
-                        <p><strong className="w-24 inline-block">Codice:</strong> {user.id}</p>
-                        <p><strong className="w-24 inline-block">Nome:</strong> {user.nome} {user.cognome}</p>
-                        <p><strong className="w-24 inline-block">Ruolo:</strong> {user.ruolo}</p>
-                        <p><strong className="w-24 inline-block">Livello:</strong> {user.livello}</p>
+                        <p><strong className="w-24 inline-block">Codice:</strong> {user.id || 'N/D'}</p>
+                        <p><strong className="w-24 inline-block">Nome:</strong> {`${user.nome || ''} ${user.cognome || ''}`.trim() || 'N/D'}</p>
+                        <p><strong className="w-24 inline-block">Ruolo:</strong> {user.ruolo || 'N/D'}</p>
+                        <p><strong className="w-24 inline-block">Livello:</strong> {user.livello || 'N/D'}</p>
                     </div>
                 </div>
 
@@ -33,9 +38,9 @@ function Dashboard({ session }) {
                 <div className="bg-white p-6 rounded-lg shadow-md">
                     <h2 className="text-xl font-semibold text-slate-700 border-b pb-2 mb-4">Dati Ditta</h2>
                     <div className="space-y-3 text-sm">
-                        <p><strong className="w-24 inline-block">Codice:</strong> {ditta.id}</p>
-                        <p><strong className="w-24 inline-block">Rag. Sociale:</strong> {ditta.ragione_sociale}</p>
-                        <p><strong className="w-24 inline-block">Tipo:</strong> {ditta.tipo_ditta}</p>
+                        <p><strong className="w-24 inline-block">Codice:</strong> {ditta.id || 'N/D'}</p>
+                        <p><strong className="w-24 inline-block">Rag. Sociale:</strong> {ditta.ragione_sociale || 'N/D'}</p>
+                        <p><strong className="w-24 inline-block">Tipo:</strong> {ditta.tipo_ditta || 'N/D'}</p>
                     </div>
                 </div>
 
@@ -45,10 +50,10 @@ function Dashboard({ session }) {
 }
 
 
-function MainApp({ session, onLogout, onSessionUpdate, fetchWithAuth }) { // Riceve la nuova funzione
+function MainApp({ session, onLogout, onSessionUpdate, fetchWithAuth }) {
   const [mainView, setMainView] = useState('dashboard');
   
-  const userPermissions = session.user.permissions || [];
+  const userPermissions = session?.user?.permissions || [];
 
   const buttonStyle = (viewName) => {
     const isActive = mainView === viewName;
@@ -73,8 +78,8 @@ function MainApp({ session, onLogout, onSessionUpdate, fetchWithAuth }) { // Ric
         </nav>
 
         <div className="mt-auto">
-          <p className="font-medium text-slate-700 truncate">{session.user.nome || session.user.email}</p>
-          <p className="text-sm text-slate-500">{session.user.ruolo}</p>
+          <p className="font-medium text-slate-700 truncate">{session?.user?.nome || session?.user?.email || 'Nessun utente'}</p>
+          <p className="text-sm text-slate-500">{session?.user?.ruolo || ''}</p>
           <button 
             onClick={onLogout} 
             className="w-full mt-4 p-2 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors"
@@ -84,11 +89,6 @@ function MainApp({ session, onLogout, onSessionUpdate, fetchWithAuth }) { // Ric
         </div>
       </aside>
       
-        {/* Aggiungere fetchWithAuth anche agli altri moduli quando li modificheremo */}
-      
-
-
-      {/* 2. Pannello Principale */}
       <main className="flex-1 flex overflow-hidden">
         {mainView === 'dashboard' && <Dashboard session={session} />}
         {mainView === 'mail' && userPermissions.includes('APP_IMPIEGATO') && <MailModule session={session} onSessionUpdate={onSessionUpdate} />}

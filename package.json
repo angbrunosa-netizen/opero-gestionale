@@ -15,8 +15,9 @@
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.7.1",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.10.0",
+    "mysql2": "^3.14.3",
     "nodemailer": "^6.9.13",
+    "pg": "^8.16.3",
     "uuid": "^9.0.1"
   }
 }

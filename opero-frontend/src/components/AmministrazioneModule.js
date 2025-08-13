@@ -1,32 +1,23 @@
 // #####################################################################
-// # Componente AmministrazioneModule - v4.3 (Versione Completa e Stabile)
+// # Componente AmministrazioneModule - v4.8 (Fix Definitivo Autenticazione)
 // # File: opero-frontend/src/components/AmministrazioneModule.js
 // #####################################################################
 
 import React, { useState, useCallback, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 
-const API_URL = 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 // =====================================================================
-// ============ DEFINIZIONE DEI SOTTO-COMPONENTI (ESTERNA) =============
+// ============ DEFINIZIONE DEI SOTTO-COMPONENTI =======================
 // =====================================================================
 
 // --- Componente Modale per Form di Inserimento/Modifica ---
 function CrudModal({ item, columns, onSave, onCancel, title, selectOptions = {} }) {
     const [formData, setFormData] = useState(item);
-
     useEffect(() => { setFormData(item); }, [item]);
-
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave(formData);
-    };
-
+    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+    const handleSubmit = (e) => { e.preventDefault(); onSave(formData); };
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
@@ -68,11 +59,22 @@ function TableManager({ title, endpoint, columns, session, selectOptions = {}, i
         setIsLoading(true);
         setError('');
         try {
-            const response = await fetch(`${API_URL}/api/amministrazione/${endpoint}`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const headers = { 'Authorization': `Bearer ${session.token}` };
+            const response = await fetch(`${API_URL}/api/amministrazione/${endpoint}`, { headers });
+            
+            if (response.status === 401) {
+                throw new Error('Sessione non valida o scaduta. Prova a fare di nuovo il login.');
+            }
+
             const result = await response.json();
-            if (result.success) setData(result.data);
-            else setError(result.message || 'Errore sconosciuto.');
-        } catch (err) { setError('Errore di connessione al server.'); }
+            if (result.success) {
+                setData(result.data);
+            } else {
+                setError(result.message || 'Errore sconosciuto.');
+            }
+        } catch (err) {
+            setError(err.message || 'Errore di connessione al server.');
+        }
         setIsLoading(false);
     }, [endpoint, session.token]);
 
@@ -95,7 +97,10 @@ function TableManager({ title, endpoint, columns, session, selectOptions = {}, i
         try {
             const response = await fetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.token}`
+                },
                 body: JSON.stringify(payload)
             });
             const result = await response.json();
@@ -119,7 +124,10 @@ function TableManager({ title, endpoint, columns, session, selectOptions = {}, i
             try {
                 const response = await fetch(`${API_URL}/api/amministrazione/${endpoint}/${itemId}`, {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.token}`
+                    },
                     body: JSON.stringify({ password })
                 });
                 const result = await response.json();
@@ -141,9 +149,11 @@ function TableManager({ title, endpoint, columns, session, selectOptions = {}, i
             {isModalOpen && <CrudModal item={currentItem} columns={columns} onSave={handleSave} onCancel={() => setIsModalOpen(false)} title={currentItem.originalId ? `Modifica ${title}` : `Nuovo ${title}`} selectOptions={selectOptions} />}
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold text-slate-700">{title}</h3>
-                <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition-colors">
-                    + Aggiungi
-                </button>
+                {canEditDelete && (
+                    <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition-colors">
+                        + Aggiungi
+                    </button>
+                )}
             </div>
             {isLoading && <p>Caricamento...</p>}
             {error && <p className="text-red-500">Errore: {error}</p>}
@@ -153,28 +163,30 @@ function TableManager({ title, endpoint, columns, session, selectOptions = {}, i
                         <thead className="bg-slate-50">
                             <tr>
                                 {columns.map(col => <th key={col.key} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{col.label}</th>)}
-                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Azioni</th>
+                                {(canEditDelete || customActions.length > 0) && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Azioni</th>}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
                             {data.map(row => (
                                 <tr key={row[idKey]} className="hover:bg-slate-50">
                                     {columns.map(col => <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row[col.key]}</td>)}
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <div className="flex items-center justify-center gap-x-4">
-                                            {customActions.map(action => (
-                                                <button key={action.label} onClick={() => action.handler(row)} className={action.className}>
-                                                    {action.label}
-                                                </button>
-                                            ))}
-                                            {canEditDelete && (
-                                                <>
-                                                    <button onClick={() => handleOpenModal(row)} className="text-blue-600 hover:text-blue-900">Modifica</button> 
-                                                    <button onClick={() => handleDelete(row[idKey])} className="text-red-600 hover:text-red-900">Elimina</button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </td>
+                                    {(canEditDelete || customActions.length > 0) && (
+                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                            <div className="flex items-center justify-center gap-x-4">
+                                                {customActions.map(action => (
+                                                    <button key={action.label} onClick={() => action.handler(row)} className={action.className}>
+                                                        {action.label}
+                                                    </button>
+                                                ))}
+                                                {canEditDelete && (
+                                                    <>
+                                                        <button onClick={() => handleOpenModal(row)} className="text-blue-600 hover:text-blue-900">Modifica</button> 
+                                                        <button onClick={() => handleDelete(row[idKey])} className="text-red-600 hover:text-red-900">Elimina</button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -225,7 +237,7 @@ function FunzioneAutomaticaManager({ funzione, onBack, session }) {
             const result = await response.json();
             alert(result.message);
             if (result.success) {
-                onBack(); // Torna alla lista dopo il salvataggio
+                onBack();
             }
         } catch (err) {
             alert('Errore durante il salvataggio.');
@@ -288,24 +300,26 @@ function AnagraficheManager({ session }) {
         setIsLoading(true);
         setError('');
         try {
-            const anagraficheRes = await fetch(`${API_URL}/api/amministrazione/anagrafiche`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const headers = { 'Authorization': `Bearer ${session.token}` };
+            
+            const anagraficheRes = await fetch(`${API_URL}/api/amministrazione/anagrafiche`, { headers });
             const anagraficheData = await anagraficheRes.json();
             if (anagraficheData.success) setAnagrafiche(anagraficheData.data);
-            else setError(anagraficheData.message || 'Errore');
+            else throw new Error(anagraficheData.message || 'Errore nel caricare anagrafiche');
 
-            const clientiRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=8`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const clientiRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=8`, { headers });
             const clientiData = await clientiRes.json();
             if (clientiData.success) setSottoconti(prev => ({ ...prev, clienti: clientiData.data }));
             
-            const fornitoriRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=28`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const fornitoriRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=28`, { headers });
             const fornitoriData = await fornitoriRes.json();
             if (fornitoriData.success) setSottoconti(prev => ({ ...prev, fornitori: fornitoriData.data }));
 
-            const pvRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=75`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const pvRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=75`, { headers });
             const pvData = await pvRes.json();
             if (pvData.success) setSottoconti(prev => ({ ...prev, puntiVendita: pvData.data }));
 
-        } catch (err) { setError('Errore di connessione al server.'); }
+        } catch (err) { setError(err.message || 'Errore di connessione al server.'); }
         setIsLoading(false);
     }, [session.token]);
 
@@ -450,13 +464,14 @@ function FattureAttiveManager({ session }) {
 
     const fetchDropdownData = useCallback(async () => {
         try {
-            const anagraficheRes = await fetch(`${API_URL}/api/amministrazione/anagrafiche`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const headers = { 'Authorization': `Bearer ${session.token}` };
+            const anagraficheRes = await fetch(`${API_URL}/api/amministrazione/anagrafiche`, { headers });
             const anagraficheData = await anagraficheRes.json();
             if (anagraficheData.success) {
                 setClienti(anagraficheData.data.filter(d => d.codice_relazione === 'C' || d.codice_relazione === 'E'));
             }
 
-            const ivaRes = await fetch(`${API_URL}/api/amministrazione/iva_contabili`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const ivaRes = await fetch(`${API_URL}/api/amministrazione/iva_contabili`, { headers });
             const ivaData = await ivaRes.json();
             if (ivaData.success) setIva(ivaData.data);
 
@@ -679,11 +694,12 @@ function AssociateAccountsModal({ session, user, onSave, onCancel }) {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const accountsRes = await fetch(`${API_URL}/api/amministrazione/ditta_mail_accounts`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+                const headers = { 'Authorization': `Bearer ${session.token}` };
+                const accountsRes = await fetch(`${API_URL}/api/amministrazione/ditta_mail_accounts`, { headers });
                 const accountsData = await accountsRes.json();
                 if (accountsData.success) setAllAccounts(accountsData.data);
 
-                const associatedRes = await fetch(`${API_URL}/api/amministrazione/utenti/${user.id}/mail_accounts`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+                const associatedRes = await fetch(`${API_URL}/api/amministrazione/utenti/${user.id}/mail_accounts`, { headers });
                 const associatedData = await associatedRes.json();
                 if (associatedData.success) setAssociatedIds(new Set(associatedData.data));
             } catch (error) { console.error("Errore nel caricare i dati per l'associazione", error); }

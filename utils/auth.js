@@ -1,51 +1,64 @@
 // #####################################################################
-// # Middleware di Autenticazione e Autorizzazione - v1.1
+// # Middleware di Autenticazione - v1.0 (Standard e Sicuro)
 // # File: opero/utils/auth.js
 // #####################################################################
 
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'una_chiave_segreta_molto_difficile_da_indovinare_12345';
 
-// --- Middleware per Verificare l'Autenticazione (checkAuth) ---
-// Questo è il "controllore" che verifica il passaporto (token) su ogni richiesta protetta.
+// Assicurati che la chiave segreta sia la stessa usata in auth.js e nel tuo file .env
+const JWT_SECRET = process.env.JWT_SECRET || 'backup_secret_key';
+
+/**
+ * Middleware per verificare il token JWT.
+ * Controlla l'header 'Authorization', verifica il token e, se valido,
+ * allega i dati dell'utente alla richiesta (req.userData).
+ */
 const checkAuth = (req, res, next) => {
     try {
-        // Estrae il token dall'header 'Authorization' (es. "Bearer TOKEN_LUNGHISSIMO")
+        // Il token viene inviato come "Bearer [token]"
         const token = req.headers.authorization.split(" ")[1];
-        
-        // Verifica la validità del token usando la nostra chiave segreta
+        if (!token) {
+            return res.status(401).json({ success: false, message: 'Autenticazione fallita: token mancante.' });
+        }
+
+        // Verifica il token usando la chiave segreta
         const decodedToken = jwt.verify(token, JWT_SECRET);
         
-        // CORREZIONE: Aggiungiamo tutte le informazioni dell'utente, incluso userLevel,
-        // all'oggetto 'req.userData' in modo che siano disponibili nelle rotte successive.
+        // Aggiunge i dati decodificati alla richiesta per usarli nelle rotte successive
         req.userData = { 
             userId: decodedToken.userId, 
             email: decodedToken.email, 
             roleId: decodedToken.roleId, 
             dittaId: decodedToken.dittaId,
-            userLevel: decodedToken.userLevel // <-- ECCO LA MODIFICA CHIAVE
+            userLevel: decodedToken.userLevel
         };
         
-        // Se il token è valido, permette alla richiesta di proseguire
+        // Se tutto è andato bene, procedi alla prossima funzione (la rotta vera e propria)
         next();
+
     } catch (error) {
-        // Se il token non è valido o manca, blocca la richiesta
-        return res.status(401).json({ success: false, message: 'Autenticazione fallita.' });
+        // Se jwt.verify fallisce (token non valido, scaduto, etc.), lancia un errore
+        return res.status(401).json({ success: false, message: 'Autenticazione fallita: token non valido.' });
     }
 };
 
-// --- Funzione Helper per Verificare il Ruolo (checkRole) ---
-// Questa funzione viene usata nelle rotte per controllare se l'utente ha un ruolo specifico.
-const checkRole = (roles) => {
+/**
+ * Middleware per verificare che l'utente abbia uno dei ruoli richiesti.
+ * Da usare DOPO checkAuth.
+ * @param {Array<number>} allowedRoles - Un array di ID di ruolo permessi.
+ */
+const checkRole = (allowedRoles) => {
     return (req, res, next) => {
-        if (req.userData && roles.includes(req.userData.roleId)) {
-            next();
+        // req.userData è stato aggiunto dal middleware checkAuth
+        if (req.userData && allowedRoles.includes(req.userData.roleId)) {
+            next(); // L'utente ha il ruolo corretto, procedi
         } else {
-            res.status(403).json({ success: false, message: 'Accesso negato. Permessi insufficienti.' });
+            res.status(403).json({ success: false, message: 'Accesso negato: non hai i permessi necessari.' });
         }
     };
 };
 
-module.exports = { checkAuth, checkRole };
-
-
+module.exports = {
+    checkAuth,
+    checkRole
+};
