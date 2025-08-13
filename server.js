@@ -20,7 +20,7 @@ const trackRoutes = require('./routes/track'); // Rotte per il tracciamento emai
 
 // --- 2. CONFIGURAZIONE INIZIALE DI EXPRESS ---
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Rotta di benvenuto o di stato per testare se il server è online
 app.get('/', (req, res) => {

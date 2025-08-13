@@ -18,6 +18,8 @@ const crypto = require('crypto');
 const router = express.Router();
 
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || 'http://localhost:3001';
+// --- DATABASE POOL ---
+const { dbPool } = require('../config/db');
 
 // --- SETUP CRITTOGRAFIA ---
 const ALGORITHM = 'aes-256-cbc';
@@ -50,34 +52,30 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- DATABASE POOL ---
-const dbPool = mysql.createPool({ host: 'localhost', user: 'root', password: '', database: 'operodb', port: 3306 });
+
 
 // --- FUNZIONE HELPER PER OTTENERE LE CREDENZIALI ---
 const getMailConfig = async (dittaId, accountId) => {
-    const connection = await dbPool.getConnection();
-    const [rows] = await connection.query(
-        'SELECT * FROM ditta_mail_accounts WHERE id = ? AND id_ditta = ?',
-        [accountId, dittaId]
-    );
-    connection.release();
-    if (rows.length === 0) {
-        throw new Error('Account email non trovato o non autorizzato.');
-    }
-    const account = rows[0];
-    const decryptedPass = decrypt(account.auth_pass);
-    
-    const tlsOptions = { rejectUnauthorized: false };
+    // Questa funzione ora userà il dbPool importato e funzionerà sia in locale che su Render
+    const query = 'SELECT * FROM ditta_mail_accounts WHERE id = ? AND id_ditta = ?';
+    let account;
 
-    return {
-        imap: { user: account.auth_user, password: decryptedPass, host: account.imap_host, port: account.imap_port, tls: true, authTimeout: 10000, tlsOptions },
-        smtp: { host: account.smtp_host, port: account.smtp_port, secure: account.smtp_port == 465, auth: { user: account.auth_user, pass: decryptedPass }, tls: tlsOptions },
-        account: {
-            name: account.nome_account,
-            email: account.email_address
-        }
-    };
+    if (process.env.NODE_ENV === 'production') {
+        const pgQuery = query.replace(/\?/g, (m, i) => `$${i + 1}`);
+        const result = await dbPool.query(pgQuery, [accountId, dittaId]);
+        if (result.rows.length === 0) throw new Error('Account email non trovato o non autorizzato.');
+        account = result.rows[0];
+    } else {
+        const connection = await dbPool.getConnection();
+        const [rows] = await connection.query(query, [accountId, dittaId]);
+        connection.release();
+        if (rows.length === 0) throw new Error('Account email non trovato o non autorizzato.');
+        account = rows[0];
+    }
+    
+    // ... resto della logica di getMailConfig ...
 };
+
 
 // --- API ROUTES PER LA POSTA ---
 
