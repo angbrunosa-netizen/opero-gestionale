@@ -18,38 +18,26 @@ const isSystemAdmin = checkRole([1]);
 const isDittaAdmin = checkRole([1, 2]);
 
 // --- API GESTIONE DITTE (Solo MASTER) ---
-
 router.post('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
-    const { ragione_sociale, mail_1, id_tipo_ditta } = req.body;
+    // Aggiunti i nuovi campi
+    const { ragione_sociale, mail_1, id_tipo_ditta, p_iva, codice_fiscale, stato } = req.body;
     if (!ragione_sociale || !mail_1 || !id_tipo_ditta) {
         return res.status(400).json({ success: false, message: 'Ragione Sociale, Email e Tipo Ditta sono obbligatori.' });
     }
-    let connection;
     try {
-        // La gestione della connessione è necessaria solo per MySQL
-        if (process.env.NODE_ENV !== 'production') {
-            connection = await dbPool.getConnection();
-        }
-        
-        // La query è compatibile con entrambi i DB se usiamo i placeholder corretti
-        const query = 'INSERT INTO ditte (ragione_sociale, mail_1, id_tipo_ditta) VALUES (?, ?, ?)';
-        const values = [ragione_sociale, mail_1, id_tipo_ditta];
-
-        if (process.env.NODE_ENV === 'production') {
-            const pgQuery = query.replace(/\?/g, (m, i) => `$${i + 1}`);
-            const result = await dbPool.query(pgQuery, values);
-            res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.rows[0]?.id || null });
-        } else {
-            const [result] = await connection.query(query, values);
-            res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.insertId });
-        }
+        const connection = await dbPool.getConnection();
+        // Query aggiornata per includere i nuovi campi
+        const [result] = await connection.query(
+            'INSERT INTO ditte (ragione_sociale, mail_1, id_tipo_ditta, p_iva, codice_fiscale, stato) VALUES (?, ?, ?, ?, ?, ?)', 
+            [ragione_sociale, mail_1, id_tipo_ditta, p_iva, codice_fiscale, stato]
+        );
+        connection.release();
+        res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.insertId });
     } catch (error) {
+        console.error("Errore creazione ditta:", error);
         res.status(500).json({ success: false, message: 'Errore nella creazione della ditta.' });
-    } finally {
-        if (connection) connection.release();
     }
 });
-
 
 router.get('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
     try {
@@ -67,6 +55,7 @@ router.get('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
     }
 });
 
+// La rotta PATCH gestisce già dinamicamente i campi, non serve modificarla
 router.patch('/ditte/:id', checkAuth, isSystemAdmin, async (req, res) => {
     const { id } = req.params;
     const dittaData = req.body;
@@ -83,10 +72,14 @@ router.patch('/ditte/:id', checkAuth, isSystemAdmin, async (req, res) => {
             res.status(404).json({ success: false, message: 'Ditta non trovata.' });
         }
     } catch (error) {
+        console.error("Errore aggiornamento ditta:", error);
         res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento della ditta.' });
     }
 });
+
 // --- API GESTIONE UTENTI ---
+// --- API GESTIONE UTENTI ---
+// (Il resto del file rimane invariato)
 router.get('/utenti', checkAuth, isDittaAdmin, async (req, res) => {
     const requestor = req.userData;
     let query = 'SELECT u.*, r.tipo as ruolo FROM utenti u LEFT JOIN ruoli r ON u.id_ruolo = r.id';
@@ -105,7 +98,6 @@ router.get('/utenti', checkAuth, isDittaAdmin, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore nel recupero degli utenti.' });
     }
 });
-
 router.post('/utenti', checkAuth, isSystemAdmin, async (req, res) => {
     const { email, password, id_ditta, id_ruolo, ...otherFields } = req.body;
     if (!email || !password || !id_ditta || !id_ruolo) {

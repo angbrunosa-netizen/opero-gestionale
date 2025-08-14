@@ -157,6 +157,14 @@ function AdminPanel({ session }) {
                         <input id="mail_1" name="mail_1" type="email" value={formData.mail_1 || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
                     </div>
                     <div>
+                        <label htmlFor="p_iva" className="block text-sm font-medium text-slate-700">Partita IVA</label>
+                        <input id="p_iva" name="p_iva" value={formData.p_iva || ''} onChange={handleChange} maxLength="11" className="mt-1 p-2 w-full border rounded-md" />
+                    </div>
+                     <div>
+                        <label htmlFor="codice_fiscale" className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
+                        <input id="codice_fiscale" name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} maxLength="16" className="mt-1 p-2 w-full border rounded-md" />
+                    </div>
+                    <div>
                         <label htmlFor="pec" className="block text-sm font-medium text-slate-700">PEC</label>
                         <input id="pec" name="pec" value={formData.pec || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
                     </div>
@@ -194,10 +202,18 @@ function AdminPanel({ session }) {
                             {relazioni.map(r => <option key={r.codice} value={r.codice}>{r.descrizione}</option>)}
                         </select>
                     </div>
+                    <div>
+                        <label htmlFor="stato" className="block text-sm font-medium text-slate-700">Stato</label>
+                        <select id="stato" name="stato" value={formData.stato == undefined ? '1' : formData.stato} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md">
+                            <option value="1">Attivo</option>
+                            <option value="0">Non Attivo</option>
+                        </select>
+                    </div>
                 </div>
             );
         }
 
+        // SEZIONE UTENTI RIPRISTINATA
         if (view === 'utenti') {
             return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -219,34 +235,6 @@ function AdminPanel({ session }) {
                             <input id="password" name="password" value={formData.password || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
                         </div>
                     }
-                    <div>
-                        <label htmlFor="codice_fiscale" className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
-                        <input id="codice_fiscale" name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
-                    <div>
-                        <label htmlFor="telefono" className="block text-sm font-medium text-slate-700">Telefono</label>
-                        <input id="telefono" name="telefono" value={formData.telefono || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
-                    <div className="md:col-span-2">
-                        <label htmlFor="indirizzo" className="block text-sm font-medium text-slate-700">Indirizzo</label>
-                        <input id="indirizzo" name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
-                    <div>
-                        <label htmlFor="citta" className="block text-sm font-medium text-slate-700">Città</label>
-                        <input id="citta" name="citta" value={formData.citta || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
-                    <div>
-                        <label htmlFor="provincia" className="block text-sm font-medium text-slate-700">Provincia</label>
-                        <input id="provincia" name="provincia" value={formData.provincia || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
-                    <div>
-                        <label htmlFor="cap" className="block text-sm font-medium text-slate-700">CAP</label>
-                        <input id="cap" name="cap" value={formData.cap || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
-                    <div>
-                        <label htmlFor="livello" className="block text-sm font-medium text-slate-700">Livello</label>
-                        <input id="livello" name="livello" type="number" value={formData.livello || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md" />
-                    </div>
                     <div>
                         <label htmlFor="id_ditta" className="block text-sm font-medium text-slate-700">Ditta di Appartenenza</label>
                         <select id="id_ditta" name="id_ditta" value={formData.id_ditta || ''} onChange={handleChange} className="mt-1 p-2 w-full border rounded-md">
@@ -281,7 +269,7 @@ function AdminPanel({ session }) {
                     {isLoading ? <p>Caricamento...</p> : itemList.map(item => (
                         <div key={item.id} onClick={() => handleSelect(item)} className={`p-2 my-1 rounded-md cursor-pointer ${selectedItem?.id === item.id ? 'bg-blue-100' : 'hover:bg-slate-100'}`}>
                             <p className="font-semibold text-slate-800">{view === 'ditte' ? item.ragione_sociale : `${item.nome || ''} ${item.cognome || ''}`.trim()}</p>
-                            <p className="text-sm text-slate-600">{item.email}</p>
+                            <p className="text-sm text-slate-600">{item.mail_1 || item.email}</p>
                         </div>
                     ))}
                 </div>
@@ -302,7 +290,6 @@ function AdminPanel({ session }) {
         </div>
     );
 }
-
 
 
 export default AdminPanel;

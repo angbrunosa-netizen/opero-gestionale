@@ -387,79 +387,55 @@ createCompositeKeyCrudEndpoints('conti', ['codice', 'descrizione', 'codice_mastr
 createCompositeKeyCrudEndpoints('sottoconti', ['codice', 'descrizione', 'codice_conto']);
 
 
-// --- API GESTIONE ANAGRAFICHE (Clienti/Fornitori) ---
+// #####################################################################
+// # API PER GESTIONE ANAGRAFICHE (Clienti/Fornitori) - POTENZIATE
+// #####################################################################
+// GET (Lista Anagrafiche)
+// GET (Lista Anagrafiche)
 router.get('/anagrafiche', checkAuth, isDittaAdmin, async (req, res) => {
-    let connection;
+    const dittaId = req.userData.dittaId;
     try {
-        // Questa logica ora gestisce correttamente sia MySQL che PostgreSQL
-        if (process.env.NODE_ENV === 'production') {
-            const query = `
-                SELECT 
-                    d.id, d.ragione_sociale, d.mail_1, d.codice_relazione, d.id_sottoconto_collegato,
-                    s.descrizione as sottoconto_collegato_desc
-                FROM ditte d
-                LEFT JOIN sottoconti s ON d.id_sottoconto_collegato = s.id
-                WHERE d.id_tipo_ditta != 1 
-                ORDER BY d.ragione_sociale
-            `;
-            const result = await dbPool.query(query);
-            res.json({ success: true, data: result.rows });
+        const connection = await dbPool.getConnection();
+        const query = `
+            SELECT 
+                d.id, d.ragione_sociale, d.p_iva, d.codice_fiscale, d.mail_1, d.stato, r.descrizione as relazione
+            FROM ditte d
+            LEFT JOIN relazioni_ditta r ON d.codice_relazione = r.codice
+            WHERE d.id_ditta_proprietaria = ? 
+            ORDER BY d.ragione_sociale
+        `;
+        const [rows] = await connection.query(query, [dittaId]);
+        connection.release();
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero anagrafiche.' });
+    }
+});
+
+
+// GET (Dettaglio Anagrafica)
+router.get('/anagrafiche/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    try {
+        const connection = await dbPool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT * FROM ditte WHERE id = ? AND id_ditta_proprietaria = ?',
+            [id, dittaId]
+        );
+        connection.release();
+        if (rows.length > 0) {
+            res.json({ success: true, data: rows[0] });
         } else {
-            connection = await dbPool.getConnection();
-            const query = `
-                SELECT 
-                    d.id, d.ragione_sociale, d.mail_1, d.codice_relazione, d.id_sottoconto_collegato,
-                    s.descrizione as sottoconto_collegato_desc
-                FROM ditte d
-                LEFT JOIN sottoconti s ON d.id_sottoconto_collegato = s.id
-                WHERE d.id_tipo_ditta != 1 
-                ORDER BY d.ragione_sociale
-            `;
-            const [rows] = await connection.query(query);
-            res.json({ success: true, data: rows });
+            res.status(404).json({ success: false, message: 'Anagrafica non trovata.' });
         }
     } catch (error) {
-        console.error("Errore recupero anagrafiche:", error);
-        res.status(500).json({ success: false, message: 'Errore nel recupero anagrafiche.' });
-    } finally {
-        if (connection) connection.release();
+        res.status(500).json({ success: false, message: 'Errore nel recupero del dettaglio anagrafica.' });
     }
 });
 
-router.post('/anagrafiche', checkAuth, isDittaAdmin, async (req, res) => {
-    const { ragione_sociale, mail_1, codice_relazione, ...otherFields } = req.body;
-    if (!ragione_sociale || !mail_1) {
-        return res.status(400).json({ success: false, message: 'Ragione Sociale e Email sono obbligatori.' });
-    }
-    try {
-        const finalData = { ragione_sociale, mail_1, codice_relazione: codice_relazione || 'N', id_tipo_ditta: 2, ...otherFields };
-        const fields = Object.keys(finalData);
-        const values = Object.values(finalData);
-        const connection = await dbPool.getConnection();
-        const [result] = await connection.query(`INSERT INTO ditte (${fields.join(',')}) VALUES (${values.map(() => '?').join(',')})`, values);
-        connection.release();
-        res.status(201).json({ success: true, message: 'Anagrafica creata con successo.', insertId: result.insertId });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nella creazione dell\'anagrafica.' });
-    }
-});
-
-router.patch('/anagrafiche/:id/collegamento', checkAuth, isDittaAdmin, async (req, res) => {
-    const { id } = req.params;
-    const { id_sottoconto_collegato } = req.body;
-    try {
-        const connection = await dbPool.getConnection();
-        await connection.query("UPDATE ditte SET id_sottoconto_collegato = ? WHERE id = ?", [id_sottoconto_collegato, id]);
-        connection.release();
-        res.json({ success: true, message: 'Conto collegato aggiornato.' });
-    } catch (error) {
-        console.error("Errore aggiornamento conto collegato:", error);
-        res.status(500).json({ success: false, message: 'Errore aggiornamento conto collegato.' });
-    }
-});
-
-// NUOVA API per ottenere sottoconti filtrati per mastro
-router.get('/sottoconti-filtrati', checkAuth, isDittaAdmin, async (req, res) => {
+// --- NUOVA API PER RECUPERARE I CONTI FILTRATI PER MASTRO ---
+router.get('/conti-filtrati', checkAuth, isDittaAdmin, async (req, res) => {
     const dittaId = req.userData.dittaId;
     const { mastri } = req.query;
     if (!mastri) {
@@ -469,20 +445,88 @@ router.get('/sottoconti-filtrati', checkAuth, isDittaAdmin, async (req, res) => 
     try {
         const connection = await dbPool.getConnection();
         const query = `
-            SELECT s.id, s.codice, s.descrizione 
-            FROM sottoconti s
-            JOIN conti c ON s.id_conto = c.id
-            WHERE s.id_ditta = ? AND c.codice_mastro IN (?)
-            ORDER BY s.codice
+            SELECT id, codice, descrizione 
+            FROM conti
+            WHERE id_ditta = ? AND codice_mastro IN (?)
+            ORDER BY codice
         `;
         const [rows] = await connection.query(query, [dittaId, mastriList]);
         connection.release();
         res.json({ success: true, data: rows });
     } catch (error) {
-        console.error("Errore recupero sottoconti:", error);
-        res.status(500).json({ success: false, message: 'Errore nel recupero dei sottoconti.' });
+        console.error("Errore recupero conti:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero dei conti.' });
     }
 });
+
+// GET (Dettaglio Anagrafica)
+router.get('/anagrafiche/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    try {
+        const connection = await dbPool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT * FROM ditte WHERE id = ? AND id_ditta_proprietaria = ?',
+            [id, dittaId]
+        );
+        connection.release();
+        if (rows.length > 0) {
+            res.json({ success: true, data: rows[0] });
+        } else {
+            res.status(404).json({ success: false, message: 'Anagrafica non trovata.' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero del dettaglio anagrafica.' });
+    }
+});
+
+// PATCH (Aggiorna Anagrafica)
+router.patch('/anagrafiche/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    const anagraficaData = req.body;
+    delete anagraficaData.id;
+    const fields = Object.keys(anagraficaData).map(key => `${key} = ?`).join(',');
+    const values = [...Object.values(anagraficaData), id, dittaId];
+    try {
+        const connection = await dbPool.getConnection();
+        const [result] = await connection.query(`UPDATE ditte SET ${fields} WHERE id = ? AND id_ditta_proprietaria = ?`, values);
+        connection.release();
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: 'Anagrafica aggiornata con successo.' });
+        } else {
+            res.status(404).json({ success: false, message: 'Anagrafica non trovata.' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento.' });
+    }
+});
+
+// --- NUOVA API PER RECUPERARE I CONTI FILTRATI PER MASTRO ---
+router.get('/conti-filtrati', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { mastri } = req.query;
+    if (!mastri) {
+        return res.status(400).json({ success: false, message: 'Specificare i mastri.' });
+    }
+    const mastriList = mastri.split(',');
+    try {
+        const connection = await dbPool.getConnection();
+        const query = `
+            SELECT id, codice, descrizione 
+            FROM conti
+            WHERE id_ditta = ? AND codice_mastro IN (?)
+            ORDER BY codice
+        `;
+        const [rows] = await connection.query(query, [dittaId, mastriList]);
+        connection.release();
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore recupero conti:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero dei conti.' });
+    }
+});
+
 
 // API PER COLLEGARE UN SOTTOCONTO A UN'ANAGRAFICA (QUELLA CHE MANCAVA)
 router.patch('/anagrafiche/:id/collegamento', checkAuth, isDittaAdmin, async (req, res) => {
@@ -601,8 +645,9 @@ router.get('/utenti', checkAuth, isDittaAdmin, async (req, res) => {
     const dittaId = req.userData.dittaId;
     try {
         const connection = await dbPool.getConnection();
+        // QUESTA QUERY È CORRETTA E INCLUDE IL CAMPO 'attivo'
         const [rows] = await connection.query(
-            `SELECT u.id, u.nome, u.cognome, u.email, r.tipo as ruolo 
+            `SELECT u.id, u.nome, u.cognome, u.email, u.attivo, r.tipo as ruolo 
              FROM utenti u 
              LEFT JOIN ruoli r ON u.id_ruolo = r.id
              WHERE u.id_ditta = ?`,
@@ -615,35 +660,73 @@ router.get('/utenti', checkAuth, isDittaAdmin, async (req, res) => {
     }
 });
 
+router.get('/utenti/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    try {
+        const connection = await dbPool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT * FROM utenti WHERE id = ? AND id_ditta = ?',
+            [id, dittaId]
+        );
+        connection.release();
+        if (rows.length > 0) {
+            delete rows[0].password;
+            res.json({ success: true, utente: rows[0] });
+        } else {
+            res.status(404).json({ success: false, message: 'Utente non trovato.' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero del dettaglio utente.' });
+    }
+});
+
+router.patch('/utenti/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    const userData = req.body;
+    const allowedFields = [
+        'nome', 'cognome', 'codice_fiscale', 'telefono', 'indirizzo', 'citta', 
+        'provincia', 'cap', 'id_ruolo', 'attivo', 'note', 'firma', 'privacy', 
+        'funzioni_attive', 'livello'
+    ];
+    const fieldsToUpdate = {};
+    for (const key of allowedFields) {
+        if (userData[key] !== undefined) {
+            fieldsToUpdate[key] = userData[key];
+        }
+    }
+    if (Object.keys(fieldsToUpdate).length === 0) {
+        return res.status(400).json({ success: false, message: 'Nessun dato valido da aggiornare.' });
+    }
+    const queryFields = Object.keys(fieldsToUpdate).map(key => `${key} = ?`).join(', ');
+    const queryValues = [...Object.values(fieldsToUpdate), id, dittaId];
+    try {
+        const connection = await dbPool.getConnection();
+        const [result] = await connection.query(
+            `UPDATE utenti SET ${queryFields} WHERE id = ? AND id_ditta = ?`,
+            queryValues
+        );
+        connection.release();
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: 'Utente aggiornato con successo.' });
+        } else {
+            res.status(404).json({ success: false, message: 'Utente non trovato o non autorizzato.' });
+        }
+    } catch (error) {
+        console.error("Errore aggiornamento utente:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 router.get('/ruoli-ditta', checkAuth, isDittaAdmin, async (req, res) => {
     try {
         const connection = await dbPool.getConnection();
-        const [rows] = await connection.query('SELECT id, tipo FROM ruoli WHERE id > 2 ORDER BY livello DESC'); // Esclude Admin Sistema e Ditta
+        const [rows] = await connection.query('SELECT id, tipo FROM ruoli WHERE id > 1 ORDER BY livello DESC');
         connection.release();
         res.json({ success: true, ruoli: rows });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore nel recupero dei ruoli.' });
-    }
-});
-
-router.patch('/utenti/:id/password', checkAuth, isDittaAdmin, async (req, res) => {
-    const { id } = req.params;
-    const { newPassword } = req.body;
-    const requestorDittaId = req.userData.dittaId;
-    if (!newPassword) return res.status(400).json({ success: false, message: 'La nuova password è obbligatoria.' });
-    try {
-        const connection = await dbPool.getConnection();
-        const [users] = await connection.query('SELECT id_ditta FROM utenti WHERE id = ?', [id]);
-        if (users.length === 0 || users[0].id_ditta !== requestorDittaId) {
-            connection.release();
-            return res.status(403).json({ success: false, message: 'Non autorizzato a modificare questo utente.' });
-        }
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await connection.query('UPDATE utenti SET password = ? WHERE id = ?', [hashedPassword, id]);
-        connection.release();
-        res.json({ success: true, message: 'Password aggiornata con successo.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nell\'aggiornamento della password.' });
     }
 });
 // --- NUOVE API PER ASSOCIAZIONE UTENTE-ACCOUNT EMAIL ---
@@ -771,6 +854,7 @@ router.get('/ditta_mail_accounts', checkAuth, isDittaAdmin, async (req, res) => 
     }
 });
 
+
 // POST: Aggiorna gli account associati a un utente
 router.post('/utenti/:id/mail_accounts', checkAuth, isDittaAdmin, async (req, res) => {
     const { id } = req.params;
@@ -881,6 +965,42 @@ router.delete('/ditta_mail_accounts/:id', checkAuth, isDittaAdmin, async (req, r
         res.status(500).json({ success: false, message: 'Errore nell\'eliminazione dell\'account.' });
     }
 });
+// NUOVA ROTTA: POST per creare un nuovo account email
+router.post('/ditta_mail_accounts', checkAuth, isDittaAdmin, async (req, res) => {
+    const { dittaId, userId } = req.userData;
+    const { auth_pass, ...otherFields } = req.body;
+
+    // Semplice validazione per i campi richiesti
+    if (!auth_pass || !otherFields.nome_account || !otherFields.email_address || !otherFields.imap_host || !otherFields.smtp_host || !otherFields.auth_user) {
+        return res.status(400).json({ success: false, message: 'Tutti i campi sono obbligatori.' });
+    }
+
+    try {
+        const encryptedPass = encrypt(auth_pass);
+        const finalData = {
+            ...otherFields,
+            auth_pass: encryptedPass,
+            id_ditta: dittaId,
+            id_utente_creazione: userId
+        };
+        
+        // Rimuove l'ID se presente per evitare errori in inserimento
+        delete finalData.id;
+
+        const fields = Object.keys(finalData);
+        const values = Object.values(finalData);
+        const query = `INSERT INTO ditta_mail_accounts (${fields.join(',')}) VALUES (${values.map(() => '?').join(',')})`;
+        
+        const connection = await dbPool.getConnection();
+        const [result] = await connection.query(query, values);
+        connection.release();
+
+        res.status(201).json({ success: true, message: 'Account email creato con successo.', insertId: result.insertId });
+    } catch (error) {
+        console.error("Errore nella creazione dell'account email:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante la creazione dell\'account.' });
+    }
+});
 
 
 // #############################################################
@@ -977,6 +1097,112 @@ router.get('/funzioni_contabili_automatiche/:id_funzione', checkAuth, async (req
         if (connection) connection.release();
     }
 });
+// #####################################################################
+// # NUOVE API PER GESTIONE UTENTI COMPLETA (DA ADMIN DITTA)
+// #####################################################################
+
+// GET (Lista Utenti): Modificata per inviare più campi per l'anteprima
+router.get('/utenti', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    try {
+        const connection = await dbPool.getConnection();
+        const [rows] = await connection.query(
+            `SELECT u.id, u.nome, u.cognome, u.email, u.attivo, r.tipo as ruolo 
+             FROM utenti u 
+             LEFT JOIN ruoli r ON u.id_ruolo = r.id
+             WHERE u.id_ditta = ?`,
+            [dittaId]
+        );
+        connection.release();
+        res.json({ success: true, utenti: rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero degli utenti della ditta.' });
+    }
+});
+
+// GET (Dettaglio Utente): Nuova rotta per ottenere tutti i dati di un singolo utente
+router.get('/utenti/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    try {
+        const connection = await dbPool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT * FROM utenti WHERE id = ? AND id_ditta = ?',
+            [id, dittaId]
+        );
+        connection.release();
+        if (rows.length > 0) {
+            // Rimuoviamo la password per sicurezza prima di inviarla al frontend
+            delete rows[0].password;
+            res.json({ success: true, utente: rows[0] });
+        } else {
+            res.status(404).json({ success: false, message: 'Utente non trovato.' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero del dettaglio utente.' });
+    }
+});
+
+// PATCH (Aggiorna Utente): Nuova rotta per salvare le modifiche
+router.patch('/utenti/:id', checkAuth, isDittaAdmin, async (req, res) => {
+    const dittaId = req.userData.dittaId;
+    const { id } = req.params;
+    const userData = req.body;
+
+    // Lista dei campi che l'amministratore di ditta può modificare
+    const allowedFields = [
+        'nome', 'cognome', 'codice_fiscale', 'telefono', 'indirizzo', 'citta', 
+        'provincia', 'cap', 'id_ruolo', 'attivo', 'note', 'firma', 'privacy', 
+        'funzioni_attive', 'livello'
+    ];
+
+    // Filtriamo i dati ricevuti per sicurezza
+    const fieldsToUpdate = {};
+    for (const key of allowedFields) {
+        if (userData[key] !== undefined) {
+            fieldsToUpdate[key] = userData[key];
+        }
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+        return res.status(400).json({ success: false, message: 'Nessun dato valido da aggiornare.' });
+    }
+
+    const queryFields = Object.keys(fieldsToUpdate).map(key => `${key} = ?`).join(', ');
+    const queryValues = [...Object.values(fieldsToUpdate), id, dittaId];
+
+    try {
+        const connection = await dbPool.getConnection();
+        const [result] = await connection.query(
+            `UPDATE utenti SET ${queryFields} WHERE id = ? AND id_ditta = ?`,
+            queryValues
+        );
+        connection.release();
+
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: 'Utente aggiornato con successo.' });
+        } else {
+            res.status(404).json({ success: false, message: 'Utente non trovato o non autorizzato.' });
+        }
+    } catch (error) {
+        console.error("Errore aggiornamento utente:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// GET (Ruoli Assegnabili): Nuova rotta per popolare la select nel form di modifica
+router.get('/ruoli-ditta', checkAuth, isDittaAdmin, async (req, res) => {
+    try {
+        const connection = await dbPool.getConnection();
+        // Escludiamo i ruoli di sistema che un admin di ditta non può assegnare
+        const [rows] = await connection.query('SELECT id, tipo FROM ruoli WHERE id > 1 ORDER BY livello DESC');
+        connection.release();
+        res.json({ success: true, ruoli: rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero dei ruoli.' });
+    }
+});
+
 
 // POST: Crea o aggiorna la configurazione di una funzione
 router.post('/funzioni_contabili_automatiche', checkAuth, async (req, res) => {

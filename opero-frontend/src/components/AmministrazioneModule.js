@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente AmministrazioneModule - v4.8 (Fix Definitivo Autenticazione)
+// # Componente AmministrazioneModule - v6.1 (con Gestione Anagrafiche)
 // # File: opero-frontend/src/components/AmministrazioneModule.js
 // #####################################################################
 
@@ -8,11 +8,471 @@ import ReactQuill from 'react-quill';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+
+// =====================================================================
+// ============ COMPONENTI PER GESTIONE ANAGRAFICHE ====================
+// =====================================================================
+
+// --- Componente Modale per Form di Modifica Anagrafica ---
+function AnagraficaEditModal({ anagraficaId, onSave, onCancel, session }) {
+    const [formData, setFormData] = useState({});
+    const [conti, setConti] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Carica i dati completi dell'anagrafica
+    useEffect(() => {
+        if (anagraficaId) {
+            const fetchAnagrafica = async () => {
+                try {
+                    const response = await fetch(`${API_URL}/api/amministrazione/anagrafiche/${anagraficaId}`, { 
+                        headers: { 'Authorization': `Bearer ${session.token}` } 
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        setFormData(result.data);
+                    } else {
+                        alert(`Errore: ${result.message}`);
+                        onCancel();
+                    }
+                } catch (error) {
+                    alert('Errore di connessione.');
+                    onCancel();
+                }
+            };
+            fetchAnagrafica();
+        } else {
+            setFormData({ stato: 1, codice_relazione: 'N' });
+        }
+        setIsLoading(false);
+    }, [anagraficaId, session.token, onCancel]);
+
+    // Carica i conti corretti quando cambia la relazione commerciale
+    useEffect(() => {
+        const relazione = formData.codice_relazione;
+        let mastri = '';
+        if (relazione === 'C') mastri = '8';
+        else if (relazione === 'F') mastri = '28';
+        else if (relazione === 'P') mastri = '75';
+        
+        if (mastri) {
+            const fetchConti = async () => {
+                try {
+                    const response = await fetch(`${API_URL}/api/amministrazione/conti-filtrati?mastri=${mastri}`, {
+                        headers: { 'Authorization': `Bearer ${session.token}` }
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        setConti(result.data);
+                    }
+                } catch (error) {
+                    console.error("Errore fetch conti:", error);
+                }
+            };
+            fetchConti();
+        } else {
+            setConti([]);
+        }
+    }, [formData.codice_relazione, session.token]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        const newFormData = { ...formData, [name]: value };
+        if (name === 'codice_relazione') {
+            newFormData.id_conto_collegato = null;
+        }
+        setFormData(newFormData);
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    if (isLoading) return <p>Caricamento...</p>;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <h3 className="text-xl font-semibold mb-4 text-slate-800">{anagraficaId ? 'Modifica Anagrafica' : 'Nuova Anagrafica'}</h3>
+                <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-4 flex-grow">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-700">Ragione Sociale</label>
+                            <input name="ragione_sociale" value={formData.ragione_sociale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Stato</label>
+                            <select name="stato" value={formData.stato == undefined ? '1' : formData.stato} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md">
+                                <option value="1">Attivo</option>
+                                <option value="0">Non Attivo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Partita IVA</label>
+                            <input name="p_iva" value={formData.p_iva || ''} onChange={handleChange} maxLength="11" className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
+                            <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} maxLength="16" className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-slate-700">Codice SDI</label>
+                            <input name="sdi" value={formData.sdi || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div className="md:col-span-3">
+                            <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
+                            <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Città</label>
+                            <input name="citta" value={formData.citta || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Provincia</label>
+                            <input name="provincia" value={formData.provincia || ''} onChange={handleChange} maxLength="2" className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Telefono 1</label>
+                            <input name="tel1" value={formData.tel1 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Email 1</label>
+                            <input name="mail_1" type="email" value={formData.mail_1 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">PEC</label>
+                            <input name="pec" type="email" value={formData.pec || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700">Relazione Commerciale</label>
+                            <select name="codice_relazione" value={formData.codice_relazione || 'N'} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md">
+                                <option value="N">Nessuna</option>
+                                <option value="C">Cliente</option>
+                                <option value="F">Fornitore</option>
+                                <option value="P">Punto Vendita</option>
+                                <option value="E">Entrambe</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-700">Conto Contabile Collegato</label>
+                            <select name="id_conto_collegato" value={formData.id_conto_collegato || ''} onChange={handleChange} disabled={conti.length === 0} className="mt-1 block w-full p-2 border rounded-md disabled:bg-slate-100">
+                                <option value="">Seleziona un conto...</option>
+                                {conti.map(c => (
+                                    <option key={c.id} value={c.id}>{c.codice} - {c.descrizione}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-4 pt-4 border-t mt-4">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+
 // =====================================================================
 // ============ DEFINIZIONE DEI SOTTO-COMPONENTI =======================
 // =====================================================================
 
-// --- Componente Modale per Form di Inserimento/Modifica ---
+// --- Componente Modale per Associare Account Email ---
+function AssociateAccountsModal({ user, onSave, onCancel, session }) {
+    const [allAccounts, setAllAccounts] = useState([]);
+    const [associatedIds, setAssociatedIds] = useState(new Set());
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const headers = { 'Authorization': `Bearer ${session.token}` };
+                const accountsRes = await fetch(`${API_URL}/api/amministrazione/ditta_mail_accounts`, { headers });
+                const accountsData = await accountsRes.json();
+                if (accountsData.success) setAllAccounts(accountsData.data);
+
+                const associatedRes = await fetch(`${API_URL}/api/amministrazione/utenti/${user.id}/mail_accounts`, { headers });
+                const associatedData = await associatedRes.json();
+                if (associatedData.success) setAssociatedIds(new Set(associatedData.data));
+            } catch (error) { console.error("Errore nel caricare i dati per l'associazione", error); }
+            setIsLoading(false);
+        };
+        fetchData();
+    }, [session.token, user.id]);
+
+    const handleCheckboxChange = (accountId) => {
+        setAssociatedIds(prevIds => {
+            const newIds = new Set(prevIds);
+            if (newIds.has(accountId)) newIds.delete(accountId);
+            else newIds.add(accountId);
+            return newIds;
+        });
+    };
+
+    const handleSave = () => onSave(user.id, Array.from(associatedIds));
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+                <h3 className="text-xl font-semibold mb-2 text-slate-800">Associa Account Email</h3>
+                <p className="text-sm text-slate-600 mb-4">Seleziona gli account a cui l'utente <strong>{user.nome} {user.cognome}</strong> può accedere.</p>
+                {isLoading ? <p>Caricamento...</p> : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md">
+                        {allAccounts.length > 0 ? allAccounts.map(account => (
+                            <label key={account.id} className="flex items-center p-2 rounded hover:bg-slate-50 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    checked={associatedIds.has(account.id)}
+                                    onChange={() => handleCheckboxChange(account.id)}
+                                />
+                                <span className="ml-3 text-sm text-slate-700">{account.nome_account} ({account.email_address})</span>
+                            </label>
+                        )) : <p className="text-slate-500 text-sm">Nessun account email configurato per questa ditta.</p>}
+                    </div>
+                )}
+                <div className="flex justify-end gap-4 pt-4 mt-4 border-t">
+                    <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
+                    <button type="button" onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva Associazioni</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- Componente Modale per Form di Modifica Utente ---
+function UserEditModal({ user, onSave, onCancel, session }) {
+    const [formData, setFormData] = useState({});
+    const [ruoli, setRuoli] = useState([]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const ruoliRes = await fetch(`${API_URL}/api/amministrazione/ruoli-ditta`, { 
+                    headers: { 'Authorization': `Bearer ${session.token}` } 
+                });
+                const ruoliData = await ruoliRes.json();
+                if (ruoliData.success) setRuoli(ruoliData.ruoli);
+
+                const userRes = await fetch(`${API_URL}/api/amministrazione/utenti/${user.id}`, { 
+                    headers: { 'Authorization': `Bearer ${session.token}` } 
+                });
+                const userData = await userRes.json();
+                if (userData.success) {
+                    setFormData(userData.utente);
+                } else {
+                    alert(`Errore: ${userData.message}`);
+                    onCancel();
+                }
+            } catch (error) {
+                alert('Errore di connessione.');
+                onCancel();
+            }
+        };
+        fetchData();
+    }, [user.id, session.token, onCancel]);
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        const finalValue = type === 'checkbox' ? (checked ? 1 : 0) : value;
+        setFormData(prev => ({ ...prev, [name]: finalValue }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    const formFields = [
+        { key: 'nome', label: 'Nome' }, { key: 'cognome', label: 'Cognome' },
+        { key: 'codice_fiscale', label: 'Codice Fiscale' }, { key: 'telefono', label: 'Telefono' },
+        { key: 'indirizzo', label: 'Indirizzo' }, { key: 'citta', label: 'Città' },
+        { key: 'provincia', label: 'Provincia' }, { key: 'cap', label: 'CAP' },
+        { key: 'livello', label: 'Livello', type: 'number' },
+        { key: 'note', label: 'Note', type: 'textarea' },
+        { key: 'firma', label: 'Firma Email', type: 'textarea' },
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+                <h3 className="text-xl font-semibold mb-4 text-slate-800">Modifica Utente: {formData.nome} {formData.cognome}</h3>
+                <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-4 flex-grow">
+                    <div className="text-sm bg-slate-50 p-3 rounded-md">
+                        <p><strong>Email:</strong> {formData.email}</p>
+                        <p><strong>Data Creazione:</strong> {new Date(formData.data_creazione).toLocaleString()}</p>
+                        <p><strong>Ultimo Accesso:</strong> {formData.data_ultimo_accesso ? new Date(formData.data_ultimo_accesso).toLocaleString() : 'Mai'}</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {formFields.map(col => (
+                            <div key={col.key} className={col.type === 'textarea' ? 'md:col-span-2' : ''}>
+                                <label className="block text-sm font-medium text-slate-700">{col.label}</label>
+                                {col.type === 'textarea' ? (
+                                     <textarea name={col.key} value={formData[col.key] || ''} onChange={handleChange} rows="3" className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm" />
+                                ) : (
+                                    <input type={col.type || 'text'} name={col.key} value={formData[col.key] || ''} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm" />
+                                )}
+                            </div>
+                        ))}
+                         <div>
+                            <label className="block text-sm font-medium text-slate-700">Ruolo</label>
+                            <select name="id_ruolo" value={formData.id_ruolo || ''} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm">
+                                {ruoli.map(r => <option key={r.id} value={r.id}>{r.tipo}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-8 pt-2">
+                        <label className="flex items-center">
+                            <input type="checkbox" name="attivo" checked={formData.attivo == 1} onChange={handleChange} className="h-4 w-4 rounded border-gray-300" />
+                            <span className="ml-2 text-sm text-slate-700">Utente Attivo</span>
+                        </label>
+                        <label className="flex items-center">
+                            <input type="checkbox" name="privacy" checked={!!formData.privacy} onChange={handleChange} className="h-4 w-4 rounded border-gray-300" />
+                            <span className="ml-2 text-sm text-slate-700">Privacy Accettata</span>
+                        </label>
+                    </div>
+                    <div className="flex justify-end gap-4 pt-4 border-t mt-4">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva Modifiche</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// --- Componente per la Gestione Utenti (per Admin Ditta) ---
+function UserManager({ session }) {
+    const [utenti, setUtenti] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [isAssociationModalOpen, setIsAssociationModalOpen] = useState(false);
+    const [selectedUserForAssociation, setSelectedUserForAssociation] = useState(null);
+
+    const fetchUtenti = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/api/amministrazione/utenti`, { headers: { 'Authorization': `Bearer ${session.token}` } });
+            const data = await response.json();
+            if (data.success) {
+                // --- ISTRUZIONE DI DEBUG ---
+                // Questo comando stamperà i dati degli utenti nella console del browser.
+                console.log("Dati utenti ricevuti dal server:", data.utenti); 
+                // -------------------------
+                setUtenti(data.utenti);
+            }
+        } catch (error) { console.error(error); }
+        setIsLoading(false);
+    }, [session.token]);
+
+    useEffect(() => {
+       fetchUtenti();
+    }, [fetchUtenti]);
+
+    const handleSaveUser = async (userData) => {
+        try {
+            const response = await fetch(`${API_URL}/api/amministrazione/utenti/${userData.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
+                body: JSON.stringify(userData)
+            });
+            const result = await response.json();
+            alert(result.message);
+            if (result.success) {
+                setSelectedUser(null);
+                fetchUtenti();
+            }
+        } catch (error) {
+            alert("Errore di connessione durante il salvataggio.");
+        }
+    };
+
+    const handleSaveAssociation = async (userId, accountIds) => {
+        try {
+            const response = await fetch(`${API_URL}/api/amministrazione/utenti/${userId}/mail_accounts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
+                body: JSON.stringify({ accountIds })
+            });
+            const result = await response.json();
+            alert(result.message);
+            if (result.success) {
+                setIsAssociationModalOpen(false);
+                setSelectedUserForAssociation(null);
+            }
+        } catch (error) { alert("Errore di connessione durante il salvataggio."); }
+    };
+    
+    const handleOpenAssociationModal = (user) => {
+        setSelectedUserForAssociation(user);
+        setIsAssociationModalOpen(true);
+    };
+
+    return (
+        <div>
+            {selectedUser && 
+                <UserEditModal 
+                    user={selectedUser} 
+                    onSave={handleSaveUser} 
+                    onCancel={() => setSelectedUser(null)} 
+                    session={session}
+                />
+            }
+            {isAssociationModalOpen && 
+                <AssociateAccountsModal 
+                    user={selectedUserForAssociation} 
+                    onSave={handleSaveAssociation} 
+                    onCancel={() => setIsAssociationModalOpen(false)} 
+                    session={session}
+                />
+            }
+            <h3 className="text-xl font-semibold text-slate-700 mb-4">Elenco Utenti della Ditta</h3>
+            {isLoading ? <p>Caricamento...</p> : (
+                 <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Nome Cognome</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ruolo</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Stato</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-200">
+                            {utenti && utenti.map(u => (
+                                <tr key={u.id} className="hover:bg-slate-50">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{u.nome} {u.cognome}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{u.email}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{u.ruolo}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${u.attivo == 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {u.attivo == 1 ? 'Attivo' : 'Non Attivo'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                        <div className="flex justify-center items-center gap-x-4">
+                                            <button onClick={() => setSelectedUser(u)} className="text-blue-600 hover:text-blue-900">
+                                                Modifica
+                                            </button>
+                                            <button onClick={() => handleOpenAssociationModal(u)} className="text-green-600 hover:text-green-900">
+                                                Account
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// --- Componente Modale generico per Form di Inserimento/Modifica ---
 function CrudModal({ item, columns, onSave, onCancel, title, selectOptions = {} }) {
     const [formData, setFormData] = useState(item);
     useEffect(() => { setFormData(item); }, [item]);
@@ -289,83 +749,85 @@ function FunzioneAutomaticaManager({ funzione, onBack, session }) {
     );
 }
 
-// --- Componente specifico per anagrafiche Clienti/Fornitori ---
+// --- Componente per la Gestione Anagrafiche ---
 function AnagraficheManager({ session }) {
     const [anagrafiche, setAnagrafiche] = useState([]);
-    const [sottoconti, setSottoconti] = useState({ clienti: [], fornitori: [], puntiVendita: [] });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    
+    const [selectedAnagraficaId, setSelectedAnagraficaId] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
-            const headers = { 'Authorization': `Bearer ${session.token}` };
-            
-            const anagraficheRes = await fetch(`${API_URL}/api/amministrazione/anagrafiche`, { headers });
-            const anagraficheData = await anagraficheRes.json();
-            if (anagraficheData.success) setAnagrafiche(anagraficheData.data);
-            else throw new Error(anagraficheData.message || 'Errore nel caricare anagrafiche');
-
-            const clientiRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=8`, { headers });
-            const clientiData = await clientiRes.json();
-            if (clientiData.success) setSottoconti(prev => ({ ...prev, clienti: clientiData.data }));
-            
-            const fornitoriRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=28`, { headers });
-            const fornitoriData = await fornitoriRes.json();
-            if (fornitoriData.success) setSottoconti(prev => ({ ...prev, fornitori: fornitoriData.data }));
-
-            const pvRes = await fetch(`${API_URL}/api/amministrazione/sottoconti-filtrati?mastri=75`, { headers });
-            const pvData = await pvRes.json();
-            if (pvData.success) setSottoconti(prev => ({ ...prev, puntiVendita: pvData.data }));
-
-        } catch (err) { setError(err.message || 'Errore di connessione al server.'); }
+            const response = await fetch(`${API_URL}/api/amministrazione/anagrafiche`, { 
+                headers: { 'Authorization': `Bearer ${session.token}` } 
+            });
+            const result = await response.json();
+            if (result.success) {
+                setAnagrafiche(result.data);
+            } else {
+                setError(result.message);
+            }
+        } catch (err) {
+            setError('Errore di connessione.');
+        }
         setIsLoading(false);
     }, [session.token]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-    const handleRelazioneChange = async (id, nuovaRelazione) => {
-        await handleContoChange(id, null); 
-        try {
-            const response = await fetch(`${API_URL}/api/amministrazione/anagrafiche/${id}/relazione`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
-                body: JSON.stringify({ codice_relazione: nuovaRelazione })
-            });
-            const result = await response.json();
-            if (result.success) {
-                setAnagrafiche(prev => prev.map(a => a.id === id ? { ...a, codice_relazione: nuovaRelazione, id_sottoconto_collegato: null, sottoconto_collegato_desc: null } : a));
-            } else { alert(`Errore: ${result.message}`); }
-        } catch (error) { alert('Errore di connessione'); }
-    };
-    
-    const handleContoChange = async (id, nuovoContoId) => {
-        try {
-            const response = await fetch(`${API_URL}/api/amministrazione/anagrafiche/${id}/collegamento`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
-                body: JSON.stringify({ id_sottoconto_collegato: nuovoContoId })
-            });
-            const result = await response.json();
-            if (result.success) {
-               fetchData();
-            } else { alert(`Errore: ${result.message}`); }
-        } catch (error) { alert('Errore di connessione'); }
+    const handleOpenModal = (id = null) => {
+        setSelectedAnagraficaId(id);
+        setIsModalOpen(true);
     };
 
-    const getSottocontiOptions = (relazione) => {
-        switch(relazione) {
-            case 'C': return sottoconti.clienti;
-            case 'F': return sottoconti.fornitori;
-            case 'P': return sottoconti.puntiVendita;
-            default: return [];
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedAnagraficaId(null);
+    };
+
+    const handleSave = async (formData) => {
+        const isNew = !formData.id;
+        const url = isNew ? `${API_URL}/api/amministrazione/anagrafiche` : `${API_URL}/api/amministrazione/anagrafiche/${formData.id}`;
+        const method = isNew ? 'POST' : 'PATCH';
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
+                body: JSON.stringify(formData)
+            });
+            const result = await response.json();
+            alert(result.message);
+            if (result.success) {
+                handleCloseModal();
+                fetchData();
+            }
+        } catch (error) {
+            alert('Errore di connessione durante il salvataggio.');
         }
     };
 
     return (
         <div>
-            <h3 className="text-xl font-semibold text-slate-700 mb-4">Anagrafiche Clienti & Fornitori</h3>
+            {isModalOpen && (
+                <AnagraficaEditModal 
+                    anagraficaId={selectedAnagraficaId}
+                    onSave={handleSave}
+                    onCancel={handleCloseModal}
+                    session={session}
+                />
+            )}
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-slate-700">Anagrafiche Clienti & Fornitori</h3>
+                <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">
+                    + Nuova Anagrafica
+                </button>
+            </div>
             {isLoading && <p>Caricamento...</p>}
             {error && <p className="text-red-500">Errore: {error}</p>}
             {!isLoading && !error && (
@@ -374,35 +836,27 @@ function AnagraficheManager({ session }) {
                         <thead className="bg-slate-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ragione Sociale</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">P.IVA / C.F.</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Relazione</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Conto Contabile Collegato</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Stato</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Azioni</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
                             {anagrafiche.map(row => (
                                 <tr key={row.id} className="hover:bg-slate-50">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.ragione_sociale}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                                        <select value={row.codice_relazione} onChange={(e) => handleRelazioneChange(row.id, e.target.value)} className="p-1 border rounded-md">
-                                            <option value="N">Nessuna</option>
-                                            <option value="C">Cliente</option>
-                                            <option value="F">Fornitore</option>
-                                            <option value="E">Entrambe</option>
-                                            <option value="P">Punto Vendita</option>
-                                        </select>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{row.p_iva || row.codice_fiscale}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{row.relazione}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${row.stato == 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {row.stato == 1 ? 'Attivo' : 'Non Attivo'}
+                                        </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                                        <select 
-                                            value={row.id_sottoconto_collegato || ''} 
-                                            onChange={(e) => handleContoChange(row.id, e.target.value || null)}
-                                            disabled={!['C', 'F', 'P'].includes(row.codice_relazione)}
-                                            className="p-1 border rounded-md w-full"
-                                        >
-                                            <option value="">Seleziona un conto...</option>
-                                            {getSottocontiOptions(row.codice_relazione).map(sc => (
-                                                <option key={sc.id} value={sc.id}>{sc.codice} - {sc.descrizione}</option>
-                                            ))}
-                                        </select>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                        <button onClick={() => handleOpenModal(row.id)} className="text-blue-600 hover:text-blue-900">
+                                            Modifica
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -413,6 +867,7 @@ function AnagraficheManager({ session }) {
         </div>
     );
 }
+
 
 // --- Componente per il Piano dei Conti ---
 function PianoDeiContiManager({ session }) {
@@ -511,91 +966,6 @@ function FattureAttiveManager({ session }) {
     return <TableManager title="Fatture di Vendita" endpoint="fatture_attive" columns={displayColumns} session={session} selectOptions={selectOptions} canEditDelete={true} />;
 }
 
-// --- Componente per la Gestione Utenti (per Admin Ditta) ---
-function UserManager({ session }) {
-    const [utenti, setUtenti] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isAssociationModalOpen, setIsAssociationModalOpen] = useState(false);
-    const [selectedUserForAssociation, setSelectedUserForAssociation] = useState(null);
-
-    const fetchUtenti = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${API_URL}/api/amministrazione/utenti`, { headers: { 'Authorization': `Bearer ${session.token}` } });
-            const data = await response.json();
-            if (data.success) setUtenti(data.utenti);
-        } catch (error) { console.error(error); }
-        setIsLoading(false);
-    }, [session.token]);
-
-    useEffect(() => {
-       fetchUtenti();
-    }, [fetchUtenti]);
-
-    const handleSaveAssociation = async (userId, accountIds) => {
-        try {
-            const response = await fetch(`${API_URL}/api/amministrazione/utenti/${userId}/mail_accounts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.token}` },
-                body: JSON.stringify({ accountIds })
-            });
-            const result = await response.json();
-            alert(result.message);
-            if (result.success) {
-                setIsAssociationModalOpen(false);
-                setSelectedUserForAssociation(null);
-            }
-        } catch (error) { alert("Errore di connessione durante il salvataggio."); }
-    };
-
-    const handleOpenAssociationModal = (user) => {
-        setSelectedUserForAssociation(user);
-        setIsAssociationModalOpen(true);
-    };
-
-    return (
-        <div>
-            {isAssociationModalOpen && 
-                <AssociateAccountsModal 
-                    session={session} 
-                    user={selectedUserForAssociation} 
-                    onSave={handleSaveAssociation} 
-                    onCancel={() => setIsAssociationModalOpen(false)} 
-                />
-            }
-            <h3 className="text-xl font-semibold text-slate-700 mb-4">Elenco Utenti della Ditta</h3>
-            {isLoading ? <p>Caricamento...</p> : (
-                 <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Nome Cognome</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ruolo</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                            {utenti && utenti.map(u => (
-                                <tr key={u.id} className="hover:bg-slate-50">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{u.nome} {u.cognome}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{u.email}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{u.ruolo}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <div className="flex justify-center items-center gap-x-4">
-                                            <button onClick={() => handleOpenAssociationModal(u)} className="text-green-600 hover:text-green-900">Account</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </div>
-    );
-}
-
 // --- Componente per generare il link di registrazione ---
 function RegistrationLinkGenerator({ session }) {
     const [link, setLink] = useState('');
@@ -684,79 +1054,15 @@ function PrivacyManager({ session }) {
     );
 }
 
-// --- Componente Modale per Associazione Account ---
-function AssociateAccountsModal({ session, user, onSave, onCancel }) {
-    const [allAccounts, setAllAccounts] = useState([]);
-    const [associatedIds, setAssociatedIds] = useState(new Set());
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const headers = { 'Authorization': `Bearer ${session.token}` };
-                const accountsRes = await fetch(`${API_URL}/api/amministrazione/ditta_mail_accounts`, { headers });
-                const accountsData = await accountsRes.json();
-                if (accountsData.success) setAllAccounts(accountsData.data);
-
-                const associatedRes = await fetch(`${API_URL}/api/amministrazione/utenti/${user.id}/mail_accounts`, { headers });
-                const associatedData = await associatedRes.json();
-                if (associatedData.success) setAssociatedIds(new Set(associatedData.data));
-            } catch (error) { console.error("Errore nel caricare i dati per l'associazione", error); }
-            setIsLoading(false);
-        };
-        fetchData();
-    }, [session.token, user.id]);
-
-    const handleCheckboxChange = (accountId) => {
-        setAssociatedIds(prevIds => {
-            const newIds = new Set(prevIds);
-            if (newIds.has(accountId)) newIds.delete(accountId);
-            else newIds.add(accountId);
-            return newIds;
-        });
-    };
-
-    const handleSave = () => onSave(user.id, Array.from(associatedIds));
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                <h3 className="text-xl font-semibold mb-2 text-slate-800">Associa Account Email</h3>
-                <p className="text-sm text-slate-600 mb-4">Seleziona gli account a cui l'utente <strong>{user.nome} {user.cognome}</strong> può accedere.</p>
-                {isLoading ? <p>Caricamento...</p> : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md">
-                        {allAccounts.length > 0 ? allAccounts.map(account => (
-                            <label key={account.id} className="flex items-center p-2 rounded hover:bg-slate-50 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    checked={associatedIds.has(account.id)}
-                                    onChange={() => handleCheckboxChange(account.id)}
-                                />
-                                <span className="ml-3 text-sm text-slate-700">{account.nome_account} ({account.email_address})</span>
-                            </label>
-                        )) : <p className="text-slate-500 text-sm">Nessun account email configurato per questa ditta.</p>}
-                    </div>
-                )}
-                <div className="flex justify-end gap-4 pt-4 mt-4 border-t">
-                    <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
-                    <button type="button" onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva Associazioni</button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // =====================================================================
 // ============ DEFINIZIONE DEL COMPONENTE PRINCIPALE ==================
 // =====================================================================
 function AmministrazioneModule({ session }) {
-    const [activeMenu, setActiveMenu] = useState('anagrafiche');
+    const [activeMenu, setActiveMenu] = useState('utenti');
     const [editingFunzione, setEditingFunzione] = useState(null);
 
     const menuItems = [
-        { key: 'anagrafiche', label: 'Clienti / Fornitori' },
+        { key: 'anagrafiche', label: 'Clienti / ornitori' },
         { key: 'utenti', label: 'Gestione Utenti' },
         { key: 'invita_utenti', label: 'Invita Utenti' },
         { key: 'account_email', label: 'Account Email' },
