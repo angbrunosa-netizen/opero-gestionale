@@ -1,71 +1,86 @@
 // #####################################################################
-// # Rotte di Amministrazione Sistema (MASTER) - v3.3 (con Connessione Centralizzata)
+// # Rotte di Amministrazione Sistema (MASTER) - v4.0 (Ristrutturato)
 // # File: opero/routes/admin.js
 // #####################################################################
 
-
 const express = require('express');
-const mysql = require('mysql2/promise');
+const router = express.Router();
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
-const { checkAuth, checkRole } = require('../utils/auth');
-const nodemailer = require('nodemailer');
 
-const router = express.Router();
+// Importa il pool di connessioni e gli strumenti di autenticazione
 const { dbPool } = require('../config/db');
+const { checkAuth, checkRole } = require('../utils/auth');
 
-const isSystemAdmin = checkRole([1]);
-const isDittaAdmin = checkRole([1, 2]);
+// Middleware per i ruoli
+const isSystemAdmin = checkRole([1]); // Ruolo Amministratore_sistema
+const isDittaAdmin = checkRole([1, 2]); // Ruoli Amministratore_sistema o Amministratore_Azienda
 
-// --- API GESTIONE DITTE (Solo MASTER) ---
-router.post('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
-    // Aggiunti i nuovi campi
+// Applica l'autenticazione a tutte le rotte di questo file
+router.use(checkAuth);
+
+// ====================================================================
+// API GESTIONE DITTE (Solo MASTER)
+// ====================================================================
+
+router.get('/ditte', isSystemAdmin, async (req, res) => {
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [rows] = await connection.query(`
+            SELECT d.*, td.tipo as tipo_ditta_nome 
+            FROM ditte d 
+            LEFT JOIN tipo_ditta td ON d.id_tipo_ditta = td.id 
+            ORDER BY d.ragione_sociale
+        `);
+        res.json({ success: true, ditte: rows });
+    } catch (error) {
+        console.error("Errore nel recupero delle ditte:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero delle ditte.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+router.post('/ditte', isSystemAdmin, async (req, res) => {
     const { ragione_sociale, mail_1, id_tipo_ditta, p_iva, codice_fiscale, stato } = req.body;
     if (!ragione_sociale || !mail_1 || !id_tipo_ditta) {
         return res.status(400).json({ success: false, message: 'Ragione Sociale, Email e Tipo Ditta sono obbligatori.' });
     }
+    
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
-        // Query aggiornata per includere i nuovi campi
+        connection = await dbPool.getConnection();
         const [result] = await connection.query(
             'INSERT INTO ditte (ragione_sociale, mail_1, id_tipo_ditta, p_iva, codice_fiscale, stato) VALUES (?, ?, ?, ?, ?, ?)', 
             [ragione_sociale, mail_1, id_tipo_ditta, p_iva, codice_fiscale, stato]
         );
-        connection.release();
         res.status(201).json({ success: true, message: 'Ditta creata con successo.', insertId: result.insertId });
     } catch (error) {
         console.error("Errore creazione ditta:", error);
         res.status(500).json({ success: false, message: 'Errore nella creazione della ditta.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-router.get('/ditte', checkAuth, isSystemAdmin, async (req, res) => {
-    try {
-        const connection = await dbPool.getConnection();
-        const [rows] = await connection.query(`
-            SELECT d.*, td.tipo as tipo_ditta_nome 
-            FROM ditte d 
-            JOIN tipo_ditta td ON d.id_tipo_ditta = td.id 
-            ORDER BY d.ragione_sociale
-        `);
-        connection.release();
-        res.json({ success: true, ditte: rows });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nel recupero delle ditte.' });
-    }
-});
-
-// La rotta PATCH gestisce già dinamicamente i campi, non serve modificarla
-router.patch('/ditte/:id', checkAuth, isSystemAdmin, async (req, res) => {
+router.patch('/ditte/:id', isSystemAdmin, async (req, res) => {
     const { id } = req.params;
     const dittaData = req.body;
-    delete dittaData.id;
-    const fields = Object.keys(dittaData).map(key => `${key} = ?`).join(',');
+    delete dittaData.id; // Rimuovi l'id per sicurezza
+    
+    const fields = Object.keys(dittaData).map(key => `${key} = ?`).join(', ');
     const values = [...Object.values(dittaData), id];
+
+    if (fields.length === 0) {
+        return res.status(400).json({ success: false, message: 'Nessun dato da aggiornare.' });
+    }
+
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
+        connection = await dbPool.getConnection();
         const [result] = await connection.query(`UPDATE ditte SET ${fields} WHERE id = ?`, values);
-        connection.release();
+        
         if (result.affectedRows > 0) {
             res.json({ success: true, message: 'Ditta aggiornata con successo.' });
         } else {
@@ -74,222 +89,138 @@ router.patch('/ditte/:id', checkAuth, isSystemAdmin, async (req, res) => {
     } catch (error) {
         console.error("Errore aggiornamento ditta:", error);
         res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento della ditta.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-// --- API GESTIONE UTENTI ---
-// --- API GESTIONE UTENTI ---
-// (Il resto del file rimane invariato)
-router.get('/utenti', checkAuth, isDittaAdmin, async (req, res) => {
+// ====================================================================
+// API GESTIONE UTENTI
+// ====================================================================
+
+router.get('/utenti', isDittaAdmin, async (req, res) => {
     const requestor = req.userData;
-    let query = 'SELECT u.*, r.tipo as ruolo FROM utenti u LEFT JOIN ruoli r ON u.id_ruolo = r.id';
+    let query = 'SELECT u.id, u.email, u.nome, u.cognome, u.id_ditta, u.id_ruolo, r.tipo as ruolo FROM utenti u LEFT JOIN ruoli r ON u.id_ruolo = r.id';
     const params = [];
+
+    // Se l'utente è un admin di ditta (ruolo 2), limita la vista alla sua ditta
     if (requestor.roleId === 2) {
         query += ' WHERE u.id_ditta = ?';
         params.push(requestor.dittaId);
     }
     query += ' ORDER BY u.cognome, u.nome';
+
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
+        connection = await dbPool.getConnection();
         const [rows] = await connection.query(query, params);
-        connection.release();
         res.json({ success: true, utenti: rows });
     } catch (error) {
+        console.error("Errore recupero utenti:", error);
         res.status(500).json({ success: false, message: 'Errore nel recupero degli utenti.' });
-    }
-});
-router.post('/utenti', checkAuth, isSystemAdmin, async (req, res) => {
-    const { email, password, id_ditta, id_ruolo, ...otherFields } = req.body;
-    if (!email || !password || !id_ditta || !id_ruolo) {
-        return res.status(400).json({ success: false, message: 'Email, password, ditta e ruolo sono obbligatori.' });
-    }
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const finalData = { email, password: hashedPassword, id_ditta, id_ruolo, ...otherFields };
-        const fields = Object.keys(finalData);
-        const values = Object.values(finalData);
-        const connection = await dbPool.getConnection();
-        const [result] = await connection.query(`INSERT INTO utenti (${fields.join(',')}) VALUES (${values.map(() => '?').join(',')})`, values);
-        connection.release();
-        res.status(201).json({ success: true, message: 'Utente creato con successo.', insertId: result.insertId });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nella creazione dell\'utente.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-router.patch('/utenti/:id', checkAuth, isDittaAdmin, async (req, res) => {
-    const { id } = req.params;
-    const requestor = req.userData;
-    const userData = req.body;
-    const allowedFields = ['nome', 'cognome', 'codice_fiscale', 'telefono', 'indirizzo', 'citta', 'provincia', 'cap', 'id_ditta', 'id_ruolo', 'livello'];
-    const fieldsToUpdate = Object.keys(userData).filter(key => allowedFields.includes(key));
-    if (fieldsToUpdate.length === 0) {
-        return res.status(400).json({ success: false, message: 'Nessun campo valido da aggiornare.' });
-    }
-    const fields = fieldsToUpdate.map(key => `${key} = ?`).join(',');
-    const values = fieldsToUpdate.map(key => userData[key]);
-    values.push(id);
+// ====================================================================
+// NUOVE ROTTE PER GESTIONE MODULI DITTA (Solo MASTER)
+// ====================================================================
+
+router.get('/ditte-moduli', isSystemAdmin, async (req, res) => {
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
-        if (requestor.roleId === 2) {
-            const [users] = await connection.query('SELECT id_ditta FROM utenti WHERE id = ?', [id]);
-            if (users.length === 0 || users[0].id_ditta !== requestor.dittaId) {
-                connection.release();
-                return res.status(403).json({ success: false, message: 'Non autorizzato a modificare questo utente.' });
-            }
+        connection = await dbPool.getConnection();
+        const [ditte] = await connection.query('SELECT id, ragione_sociale FROM ditte');
+        const [moduli] = await connection.query('SELECT codice, descrizione FROM moduli');
+        const [associazioni] = await connection.query('SELECT id_ditta, codice_modulo FROM ditte_moduli');
+
+        const ditteConModuli = ditte.map(ditta => {
+            const moduliAssociati = associazioni
+                .filter(a => a.id_ditta === ditta.id)
+                .map(a => a.codice_modulo);
+            return { ...ditta, moduli: moduliAssociati };
+        });
+
+        res.json({ ditte: ditteConModuli, moduli });
+    } catch (error) {
+        console.error("ERRORE SUL SERVER in /api/admin/ditte-moduli:", error);
+        res.status(500).json({ message: 'Errore sul server durante il recupero dei dati.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+router.post('/salva-associazioni', isSystemAdmin, async (req, res) => {
+    const { id_ditta, moduli } = req.body;
+    if (!id_ditta || !Array.isArray(moduli)) {
+        return res.status(400).send('Dati non validi.');
+    }
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+
+        await connection.query('DELETE FROM ditte_moduli WHERE id_ditta = ?', [id_ditta]);
+
+        if (moduli.length > 0) {
+            const values = moduli.map(codice_modulo => [id_ditta, codice_modulo]);
+            await connection.query('INSERT INTO ditte_moduli (id_ditta, codice_modulo) VALUES ?', [values]);
         }
-        const [result] = await connection.query(`UPDATE utenti SET ${fields} WHERE id = ?`, values);
-        connection.release();
-        if (result.affectedRows > 0) res.json({ success: true, message: 'Utente aggiornato con successo.' });
-        else res.status(404).json({ success: false, message: 'Utente non trovato.' });
+
+        await connection.commit();
+        res.send('Associazioni salvate con successo.');
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nell\'aggiornamento dell\'utente.' });
+        if (connection) await connection.rollback();
+        console.error("Errore nel salvataggio delle associazioni:", error);
+        res.status(500).send("Errore nel salvataggio delle associazioni.");
+    } finally {
+        if (connection) connection.release();
     }
 });
 
+// ====================================================================
+// API PER TABELLE DI SUPPORTO (Solo MASTER)
+// ====================================================================
 
-// API per generare un link di registrazione
-router.post('/generate-registration-link', checkAuth, isDittaAdmin, async (req, res) => {
-    const dittaId = req.userData.dittaId;
-    const token = uuidv4();
-    const expiration = new Date();
-    expiration.setDate(expiration.getDate() + 7);
-
+router.get('/tipi-ditta', isSystemAdmin, async (req, res) => {
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
-        await connection.query(
-            'INSERT INTO registration_tokens (id_ditta, token, scadenza) VALUES (?, ?, ?)',
-            [dittaId, token, expiration]
-        );
-        connection.release();
-        
-        const registrationLink = `http://localhost:3000/register?token=${token}`;
-        res.json({ success: true, message: 'Link generato con successo.', link: registrationLink });
-
-    } catch (error) {
-        console.error("Errore generazione link:", error);
-        res.status(500).json({ success: false, message: 'Errore nella generazione del link.' });
-    }
-});
-
-    // API GESTIONE PRIVACY
-router.get('/privacy-policy', checkAuth, isDittaAdmin, async (req, res) => {
-    const dittaId = req.userData.dittaId;
-    try {
-        const connection = await dbPool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM privacy_policies WHERE id_ditta = ?', [dittaId]);
-        connection.release();
-        res.json({ success: true, data: rows[0] || null });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nel recupero della policy.' });
-    }
-});
-router.post('/privacy-policy', checkAuth, isDittaAdmin, async (req, res) => {
-    const dittaId = req.userData.dittaId;
-    const { responsabile_trattamento, corpo_lettera } = req.body;
-    try {
-        const connection = await dbPool.getConnection();
-        const query = `
-            INSERT INTO privacy_policies (id_ditta, responsabile_trattamento, corpo_lettera) 
-            VALUES (?, ?, ?) 
-            ON DUPLICATE KEY UPDATE responsabile_trattamento = ?, corpo_lettera = ?
-        `;
-        await connection.query(query, [dittaId, responsabile_trattamento, corpo_lettera, responsabile_trattamento, corpo_lettera]);
-        connection.release();
-        res.json({ success: true, message: 'Policy sulla privacy salvata con successo.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nel salvataggio della policy.' });
-    }
-});
-
-// --- API GESTIONE MODULI E RUOLI ---
-router.get('/ruoli', checkAuth, isSystemAdmin, async (req, res) => {
-    try {
-        const connection = await dbPool.getConnection();
-        const [rows] = await connection.query('SELECT id, tipo FROM ruoli ORDER BY livello DESC'); 
-        connection.release();
-        res.json({ success: true, ruoli: rows });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nel recupero dei ruoli.' });
-    }
-});
-
-router.post('/generate-registration-link', checkAuth, isDittaAdmin, async (req, res) => {
-    const dittaId = req.userData.dittaId;
-    const token = uuidv4();
-    const expiration = new Date();
-    expiration.setDate(expiration.getDate() + 7);
-    try {
-        const connection = await dbPool.getConnection();
-        await connection.query('INSERT INTO registration_tokens (id_ditta, token, scadenza) VALUES (?, ?, ?)', [dittaId, token, expiration]);
-        connection.release();
-        const registrationLink = `http://localhost:3000/register?token=${token}`;
-        res.json({ success: true, message: 'Link generato con successo.', link: registrationLink });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nella generazione del link.' });
-    }
-});
-
-router.get('/privacy-policy', checkAuth, isDittaAdmin, async (req, res) => {
-    const dittaId = req.userData.dittaId;
-    try {
-        const connection = await dbPool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM privacy_policies WHERE id_ditta = ?', [dittaId]);
-        connection.release();
-        res.json({ success: true, data: rows[0] || null });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nel recupero della policy.' });
-    }
-});
-
-router.post('/privacy-policy', checkAuth, isDittaAdmin, async (req, res) => {
-    const dittaId = req.userData.dittaId;
-    const { responsabile_trattamento, corpo_lettera } = req.body;
-    try {
-        const connection = await dbPool.getConnection();
-        const query = `
-            INSERT INTO privacy_policies (id_ditta, responsabile_trattamento, corpo_lettera) 
-            VALUES (?, ?, ?) 
-            ON DUPLICATE KEY UPDATE responsabile_trattamento = ?, corpo_lettera = ?
-        `;
-        await connection.query(query, [dittaId, responsabile_trattamento, corpo_lettera, responsabile_trattamento, corpo_lettera]);
-        connection.release();
-        res.json({ success: true, message: 'Policy sulla privacy salvata con successo.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore nel salvataggio della policy.' });
-    }
-});
-// --- API PER TABELLE DI SUPPORTO ---
-router.get('/tipi-ditta', checkAuth, isSystemAdmin, async (req, res) => {
-    try {
-        const connection = await dbPool.getConnection();
+        connection = await dbPool.getConnection();
         const [rows] = await connection.query('SELECT * FROM tipo_ditta');
-        connection.release();
         res.json({ success: true, tipi_ditta: rows });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore nel recupero dei tipi ditta.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-router.get('/relazioni', checkAuth, isSystemAdmin, async (req, res) => {
+router.get('/relazioni', isSystemAdmin, async (req, res) => {
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
+        connection = await dbPool.getConnection();
         const [rows] = await connection.query('SELECT * FROM relazioni_ditta');
-        connection.release();
         res.json({ success: true, relazioni: rows });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore nel recupero delle relazioni.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
-router.get('/ruoli', checkAuth, isSystemAdmin, async (req, res) => {
+router.get('/ruoli', isSystemAdmin, async (req, res) => {
+    let connection;
     try {
-        const connection = await dbPool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM ruoli ORDER BY livello DESC'); 
-        connection.release();
+        connection = await dbPool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM ruoli ORDER BY livello DESC');
         res.json({ success: true, ruoli: rows });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore nel recupero dei ruoli.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
+
 module.exports = router;
