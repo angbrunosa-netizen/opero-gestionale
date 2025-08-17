@@ -1,80 +1,85 @@
 // #####################################################################
-// # Componente LoginPage - v2.0 con Stile Tailwind CSS
+// # Componente LoginPage - v2.1 (Integrato con AuthContext)
 // # File: opero-frontend/src/components/LoginPage.js
 // #####################################################################
 
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
-//const API_URL = 'http://localhost:3001';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-
-function LoginPage({ onLoginSuccess }) {
+const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false); // Stato per gestire il caricamento
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  // Usiamo il nostro hook per accedere alla funzione di login globale
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setError('');
+    setLoading(true); // Avviamo il caricamento
+
     try {
-      const response = await fetch(`${API_URL}/api/authenticate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (data.success && data.token) {
-        onLoginSuccess(data);
-      } else {
-        setError(data.message || 'Errore di autenticazione.');
-      }
+      // Chiamiamo la funzione 'login' dal nostro AuthContext.
+      // Questa funzione si occuperà di fare la chiamata API e aggiornare lo stato globale.
+      await login({ email, password });
+      
+      // Se il login ha successo, navighiamo alla pagina principale
+      navigate('/'); 
     } catch (err) {
-      setError('Errore di connessione al server.');
+      // Se il login fallisce, AuthContext lancia un errore che noi catturiamo qui.
+      setError(err.response?.data?.message || 'Errore durante il login. Riprova.');
+    } finally {
+      setLoading(false); // Fermiamo il caricamento in ogni caso
     }
   };
 
   return (
-    // Contenitore principale che centra il form
-    <div className="flex items-center justify-center min-h-screen bg-slate-100 font-sans">
-      {/* Card del form */}
-      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg">
-        <h1 className="text-2xl font-bold text-center text-slate-800">Benvenuto in Opero</h1>
-        <p className="text-center text-slate-500 mb-6">Accedi per continuare</p>
-        
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Campo Email */}
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {/* Campo Password */}
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          
-          {/* Messaggio di errore */}
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          
-          {/* Pulsante di Login */}
-          <button 
-            type="submit" 
-            className="px-4 py-3 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Login / Registrati
-          </button>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-center text-gray-800">Login Opero</h2>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading} // Disabilitiamo l'input durante il caricamento
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading} // Disabilitiamo l'input durante il caricamento
+            />
+          </div>
+          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          <div>
+            <button 
+              type="submit" 
+              className="w-full px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+              disabled={loading} // Disabilitiamo il pulsante durante il caricamento
+            >
+              {loading ? 'Accesso in corso...' : 'Accedi'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
-}
+};
 
 export default LoginPage;

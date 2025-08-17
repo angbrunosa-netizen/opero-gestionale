@@ -1,103 +1,97 @@
 // #####################################################################
-// # Componente MainApp - v3.2 (con Gestione Dati Incompleti)
+// # Componente Principale dell'Applicazione - v2.1 (con Moduli Oggetto)
 // # File: opero-frontend/src/components/MainApp.js
 // #####################################################################
 
-import React, { useState } from 'react';
-import AdminPanel from './AdminPanel';
-import MailModule from './MailModule';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import ModuleLoader from './ModuleLoader';
 import SettingsView from './SettingsView';
-import AmministrazioneModule from './AmministrazioneModule';
+import Dashboard from './Dashboard'; // Assumendo che la Dashboard sia in un file separato
 
-// --- Componente Dashboard (MODIFICATO) ---
-// Ho aggiunto dei controlli per evitare crash se i dati non sono completi.
-function Dashboard({ session }) {
-    // Usiamo l'optional chaining (?.) per accedere alle proprietà in modo sicuro.
-    // Se 'user' o 'ditta' non esistono, il valore sarà 'undefined' invece di causare un errore.
-    // Forniamo anche un valore di fallback (es. 'N/D') per la visualizzazione.
-    const user = session?.user || {};
-    const ditta = session?.ditta || {};
+const MainApp = () => {
+  const { user, ditta, modules, logout } = useAuth();
+  
+  // Nello stato salviamo l'intero oggetto del modulo attivo, non solo il codice.
+  const [activeView, setActiveView] = useState('dashboard');
+
+  // Funzione per determinare lo stile del pulsante attivo
+  const getButtonStyle = (viewKey) => {
+    const currentViewKey = typeof activeView === 'object' ? activeView.chiave_componente : activeView;
+    return `w-full text-left p-3 my-1 text-sm rounded transition-colors duration-200 ${
+        currentViewKey === viewKey 
+          ? 'bg-blue-600 text-white font-semibold' 
+          : 'hover:bg-gray-700 text-gray-300'
+      }`;
+  };
+
+  const renderContent = () => {
+    if (typeof activeView === 'string') {
+        if (activeView === 'dashboard') return <Dashboard user={user} ditta={ditta} />;
+        if (activeView === 'settings') return <SettingsView />;
+    }
+    
+    if (typeof activeView === 'object' && activeView.chiave_componente) {
+        return <ModuleLoader moduleKey={activeView.chiave_componente} />;
+    }
 
     return (
-        <div className="p-8 w-full">
-            <h1 className="text-3xl font-bold text-slate-800 mb-6">Bentornato, {user.nome || user.email || 'Utente'}!</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Riquadro Dati Utente */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                    <h2 className="text-xl font-semibold text-slate-700 border-b pb-2 mb-4">Dati Utente</h2>
-                    <div className="space-y-3 text-sm">
-                        <p><strong className="w-24 inline-block">Codice:</strong> {user.id || 'N/D'}</p>
-                        <p><strong className="w-24 inline-block">Nome:</strong> {`${user.nome || ''} ${user.cognome || ''}`.trim() || 'N/D'}</p>
-                        <p><strong className="w-24 inline-block">Ruolo:</strong> {user.ruolo || 'N/D'}</p>
-                        <p><strong className="w-24 inline-block">Livello:</strong> {user.livello || 'N/D'}</p>
-                    </div>
-                </div>
-
-                {/* Riquadro Dati Ditta */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                    <h2 className="text-xl font-semibold text-slate-700 border-b pb-2 mb-4">Dati Ditta</h2>
-                    <div className="space-y-3 text-sm">
-                        <p><strong className="w-24 inline-block">Codice:</strong> {ditta.id || 'N/D'}</p>
-                        <p><strong className="w-24 inline-block">Rag. Sociale:</strong> {ditta.ragione_sociale || 'N/D'}</p>
-                        <p><strong className="w-24 inline-block">Tipo:</strong> {ditta.tipo_ditta || 'N/D'}</p>
-                    </div>
-                </div>
-
-            </div>
+        <div className="text-center p-8 bg-white shadow rounded">
+            <h2 className="text-xl font-semibold">Benvenuto in Opero!</h2>
+            <p className="mt-2 text-gray-600">
+              Nessun modulo risulta abilitato per la tua ditta. Contatta l'amministratore di sistema.
+            </p>
         </div>
     );
-}
-
-
-function MainApp({ session, onLogout, onSessionUpdate, fetchWithAuth }) {
-  const [mainView, setMainView] = useState('dashboard');
-  
-  const userPermissions = session?.user?.permissions || [];
-
-  const buttonStyle = (viewName) => {
-    const isActive = mainView === viewName;
-    return `w-full p-2 rounded-md text-left transition-colors ${
-      isActive
-        ? 'bg-blue-100 text-blue-700 font-semibold'
-        : 'hover:bg-slate-100'
-    }`;
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans">
-      <aside className="w-64 bg-white p-6 border-r border-slate-200 flex flex-col">
-        <h2 className="text-2xl font-bold text-slate-800">Opero</h2>
+    <div className="flex h-screen bg-gray-100 font-sans">
+      <aside className="w-60 bg-gray-800 text-white flex flex-col">
+        <div className="p-4 border-b border-gray-700">
+          <h1 className="text-xl font-bold text-white">Opero</h1>
+          <span className="text-sm text-gray-400">{ditta.ragione_sociale}</span>
+        </div>
         
-        <nav className="mt-8 flex flex-col gap-2">
-            <button onClick={() => setMainView('dashboard')} className={buttonStyle('dashboard')}>Dashboard</button>
-            {userPermissions.includes('APP_IMPIEGATO') && <button onClick={() => setMainView('mail')} className={buttonStyle('mail')}>Posta</button>}
-            {userPermissions.includes('MODULO_AMMINISTRAZIONE') && <button onClick={() => setMainView('amministrazione')} className={buttonStyle('amministrazione')}>Amministrazione</button>}
-            {userPermissions.includes('SISTEMA_ADMIN') && <button onClick={() => setMainView('admin')} className={buttonStyle('admin')}>Pannello Admin</button>}
-            <button onClick={() => setMainView('settings')} className={buttonStyle('settings')}>Impostazioni</button>
-        </nav>
+        <nav className="flex-1 p-2 overflow-y-auto">
+          <p className="px-2 py-1 text-xs font-semibold text-gray-400 uppercase">Menu</p>
+          <ul>
+            <li><button onClick={() => setActiveView('dashboard')} className={getButtonStyle('dashboard')}>Dashboard</button></li>
+          </ul>
 
-        <div className="mt-auto">
-          <p className="font-medium text-slate-700 truncate">{session?.user?.nome || session?.user?.email || 'Nessun utente'}</p>
-          <p className="text-sm text-slate-500">{session?.user?.ruolo || ''}</p>
-          <button 
-            onClick={onLogout} 
-            className="w-full mt-4 p-2 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors"
-          >
-            Logout
-          </button>
+          {modules.length > 0 && (
+            <>
+                <p className="px-2 py-1 mt-4 text-xs font-semibold text-gray-400 uppercase">Moduli</p>
+                <ul>
+                    {modules.map(module => (
+                    <li key={module.codice}>
+                        <button onClick={() => setActiveView(module)} className={getButtonStyle(module.chiave_componente)}>
+                        {module.descrizione}
+                        </button>
+                    </li>
+                    ))}
+                </ul>
+            </>
+          )}
+        </nav>
+        
+        <div className="p-4 border-t border-gray-700">
+            <div className="mb-4">
+                <p className="text-sm font-semibold">{user.nome} {user.cognome}</p>
+                <p className="text-xs text-gray-400">{user.ruolo}</p>
+            </div>
+            <button onClick={() => setActiveView('settings')} className="w-full text-left text-sm p-2 mb-2 text-gray-300 hover:bg-gray-700 rounded">Impostazioni</button>
+            <button onClick={logout} className="w-full p-2 text-sm bg-red-600 hover:bg-red-700 rounded transition-colors duration-200">
+                Logout
+            </button>
         </div>
       </aside>
-      
-      <main className="flex-1 flex overflow-hidden">
-        {mainView === 'dashboard' && <Dashboard session={session} />}
-        {mainView === 'mail' && userPermissions.includes('APP_IMPIEGATO') && <MailModule session={session} onSessionUpdate={onSessionUpdate} />}
-        {mainView === 'amministrazione' && userPermissions.includes('MODULO_AMMINISTRAZIONE') && <AmministrazioneModule session={session} />}
-        {mainView === 'admin' && userPermissions.includes('SISTEMA_ADMIN') && <div className="p-8 w-full overflow-y-auto"><AdminPanel session={session} /></div>}
-        {mainView === 'settings' && <div className="p-8 w-full overflow-y-auto"><SettingsView session={session} onSessionUpdate={onSessionUpdate} /></div>}
+
+      <main className="flex-1 p-6 overflow-auto">
+        {renderContent()}
       </main>
     </div>
   );
-}
+};
 
 export default MainApp;

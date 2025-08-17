@@ -1,93 +1,61 @@
 // #####################################################################
-// # Frontend React - v3.4 DEFINITIVO
+// # Componente App Principale - v2.2 (con Architettura a Context)
 // # File: opero-frontend/src/App.js
 // #####################################################################
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
+// Percorsi corretti assumendo che App.js si trovi nella cartella 'src'
+import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './components/LoginPage';
 import MainApp from './components/MainApp';
-import RegistrationPage from './components/RegistrationPage';
+import RegistrationPage from './components/RegistrationPage'; // Aggiunto per completezza
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+/**
+ * Componente "Wrapper" per proteggere le rotte.
+ * Controlla se l'utente è autenticato. Se non lo è, lo reindirizza al login.
+ */
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
 
-function App() {
-  const [userSession, setUserSession] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    try {
-      const savedSession = localStorage.getItem('opero-session');
-      if (savedSession) {
-        setUserSession(JSON.parse(savedSession));
-      }
-    } catch (error) {
-      console.error("Errore nel caricare la sessione:", error);
-      localStorage.removeItem('opero-session');
-    }
-    setIsLoading(false);
-  }, []);
-
-  const handleSessionUpdate = (newSession) => {
-    setUserSession(newSession);
-    localStorage.setItem('opero-session', JSON.stringify(newSession));
-  };
-
-  const handleLogout = useCallback(() => {
-    setUserSession(null);
-    localStorage.removeItem('opero-session');
-  }, []);
-
-  const fetchWithAuth = useCallback(async (url, options = {}) => {
-    const session = JSON.parse(localStorage.getItem('opero-session'));
-    const token = session?.token;
-    const headers = { ...options.headers };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    if (!(options.body instanceof FormData)) {
-        headers['Content-Type'] = 'application/json';
-    }
-
-    const response = await fetch(`${API_URL}${url}`, { ...options, headers });
-
-    if (response.status === 401) {
-      alert("La tua sessione è scaduta. Effettua nuovamente il login.");
-      handleLogout();
-      throw new Error("Sessione scaduta");
-    }
-    return response;
-  }, [handleLogout]);
-
-  if (isLoading) {
-    return <div>Caricamento...</div>;
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Caricamento...</div>;
   }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/register" element={<RegistrationPage />} />
-        <Route 
-          path="/" 
-          element={
-            userSession ? (
-              <MainApp 
-                session={userSession} 
-                onLogout={handleLogout} 
-                onSessionUpdate={handleSessionUpdate}
-                fetchWithAuth={fetchWithAuth}
-              />
-            ) : (
-              <LoginPage onLoginSuccess={handleSessionUpdate} />
-            )
-          } 
-        />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </BrowserRouter>
+    // 1. AuthProvider è il componente più esterno. Fornisce il "cervello" a tutta l'app.
+    <AuthProvider>
+      {/* 2. BrowserRouter gestisce la navigazione. */}
+      <BrowserRouter>
+        <Routes>
+          {/* Rotte pubbliche */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegistrationPage />} />
+
+          {/* Rotta principale protetta */}
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Qualsiasi altra rotta non definita reindirizza alla pagina principale */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

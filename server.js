@@ -1,5 +1,5 @@
 // #####################################################################
-// # Backend Server - v6.2 (Verificato e Commentato)
+// # Backend Server - v6.3 (con Routing Esplicito e CORS corretto)
 // # File: opero/server.js
 // #####################################################################
 require('dotenv').config();
@@ -8,53 +8,50 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-// --- 1. IMPORTAZIONE DI TUTTE LE ROTTE DELL'APPLICAZIONE ---
-// Ogni file in 'routes' gestisce una sezione specifica dell'API.
+// --- 1. IMPORTAZIONE DELLE ROTTE ---
 const authRoutes = require('./routes/auth');
 const mailRoutes = require('./routes/mail');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/user');
 const amministrazioneRoutes = require('./routes/amministrazione');
 const publicRoutes = require('./routes/public');
-const trackRoutes = require('./routes/track'); // Rotte per il tracciamento email
+const trackRoutes = require('./routes/track');
+const contsmartRoutes = require('./routes/contsmart'); // Aggiunta rotta mancante
 
-// --- 2. CONFIGURAZIONE INIZIALE DI EXPRESS ---
+// --- 2. CONFIGURAZIONE DI EXPRESS ---
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; // Manteniamo la porta 3001
 
-// Rotta di benvenuto o di stato per testare se il server è online
-app.get('/', (req, res) => {
-  res.json({ 
-    status: 'online', 
-    message: 'Benvenuto nell\'API di Opero!' 
-  });
-});
+// --- 3. MIDDLEWARE ---
 
-// Creazione della cartella 'uploads' se non esiste, per gli allegati
+// Configurazione CORS per accettare richieste solo dal nostro frontend
+const corsOptions = {
+  origin: 'http://localhost:3000', // L'indirizzo del tuo frontend React
+  optionsSuccessStatus: 200 
+};
+app.use(cors(corsOptions));
+
+// Parsing del corpo delle richieste in JSON
+app.use(express.json());
+
+// Creazione della cartella 'uploads' se non esiste
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR);
 }
 
-// --- 3. MIDDLEWARE ---
-// Abilita CORS per permettere al frontend (su un'altra porta) di comunicare con il backend.
-app.use(cors());
-// Permette al server di leggere e interpretare i dati in formato JSON inviati dal frontend.
-app.use(express.json());
-
-// --- 4. REGISTRAZIONE DELLE ROTTE API ---
-// Associa ogni gruppo di rotte a un prefisso URL.
-// Esempio: le rotte in 'auth.js' saranno accessibili tramite '/api/...'
-app.use('/api', authRoutes);
+// --- 4. REGISTRAZIONE SPECIFICA DELLE ROTTE API ---
+// Ora ogni modulo ha il suo prefisso, rendendo l'URL corretto: /api/auth/authenticate
+app.use('/api/auth', authRoutes);
 app.use('/api/mail', mailRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/amministrazione', amministrazioneRoutes);
 app.use('/api/public', publicRoutes);
-app.use('/api/track', trackRoutes); // Le rotte di tracciamento saranno su '/api/track/...'
+app.use('/api/track', trackRoutes);
+app.use('/api/contsmart', contsmartRoutes); // Aggiunta rotta mancante
 
 // --- 5. AVVIO DEL SERVER ---
-// Mette il server in ascolto sulla porta specificata e stampa un messaggio di conferma.
 app.listen(PORT, () => {
     console.log(`Server backend in ascolto sulla porta ${PORT}`);
 });
