@@ -4,7 +4,7 @@
 // #####################################################################
 const express = require('express');
 const { dbPool } = require('../config/db');
-const { verifyToken } = require('../utils/auth'); // Usiamo il nuovo middleware
+const { verifyToken } = require('../utils/auth');
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ router.use(verifyToken);
 
 // API per aggiornare la firma
 router.patch('/signature', async (req, res) => {
-    const { userId } = req.user; // Prendiamo l'ID utente dal token
+    const { userId } = req.user;
     const { firma } = req.body;
     try {
         await dbPool.promise().query('UPDATE utenti SET firma = ? WHERE id = ?', [firma, userId]);
@@ -25,7 +25,7 @@ router.patch('/signature', async (req, res) => {
 
 // API per aggiornare il profilo (nome e cognome)
 router.patch('/profile', async (req, res) => {
-    const { userId } = req.user; // Prendiamo l'ID utente dal token
+    const { userId } = req.user;
     const { nome, cognome } = req.body;
     if (!nome || !cognome) {
         return res.status(400).json({ success: false, message: 'Nome e cognome sono obbligatori.' });

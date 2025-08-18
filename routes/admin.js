@@ -9,7 +9,7 @@ const bcrypt = require('bcrypt');
 const { dbPool } = require('../config/db');
 const { verifyToken, checkRole } = require('../utils/auth');
 
-// Middleware per i ruoli, ora più leggibili
+// Middleware per i ruoli
 const isSystemAdmin = checkRole([1]); // Ruolo Amministratore_sistema
 const isDittaAdmin = checkRole([1, 2]); // Ruoli Amministratore_sistema o Amministratore_Azienda
 

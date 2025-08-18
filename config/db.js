@@ -1,13 +1,16 @@
 // #####################################################################
-// # Configurazione Centralizzata del Database
+// # Configurazione Centralizzata del Database - v3.2 (Fix Duplicato)
 // # File: opero/config/db.js
 // #####################################################################
 require('dotenv').config();
 
+// Importiamo la versione di mysql2 che supporta le promise nativamente
+const mysql = require('mysql2/promise');
+
 let dbPool;
 let dbType;
 
-// Controlliamo l'ambiente una sola volta
+// Controlliamo l'ambiente una sola volta per inizializzare il pool corretto
 if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
     console.log('Ambiente di produzione rilevato. Connessione a PostgreSQL...');
     dbType = 'postgres';
@@ -21,7 +24,7 @@ if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
 } else {
     console.log('Ambiente di sviluppo rilevato. Connessione a MySQL...');
     dbType = 'mysql';
-    const mysql = require('mysql2/promise');
+    // Questa è l'unica inizializzazione necessaria per MySQL
     dbPool = mysql.createPool({
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',

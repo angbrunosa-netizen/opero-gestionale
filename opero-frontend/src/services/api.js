@@ -1,32 +1,30 @@
 // #####################################################################
-// # Servizio API Centralizzato con Axios - v1.1 (Corretto)
+// # Servizio API Centralizzato - v2.1 (con Debug)
 // # File: opero-frontend/src/services/api.js
 // #####################################################################
-
 import axios from 'axios';
 
-// 1. Creiamo un'istanza di Axios con una configurazione di base.
 const api = axios.create({
-  // L'URL di base di tutte le nostre chiamate API.
-  // Assicurati che la porta 5000 sia quella corretta per il tuo backend.
-  baseURL: 'http://localhost:3001/api', 
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api', 
 });
 
-/**
- * 2. INTERCETTORE DI RICHIESTE (Request Interceptor)
- * Questa funzione viene eseguita PRIMA di ogni richiesta.
- * Controlla se abbiamo un token nel localStorage e, se c'è, 
- * lo aggiunge agli header della richiesta.
- */
 api.interceptors.request.use(
   (config) => {
+    // 1. Leggiamo il token
     const token = localStorage.getItem('token');
+    
+    // --- LOG DI DEBUG ---
+    console.log('[DEBUG Frontend] Sto per inviare una richiesta API.');
+    
     if (token) {
+      // 2. Se lo troviamo, lo aggiungiamo
+      console.log('[DEBUG Frontend] Token trovato nel localStorage. Lo allego agli header.');
       config.headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      // 3. Se NON lo troviamo, lo segnaliamo
+      console.log('[DEBUG Frontend] ATTENZIONE: Nessun token trovato nel localStorage.');
     }
+    
     return config;
   },
   (error) => {

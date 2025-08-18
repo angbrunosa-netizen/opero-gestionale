@@ -1,32 +1,26 @@
 // #####################################################################
-// # Rotte per il Modulo ContSmart
+// # Rotte per il Modulo ContSmart - v2.0 (Refactoring Definitivo)
 // # File: opero/routes/contsmart.js
 // #####################################################################
 
 const express = require('express');
 const router = express.Router();
-
-// Importa il pool di connessioni e gli strumenti di autenticazione
 const { dbPool } = require('../config/db');
-const { checkAuth, checkRole } = require('../utils/auth');
+const { verifyToken } = require('../utils/auth'); // Usiamo il nostro nuovo middleware standard
 
-// Applica l'autenticazione a tutte le rotte di questo file
-// Accessibile a tutti gli utenti autenticati (poi filtreremo per modulo)
-router.use(checkAuth);
+// Applichiamo l'autenticazione a tutte le rotte di questo file.
+// Ora è una vera funzione middleware.
+router.use(verifyToken);
 
 // ====================================================================
 // API GESTIONE ANAGRAFICHE (CLIENTI E FORNITORI)
 // ====================================================================
 
 router.get('/anagrafiche', async (req, res) => {
-    // L'id della ditta dell'utente che fa la richiesta
-    const idDittaProprietaria = req.userData.dittaId;
+    // L'id della ditta viene preso dal token tramite req.user, non più da req.userData
+    const { dittaId } = req.user;
 
-    let connection;
     try {
-        connection = await dbPool.getConnection();
-        // Seleziona tutte le ditte collegate a quella dell'utente
-        // che sono state definite come Clienti (C) o Fornitori (F)
         const query = `
             SELECT id, ragione_sociale, p_iva, codice_fiscale, mail_1, codice_relazione 
             FROM ditte 
@@ -34,19 +28,16 @@ router.get('/anagrafiche', async (req, res) => {
             AND (codice_relazione = 'C' OR codice_relazione = 'F')
             ORDER BY ragione_sociale;
         `;
-        const [anagrafiche] = await connection.query(query, [idDittaProprietaria]);
+        const [anagrafiche] = await dbPool.promise().query(query, [dittaId]);
         
         res.json({ success: true, data: anagrafiche });
 
     } catch (error) {
         console.error("Errore nel recupero delle anagrafiche per ContSmart:", error);
         res.status(500).json({ success: false, message: 'Errore nel recupero delle anagrafiche.' });
-    } finally {
-        if (connection) connection.release();
     }
 });
 
-// Qui in futuro aggiungeremo altre rotte per ContSmart
-// es. POST /anagrafiche, PATCH /anagrafiche/:id, etc.
+// Qui in futuro aggiungeremo le altre rotte specifiche per il modulo ContSmart.
 
 module.exports = router;
