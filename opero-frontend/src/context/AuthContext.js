@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        // Usa la nuova rotta '/auth/me' per recuperare i dati
+        // Usa la rotta '/auth/me' per recuperare i dati
         const { data } = await api.get('/auth/me'); 
         if (data.success) {
           setAuthState({

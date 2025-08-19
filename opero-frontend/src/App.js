@@ -39,7 +39,7 @@ function App() {
         <Routes>
           {/* Rotte pubbliche */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegistrationPage />} />
+           <Route path="/register/:token" element={<RegistrationPage />} />
 
           {/* Rotta principale protetta */}
           <Route 

@@ -11,29 +11,28 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false); // Stato per gestire il caricamento
+  const [loading, setLoading] = useState(false);
 
-  // Usiamo il nostro hook per accedere alla funzione di login globale
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true); // Avviamo il caricamento
+    setLoading(true);
 
     try {
-      // Chiamiamo la funzione 'login' dal nostro AuthContext.
-      // Questa funzione si occuperà di fare la chiamata API e aggiornare lo stato globale.
+      // Chiama la funzione 'login' dal nostro AuthContext.
+      // Questa funzione si occuperà di tutto: chiamata API, salvataggio token e stato.
       await login({ email, password });
       
-      // Se il login ha successo, navighiamo alla pagina principale
+      // Se il login ha successo, naviga alla pagina principale
       navigate('/'); 
     } catch (err) {
       // Se il login fallisce, AuthContext lancia un errore che noi catturiamo qui.
       setError(err.response?.data?.message || 'Errore durante il login. Riprova.');
     } finally {
-      setLoading(false); // Fermiamo il caricamento in ogni caso
+      setLoading(false);
     }
   };
 
@@ -51,7 +50,7 @@ const LoginPage = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading} // Disabilitiamo l'input durante il caricamento
+              disabled={loading}
             />
           </div>
           <div>
@@ -63,7 +62,7 @@ const LoginPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading} // Disabilitiamo l'input durante il caricamento
+              disabled={loading}
             />
           </div>
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
@@ -71,7 +70,7 @@ const LoginPage = () => {
             <button 
               type="submit" 
               className="w-full px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
-              disabled={loading} // Disabilitiamo il pulsante durante il caricamento
+              disabled={loading}
             >
               {loading ? 'Accesso in corso...' : 'Accedi'}
             </button>

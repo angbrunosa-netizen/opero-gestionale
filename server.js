@@ -8,7 +8,6 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-
 // --- 1. IMPORTAZIONE DELLE ROTTE ---
 const authRoutes = require('./routes/auth');
 const mailRoutes = require('./routes/mail');
@@ -18,7 +17,6 @@ const amministrazioneRoutes = require('./routes/amministrazione');
 const publicRoutes = require('./routes/public');
 const trackRoutes = require('./routes/track');
 const contsmartRoutes = require('./routes/contsmart');
-
 
 // --- 2. CONFIGURAZIONE DI EXPRESS ---
 const app = express();
@@ -42,9 +40,6 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-
-
-
 
 // Parsing del corpo delle richieste in JSON
 app.use(express.json());
