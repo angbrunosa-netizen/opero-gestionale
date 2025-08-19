@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const incarichiRoutes = require('./routes/incarichi');
 
 // --- 1. IMPORTAZIONE DELLE ROTTE ---
 const authRoutes = require('./routes/auth');
@@ -59,6 +60,7 @@ app.use('/api/amministrazione', amministrazioneRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/track', trackRoutes);
 app.use('/api/contsmart', contsmartRoutes);
+app.use('/api/incarichi', incarichiRoutes);
 
 // --- 5. AVVIO DEL SERVER ---
 app.listen(PORT, () => {
