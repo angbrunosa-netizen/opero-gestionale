@@ -295,8 +295,6 @@ const AddressBookManager = () => {
 };
 
 // --- Componente: Composizione Email ---
-
-// --- Componente: Composizione Email ---
 const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) => {
     const { user } = useAuth();
     const [to, setTo] = useState('');
@@ -313,7 +311,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
     useEffect(() => {
         let initialBody = `<br/><br/><hr><p>${(user?.firma || '').replace(/\n/g, '<br/>')}</p>`;
         if (emailToReply) {
-            // Logica per rispondere a una email
+            // Qui andrebbe la logica per preparare il corpo della mail in risposta/inoltro
         }
         setBody(initialBody);
     }, [emailToReply, replyType, user]);
@@ -334,15 +332,16 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
         if (addressBookTarget === 'to') setTo(updateField(to));
         if (addressBookTarget === 'cc') setCc(updateField(cc));
         if (addressBookTarget === 'bcc') setBcc(updateField(bcc));
+        setIsAddressBookOpen(false); // Chiude la modale dopo la selezione
     };
 
     const handleSelectList = async (list) => {
         try {
-            const { data: emails } = await api.get(`/rubrica/liste/${list.id}/emails`);
-            if (emails && emails.length > 0) {
+            const { data } = await api.get(`/rubrica/liste/${list.id}/emails`);
+            if (data && data.length > 0) {
                 const updateField = (currentValue) => {
                     const currentEmails = currentValue.split(';').map(e => e.trim()).filter(Boolean);
-                    const newEmails = new Set([...currentEmails, ...emails]);
+                    const newEmails = new Set([...currentEmails, ...data]);
                     return Array.from(newEmails).join('; ');
                 };
                 
@@ -352,10 +351,12 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
             }
         } catch (error) {
             alert("Impossibile caricare i contatti della lista selezionata.");
+        } finally {
+            setIsAddressBookOpen(false); // Chiude la modale dopo la selezione
         }
     };
 
-        const handleSend = async () => {
+    const handleSend = async () => {
         if (!to && !cc && !bcc) {
             alert("Inserisci almeno un destinatario.");
             return;
@@ -367,20 +368,18 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
         formData.append('cc', cc);
         formData.append('bcc', bcc);
         formData.append('subject', subject);
-        formData.append('text', body); // 'text' è corretto se il backend si aspetta il corpo HTML qui
+        formData.append('text', body);
         
-        // Aggiunge gli allegati al FormData
         for (let i = 0; i < attachments.length; i++) {
             formData.append('attachments', attachments[i]);
         }
         
         try {
-            // Assicurati che l'endpoint '/mail/send-email' sia corretto
             await api.post('/mail/send-email', formData, { 
                 headers: { 'Content-Type': 'multipart/form-data' } 
             });
             alert('Email inviata con successo!');
-            if (onSent) onSent(); // Chiama la callback onSent se fornita
+            if (onSent) onSent();
         } catch (error) {
             console.error("Errore durante l'invio dell'email:", error);
             alert('Errore durante l\'invio dell\'email.');
@@ -388,6 +387,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
             setIsSending(false);
         }
     };
+
     return (
         <div>
             {isAddressBookOpen && (
@@ -405,12 +405,11 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
                 </button>
             </div>
             <div className="space-y-4">
-                <div className="flex items-center">
+                 <div className="flex items-center">
                     <label className="pr-2 text-slate-600">A:</label>
                     <input type="text" value={to} onChange={e => setTo(e.target.value)} className="w-full p-2 border rounded-l-md" />
                     <button onClick={() => openAddressBook('to')} className="p-2 border-t border-b border-r rounded-r-md bg-slate-100" title="Apri Rubrica">👤</button>
                 </div>
-                
                 {showCcBcc && (
                     <>
                         <div className="flex items-center">
@@ -425,7 +424,6 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
                         </div>
                     </>
                 )}
-                
                 <input type="text" placeholder="Oggetto:" value={subject} onChange={e => setSubject(e.target.value)} className="w-full p-2 border rounded-md" />
                 <ReactQuill theme="snow" value={body} onChange={setBody} style={{ height: '250px', marginBottom: '50px' }} />
                 <input type="file" multiple onChange={e => setAttachments([...e.target.files])} className="block w-full text-sm" />
@@ -437,7 +435,6 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
         </div>
     );
 };
-
 // --- Componente: Gestione della Posta (Inviata, In Arrivo, etc.) ---
 const MailClientView = () => {
     const { user } = useAuth();
@@ -837,12 +834,16 @@ function MailModule() {
     const [activeView, setActiveView] = useState('posta');
     const { hasPermission } = useAuth();
     
+    // Funzione che decide quale componente visualizzare nell'area principale
     const renderContent = () => {
         switch (activeView) {
             case 'posta':
                 return <MailClientView />;
             case 'rubrica':
-                return hasPermission('RUBRICA_VIEW') ? <AddressBookManager /> : <p className="p-6">Non hai i permessi per visualizzare la rubrica.</p>;
+                // Qui usiamo il componente AddressBook completo al posto di quello vecchio
+                return hasPermission('RUBRICA_VIEW') 
+                    ? <AddressBook /> 
+                    : <p className="p-6">Non hai i permessi per visualizzare la rubrica.</p>;
             default:
                 return <p>Seleziona una funzione</p>;
         }
@@ -850,6 +851,7 @@ function MailModule() {
     
     return (
         <div className="flex w-full h-full bg-slate-50">
+            {/* Menu laterale del modulo */}
             <aside className="w-56 border-r border-slate-200 p-4 bg-white">
                 <h2 className="font-bold mb-4 text-slate-700">Menu Posta</h2>
                 <ul className="space-y-2">
@@ -861,6 +863,7 @@ function MailModule() {
                             Gestisci Posta
                         </button>
                     </li>
+                    {/* Il pulsante "Rubrica" ora caricherà il componente AddressBook */}
                     {hasPermission('RUBRICA_VIEW') && (
                         <li>
                             <button 
@@ -873,6 +876,8 @@ function MailModule() {
                     )}
                 </ul>
             </aside>
+
+            {/* Area principale dove viene renderizzato il contenuto attivo */}
             <main className="flex-1 overflow-y-auto">
                 {renderContent()}
             </main>

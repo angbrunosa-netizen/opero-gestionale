@@ -6,7 +6,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import api from '../services/api'; 
 import { useAuth } from '../context/AuthContext';
+import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
+import UserForm from './UserForm'; // Esempio, potrebbero essere gestori più complessi
+import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
 
+//const AnagraficheManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Anagrafiche</h2><p>Interfaccia per la gestione di Clienti e Fornitori.</p></div>;
+//const UserManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Utenti</h2><p>Interfaccia per la gestione degli utenti della ditta.</p></div>;
+//const PianoDeiContiManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Piano dei Conti</h2><p>Interfaccia per la gestione di Mastri, Conti e Sottoconti.</p></div>;
+//const MailAccountsManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Account Email</h2><p>Interfaccia per la configurazione degli account email della ditta.</p></div>;
+const NoPermissionMessage = () => <div className="p-6 text-center text-gray-500"><p>Non disponi delle autorizzazioni necessarie per visualizzare questa sezione.</p></div>;
 
 
 // --- Componente Modale per Form di Modifica/Creazione Anagrafica ---
@@ -833,48 +841,65 @@ function MailAccountsManager() {
 // ============ COMPONENTE PRINCIPALE DEL MODULO =======================
 // =====================================================================
 const AmministrazioneModule = () => {
-    const [activeMenu, setActiveMenu] = useState('anagrafiche');
     const { hasPermission } = useAuth();
-
+    
+    // Definiamo tutte le possibili voci di menu con la loro chiave, etichetta, icona e permesso richiesto.
     const menuItems = [
-        { key: 'anagrafiche', label: 'Clienti / Fornitori', permission: 'ANAGRAFICHE_VIEW' },
-        { key: 'utenti', label: 'Gestione Utenti', permission: 'UTENTI_VIEW' },
-        { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW' },
-        { key: 'mail_accounts', label: 'Account Email', permission: 'MAIL_ACCOUNTS_VIEW' },
+        { key: 'anagrafiche', label: 'Clienti / Fornitori', permission: 'ANAGRAFICHE_VIEW', icon: BuildingOfficeIcon },
+        { key: 'utenti', label: 'Gestione Utenti', permission: 'UTENTI_VIEW', icon: UsersIcon },
+        { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: Cog6ToothIcon },
+        { key: 'mail_accounts', label: 'Account Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon},
+        { key: 'ppa', label: 'Configurazione PPA', permission: 'PPA_MODULE', icon: QueueListIcon }, // <-- NUOVA VOCE
     ];
 
+    // Filtriamo le voci di menu in base ai permessi dell'utente.
+    const accessibleMenuItems = menuItems.filter(item => hasPermission(item.permission));
+
+    // Lo stato 'activeMenu' parte dalla prima voce di menu accessibile.
+    const [activeMenu, setActiveMenu] = useState(accessibleMenuItems.length > 0 ? accessibleMenuItems[0].key : null);
+
     const renderContent = () => {
+        // Se l'utente non ha accesso a nessuna funzione, mostra un messaggio.
+        if (!activeMenu) {
+            return <NoPermissionMessage />;
+        }
+
+        // Controlla di nuovo il permesso prima di renderizzare, per sicurezza.
+        const currentItem = menuItems.find(item => item.key === activeMenu);
+        if (!currentItem || !hasPermission(currentItem.permission)) {
+            return <NoPermissionMessage />;
+        }
+        
+        // Switch per visualizzare il componente corretto.
         switch (activeMenu) {
-            case 'anagrafiche':
-                return hasPermission('ANAGRAFICHE_VIEW') ? <AnagraficheManager /> : <p>Non hai i permessi.</p>;
-            case 'utenti':
-                return hasPermission('UTENTI_VIEW') ? <UserManager /> : <p>Non hai i permessi.</p>;
-            case 'pdc':
-                return hasPermission('PDC_VIEW') ? <PianoDeiContiManager /> : <p>Non hai i permessi.</p>;
-            case 'mail_accounts':
-                return hasPermission('MAIL_ACCOUNTS_VIEW') ? <MailAccountsManager /> : <p>Non hai i permessi.</p>;
-            default:
-                return <p>Seleziona una voce dal menu.</p>;
+            case 'anagrafiche': return <AnagraficheManager />;
+            case 'utenti': return <UserManager />;
+            case 'pdc': return <PianoDeiContiManager />;
+            case 'mail_accounts': return <MailAccountsManager />;
+            case 'ppa': return <PPAModule />; // <-- NUOVO CASO PER IL PPA
+            default: return <p className="p-6">Seleziona una voce dal menu.</p>;
         }
     };
 
     return (
         <div className="flex w-full h-full bg-gray-50">
-            <aside className="w-56 border-r border-slate-200 p-4 bg-white">
-                <h2 className="font-bold mb-4 text-slate-700">Menu Amministrazione</h2>
+            <aside className="w-64 border-r border-slate-200 p-4 bg-white flex-shrink-0">
+                <h2 className="font-bold mb-4 text-slate-700 text-lg">Menu Amministrazione</h2>
                 <ul className="space-y-2">
-                    {menuItems
-                        .filter(item => hasPermission(item.permission))
-                        .map(item => (
+                    {accessibleMenuItems.map(item => {
+                        const Icon = item.icon;
+                        return (
                             <li key={item.key}>
                                 <button 
                                     onClick={() => setActiveMenu(item.key)} 
-                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm ${activeMenu === item.key ? 'bg-blue-100 text-blue-700 font-semibold' : 'hover:bg-slate-100'}`}
+                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center gap-3 ${activeMenu === item.key ? 'bg-blue-100 text-blue-700 font-semibold' : 'hover:bg-slate-100'}`}
                                 >
-                                    {item.label}
+                                    <Icon className="h-5 w-5 flex-shrink-0" />
+                                    <span>{item.label}</span>
                                 </button>
                             </li>
-                        ))}
+                        );
+                    })}
                 </ul>
             </aside>
             <main className="flex-1 p-6 overflow-y-auto">
@@ -882,7 +907,9 @@ const AmministrazioneModule = () => {
             </main>
         </div>
     );
-}
+};
+
+
 // --- Componente Modale per la Gestione Utente (POTENZIATO con Etichette) ---
 function UserEditModal({ userId, onSave, onCancel }) {
     const [formData, setFormData] = useState({});

@@ -1,26 +1,28 @@
+// #####################################################################
+// # Gestore Membri Lista - v2.0 (con Utenti e Ditte)
+// # File: opero-frontend/src/components/ListMembersManager.js
+// #####################################################################
+
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { XMarkIcon as XIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon as XIcon, UserIcon, BuildingOffice2Icon } from '@heroicons/react/24/solid';
 
-/**
- * Modale per gestire l'associazione degli utenti a una specifica lista di distribuzione.
- */
 const ListMembersManager = ({ list, onClose }) => {
-    const [allContacts, setAllContacts] = useState([]);
-    const [memberIds, setMemberIds] = useState(new Set());
+    const [allContacts, setAllContacts] = useState([]); // Contiene sia utenti che ditte
+    const [memberIds, setMemberIds] = useState(new Set()); // Contiene ID compositi es. 'user-1', 'ditta-5'
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Carica tutti i contatti e i membri attuali della lista
+    // Carica tutti i contatti (utenti+ditte) e i membri attuali della lista
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [contactsRes, membersRes] = await Promise.all([
-                api.get('/rubrica/contatti'),
-                api.get(`/rubrica/liste/${list.id}/utenti`)
+                api.get('/rubrica/all-contacts'),
+                api.get(`/rubrica/liste/${list.id}/members`) // <-- USA LA NUOVA ROTTA
             ]);
             setAllContacts(contactsRes.data);
-            setMemberIds(new Set(membersRes.data.map(member => member.id_utente)));
+            setMemberIds(new Set(membersRes.data)); // Il backend ora manda ID compositi
             setError(null);
         } catch (err) {
             setError("Impossibile caricare i dati.");
@@ -46,10 +48,11 @@ const ListMembersManager = ({ list, onClose }) => {
 
     const handleSave = async () => {
         try {
-            await api.post(`/rubrica/liste/${list.id}/utenti`, {
-                userIds: Array.from(memberIds)
+            // Invia l'array di ID compositi al backend
+            await api.post(`/rubrica/liste/${list.id}/members`, {
+                memberIds: Array.from(memberIds)
             });
-            onClose(); // Chiude il modale dopo il salvataggio
+            onClose();
         } catch (err) {
             setError("Errore durante il salvataggio.");
             console.error("Errore salvataggio membri lista:", err);
@@ -80,8 +83,11 @@ const ListMembersManager = ({ list, onClose }) => {
                                         onChange={() => handleToggleMember(contact.id)}
                                         className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
-                                    <label htmlFor={`contact-${contact.id}`} className="ml-3 text-sm">
-                                        {contact.nome} {contact.cognome} ({contact.email})
+                                    <label htmlFor={`contact-${contact.id}`} className="ml-3 text-sm flex items-center gap-2">
+                                        {contact.type === 'ditta' 
+                                            ? <BuildingOffice2Icon className="h-5 w-5 text-gray-400" /> 
+                                            : <UserIcon className="h-5 w-5 text-gray-400" />}
+                                        {contact.displayName} ({contact.email})
                                     </label>
                                 </div>
                             ))}

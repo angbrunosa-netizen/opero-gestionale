@@ -11,6 +11,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const attivitaRoutes = require('./routes/attivita');
+const ppaRoutes = require('./routes/ppa');
+
 
 // --- 1. IMPORTAZIONE DELLE ROTTE ---
 const authRoutes = require('./routes/auth');
@@ -66,6 +68,7 @@ app.use('/api/track', trackRoutes);
 app.use('/api/contsmart', contsmartRoutes);
 app.use('/api/attivita', attivitaRoutes);
 app.use('/api/rubrica', rubricaRoutes);
+app.use('/api/ppa', ppaRoutes);
 // --- 5. AVVIO DEL SERVER ---
 app.listen(PORT, () => {
   console.log(`Backend Opero in ascolto sulla porta ${PORT}`);

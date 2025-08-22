@@ -4,6 +4,10 @@
 // #####################################################################
 
 import React from 'react';
+// File: opero-frontend/src/lib/moduleRegistry.js
+// ... altri import
+import PPAModule from '../components/PPAModule'; // Aggiungi questo
+
 
 // Importiamo tutti i componenti "contenitore" dei nostri moduli in modo 'lazy'
 // per ottimizzare il caricamento dell'applicazione (code-splitting).
@@ -11,6 +15,10 @@ const AmministrazioneModule = React.lazy(() => import('../components/Amministraz
 const ContSmartModule = React.lazy(() => import('../components/ContSmartModule'));
 const MailModule = React.lazy(() => import('../components/MailModule'));
 const AdminPanel = React.lazy(() => import('../components/AdminPanel'));
+const moduleRegistry = { 
+    'PPA_MODULE': PPAModule, // Aggiungi questa riga
+};
+
 // Aggiungi qui i futuri moduli che creerai...
 // const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
 
@@ -34,4 +42,6 @@ const componentMap = {
  */
 export const getModuleComponent = (componentKey) => {
   return componentMap[componentKey] || null;
+export default moduleRegistry;
+
 };

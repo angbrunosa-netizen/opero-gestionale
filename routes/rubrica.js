@@ -339,36 +339,53 @@ router.delete('/liste/:id', async (req, res) => {
  * GET /api/rubrica/liste/:id/utenti
  * Recupera tutti gli utenti membri di una specifica lista.
  */
-router.get('/liste/:id/utenti', async (req, res) => {
+router.get('/liste/:id/members', async (req, res) => {
     const { id: listId } = req.params;
     try {
-        const [members] = await dbPool.query(
-            'SELECT id_utente FROM lista_distribuzione_utenti WHERE id_lista = ?',
-            [listId]
-        );
-        res.status(200).json(members);
+        const [users] = await dbPool.query('SELECT id_utente FROM lista_distribuzione_utenti WHERE id_lista = ?', [listId]);
+        const [ditte] = await dbPool.query('SELECT id_ditta FROM lista_distribuzione_ditte WHERE id_lista = ?', [listId]);
+
+        const members = [
+            ...users.map(u => `user-${u.id_utente}`),
+            ...ditte.map(d => `ditta-${d.id_ditta}`)
+        ];
+        res.json(members);
     } catch (error) {
-        res.status(500).json({ message: 'Errore recupero membri della lista.' });
+        res.status(500).json({ message: 'Errore nel recupero dei membri della lista.' });
     }
 });
 
+// SOSTITUISCI la vecchia rotta POST /liste/:id/utenti CON QUESTA:
 /**
- * POST /api/rubrica/liste/:id/utenti
- * Aggiorna l'elenco completo degli utenti per una lista.
+ * POST /api/rubrica/liste/:id/members
+ * Aggiorna l'elenco completo dei membri (utenti e ditte) di una lista.
  */
-router.post('/liste/:id/utenti', async (req, res) => {
+router.post('/liste/:id/members', async (req, res) => {
     const { id: listId } = req.params;
-    const { userIds } = req.body; // Array di ID utente
+    const { memberIds } = req.body; // Es: ['user-1', 'ditta-5', 'user-12']
+
+    const userIds = memberIds.filter(id => id.startsWith('user-')).map(id => id.replace('user-', ''));
+    const dittaIds = memberIds.filter(id => id.startsWith('ditta-')).map(id => id.replace('ditta-', ''));
+
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
-        // 1. Rimuovi tutte le associazioni esistenti per questa lista
+        // Svuota le associazioni esistenti
         await connection.query('DELETE FROM lista_distribuzione_utenti WHERE id_lista = ?', [listId]);
-        // 2. Se ci sono nuovi utenti da aggiungere, inseriscili
-        if (userIds && userIds.length > 0) {
-            const values = userIds.map(userId => [listId, userId]);
-            await connection.query('INSERT INTO lista_distribuzione_utenti (id_lista, id_utente) VALUES ?', [values]);
+        await connection.query('DELETE FROM lista_distribuzione_ditte WHERE id_lista = ?', [listId]);
+
+        // Inserisci le nuove associazioni per gli utenti
+        if (userIds.length > 0) {
+            const userValues = userIds.map(userId => [listId, userId]);
+            await connection.query('INSERT INTO lista_distribuzione_utenti (id_lista, id_utente) VALUES ?', [userValues]);
         }
+
+        // Inserisci le nuove associazioni per le ditte
+        if (dittaIds.length > 0) {
+            const dittaValues = dittaIds.map(dittaId => [listId, dittaId]);
+            await connection.query('INSERT INTO lista_distribuzione_ditte (id_lista, id_ditta) VALUES ?', [dittaValues]);
+        }
+
         await connection.commit();
         res.status(200).json({ success: true, message: 'Membri della lista aggiornati.' });
     } catch (error) {
@@ -422,5 +439,49 @@ router.post('/contatti/:id/liste', async (req, res) => {
     }
 });
 
+// Aggiungi questo codice nel tuo file /routes/rubrica.js
+
+/**
+ * GET /api/rubrica/all-contacts
+ * Recupera un elenco unificato di contatti (utenti e ditte).
+ */
+router.get('/all-contacts', async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+
+    try {
+        // 1. Recupera gli utenti
+        const [users] = await dbPool.query(
+            'SELECT id, nome, cognome, email FROM utenti WHERE id_ditta = ? AND attivo = 1',
+            [dittaId]
+        );
+        const userContacts = users.map(u => ({
+            id: `user-${u.id}`,
+            type: 'user',
+            displayName: `${u.nome} ${u.cognome}`,
+            email: u.email
+        }));
+
+        // 2. Recupera le ditte (clienti, fornitori, etc.)
+        const [ditte] = await dbPool.query(
+            'SELECT id, ragione_sociale, citta, provincia, mail_1 FROM ditte WHERE id_ditta_proprietaria = ? AND stato = 1',
+            [dittaId]
+        );
+        const dittaContacts = ditte.map(d => ({
+            id: `ditta-${d.id}`,
+            type: 'ditta',
+            displayName: d.ragione_sociale,
+            email: d.mail_1,
+            secondaryInfo: `${d.citta || ''} (${d.provincia || ''})`
+        }));
+
+        // 3. Unisci e invia i risultati
+        const allContacts = [...userContacts, ...dittaContacts];
+        res.json(allContacts);
+
+    } catch (error) {
+        console.error("Errore nel recuperare i contatti unificati:", error);
+        res.status(500).json({ message: 'Errore interno del server.' });
+    }
+});
 
 module.exports = router;
