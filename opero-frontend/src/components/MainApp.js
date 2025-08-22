@@ -1,20 +1,30 @@
 // #####################################################################
-// # Componente Principale dell'Applicazione - v3.4 (Fix Caricamento Dati)
+// # Componente Principale dell'Applicazione - v5.1 (con Attività)
 // # File: opero-frontend/src/components/MainApp.js
 // #####################################################################
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import AdminPanel from './AdminPanel';
 import AmministrazioneModule from './AmministrazioneModule';
 import ContSmartModule from './ContSmartModule';
 import MailModule from './MailModule';
-import mammoth from 'mammoth'; // Per leggere file .docx
-import * as XLSX from 'xlsx';   // Per leggere file .xlsx
+import AddressBook from './AddressBook';
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import { AgGridReact } from 'ag-grid-react';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 
-// --- Componente Modale per Nuovo Incarico ---
-const IncaricoModal = ({ onSave, onCancel, selectedDate }) => {
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+
+// --- Componente Modale per Nuova Attività ---
+const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
     const [titolo, setTitolo] = useState('');
     const [descrizione, setDescrizione] = useState('');
     const [id_utente_assegnato, setIdUtenteAssegnato] = useState('');
@@ -26,7 +36,7 @@ const IncaricoModal = ({ onSave, onCancel, selectedDate }) => {
                 const { data } = await api.get('/amministrazione/utenti');
                 if (data.success) setUsers(data.data);
             } catch (error) {
-                console.error("Impossibile caricare gli utenti per l'assegnazione");
+                console.error("Impossibile caricare gli utenti");
             }
         };
         fetchUsers();
@@ -45,7 +55,7 @@ const IncaricoModal = ({ onSave, onCancel, selectedDate }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                <h3 className="text-lg font-bold mb-4">Nuovo Incarico per il {selectedDate.toLocaleDateString()}</h3>
+                <h3 className="text-lg font-bold mb-4">Nuova Attività per il {selectedDate.toLocaleDateString()}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <input type="text" placeholder="Titolo" value={titolo} onChange={e => setTitolo(e.target.value)} required className="w-full p-2 border rounded-md" />
                     <textarea placeholder="Descrizione (opzionale)" value={descrizione} onChange={e => setDescrizione(e.target.value)} className="w-full p-2 border rounded-md h-24"></textarea>
@@ -63,57 +73,56 @@ const IncaricoModal = ({ onSave, onCancel, selectedDate }) => {
     );
 };
 
-
-// --- Componente Calendario e Incarichi ---
+// --- Componente Calendario e Attività ---
 const CalendarWidget = () => {
     const [date, setDate] = useState(new Date());
-    const [incarichi, setIncarichi] = useState([]);
+    const [attivita, setAttivita] = useState([]);
     const [selectedDay, setSelectedDay] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchIncarichi = useCallback(async (currentDate) => {
+    const fetchAttivita = useCallback(async (currentDate) => {
         try {
             const anno = currentDate.getFullYear();
             const mese = currentDate.getMonth();
-            const { data } = await api.get(`/incarichi?anno=${anno}&mese=${mese}`);
+            const { data } = await api.get(`/attivita?anno=${anno}&mese=${mese}`);
             if (data.success) {
-                setIncarichi(data.data);
+                setAttivita(data.data);
             }
         } catch (error) {
-            console.error("Errore nel caricamento degli incarichi");
+            console.error("Errore nel caricamento delle attività");
         }
     }, []);
 
     useEffect(() => {
-        fetchIncarichi(date);
-    }, [date, fetchIncarichi]);
+        fetchAttivita(date);
+    }, [date, fetchAttivita]);
 
     const changeMonth = (offset) => {
         setDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() + offset, 1));
     };
     
-    const handleSaveIncarico = async (incaricoData) => {
+    const handleSaveAttivita = async (attivitaData) => {
         try {
-            const { data } = await api.post('/incarichi', incaricoData);
+            const { data } = await api.post('/attivita', attivitaData);
             if(data.success) {
                 setIsModalOpen(false);
-                fetchIncarichi(date);
+                fetchAttivita(date);
             } else {
                 alert(data.message);
             }
         } catch (error) {
-            alert('Errore durante la creazione dell\'incarico.');
+            alert('Errore durante la creazione dell\'attività.');
         }
     };
 
-    const incarichiPerGiorno = incarichi.reduce((acc, curr) => {
+    const attivitaPerGiorno = attivita.reduce((acc, curr) => {
         const day = new Date(curr.data_scadenza).getDate();
         if (!acc[day]) acc[day] = [];
         acc[day].push(curr);
         return acc;
     }, {});
 
-    const incarichiDelGiornoSelezionato = incarichi.filter(inc => 
+    const attivitaDelGiornoSelezionato = attivita.filter(inc => 
         new Date(inc.data_scadenza).toDateString() === selectedDay.toDateString()
     );
 
@@ -125,7 +134,7 @@ const CalendarWidget = () => {
 
     return (
         <div className="p-2 flex flex-col h-full">
-            {isModalOpen && <IncaricoModal onSave={handleSaveIncarico} onCancel={() => setIsModalOpen(false)} selectedDate={selectedDay} />}
+            {isModalOpen && <AttivitaModal onSave={handleSaveAttivita} onCancel={() => setIsModalOpen(false)} selectedDate={selectedDay} />}
             <div className="bg-slate-700 rounded-lg shadow-inner border border-slate-600 p-3">
                 <div className="flex items-center justify-between mb-2">
                     <button onClick={() => changeMonth(-1)} className="text-slate-300 hover:text-white">&lt;</button>
@@ -142,7 +151,7 @@ const CalendarWidget = () => {
                         return (
                             <button key={day} onClick={() => setSelectedDay(currentDate)} className={`relative p-1 rounded-full focus:outline-none ${isSelected ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-600'}`}>
                                 {day}
-                                {incarichiPerGiorno[day] && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full"></span>}
+                                {attivitaPerGiorno[day] && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full"></span>}
                             </button>
                         );
                     })}
@@ -150,25 +159,29 @@ const CalendarWidget = () => {
             </div>
             <div className="flex-grow mt-4 bg-slate-700 rounded-lg shadow-inner border border-slate-600 p-3 overflow-y-auto">
                 <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-bold text-sm text-white">Incarichi del {selectedDay.toLocaleDateString()}</h4>
+                    <h4 className="font-bold text-sm text-white">Attività del {selectedDay.toLocaleDateString()}</h4>
                     <button onClick={() => setIsModalOpen(true)} className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-blue-600">+</button>
                 </div>
                 <ul className="space-y-2">
-                    {incarichiDelGiornoSelezionato.length > 0 ? incarichiDelGiornoSelezionato.map(inc => (
-                        <li key={inc.id} className="text-xs p-2 bg-slate-600 rounded-md">
-                            <p className="font-semibold text-white">{inc.titolo}</p>
-                            <p className="text-slate-300">Assegnato a: {inc.assegnato_a_nome}</p>
+                    {attivitaDelGiornoSelezionato.length > 0 ? attivitaDelGiornoSelezionato.map(att => (
+                        <li key={att.id} className="text-xs p-2 bg-slate-600 rounded-md">
+                            <p className="font-semibold text-white">{att.titolo}</p>
+                            <p className="text-slate-300">Assegnato a: {att.assegnato_a_nome}</p>
                         </li>
-                    )) : <p className="text-xs text-slate-400">Nessun incarico per oggi.</p>}
+                    )) : <p className="text-xs text-slate-400">Nessuna attività per oggi.</p>}
                 </ul>
             </div>
         </div>
     );
 };
-// --- Nuovo Componente: Visualizzatore Documenti Office ---
-const DocumentViewer = () => {
-    const [content, setContent] = useState('<p class="text-slate-400">Seleziona un file .docx o .xlsx per visualizzare un\'anteprima.</p>');
+// --- Componente: Editor Documenti Office con AG Grid ---
+const DocumentEditor = () => {
+    const [fileType, setFileType] = useState(null);
+    const [wordContent, setWordContent] = useState('');
+    const [excelData, setExcelData] = useState({ columnDefs: [], rowData: [] });
+    const [fileName, setFileName] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const gridRef = useRef();
 
     const handleFileChange = (event) => {
         setIsLoading(true);
@@ -177,58 +190,128 @@ const DocumentViewer = () => {
             setIsLoading(false);
             return;
         }
-
+        setFileName(file.name);
         const reader = new FileReader();
 
         reader.onload = async (e) => {
             const arrayBuffer = e.target.result;
             try {
                 if (file.name.endsWith('.docx')) {
+                    setFileType('docx');
                     const result = await mammoth.convertToHtml({ arrayBuffer });
-                    setContent(result.value);
+                    setWordContent(result.value);
                 } else if (file.name.endsWith('.xlsx')) {
+                    setFileType('xlsx');
                     const workbook = XLSX.read(arrayBuffer, { type: 'buffer' });
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
-                    const html = XLSX.utils.sheet_to_html(worksheet);
-                    setContent(html);
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    if (!jsonData || jsonData.length === 0 || !jsonData[0] || jsonData[0].length === 0) {
+                        setExcelData({ 
+                            columnDefs: [{ headerName: "Info", field: "message" }], 
+                            rowData: [{ message: "Il file Excel è vuoto o non contiene dati leggibili." }] 
+                        });
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    const headers = jsonData[0];
+                    const rows = jsonData.slice(1);
+
+                    const columnDefs = headers.map(header => ({
+                        headerName: header,
+                        field: String(header),
+                        editable: true,
+                    }));
+                    
+                    const rowData = rows.map(row => {
+                        const rowObject = {};
+                        headers.forEach((header, index) => {
+                            rowObject[String(header)] = row[index] || '';
+                        });
+                        return rowObject;
+                    });
+
+                    setExcelData({ columnDefs, rowData });
                 } else {
-                    setContent('<p class="text-red-500">Formato file non supportato. Seleziona .docx o .xlsx.</p>');
+                    setFileType(null);
+                    setWordContent('<p class="text-red-500">Formato file non supportato.</p>');
                 }
             } catch (error) {
                 console.error("Errore nella lettura del file:", error);
-                setContent('<p class="text-red-500">Impossibile leggere il file.</p>');
+                setWordContent('<p class="text-red-500">Impossibile leggere il file.</p>');
             } finally {
                 setIsLoading(false);
             }
         };
-
         reader.readAsArrayBuffer(file);
     };
 
+    const handleExportExcel = () => {
+        gridRef.current.api.exportDataAsCsv({ fileName: `modificato_${fileName.replace('.xlsx', '.csv')}` });
+    };
+    
+    const handleExportWord = () => {
+        const blob = new Blob([wordContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modificato_${fileName.replace('.docx', '.html')}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const renderEditor = () => {
+        if (isLoading) return <div className="text-center p-4">Caricamento...</div>;
+        if (!fileType) return <div className="p-4 text-slate-400">Seleziona un file .docx o .xlsx per iniziare.</div>;
+
+        if (fileType === 'xlsx') {
+            return (
+                <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                    <AgGridReact
+                        ref={gridRef}
+                        rowData={excelData.rowData}
+                        columnDefs={excelData.columnDefs}
+                        defaultColDef={{
+                            sortable: true,
+                            filter: true,
+                            resizable: true,
+                        }}
+                    />
+                </div>
+            );
+        }
+
+        if (fileType === 'docx') {
+            return <ReactQuill theme="snow" value={wordContent} onChange={setWordContent} className="h-80" />;
+        }
+    };
+
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md border col-span-1 md:col-span-2 lg:col-span-3">
-            <h3 className="font-bold text-lg text-slate-700 border-b pb-2 mb-4">Visualizzatore Documenti</h3>
+        <div className="bg-white p-6 rounded-lg shadow-md border">
+            <div className="flex justify-between items-center border-b pb-2 mb-4">
+                <h3 className="font-bold text-lg text-slate-700">Editor Documenti</h3>
+                <div>
+                    {fileType === 'docx' && <button onClick={handleExportWord} className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 mr-2">Esporta in HTML</button>}
+                    {fileType === 'xlsx' && <button onClick={handleExportExcel} className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">Esporta in CSV</button>}
+                </div>
+            </div>
             <input 
                 type="file" 
                 accept=".docx,.xlsx" 
                 onChange={handleFileChange} 
-                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-4"
             />
-            {isLoading ? (
-                <div className="mt-4 p-4 border rounded-md text-center">Caricamento anteprima...</div>
-            ) : (
-                <div 
-                    className="mt-4 p-4 border rounded-md max-h-96 overflow-y-auto prose max-w-none" 
-                    dangerouslySetInnerHTML={{ __html: content }} 
-                />
-            )}
+            {renderEditor()}
         </div>
     );
 };
 
 
-// --- Componente Dashboard Dettagliata (AGGIORNATO) ---
+// --- Componente Dashboard Dettagliata ---
 const Dashboard = ({ user, ditta }) => {
     const [myTasks, setMyTasks] = useState([]);
     const [companyTasks, setCompanyTasks] = useState([]);
@@ -240,22 +323,19 @@ const Dashboard = ({ user, ditta }) => {
         const fetchTasks = async () => {
             setIsLoading(true);
             try {
-                const promises = [api.get('/incarichi/miei-futuri')];
+                const myTasksRes = await api.get('/attivita/mie-future');
+                if (myTasksRes.data.success) {
+                    setMyTasks(myTasksRes.data.data);
+                }
+
                 if (isAdmin) {
-                    promises.push(api.get('/incarichi/ditta/futuri'));
-                }
-
-                const results = await Promise.all(promises);
-
-                if (results[0] && results[0].data.success) {
-                    setMyTasks(results[0].data.data);
-                }
-
-                if (isAdmin && results[1] && results[1].data.success) {
-                    setCompanyTasks(results[1].data.data);
+                    const companyTasksRes = await api.get('/attivita/ditta/future');
+                    if (companyTasksRes.data.success) {
+                        setCompanyTasks(companyTasksRes.data.data);
+                    }
                 }
             } catch (error) {
-                console.error("Errore nel caricamento degli incarichi", error);
+                console.error("Errore nel caricamento delle attività", error);
             } finally {
                 setIsLoading(false);
             }
@@ -269,7 +349,6 @@ const Dashboard = ({ user, ditta }) => {
             <p className="text-slate-600 mt-1">Benvenuto in Opero, {user.nome}!</p>
             
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Card Dati Utente */}
                 <div className="bg-white p-6 rounded-lg shadow-md border">
                     <h3 className="font-bold text-lg text-slate-700 border-b pb-2 mb-4">I Tuoi Dati</h3>
                     <div className="space-y-2 text-sm">
@@ -278,7 +357,6 @@ const Dashboard = ({ user, ditta }) => {
                         <p><strong>Ruolo:</strong> {user.ruolo}</p>
                     </div>
                 </div>
-                {/* Card Dati Azienda */}
                 <div className="bg-white p-6 rounded-lg shadow-md border">
                     <h3 className="font-bold text-lg text-slate-700 border-b pb-2 mb-4">Dati Azienda</h3>
                     <div className="space-y-2 text-sm">
@@ -286,35 +364,37 @@ const Dashboard = ({ user, ditta }) => {
                         <p><strong>Ragione Sociale:</strong> {ditta.ragione_sociale}</p>
                     </div>
                 </div>
-                {/* Card Incarichi Personali */}
                 <div className="bg-white p-6 rounded-lg shadow-md border">
-                    <h3 className="font-bold text-lg text-slate-700 border-b pb-2 mb-4">I Miei Prossimi Incarichi</h3>
+                    <h3 className="font-bold text-lg text-slate-700 border-b pb-2 mb-4">Le Mie Prossime Attività</h3>
                     {isLoading ? <p>Caricamento...</p> : (
                         <ul className="space-y-3">
                             {myTasks.length > 0 ? myTasks.map(task => (
                                 <li key={task.id} className="text-sm">
                                     <p className="font-semibold">{task.titolo}</p>
                                     <p className="text-slate-500">Scadenza: {new Date(task.data_scadenza).toLocaleDateString()}</p>
-                                    <p className="text-slate-500">Assegnato da: {task.creatore_nome} {task.creatore_cognome}</p>
+                                    <p className="text-slate-500">Assegnata da: {task.creatore_nome} {task.creatore_cognome}</p>
                                 </li>
-                            )) : <p>Nessun incarico imminente.</p>}
+                            )) : <p>Nessuna attività imminente.</p>}
                         </ul>
                     )}
                 </div>
             </div>
 
-            {/* Sezione Visibile solo agli Admin */}
+            <div className="mt-8">
+                <DocumentEditor />
+            </div>
+
             {isAdmin && (
                 <div className="mt-8">
-                    <h2 className="text-xl font-bold text-slate-800">Panoramica Incarichi della Ditta</h2>
+                    <h2 className="text-xl font-bold text-slate-800">Panoramica Attività della Ditta</h2>
                     <div className="mt-4 bg-white p-6 rounded-lg shadow-md border overflow-x-auto">
                         {isLoading ? <p>Caricamento...</p> : (
                             <table className="min-w-full">
                                 <thead className="border-b">
                                     <tr>
                                         <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Titolo</th>
-                                        <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Assegnato a</th>
-                                        <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Assegnato da</th>
+                                        <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Assegnata a</th>
+                                        <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Assegnata da</th>
                                         <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Scadenza</th>
                                         <th className="text-left py-2 px-3 text-sm font-semibold text-slate-600">Stato</th>
                                     </tr>
@@ -329,7 +409,7 @@ const Dashboard = ({ user, ditta }) => {
                                             <td className="py-2 px-3 text-sm">{task.stato}</td>
                                         </tr>
                                     )) : (
-                                        <tr><td colSpan="5" className="py-4 text-center text-slate-500">Nessun incarico futuro per la ditta.</td></tr>
+                                        <tr><td colSpan="5" className="py-4 text-center text-slate-500">Nessuna attività futura per la ditta.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -363,6 +443,7 @@ const MainApp = () => {
             case 'AMMINISTRAZIONE': return <AmministrazioneModule />;
             case 'CONT_SMART': return <ContSmartModule />;
             case 'MAIL': return <MailModule />;
+            case 'RUBRICA': return <AddressBook />;
             default: return <div className="p-6">Seleziona un modulo per iniziare.</div>;
         }
     };

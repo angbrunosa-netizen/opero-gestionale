@@ -3,11 +3,14 @@
 // # File: opero/server.js
 // #####################################################################
 require('dotenv').config();
+
+
+const rubricaRoutes = require('./routes/rubrica');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const incarichiRoutes = require('./routes/incarichi');
+const attivitaRoutes = require('./routes/attivita');
 
 // --- 1. IMPORTAZIONE DELLE ROTTE ---
 const authRoutes = require('./routes/auth');
@@ -35,7 +38,8 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'], // Permette esplicitamente l'header del token
   credentials: true,
 };
@@ -60,8 +64,8 @@ app.use('/api/amministrazione', amministrazioneRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/track', trackRoutes);
 app.use('/api/contsmart', contsmartRoutes);
-app.use('/api/incarichi', incarichiRoutes);
-
+app.use('/api/attivita', attivitaRoutes);
+app.use('/api/rubrica', rubricaRoutes);
 // --- 5. AVVIO DEL SERVER ---
 app.listen(PORT, () => {
   console.log(`Backend Opero in ascolto sulla porta ${PORT}`);
