@@ -43,5 +43,68 @@ router.patch('/profile', async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento del profilo.' });
     }
 });
+// --- GET (Recupera le scorciatoie salvate dall'utente) ---
+router.get('/shortcuts', async (req, res) => {
+    const { id: userId } = req.user;
+    try {
+        const query = `
+            SELECT f.id, f.codice, f.descrizione 
+            FROM funzioni f 
+            JOIN utente_scorciatoie us ON f.id = us.id_funzione 
+            WHERE us.id_utente = ?
+        `;
+        const [shortcuts] = await dbPool.query(query, [userId]);
+        res.json({ success: true, data: shortcuts });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero delle scorciatoie.' });
+    }
+});
+
+// --- GET (Recupera tutte le funzioni a cui l'utente ha accesso) ---
+router.get('/all-pinnable-functions', async (req, res) => {
+    const { id_ruolo: ruoloId } = req.user;
+    try {
+        const query = `
+            SELECT f.id, f.descrizione 
+            FROM funzioni f 
+            JOIN ruoli_funzioni rf ON f.id = rf.id_funzione 
+            WHERE rf.id_ruolo = ?
+        `;
+        const [functions] = await dbPool.query(query, [ruoloId]);
+        res.json({ success: true, data: functions });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore nel recupero delle funzioni disponibili.' });
+    }
+});
+
+// --- POST (Salva le scorciatoie scelte dall'utente) ---
+router.post('/shortcuts', async (req, res) => {
+    const { id: userId } = req.user;
+    const { funzioniIds } = req.body; // Ci aspettiamo un array di ID, es. [1, 5, 26]
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Cancella le vecchie scorciatoie per questo utente
+        await connection.query('DELETE FROM utente_scorciatoie WHERE id_utente = ?', [userId]);
+
+        // 2. Inserisce le nuove, se ce ne sono
+        if (funzioniIds && funzioniIds.length > 0) {
+            const values = funzioniIds.map(funzioneId => [userId, funzioneId]);
+            await connection.query('INSERT INTO utente_scorciatoie (id_utente, id_funzione) VALUES ?', [values]);
+        }
+
+        await connection.commit();
+        res.json({ success: true, message: 'Scorciatoie salvate con successo.' });
+    } catch (error) {
+        await connection.rollback();
+        res.status(500).json({ success: false, message: 'Errore durante il salvataggio.' });
+    } finally {
+        connection.release();
+    }
+});
+
+
 
 module.exports = router;

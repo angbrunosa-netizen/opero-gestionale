@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente Principale dell'Applicazione - v5.1 (con Attività)
+// # Componente Principale dell'Applicazione - v5.2 (Fix Regole Hooks)
 // # File: opero-frontend/src/components/MainApp.js
 // #####################################################################
 
@@ -19,6 +19,8 @@ import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+import ShortcutSettingsModal from './ShortcutSettingsModal'; 
+import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -422,11 +424,43 @@ const Dashboard = ({ user, ditta }) => {
 };
 
 
+// Helper per mappare i codici funzione alle icone
+const getIconForFunction = (codice) => {
+    switch (codice) {
+        case 'ANAGRAFICHE_CREATE': return <PlusCircleIcon className="h-5 w-5" />;
+        case 'UTENTI_VIEW': return <UserGroupIcon className="h-5 w-5" />;
+        // Aggiungi altri 'case' per le funzioni che vuoi mappare a un'icona
+        default: return <Cog6ToothIcon className="h-5 w-5" />;
+    }
+};
+
 // --- Componente Principale ---
 const MainApp = () => {
+    // ++ CORREZIONE: Tutti gli hook vengono chiamati all'inizio ++
     const { user, ditta, modules, logout, loading } = useAuth();
     const [activeModule, setActiveModule] = useState('DASHBOARD');
+    const [shortcuts, setShortcuts] = useState([]);
+    const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
 
+    const fetchShortcuts = useCallback(async () => {
+        try {
+            const { data } = await api.get('/user/shortcuts');
+            if (data.success) {
+                setShortcuts(data.data);
+            }
+        } catch (error) {
+            console.error("Impossibile caricare le scorciatoie", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        // Aggiungiamo un controllo per eseguire il fetch solo se l'utente è loggato
+        if (user) {
+            fetchShortcuts();
+        }
+    }, [fetchShortcuts, user]); // Aggiungiamo 'user' alle dipendenze
+
+    // ++ CORREZIONE: L'early return ora si trova DOPO le chiamate agli hook ++
     if (loading || !user || !ditta) {
         return (
             <div className="flex h-screen items-center justify-center bg-slate-800 text-white">
@@ -435,6 +469,18 @@ const MainApp = () => {
         );
     }
 
+    const handleShortcutClick = (codiceFunzione) => {
+        // Questa mappatura è un esempio, dovrai adattarla alla tua logica
+        if (codiceFunzione.startsWith('ANAGRAFICHE')) {
+            setActiveModule('AMMINISTRAZIONE');
+            // Qui potresti anche inviare un evento per aprire direttamente il form di creazione
+        } else if (codiceFunzione.startsWith('UTENTI')) {
+            setActiveModule('AMMINISTRAZIONE');
+        } else {
+            alert(`Funzione '${codiceFunzione}' non ancora collegata.`);
+        }
+    };
+    
     const renderActiveModule = () => {
         switch (activeModule) {
             case 'DASHBOARD':
@@ -450,6 +496,16 @@ const MainApp = () => {
 
     return (
         <div className="flex h-screen bg-gray-100 font-sans">
+            {isShortcutModalOpen && 
+                <ShortcutSettingsModal 
+                    currentShortcuts={shortcuts}
+                    onClose={() => setIsShortcutModalOpen(false)}
+                    onSave={() => {
+                        fetchShortcuts(); 
+                        setIsShortcutModalOpen(false);
+                    }}
+                />
+            }
             <aside className="w-64 bg-slate-800 flex flex-col">
                 <div className="p-4 border-b border-slate-700 text-center">
                     <h1 className="text-xl font-bold text-white">Opero</h1>
@@ -483,9 +539,28 @@ const MainApp = () => {
                 </div>
             </aside>
             <div className="flex-1 flex flex-col">
-                <header className="bg-white border-b flex items-center justify-end p-4">
-                    <span className="text-sm mr-4">Benvenuto, {user.nome} {user.cognome}</span>
-                    <button onClick={logout} className="text-sm font-medium text-red-600 hover:underline">Logout</button>
+                <header className="bg-white border-b flex items-center justify-between p-4">
+                    <div className="flex items-center gap-2">
+                        {shortcuts.map(sc => (
+                            <button 
+                                key={sc.id}
+                                onClick={() => handleShortcutClick(sc.codice)}
+                                title={sc.descrizione}
+                                className="flex items-center gap-2 p-2 rounded-md bg-gray-100 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                            >
+                                {getIconForFunction(sc.codice)}
+                                <span className="text-sm font-medium hidden sm:block">{sc.descrizione}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <span className="text-sm hidden md:block">Benvenuto, {user.nome} {user.cognome}</span>
+                        <button onClick={() => setIsShortcutModalOpen(true)} title="Personalizza scorciatoie">
+                            <Cog6ToothIcon className="h-6 w-6 text-gray-600 hover:text-blue-600" />
+                        </button>
+                        <button onClick={logout} className="text-sm font-medium text-red-600 hover:underline">Logout</button>
+                    </div>
                 </header>
                 <main className="flex-1 overflow-y-auto">
                     {renderActiveModule()}
