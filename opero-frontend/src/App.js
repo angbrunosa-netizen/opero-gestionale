@@ -11,6 +11,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './components/LoginPage';
 import MainApp from './components/MainApp';
 import RegistrationPage from './components/RegistrationPage'; // Aggiunto per completezza
+import StandaloneModule from './components/StandaloneModule'; // <-- NUOVO IMPORT
+
 
 /**
  * Componente "Wrapper" per proteggere le rotte.
@@ -40,8 +42,18 @@ function App() {
           {/* Rotte pubbliche */}
           <Route path="/login" element={<LoginPage />} />
            <Route path="/register/:token" element={<RegistrationPage />} />
+           
+           {/* NUOVA ROTTA per i moduli standalone */}
+          <Route 
+            path="/module/:moduleKey" 
+            element={
+              <ProtectedRoute>
+                <StandaloneModule />
+              </ProtectedRoute>
+            } />
 
           {/* Rotta principale protetta */}
+          
           <Route 
             path="/" 
             element={

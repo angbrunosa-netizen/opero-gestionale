@@ -1,8 +1,9 @@
-// #####################################################################
-// # Componente Principale dell'Applicazione - v5.2 (Fix Regole Hooks)
-// # File: opero-frontend/src/components/MainApp.js
-// #####################################################################
-
+/*
+ * ======================================================================
+ * File: src/components/MainApp.js (MODIFICATO)
+ * ======================================================================
+ * Descrizione: Modifichiamo la logica del click per aprire una nuova finestra.
+ */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -20,7 +21,9 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import ShortcutSettingsModal from './ShortcutSettingsModal'; 
-import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+// ++ NUOVI IMPORT PER LE ICONE ++
+import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import AttivitaPPA from './AttivitaPPA';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -424,11 +427,16 @@ const Dashboard = ({ user, ditta }) => {
 };
 
 
+// ++ MODIFICA QUI: Mappatura icone più completa ++
 // Helper per mappare i codici funzione alle icone
 const getIconForFunction = (codice) => {
     switch (codice) {
         case 'ANAGRAFICHE_CREATE': return <PlusCircleIcon className="h-5 w-5" />;
+        case 'ANAGRAFICHE_VIEW': return <UserGroupIcon className="h-5 w-5" />;
         case 'UTENTI_VIEW': return <UserGroupIcon className="h-5 w-5" />;
+        case 'PPA_MODULE': return <ClipboardDocumentListIcon className="h-5 w-5" />;
+        case 'RUBRICA_MANAGE': return <BookOpenIcon className="h-5 w-5" />;
+        case 'AddressBookManager': return <EnvelopeIcon className="h-5 w-5" />;
         // Aggiungi altri 'case' per le funzioni che vuoi mappare a un'icona
         default: return <Cog6ToothIcon className="h-5 w-5" />;
     }
@@ -436,13 +444,13 @@ const getIconForFunction = (codice) => {
 
 // --- Componente Principale ---
 const MainApp = () => {
-    // ++ CORREZIONE: Tutti gli hook vengono chiamati all'inizio ++
     const { user, ditta, modules, logout, loading } = useAuth();
     const [activeModule, setActiveModule] = useState('DASHBOARD');
     const [shortcuts, setShortcuts] = useState([]);
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
 
     const fetchShortcuts = useCallback(async () => {
+        if (!user) return; // Non fare nulla se l'utente non è ancora caricato
         try {
             const { data } = await api.get('/user/shortcuts');
             if (data.success) {
@@ -451,16 +459,12 @@ const MainApp = () => {
         } catch (error) {
             console.error("Impossibile caricare le scorciatoie", error);
         }
-    }, []);
+    }, [user]); // Dipende da 'user' per assicurarsi che venga eseguito dopo il login
 
     useEffect(() => {
-        // Aggiungiamo un controllo per eseguire il fetch solo se l'utente è loggato
-        if (user) {
-            fetchShortcuts();
-        }
-    }, [fetchShortcuts, user]); // Aggiungiamo 'user' alle dipendenze
+        fetchShortcuts();
+    }, [fetchShortcuts]);
 
-    // ++ CORREZIONE: L'early return ora si trova DOPO le chiamate agli hook ++
     if (loading || !user || !ditta) {
         return (
             <div className="flex h-screen items-center justify-center bg-slate-800 text-white">
@@ -468,16 +472,13 @@ const MainApp = () => {
             </div>
         );
     }
-
-    const handleShortcutClick = (codiceFunzione) => {
-        // Questa mappatura è un esempio, dovrai adattarla alla tua logica
-        if (codiceFunzione.startsWith('ANAGRAFICHE')) {
-            setActiveModule('AMMINISTRAZIONE');
-            // Qui potresti anche inviare un evento per aprire direttamente il form di creazione
-        } else if (codiceFunzione.startsWith('UTENTI')) {
-            setActiveModule('AMMINISTRAZIONE');
+    
+    const handleShortcutClick = (shortcut) => {
+        if (shortcut.chiave_componente_modulo) {
+            const url = `/module/${shortcut.chiave_componente_modulo}`;
+            window.open(url, '_blank', 'noopener,noreferrer');
         } else {
-            alert(`Funzione '${codiceFunzione}' non ancora collegata.`);
+            alert(`La funzione '${shortcut.descrizione}' non è collegata a un modulo apribile.`);
         }
     };
     
@@ -485,6 +486,8 @@ const MainApp = () => {
         switch (activeModule) {
             case 'DASHBOARD':
                 return <Dashboard user={user} ditta={ditta} />;
+            case 'MY_PPA_TASKS': 
+                return <AttivitaPPA />;
             case 'ADMIN_PANEL': return <AdminPanel />;
             case 'AMMINISTRAZIONE': return <AmministrazioneModule />;
             case 'CONT_SMART': return <ContSmartModule />;
@@ -525,6 +528,11 @@ const MainApp = () => {
                                 Dashboard
                             </button>
                         </li>
+                        <li>
+                            <button onClick={() => setActiveModule('MY_PPA_TASKS')} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === 'MY_PPA_TASKS' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
+                                Le Mie Attività PPA
+                            </button>
+                        </li>
                         {modules.map(module => (
                             <li key={module.codice}>
                                 <button onClick={() => setActiveModule(module.chiave_componente)} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
@@ -544,12 +552,11 @@ const MainApp = () => {
                         {shortcuts.map(sc => (
                             <button 
                                 key={sc.id}
-                                onClick={() => handleShortcutClick(sc.codice)}
-                                title={sc.descrizione}
-                                className="flex items-center gap-2 p-2 rounded-md bg-gray-100 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                                onClick={() => handleShortcutClick(sc)}
+                                title={sc.descrizione} // Questo crea il tooltip al passaggio del mouse
+                                className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
                                 {getIconForFunction(sc.codice)}
-                                <span className="text-sm font-medium hidden sm:block">{sc.descrizione}</span>
                             </button>
                         ))}
                     </div>

@@ -31,8 +31,7 @@ const componentMap = {
   CONT_SMART: ContSmartModule,
   MAIL: MailModule,
   ADMIN_PANEL: AdminPanel,
-  // Esempio per un futuro modulo:
-  // MAGAZZINO: MagazzinoModule,
+  PPA_MODULE: PPAModule, // Aggiunto PPA alla mappa principale per coerenza
 };
 
 /**
@@ -42,6 +41,5 @@ const componentMap = {
  */
 export const getModuleComponent = (componentKey) => {
   return componentMap[componentKey] || null;
-export default moduleRegistry;
-
 };
+
