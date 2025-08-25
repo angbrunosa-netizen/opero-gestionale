@@ -17,44 +17,46 @@ import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
 const NoPermissionMessage = () => <div className="p-6 text-center text-gray-500"><p>Non disponi delle autorizzazioni necessarie per visualizzare questa sezione.</p></div>;
 
 
-// --- Componente Modale per Form di Modifica/Creazione Anagrafica ---
+// --- Componente Modale per Form di Modifica/Creazione Anagrafica (AGGIORNATO CON CAMPI COMPLETI) ---
 function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
     const [formData, setFormData] = useState({
-        ragione_sociale: '', p_iva: '', codice_fiscale: '', indirizzo: '', cap: '', citta: '', provincia: '',
-        tel: '', email: '', pec: '', codice_sdi: '', stato: 1, 
-        codice_relazione: '', // Relazione scelta (es. 'C')
-        id_conto: '',         // ID del CONTO PADRE scelto (es. 123)
-        id_conto_collegato: ''// ID del SOTTOCONTO finale (sola lettura)
+        ragione_sociale: '',
+        indirizzo: '',
+        citta: '',
+        provincia: '',
+        cap: '',
+        tel1: '',
+        tel2: '',
+        mail_1: '',
+        mail_2: '',
+        pec: '',
+        sdi: '',
+        p_iva: '',
+        codice_fiscale: '',
+        stato: 1, 
+        codice_relazione: '',
     });
     const [relazioni, setRelazioni] = useState([]);
-    const [conti, setConti] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isLoadingConti, setIsLoadingConti] = useState(false);
     const [error, setError] = useState('');
 
-    // --- Caricamento dati iniziali (Relazioni e dati anagrafica se in modifica) ---
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
                 const relazioniRes = await api.get('/amministrazione/relazioni');
-                if (relazioniRes.data.success) {
-                    setRelazioni(relazioniRes.data.data);
-                } else {
-                    throw new Error('Impossibile caricare le relazioni.');
-                }
+                setRelazioni(relazioniRes.data.data);
 
                 if (anagraficaId) {
                     const anagraficaRes = await api.get(`/amministrazione/anagrafiche/${anagraficaId}`);
-                    if (anagraficaRes.data.success) {
-                        const anagrafica = anagraficaRes.data.data;
-                        setFormData({
-                            ...anagrafica,
-                            id_conto: anagrafica.id_conto || '' // Assicuriamoci che id_conto sia presente
-                        });
-                    } else {
-                        throw new Error(anagraficaRes.data.message);
-                    }
+                    // Mappiamo i nomi dei campi dal DB allo stato del form se necessario
+                    const data = anagraficaRes.data.data;
+                    setFormData({
+                        ...data,
+                        tel1: data.tel1 || data.tel || '', // Compatibilità con vecchi nomi
+                        mail_1: data.mail_1 || data.email || '',
+                        sdi: data.sdi || data.codice_sdi || ''
+                    });
                 }
             } catch (err) {
                 setError(err.message || 'Errore di connessione.');
@@ -65,45 +67,9 @@ function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
         fetchData();
     }, [anagraficaId]);
 
-    // --- Caricamento dinamico dei CONTI quando cambia la RELAZIONE ---
-    useEffect(() => {
-        const fetchConti = async () => {
-            if (!formData.codice_relazione) {
-                setConti([]);
-                return;
-            }
-            
-            const mastroMap = { 'C': '08', 'F': '28', 'P': '75' };
-            const mastro = mastroMap[formData.codice_relazione];
-
-            if (mastro) {
-                setIsLoadingConti(true);
-                try {
-                    const res = await api.get(`/amministrazione/conti/${mastro}`);
-                    if (res.data.success) {
-                        setConti(res.data.data);
-                    }
-                } catch (error) {
-                    console.error("Errore nel caricare i conti", error);
-                } finally {
-                    setIsLoadingConti(false);
-                }
-            }
-        };
-
-        fetchConti();
-    }, [formData.codice_relazione]);
-
-
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-        const newValue = type === 'checkbox' ? (checked ? 1 : 0) : value;
-
-        if (name === 'codice_relazione') {
-            setFormData(prev => ({ ...prev, id_conto: '', [name]: newValue }));
-        } else {
-            setFormData(prev => ({ ...prev, [name]: newValue }));
-        }
+        setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? (checked ? 1 : 0) : value }));
     };
 
     const handleSubmit = (e) => {
@@ -115,87 +81,109 @@ function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
                 <h3 className="text-xl font-semibold mb-4 text-slate-800">{anagraficaId ? 'Modifica Anagrafica' : 'Nuova Anagrafica'}</h3>
                 {error && <p className="text-red-500 mb-4"><strong>Errore:</strong> {error}</p>}
                 <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-4 flex-grow">
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="md:col-span-3">
-                            <label className="block text-sm font-medium text-slate-700">Ragione Sociale</label>
-                            <input name="ragione_sociale" value={formData.ragione_sociale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        
-                        {/* --- DOPPIO DROPDOWN --- */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">1. Seleziona Relazione</label>
-                            {/* ## FIX: Rimosso 'disabled' ## */}
-                            <select name="codice_relazione" value={formData.codice_relazione || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md">
-                                <option value="" disabled>Seleziona...</option>
-                                {relazioni.map(rel => (
-                                    <option key={rel.codice} value={rel.codice}>{rel.descrizione}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">2. Seleziona Conto</label>
-                            {/* ## FIX: Rimosso 'disabled' ## */}
-                            <select name="id_conto" value={formData.id_conto || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" disabled={!formData.codice_relazione || isLoadingConti}>
-                                <option value="" disabled>{isLoadingConti ? 'Caricamento...' : 'Seleziona...'}</option>
-                                {conti.map(conto => (
-                                    <option key={conto.id} value={conto.id}>{conto.codice} - {conto.descrizione}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">ID Sottoconto Collegato</label>
-                            <input name="id_conto_collegato" value={formData.id_conto_collegato || ''} className="mt-1 block w-full p-2 border rounded-md bg-gray-100" readOnly />
+                        {/* Colonna 1 */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">ID</label>
+                                <input value={formData.id || 'Automatico'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Ragione Sociale</label>
+                                <input name="ragione_sociale" value={formData.ragione_sociale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
+                                <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">Città</label>
+                                <input name="citta" value={formData.citta || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Provincia</label>
+                                <input name="provincia" value={formData.provincia || ''} onChange={handleChange} required maxLength="2" className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                            <div>
+                                    <label className="block text-sm font-medium text-slate-700">CAP</label>
+                                    <input name="cap" value={formData.cap || ''} onChange={handleChange} required maxLength="5" className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
                         </div>
 
-                        {/* --- ALTRI CAMPI --- */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Partita IVA</label>
-                            <input name="p_iva" value={formData.p_iva || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                        {/* Colonna 2 */}
+                        <div className="space-y-4">
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">Telefono 1</label>
+                                <input name="tel1" value={formData.tel1 || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">Telefono 2</label>
+                                <input name="tel2" value={formData.tel2 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">Email 1</label>
+                                <input type="email" name="mail_1" value={formData.mail_1 || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">Email 2</label>
+                                <input type="email" name="mail_2" value={formData.mail_2 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">PEC</label>
+                                <input type="email" name="pec" value={formData.pec || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
-                            <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+
+                        {/* Colonna 3 */}
+                        <div className="space-y-4">
+                             <div>
+                                <label className="block text-sm font-medium text-slate-700">Codice SDI</label>
+                                <input name="sdi" value={formData.sdi || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Partita IVA</label>
+                                <input name="p_iva" value={formData.p_iva || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
+                                <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Relazione</label>
+                                <select name="codice_relazione" value={formData.codice_relazione || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" disabled={!!anagraficaId}>
+                                    <option value="" disabled>Seleziona...</option>
+                                    {relazioni.map(rel => (
+                                        <option key={rel.codice} value={rel.codice}>{rel.descrizione}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex items-center pt-2">
+                                <input type="checkbox" name="stato" id="stato" checked={!!formData.stato} onChange={handleChange} className="h-4 w-4 rounded" />
+                                <label htmlFor="stato" className="ml-2 block text-sm text-slate-800">Attivo</label>
+                            </div>
                         </div>
-                        <div className="md:col-span-3">
-                            <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
-                            <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">CAP</label>
-                            <input name="cap" value={formData.cap || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Città</label>
-                            <input name="citta" value={formData.citta || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Provincia</label>
-                            <input name="provincia" value={formData.provincia || ''} onChange={handleChange} maxLength="2" className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Email</label>
-                            <input type="email" name="email" value={formData.email || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">PEC</label>
-                            <input type="email" name="pec" value={formData.pec || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                         <div>
-                            <label className="block text-sm font-medium text-slate-700">Telefono</label>
-                            <input name="tel" value={formData.tel || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Codice SDI</label>
-                            <input name="codice_sdi" value={formData.codice_sdi || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div className="flex items-center">
-                            <input type="checkbox" name="stato" checked={!!formData.stato} onChange={handleChange} className="h-4 w-4 rounded" />
-                            <label className="ml-2 block text-sm text-slate-800">Attivo</label>
-                        </div>
+                        
+                        {/* Sottoconti collegati (sola lettura) */}
+                        {anagraficaId && (
+                            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 mt-2">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-500">ID Sottoconto Cliente</label>
+                                    <input value={formData.id_sottoconto_cliente || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                </div>
+                                 <div>
+                                    <label className="block text-sm font-medium text-slate-500">ID Sottoconto Fornitore</label>
+                                    <input value={formData.id_sottoconto_fornitore || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                </div>
+                                 <div>
+                                    <label className="block text-sm font-medium text-slate-500">ID Sottoconto P. Vendita</label>
+                                    <input value={formData.id_sottoconto_puntovendita || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                </div>
+                            </div>
+                        )}
                      </div>
                     <div className="flex justify-end gap-4 pt-4 border-t mt-4">
                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
@@ -206,6 +194,8 @@ function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
         </div>
     );
 }
+
+
 
 // --- Componente per la Gestione Utenti (Placeholder) ---
 // --- Componente per la Gestione Utenti ---
@@ -509,7 +499,7 @@ function PdcEditModal({ item, itemType, onSave, onCancel }) {
 }
 
 
-// --- Componente per la Gestione Anagrafiche ---
+// --- Componente per la Gestione Anagrafiche (AGGIORNATO) ---
 function AnagraficheManager() {
     const [anagrafiche, setAnagrafiche] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -567,33 +557,35 @@ function AnagraficheManager() {
                 {canCreate && <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">+ Nuova Anagrafica</button>}
             </div>
              <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ragione Sociale</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">ID Sottoconto</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Relazione</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Stato</th>
-                                {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
+                <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ragione Sociale</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Relazione</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sottoconti (C/F/PV)</th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Stato</th>
+                            {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                        {anagrafiche.map(row => (
+                            <tr key={row.id} className="hover:bg-slate-50">
+                                <td className="px-6 py-4 text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
+                                <td className="px-6 py-4 text-sm text-slate-600">{row.relazione}</td>
+                                <td className="px-6 py-4 text-sm text-slate-600">
+                                    {row.id_sottoconto_cliente && <span className="mr-2">C: {row.id_sottoconto_cliente}</span>}
+                                    {row.id_sottoconto_fornitore && <span className="mr-2">F: {row.id_sottoconto_fornitore}</span>}
+                                    {row.id_sottoconto_puntovendita && <span>PV: {row.id_sottoconto_puntovendita}</span>}
+                                </td>
+                                <td className="px-6 py-4 text-center text-sm">
+                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${row.stato ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{row.stato ? 'Attivo' : 'Inattivo'}</span>
+                                </td>
+                                {canEdit && <td className="px-6 py-4 text-center text-sm font-medium"><button onClick={() => handleOpenModal(row.id)} className="text-blue-600 hover:text-blue-900">Modifica</button></td>}
                             </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                            {anagrafiche.length > 0 ? (
-                                anagrafiche.map(row => (
-                                    <tr key={row.id} className="hover:bg-slate-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
-                                        <td className="px-6 py-4 text-sm text-slate-600">{row.id_conto_collegato}</td>
-                                        <td className="px-6 py-4 text-sm text-slate-600">{row.relazione}</td>
-                                        <td className="px-6 py-4 text-center text-sm">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${row.stato === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{row.stato === 1 ? 'Attivo' : 'Non Attivo'}</span>
-                                        </td>
-                                        {canEdit && <td className="px-6 py-4 text-center text-sm font-medium"><button onClick={() => handleOpenModal(row.id)} className="text-blue-600 hover:text-blue-900">Modifica</button></td>}
-                                    </tr>
-                                ))
-                            ) : ( <tr><td colSpan={canEdit ? 5 : 4} className="text-center py-10 text-slate-500">Nessun dato trovato.</td></tr> )}
-                        </tbody>
-                    </table>
-                </div>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

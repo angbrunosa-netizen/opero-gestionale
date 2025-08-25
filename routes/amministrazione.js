@@ -35,16 +35,25 @@ function encrypt(text) {
     return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
-// --- Funzione Helper per trovare il prossimo SOTTOCONTO disponibile ---
-async function findNextAvailableSottoconto(dittaId, contoId, connection) {
+// --- Funzione Helper CORRETTA per trovare il prossimo SOTTOCONTO ---
+async function findNextAvailableSottoconto(dittaId, idPadre, connection) {
+    // 1. Ottieni il codice del conto padre (es. '20.05')
+    const [padreRows] = await connection.query('SELECT codice FROM sc_piano_dei_conti WHERE id = ?', [idPadre]);
+    if (padreRows.length === 0) throw new Error('Conto padre non trovato.');
+    const codicePadre = padreRows[0].codice;
+
+    // 2. Trova l'ultimo numero progressivo usato per quel padre NELLA NUOVA TABELLA
     const query = `
-        SELECT MAX(CAST(codice AS UNSIGNED)) as last_sottoconto
-        FROM sottoconti 
-        WHERE id_ditta = ? AND id_conto = ?
+        SELECT MAX(CAST(SUBSTRING_INDEX(codice, '.', -1) AS UNSIGNED)) as last_progressivo
+        FROM sc_piano_dei_conti 
+        WHERE id_ditta = ? AND id_padre = ?
     `;
-    const [rows] = await connection.query(query, [dittaId, contoId]);
-    const lastSottoconto = rows[0].last_sottoconto || 0;
-    return (lastSottoconto + 1).toString().padStart(6, '0');
+    const [rows] = await connection.query(query, [dittaId, idPadre]);
+    const lastProgressivo = rows[0].last_progressivo || 0;
+    
+    // 3. Genera il nuovo codice completo
+    const nuovoProgressivo = (lastProgressivo + 1).toString().padStart(3, '0');
+    return `${codicePadre}.${nuovoProgressivo}`;
 }
 // route conti mastro
 
@@ -73,21 +82,23 @@ router.get('/relazioni', verifyToken, async (req, res) => {
         const [rows] = await dbPool.query(query);
         res.json({ success: true, data: rows });
     } catch (error) {
-        console.error("Errore nel recuperare le relazioni:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
 
-// --- GET (Lista Anagrafiche) ---
+
+// --- GET (Lista Anagrafiche con Sottoconti Collegati) ---
 router.get('/anagrafiche', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
-    if (!dittaId) return res.status(400).json({ success: false, message: 'ID ditta non trovato.' });
-
     try {
         const query = `
-            SELECT a.id, a.ragione_sociale, a.p_iva, a.codice_fiscale, a.stato, 
-                   r.descrizione AS relazione, a.id_conto_collegato
+            SELECT 
+                a.id, a.ragione_sociale, a.p_iva, a.stato, 
+                r.descrizione AS relazione, 
+                a.id_sottoconto_cliente,
+                a.id_sottoconto_fornitore,
+                a.id_sottoconto_puntovendita
             FROM ditte a 
             LEFT JOIN relazioni_ditta r ON a.codice_relazione = r.codice
             WHERE a.id_ditta_proprietaria = ? ORDER BY a.ragione_sociale ASC
@@ -95,26 +106,18 @@ router.get('/anagrafiche', verifyToken, async (req, res) => {
         const [rows] = await dbPool.query(query, [dittaId]);
         res.json({ success: true, data: rows });
     } catch (error) {
-        console.error("Errore recupero anagrafiche:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+        res.status(500).json({ success: false, message: 'Errore recupero anagrafiche.' });
     }
 });
+
+
 
 // --- GET (Dettaglio Anagrafica) ---
 router.get('/anagrafiche/:id', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
     const { id } = req.params;
-    if (!dittaId) return res.status(400).json({ success: false, message: 'ID ditta non trovato.' });
-
     try {
-        const query = `
-            SELECT d.*, s.id_conto 
-            FROM ditte d
-            LEFT JOIN sottoconti s ON d.id_conto_collegato = s.id
-            WHERE d.id = ? AND d.id_ditta_proprietaria = ?
-        `;
-        const [rows] = await dbPool.query(query, [id, dittaId]);
-
+        const [rows] = await dbPool.query('SELECT * FROM ditte WHERE id = ? AND id_ditta_proprietaria = ?', [id, dittaId]);
         if (rows.length > 0) {
             res.json({ success: true, data: rows[0] });
         } else {
@@ -127,79 +130,124 @@ router.get('/anagrafiche/:id', verifyToken, async (req, res) => {
 
 
 // --- POST (Crea Anagrafica con SOTTOCONTO sotto un CONTO specifico) ---
+// --- POST (Crea Anagrafica con generazione automatica SOTTOCONTI) ---
+// --- POST (Crea Anagrafica con generazione automatica SOTTOCONTI) ---
+// --- POST (Crea Anagrafica con generazione automatica SOTTOCONTI) ---
 router.post('/anagrafiche', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
     const anagraficaData = req.body;
-    const { id_conto, ragione_sociale } = anagraficaData; // id_conto è l'ID del CONTO PADRE scelto
+    const { ragione_sociale, codice_relazione } = anagraficaData;
 
-    if (!id_conto) {
-        return res.status(400).json({ success: false, message: 'È necessario selezionare un conto a cui collegare l\'anagrafica.' });
+    if (!ragione_sociale || !codice_relazione) {
+        return res.status(400).json({ success: false, message: 'Ragione Sociale e Relazione sono obbligatorie.' });
     }
 
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
 
-        const nuovoSottocontoCodice = await findNextAvailableSottoconto(dittaId, id_conto, connection);
-        
-        const [sottocontoResult] = await connection.query(
-            'INSERT INTO sottoconti (id_ditta, id_conto, codice, descrizione) VALUES (?, ?, ?, ?)',
-            [dittaId, id_conto, nuovoSottocontoCodice, ragione_sociale]
-        );
-        const nuovoSottocontoId = sottocontoResult.insertId;
-
-        const dittaToInsert = { ...anagraficaData, id_ditta_proprietaria: dittaId, id_conto_collegato: nuovoSottocontoId };
+        const dittaToInsert = { ...anagraficaData, id_ditta_proprietaria: dittaId };
         delete dittaToInsert.id;
-        delete dittaToInsert.id_conto; // Rimuoviamo il campo temporaneo
+        
+        // --- FIX: Imposta SEMPRE id_tipo_ditta a 2 per le anagrafiche ---
+        dittaToInsert.id_tipo_ditta = 2;
+        
+        // Converte le stringhe vuote in NULL per i campi opzionali
+        dittaToInsert.pec = dittaToInsert.pec || null;
+        dittaToInsert.p_iva = dittaToInsert.p_iva || null;
+        dittaToInsert.codice_fiscale = dittaToInsert.codice_fiscale || null;
+        dittaToInsert.sdi = dittaToInsert.sdi || null;
+        
+        const [dittaResult] = await connection.query('INSERT INTO ditte SET ?', [dittaToInsert]);
+        const newDittaId = dittaResult.insertId;
 
-        const fields = Object.keys(dittaToInsert);
-        const values = Object.values(dittaToInsert);
-        const placeholders = fields.map(() => '?').join(',');
+        const relazioniMap = {
+            'C': { codicePadre: '20.05', natura: 'Attività', tipo: 'cliente' },
+            'F': { codicePadre: '40.05', natura: 'Passività', tipo: 'fornitore' },
+            'PV': { codicePadre: '70.01', natura: 'Ricavo', tipo: 'puntovendita' }
+        };
+        
+        const sottocontiDaCreare = [];
+        if (codice_relazione.includes('C')) sottocontiDaCreare.push(relazioniMap['C']);
+        if (codice_relazione.includes('F')) sottocontiDaCreare.push(relazioniMap['F']);
+        if (codice_relazione.includes('PV')) sottocontiDaCreare.push(relazioniMap['PV']);
 
-        const [result] = await connection.query(`INSERT INTO ditte (${fields.join(',')}) VALUES (${placeholders})`, values);
+        const updates = {};
+
+        for (const tipoSottoconto of sottocontiDaCreare) {
+            const [padreRows] = await connection.query(
+                'SELECT id FROM sc_piano_dei_conti WHERE id_ditta = ? AND codice = ? AND tipo = "Conto"',
+                [dittaId, tipoSottoconto.codicePadre]
+            );
+            if (padreRows.length === 0) throw new Error(`Conto padre ${tipoSottoconto.codicePadre} non trovato. Assicurarsi che il piano dei conti standard sia caricato.`);
+            const idPadre = padreRows[0].id;
+
+            const nuovoCodiceSottoconto = await findNextAvailableSottoconto(dittaId, idPadre, connection);
+
+            const [sottocontoResult] = await connection.query(
+                'INSERT INTO sc_piano_dei_conti (id_ditta, id_padre, codice, descrizione, tipo, natura) VALUES (?, ?, ?, ?, "Sottoconto", ?)',
+                [dittaId, idPadre, nuovoCodiceSottoconto, ragione_sociale, tipoSottoconto.natura]
+            );
+            
+            updates[`id_sottoconto_${tipoSottoconto.tipo}`] = sottocontoResult.insertId;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await connection.query('UPDATE ditte SET ? WHERE id = ?', [updates, newDittaId]);
+        }
         
         await connection.commit();
-        res.status(201).json({ success: true, message: 'Anagrafica e sottoconto creati.', insertId: result.insertId });
+        res.status(201).json({ success: true, message: 'Anagrafica e sottoconti collegati creati con successo.', insertId: newDittaId });
 
     } catch (error) {
         await connection.rollback();
-        console.error("Errore creazione anagrafica:", error);
+        console.error("Errore creazione anagrafica e sottoconti:", error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: `Errore: uno dei campi (P.IVA, Cod. Fiscale, PEC) è già presente nel database. Dettaglio: ${error.message}` });
+        }
         res.status(500).json({ success: false, message: error.message || 'Errore durante la creazione.' });
     } finally {
         connection.release();
     }
 });
 
-// --- PATCH (Aggiorna Anagrafica e SOTTOCONTO) ---
+
+
+// --- PATCH (Aggiorna Anagrafica e Sincronizza Sottoconti) ---
 router.patch('/anagrafiche/:id', verifyToken, async (req, res) => {
-    // La logica di modifica del conto/sottoconto è complessa e richiede
-    // una gestione attenta per evitare dati inconsistenti.
-    // Per ora, ci concentriamo sull'aggiornamento dei dati anagrafici.
-    // La modifica del conto collegato verrà implementata in un secondo momento.
     const { id_ditta: dittaId } = req.user;
     const { id } = req.params;
     const anagraficaData = req.body;
 
-    // Per ora, non permettiamo la modifica del conto collegato tramite questa rotta
-    delete anagraficaData.id_conto_collegato;
-    delete anagraficaData.id_conto;
     delete anagraficaData.id;
+    delete anagraficaData.id_ditta_proprietaria;
+    delete anagraficaData.id_sottoconto_cliente;
+    delete anagraficaData.id_sottoconto_fornitore;
+    delete anagraficaData.id_sottoconto_puntovendita;
+
+    // --- FIX: Imposta SEMPRE id_tipo_ditta a 2 per le anagrafiche ---
+    anagraficaData.id_tipo_ditta = 2;
+
+    // Converte le stringhe vuote in NULL anche in modifica
+    anagraficaData.pec = anagraficaData.pec || null;
+    anagraficaData.p_iva = anagraficaData.p_iva || null;
+    anagraficaData.codice_fiscale = anagraficaData.codice_fiscale || null;
+    anagraficaData.sdi = anagraficaData.sdi || null;
 
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
 
-        const fields = Object.keys(anagraficaData).map(key => `${key} = ?`).join(',');
-        const values = [...Object.values(anagraficaData), id, dittaId];
-        await connection.query(`UPDATE ditte SET ${fields} WHERE id = ? AND id_ditta_proprietaria = ?`, values);
+        await connection.query('UPDATE ditte SET ? WHERE id = ? AND id_ditta_proprietaria = ?', [anagraficaData, id, dittaId]);
         
-        // Se la ragione sociale cambia, aggiorniamo la descrizione del sottoconto
         if (anagraficaData.ragione_sociale) {
-            const [ditta] = await connection.query('SELECT id_conto_collegato FROM ditte WHERE id = ?', [id]);
-            if (ditta.length > 0 && ditta[0].id_conto_collegato) {
+            const [ditta] = await connection.query('SELECT id_sottoconto_cliente, id_sottoconto_fornitore, id_sottoconto_puntovendita FROM ditte WHERE id = ?', [id]);
+            const sottocontiIds = Object.values(ditta[0]).filter(Boolean);
+
+            if (sottocontiIds.length > 0) {
                 await connection.query(
-                    'UPDATE sottoconti SET descrizione = ? WHERE id_ditta = ? AND id = ?',
-                    [anagraficaData.ragione_sociale, dittaId, ditta[0].id_conto_collegato]
+                    'UPDATE sc_piano_dei_conti SET descrizione = ? WHERE id_ditta = ? AND id IN (?)',
+                    [anagraficaData.ragione_sociale, dittaId, sottocontiIds]
                 );
             }
         }
@@ -210,11 +258,17 @@ router.patch('/anagrafiche/:id', verifyToken, async (req, res) => {
     } catch (error) {
         await connection.rollback();
         console.error("Errore aggiornamento anagrafica:", error);
-        res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento.' });
+         if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: `Errore: uno dei campi (P.IVA, Cod. Fiscale, PEC) è già presente nel database. Dettaglio: ${error.message}` });
+        }
+        res.status(500).json({ success: false, message: 'Errore durante l aggiornamento.' });
     } finally {
         connection.release();
     }
 });
+
+
+
 
 // --- GET (Lista Utenti della Ditta) ---
 router.get('/utenti', verifyToken, async (req, res) => {
