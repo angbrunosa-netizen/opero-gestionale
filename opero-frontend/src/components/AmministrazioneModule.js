@@ -4,7 +4,8 @@
 // #####################################################################
 
 import React, { useState, useCallback, useEffect } from 'react';
-import api from '../services/api'; 
+import { api } from '../services/api'; 
+
 import { useAuth } from '../context/AuthContext';
 import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
 import UserForm from './UserForm'; // Esempio, potrebbero essere gestori più complessi
@@ -17,8 +18,12 @@ import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
 const NoPermissionMessage = () => <div className="p-6 text-center text-gray-500"><p>Non disponi delle autorizzazioni necessarie per visualizzare questa sezione.</p></div>;
 
 
+
 // --- Componente Modale per Form di Modifica/Creazione Anagrafica (AGGIORNATO CON CAMPI COMPLETI) ---
 function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
+const { user } = useAuth();
+console.log('USER OBJECT IN AMMINISTRAZIONE MODULE primo:', user);
+
     const [formData, setFormData] = useState({
         ragione_sociale: '',
         indirizzo: '',
@@ -39,13 +44,17 @@ function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
     const [relazioni, setRelazioni] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-
+console.log('USER OBJECT IN AMMINISTRAZIONE MODULE:', user);
     useEffect(() => {
         const fetchData = async () => {
+                    console.log('AMMINISTRAZIONE: Eseguo useEffect perché "user" è cambiato.');
+
+
             setIsLoading(true);
             try {
                 const relazioniRes = await api.get('/amministrazione/relazioni');
                 setRelazioni(relazioniRes.data.data);
+        console.log('AMMINISTRAZIONE: Eseguo useEffect perché ho caricato.');
 
                 if (anagraficaId) {
                     const anagraficaRes = await api.get(`/amministrazione/anagrafiche/${anagraficaId}`);

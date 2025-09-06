@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
+import { api } from '../services/api';
 import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon } from '@heroicons/react/24/solid';
 
 // --- NUOVO: Componente Modale per Creazione/Modifica Piano dei Conti ---

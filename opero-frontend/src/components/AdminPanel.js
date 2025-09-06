@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import api from '../services/api'; // Usiamo il nostro servizio API centralizzato
+import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 // ====================================================================

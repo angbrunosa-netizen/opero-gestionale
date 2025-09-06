@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
+import { api } from '../services/api';
 import AdminPanel from './AdminPanel';
 import AmministrazioneModule from './AmministrazioneModule';
 import ContSmartModule from './ContSmartModule';
@@ -321,10 +321,12 @@ const Dashboard = ({ user, ditta }) => {
     const [myTasks, setMyTasks] = useState([]);
     const [companyTasks, setCompanyTasks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-
+    console.log('--- DASHBOARD COMPONENT RENDERED ---');
+    console.log('Dati ricevuti:', { user, ditta });
     const isAdmin = user.ruolo === 'Amministratore_Azienda' || user.ruolo === 'Amministratore_sistema';
 
     useEffect(() => {
+        console.log('--- USEEFFECT IN DASHBOARD TRIGGERED ---');
         const fetchTasks = async () => {
             setIsLoading(true);
             try {
@@ -445,10 +447,12 @@ const getIconForFunction = (codice) => {
 // --- Componente Principale ---
 const MainApp = () => {
     const { user, ditta, modules, logout, loading } = useAuth();
+    const authData = useAuth();
     const [activeModule, setActiveModule] = useState('DASHBOARD');
     const [shortcuts, setShortcuts] = useState([]);
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
-
+    
+    console.log('STATO CORRENTE AUTH CONTEXT:', authData);
     const fetchShortcuts = useCallback(async () => {
         if (!user) return; // Non fare nulla se l'utente non è ancora caricato
         try {
@@ -534,11 +538,19 @@ const MainApp = () => {
                             </button>
                         </li>
                         {modules.map(module => (
-                            <li key={module.codice}>
+                            /*<li key={module.codice}>
                                 <button onClick={() => setActiveModule(module.chiave_componente)} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                                     {module.descrizione}
                                 </button>
-                            </li>
+                            </li>*/
+                            <li key={module.codice}>
+        <button onClick={() => {
+            console.log('CAMBIO MODULO RICHIESTO:', module.chiave_componente);
+            setActiveModule(module.chiave_componente);
+        }} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
+            {module.descrizione}
+        </button>
+    </li>
                         ))}
                     </ul>
                 </nav>

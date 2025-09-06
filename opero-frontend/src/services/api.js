@@ -1,16 +1,19 @@
 // #####################################################################
 // # Servizio API Centralizzato - v2.0 (con Interceptor per Auth)
-// # File: opero-frontend/src/services/api.js
-// #####################################################################
+// # File: opero-frontend/src/services/api.js da server
+// ###########################################d##########################
 import axios from 'axios';
 
-// Creiamo un'istanza di axios che useremo in tutta l'applicazione.
-// Assicurati che l'URL del backend sia corretto.
+// Creiamo un'unica istanza di axios per tutta l'applicazione.
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
+  // Questa è la modifica chiave:
+  // Usa la variabile d'ambiente per la produzione,
+  // altrimenti usa un percorso relativo per lo sviluppo,
+  // che funzionerà grazie al proxy di Nginx.
+  baseURL: '/api',
 });
 
-// === LA PARTE FONDAMENTALE: L'INTERCETTORE ===
+// === INTERCETTORE (già corretto) ===
 // Questo codice viene eseguito PRIMA di ogni singola richiesta API.
 api.interceptors.request.use(
   (config) => {
@@ -22,13 +25,13 @@ api.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     
-    // 3. Fa partire la richiesta, ora completa di token.
+    // 3. Fa partire la richiesta.
     return config;
   },
   (error) => {
-    // Gestisce eventuali errori durante la preparazione della richiesta.
     return Promise.reject(error);
   }
 );
+export { api };
 
-export default api;
+

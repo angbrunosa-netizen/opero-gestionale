@@ -4,7 +4,7 @@
 // #####################################################################
 
 import React, { useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
+import { api } from '../services/api';
 import { PlusIcon, XMarkIcon, PaperAirplaneIcon, PencilIcon, TrashIcon, Cog6ToothIcon, ArchiveBoxIcon } from '@heroicons/react/24/solid';
 import AssegnaProcedura from './AssegnaProcedura';
 import ArchivioPPA from './ArchivioPPA'; // <-- IMPORTA IL NUOVO COMPONENTE

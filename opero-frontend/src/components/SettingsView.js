@@ -4,7 +4,7 @@
 // #####################################################################
 
 import React, { useState, useEffect } from 'react';
-import api from '../services/api'; // Usiamo il nostro servizio API centralizzato
+import { api } from '../services/api'; // Usiamo il nostro servizio API centralizzato
 import { useAuth } from '../context/AuthContext'; // Usiamo il nostro "cervello" centrale
 
 const SettingsView = () => {

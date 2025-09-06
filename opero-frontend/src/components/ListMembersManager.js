@@ -4,7 +4,7 @@
 // #####################################################################
 
 import React, { useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
+import { api } from '../services/api';
 import { XMarkIcon as XIcon, UserIcon, BuildingOffice2Icon } from '@heroicons/react/24/solid';
 
 const ListMembersManager = ({ list, onClose }) => {
