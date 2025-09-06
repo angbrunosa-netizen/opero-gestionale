@@ -17,9 +17,9 @@ router.get('/mie-future', async (req, res) => {
     const oggi = new Date().toISOString().split('T')[0];
 
     try {
-        console.log(`[DEBUG] Esecuzione query /mie-future per utente con ID: ${req.user.id}`);
-                console.log(`[DEBUG ATTIVITA] Ricerca per utenteId: ${utenteId}, data >= ${oggi}`);
-                console.log('[DEBUG TOKEN] Dati utente dal token:', req.user);
+       // console.log(`[DEBUG] Esecuzione query /mie-future per utente con ID: ${req.user.id}`);
+         //       console.log(`[DEBUG ATTIVITA] Ricerca per utenteId: ${utenteId}, data >= ${oggi}`);
+           //     console.log('[DEBUG TOKEN] Dati utente dal token:', req.user);
 
         const query = `
             SELECT i.id, i.titolo, i.data_scadenza, i.stato, 
@@ -39,7 +39,7 @@ router.get('/mie-future', async (req, res) => {
 
 // --- GET (Tutti gli attivita futuri della ditta per Admin) ---
 router.get('/ditta/future', checkRole([1, 2]), async (req, res) => {
-    console.log('[DEBUG TOKEN] Dati ditta dal token:', req.user);
+    //console.log('[DEBUG TOKEN] Dati ditta dal token:', req.user);
 
     const { id_ditta: dittaId } = req.user;
     const oggi = new Date().toISOString().split('T')[0];

@@ -31,6 +31,12 @@ const canPostEntries = (req, res, next) => {
     }
     next();
 };
+const canManageFunzioni = (req, res, next) => {
+    if (req.user.livello <= 90) {
+        return res.status(403).json({ success: false, message: 'Livello utente non sufficiente per gestire le Funzioni Contabili.' });
+    }
+    next();
+};
 
 // --- ROTTE PER IL PIANO DEI CONTI (sc_piano_dei_conti) ---
 
@@ -198,6 +204,128 @@ router.patch('/piano-dei-conti/:id', [verifyToken, canEditPdc], async (req, res)
     } catch (error) {
         console.error("Errore aggiornamento conto:", error);
         res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento.' });
+    }
+});
+
+// --- NUOVA SEZIONE: ROTTE PER FUNZIONI CONTABILI ---
+
+/**
+ * @route   GET /api/contsmart/funzioni
+ * @desc    Recupera tutte le funzioni contabili per la ditta dell'utente loggato
+ * @access  Privato
+ */
+router.get('/funzioni', verifyToken, async (req, res) => {
+    try {
+        const { id_ditta } = req.user;
+
+        const query = `
+            SELECT
+                f.id as funzione_id, f.codice_funzione, f.nome_funzione, f.descrizione, f.categoria, f.attiva,
+                r.id as riga_id, r.id_conto, p.Descrizione as nome_conto, r.tipo_movimento, r.descrizione_riga_predefinita, r.is_sottoconto_modificabile
+            FROM sc_funzioni_contabili as f
+            LEFT JOIN sc_funzioni_contabili_righe as r ON f.id = r.id_funzione_contabile
+            LEFT JOIN sc_piano_dei_conti as p ON r.id_conto = p.id
+            WHERE f.id_ditta = ?
+            ORDER BY f.id ASC;
+        `;
+        
+        const [funzioni] = await dbPool.query(query, [id_ditta]);
+
+        if (funzioni.length === 0) {
+            return res.json([]);
+        }
+
+        const result = {};
+        funzioni.forEach(row => {
+            if (!result[row.funzione_id]) {
+                result[row.funzione_id] = {
+                    id: row.funzione_id,
+                    codice_funzione: row.codice_funzione,
+                    nome_funzione: row.nome_funzione,
+                    descrizione: row.descrizione,
+                    categoria: row.categoria,
+                    attiva: row.attiva,
+                    righe: []
+                };
+            }
+            if (row.riga_id) {
+                result[row.funzione_id].righe.push({
+                    id: row.riga_id,
+                    id_conto: row.id_conto,
+                    nome_conto: row.nome_conto,
+                    tipo_movimento: row.tipo_movimento,
+                    descrizione_riga_predefinita: row.descrizione_riga_predefinita,
+                    is_sottoconto_modificabile: !!row.is_sottoconto_modificabile,
+                });
+            }
+        });
+
+        res.json(Object.values(result));
+
+    } catch (error) {
+        console.error("Errore recupero funzioni contabili:", error);
+        res.status(500).json({ success: false, message: 'Errore del server durante il recupero delle funzioni contabili.' });
+    }
+});
+
+/**
+ * @route   POST /api/contsmart/funzioni
+ * @desc    Crea una nuova funzione contabile e le sue righe
+ * @access  Privato (protetto da middleware)
+ */
+router.post('/funzioni', [verifyToken, canManageFunzioni], async (req, res) => {
+    const { codice_funzione, nome_funzione, descrizione, categoria, attiva, righe } = req.body;
+    const { id_ditta } = req.user;
+
+    if (!codice_funzione || !nome_funzione || !righe || !Array.isArray(righe) || righe.length === 0) {
+        return res.status(400).json({ message: 'Campi obbligatori mancanti: codice_funzione, nome_funzione e almeno una riga sono necessari.' });
+    }
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+
+        const insertFunzioneQuery = `
+            INSERT INTO sc_funzioni_contabili (id_ditta, codice_funzione, nome_funzione, descrizione, categoria, attiva)
+            VALUES (?, ?, ?, ?, ?, ?);
+        `;
+        const [resultFunzione] = await connection.query(insertFunzioneQuery, [id_ditta, codice_funzione, nome_funzione, descrizione, categoria, attiva]);
+        const idFunzioneCreata = resultFunzione.insertId;
+
+        const righeValues = righe.map(riga => {
+            if (!riga.id_conto || !riga.tipo_movimento) {
+                throw new Error('Ogni riga deve avere id_conto e tipo_movimento.');
+            }
+            return [
+                idFunzioneCreata,
+                riga.id_conto,
+                riga.tipo_movimento,
+                riga.descrizione_riga_predefinita,
+                riga.is_sottoconto_modificabile
+            ];
+        });
+        
+        const insertRigheQuery = `
+            INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita, is_sottoconto_modificabile)
+            VALUES ?;
+        `;
+        await connection.query(insertRigheQuery, [righeValues]);
+
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Funzione contabile creata con successo.', id: idFunzioneCreata });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error("Errore creazione funzione contabile:", error);
+        
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: 'Una funzione con questo codice esiste già.' });
+        }
+
+        res.status(500).json({ success: false, message: 'Errore del server durante la creazione della funzione.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 

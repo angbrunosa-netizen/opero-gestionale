@@ -4,7 +4,7 @@
 // #####################################################################
 
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import  api  from '../services/api'; // IMPORTAZIONE DEL CLIENT AXIOS
+import  {api}  from '../services/api'; // IMPORTAZIONE DEL CLIENT AXIOS
 
 const AuthContext = createContext(null);
 

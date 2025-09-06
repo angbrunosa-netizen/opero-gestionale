@@ -6,9 +6,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon } from '@heroicons/react/24/solid';
+import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon,WrenchScrewdriverIcon } from '@heroicons/react/24/solid';
 
-// --- NUOVO: Componente Modale per Creazione/Modifica Piano dei Conti ---
+// --- Componente Modale per Creazione/Modifica Piano dei Conti ---
 const PdcEditModal = ({ item, onSave, onCancel, pdcTree }) => {
     const [formData, setFormData] = useState({
         codice: '',
@@ -28,85 +28,86 @@ const PdcEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                 natura: item.natura || 'Costo',
             });
         } else {
-            // Se stiamo creando un nuovo item, possiamo pre-impostare un padre se fornito
-            setFormData(prev => ({ ...prev, id_padre: item?.id_padre || null }));
+            setFormData({
+                codice: '',
+                descrizione: '',
+                id_padre: null,
+                tipo: 'Sottoconto',
+                natura: 'Costo',
+            });
         }
     }, [item]);
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(formData, item?.id);
+        onSave(formData, item ? item.id : null);
     };
-
-    // Funzione per appiattire l'albero e usarlo nel dropdown
-    const flattenPdc = (nodes, level = 0) => {
-        let flatList = [];
+    
+    // Funzione ricorsiva per generare le opzioni del select
+    const renderOptions = (nodes, level = 0) => {
+        let options = [];
         nodes.forEach(node => {
-            // Possiamo aggiungere solo Mastri e Conti come padri
-            if (node.tipo === 'Mastro' || node.tipo === 'Conto') {
-                flatList.push({ ...node, level });
-                if (node.figli) {
-                    flatList = flatList.concat(flattenPdc(node.figli, level + 1));
+            if (node.tipo !== 'Sottoconto') {
+                 options.push(
+                    <option key={node.id} value={node.id}>
+                        {'\u00A0'.repeat(level * 4)} {node.codice} - {node.descrizione}
+                    </option>
+                );
+                if (node.figli && node.figli.length > 0) {
+                    options = options.concat(renderOptions(node.figli, level + 1));
                 }
             }
         });
-        return flatList;
+        return options;
     };
-    
-    const potentialParents = flattenPdc(pdcTree);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
-                <h3 className="text-xl font-semibold mb-4 text-slate-800">{item?.id ? 'Modifica Conto' : 'Nuovo Conto'}</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Tipo</label>
-                        <select name="tipo" value={formData.tipo} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" disabled={!!item?.id}>
-                            <option value="Mastro">Mastro</option>
-                            <option value="Conto">Conto</option>
-                            <option value="Sottoconto">Sottoconto</option>
-                        </select>
-                    </div>
-                     {formData.tipo !== 'Mastro' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+                <h2 className="text-xl font-bold mb-4">{item ? 'Modifica Conto' : 'Nuovo Conto'}</h2>
+                <form onSubmit={handleSubmit}>
+                   <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700">Conto Padre</label>
-                            <select name="id_padre" value={formData.id_padre || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md">
-                                <option value="" disabled>Seleziona un padre...</option>
-                                {potentialParents.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {'\u00A0'.repeat(p.level * 4)} {p.codice} - {p.descrizione}
-                                    </option>
-                                ))}
+                            <label htmlFor="codice" className="block text-sm font-medium text-gray-700">Codice</label>
+                            <input type="text" name="codice" id="codice" value={formData.codice} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required />
+                        </div>
+                        <div>
+                            <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
+                            <input type="text" name="descrizione" id="descrizione" value={formData.descrizione} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required />
+                        </div>
+                        <div>
+                            <label htmlFor="id_padre" className="block text-sm font-medium text-gray-700">Conto Padre</label>
+                            <select name="id_padre" id="id_padre" value={formData.id_padre || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="">Nessun Padre (Mastro)</option>
+                                {renderOptions(pdcTree)}
                             </select>
                         </div>
-                    )}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Codice</label>
-                        <input name="codice" value={formData.codice} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" disabled={!!item?.id} />
+                        <div>
+                            <label htmlFor="tipo" className="block text-sm font-medium text-gray-700">Tipo</label>
+                            <select name="tipo" id="tipo" value={formData.tipo} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option>Mastro</option>
+                                <option>Conto</option>
+                                <option>Sottoconto</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="natura" className="block text-sm font-medium text-gray-700">Natura</label>
+                            <select name="natura" id="natura" value={formData.natura} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option>Costo</option>
+                                <option>Passività</option>
+                                <option>Ricavo</option>
+                                <option>Attività</option>
+                                <option>Patrimoniale</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Descrizione</label>
-                        <input name="descrizione" value={formData.descrizione} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Natura</label>
-                        <select name="natura" value={formData.natura} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md">
-                            <option value="Attività">Attività</option>
-                            <option value="Passività">Passività</option>
-                            <option value="Costo">Costo</option>
-                            <option value="Ricavo">Ricavo</option>
-                            <option value="Patrimonio Netto">Patrimonio Netto</option>
-                        </select>
-                    </div>
-                    <div className="flex justify-end gap-4 pt-4 border-t mt-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
+                   <div className="flex justify-end gap-4 mt-6">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salva</button>
                     </div>
                 </form>
             </div>
@@ -314,27 +315,317 @@ const ReportManager = () => {
 };
 
 
-// --- Componente Principale del Modulo (invariato) ---
+// --- NUOVI: Componenti Segnaposto per Sezioni Future ---
+const PlaceholderView = ({ title }) => (
+    <div className="p-6 text-center text-slate-500">
+        <h2 className="text-2xl font-semibold">{title}</h2>
+        <p className="mt-2">Questa sezione è in fase di sviluppo.</p>
+    </div>
+);
+// --- Componente Vista per Piano dei Conti ---
+const PianoDeiContiView = ({ user }) => {
+    const [pdcTree, setPdcTree] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    // NUOVO: Stato per tenere traccia dei nodi espansi (usiamo un Set per efficienza)
+    const [expandedNodes, setExpandedNodes] = useState(new Set());
+
+    const fetchPdc = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/contsmart/piano-dei-conti');
+            if (response.data && Array.isArray(response.data.data)) {
+                setPdcTree(response.data.data);
+            } else {
+                console.warn("La struttura dati dell'API non è quella attesa.", response.data);
+                setPdcTree([]);
+            }
+        } catch (err) {
+            setError('Errore nel caricamento del piano dei conti.');
+            setPdcTree([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchPdc();
+    }, [fetchPdc]);
+
+    // NUOVO: Funzione per gestire l'apertura/chiusura di un nodo
+    const toggleNode = (nodeId) => {
+        setExpandedNodes(prevExpanded => {
+            const newExpanded = new Set(prevExpanded);
+            if (newExpanded.has(nodeId)) {
+                newExpanded.delete(nodeId);
+            } else {
+                newExpanded.add(nodeId);
+            }
+            return newExpanded;
+        });
+    };
+    
+    const handleSave = async (data, id) => {
+       try {
+            if (id) {
+                await api.patch(`/contsmart/piano-dei-conti/${id}`, data);
+            } else {
+                await api.post('/contsmart/piano-dei-conti', data);
+            }
+            fetchPdc();
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Errore nel salvataggio:", error);
+            alert("Si è verificato un errore durante il salvataggio.");
+        }
+    };
+
+    const handleCancel = () => {
+        setIsModalOpen(false);
+        setSelectedItem(null);
+    };
+
+    const handleNewItem = (parentId = null) => {
+        setSelectedItem({ id_padre: parentId });
+        setIsModalOpen(true);
+    };
+    
+    const handleEditItem = (item) => {
+        setSelectedItem(item);
+        setIsModalOpen(true);
+    };
+    
+    // NUOVO: Funzione ricorsiva per costruire la lista dei nodi visibili
+    const buildVisibleNodes = (nodes, level = 0) => {
+        let visible = [];
+        nodes.forEach(node => {
+            visible.push({ ...node, level });
+            // Se il nodo è espanso e ha figli, aggiungi ricorsivamente anche loro
+            if (expandedNodes.has(node.id) && node.figli && node.figli.length > 0) {
+                visible = visible.concat(buildVisibleNodes(node.figli, level + 1));
+            }
+        });
+        return visible;
+    };
+
+    if (loading) return <div>Caricamento...</div>;
+    if (error) return <div className="text-red-500">{error}</div>;
+
+    // Costruiamo la lista dei nodi da visualizzare ad ogni render
+    const visibleNodes = buildVisibleNodes(pdcTree);
+
+    return (
+        <div>
+             {isModalOpen && <PdcEditModal item={selectedItem} onSave={handleSave} onCancel={handleCancel} pdcTree={pdcTree} />}
+            <div className="flex justify-end mb-4">
+                 <button onClick={() => handleNewItem(null)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow">
+                     <PlusIcon className="h-5 w-5" /> Nuovo Mastro/Conto
+                 </button>
+            </div>
+            
+            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Codice e Descrizione</th>
+                                                        <th className="p-3 text-sm font-semibold text-slate-600">Tipo</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Natura</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Azioni</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Progressivo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {!loading && visibleNodes.length === 0 ? (
+                            <tr>
+                                <td colSpan="4" className="p-6 text-center text-slate-500">
+                                    <FolderIcon className="mx-auto h-12 w-12 text-slate-400" />
+                                    <h3 className="mt-2 text-sm font-medium text-slate-900">Nessun dato nel Piano dei Conti</h3>
+                                    <p className="mt-1 text-sm text-slate-500">Inizia creando il primo mastro o conto.</p>
+                                </td>
+                            </tr>
+                        ) : (
+                            visibleNodes.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50">
+                                    <td className="p-3 border-b border-slate-200">
+                                        <div style={{ paddingLeft: `${item.level * 24}px` }} className="flex items-center gap-2">
+                                            {item.tipo !== 'Sottoconto' ? (
+                                                <button onClick={() => toggleNode(item.id)} className="flex items-center gap-2 cursor-pointer">
+                                                    <ChevronRightIcon className={`h-4 w-4 transition-transform ${expandedNodes.has(item.id) ? 'rotate-90' : ''}`} />
+                                                    <FolderIcon className="h-5 w-5 text-amber-500"/>
+                                                    <span>{item.codice} - <strong>{item.descrizione}</strong></span>
+                                                </button>
+                                            ) : (
+                                                <span className="flex items-center gap-2 pl-6">
+                                                    {item.codice} - {item.descrizione}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-3 border-b border-slate-200">{item.tipo}</td>
+                                    <td className="p-3 border-b border-slate-200">{item.natura}</td>
+                                    <td className="p-3 border-b border-slate-200">
+                                        <button onClick={() => handleEditItem(item)} className="text-blue-600 hover:text-blue-800 mr-2"><PencilIcon className="h-5 w-5"/></button>
+                                        {item.tipo !== 'Sottoconto' && <button onClick={() => handleNewItem(item.id)} className="text-green-600 hover:text-green-800"><PlusIcon className="h-5 w-5"/></button>}
+                                   </td>
+                                   <td className="p-3 border-b border-slate-200">{item.id}</td>
+                                    
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+
+// #####################################################################
+// # NUOVO: Componente Vista per Gestione Funzioni Contabili
+// # Creato per la nuova sezione, segue lo stile del componente esistente
+// #####################################################################
+// #####################################################################
+// # Componente Vista per Gestione Funzioni Contabili
+// #####################################################################
+const GestioneFunzioniView = () => {
+    const [funzioni, setFunzioni] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedFunzione, setSelectedFunzione] = useState(null);
+
+    const fetchFunzioni = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/contsmart/funzioni');
+            if (Array.isArray(response.data)) {
+                 setFunzioni(response.data);
+            } 
+            else if (response.data && Array.isArray(response.data.data)) {
+                setFunzioni(response.data.data)
+            }
+            else {
+                setFunzioni([]);
+            }
+            setError('');
+        } catch (err) {
+            setError('Errore nel caricamento delle funzioni contabili.');
+            console.error(err);
+            setFunzioni([]); // Assicura che funzioni sia un array anche in caso di errore
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchFunzioni();
+    }, [fetchFunzioni]);
+    
+    const handleNewFunzione = () => {
+        setSelectedFunzione(null);
+        alert("Apertura modale per nuova funzione (da implementare)");
+    };
+    
+    const handleEditFunzione = (funzione) => {
+        setSelectedFunzione(funzione);
+        alert(`Apertura modale per modifica funzione: ${funzione.nome_funzione} (da implementare)`);
+    };
+
+    if (loading) return <div className="p-4">Caricamento in corso...</div>;
+    if (error) return <div className="p-4 text-red-500">{error}</div>;
+
+    return (
+        <div>
+            <div className="flex justify-end mb-4">
+                <button 
+                    onClick={handleNewFunzione}
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow"
+                >
+                    <PlusIcon className="h-5 w-5" />
+                    Nuova Funzione
+                </button>
+            </div>
+            
+            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Codice</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Nome Funzione</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Categoria</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600 text-center">Righe</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Stato</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {funzioni.map(funzione => (
+                            <tr key={funzione.id} className="border-b border-slate-200 hover:bg-slate-50">
+                                <td className="p-3 font-mono text-sm text-slate-700">{funzione.codice_funzione}</td>
+                                <td className="p-3 text-slate-800">{funzione.nome_funzione}</td>
+                                <td className="p-3 text-slate-600">{funzione.categoria}</td>
+                                {/* ##################################################################### */}
+                                {/* # CORREZIONE: Reso il calcolo della lunghezza più sicuro             */}
+                                {/* ##################################################################### */}
+                                <td className="p-3 text-center text-slate-600">{(funzione.righe || []).length}</td>
+                                <td className="p-3">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${funzione.attiva ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                        {funzione.attiva ? 'Attiva' : 'Disattiva'}
+                                    </span>
+                                </td>
+                                <td className="p-3">
+                                    <button onClick={() => handleEditFunzione(funzione)} className="text-blue-600 hover:text-blue-800">
+                                        <PencilIcon className="h-5 w-5" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                         {funzioni.length === 0 && !loading && (
+                            <tr>
+                                <td colSpan="6" className="p-4 text-center text-slate-500">Nessuna funzione contabile trovata.</td>
+                            </tr>
+                         )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+
+// #####################################################################
+// # Componente Principale: ContSmartModule (Aggiornato e Allineato)
+// #####################################################################
 const ContSmartModule = () => {
-    const { hasPermission } = useAuth();
-    const sections = [
-        { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: FolderIcon, component: PianoDeiContiManager },
-        { key: 'registrazioni', label: 'Registrazioni', permission: 'CONTABILITA_VIEW', icon: PencilSquareIcon, component: RegistrazioniManager },
-        { key: 'report', label: 'Report', permission: 'REPORT_VIEW', icon: ChartBarIcon, component: ReportManager },
-    ];
-    const accessibleSections = sections.filter(sec => hasPermission(sec.permission));
-    const [activeSection, setActiveSection] = useState(accessibleSections.length > 0 ? accessibleSections[0].key : null);
+    const { user } = useAuth();
+    const [activeSection, setActiveSection] = useState('pdc');
+
+    const accessibleSections = [
+        { key: 'pdc', label: 'Piano dei Conti', icon: FolderIcon, minLevel: 10 },
+        { key: 'funzioni', label: 'Gestione Funzioni', icon: WrenchScrewdriverIcon, minLevel: 90 },
+        { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50 },
+        { key: 'report', label: 'Reportistica', icon: ChartBarIcon, minLevel: 50 },
+    ].filter(sec => user && user.livello >= sec.minLevel);
 
     const renderContent = () => {
-        if (!activeSection) {
-            return <div className="p-6 text-center text-gray-500">Nessuna sezione disponibile. Contattare l'amministratore.</div>;
+        switch (activeSection) {
+            case 'pdc':
+                return <PianoDeiContiView user={user} />;
+            case 'funzioni':
+                return <GestioneFunzioniView />;
+            case 'registrazioni':
+                return <div className="p-4"><h2>Registrazioni (in costruzione)</h2></div>;
+            case 'report':
+                return <div className="p-4"><h2>Reportistica (in costruzione)</h2></div>;
+            default:
+                return <PianoDeiContiView user={user} />;
         }
-        const CurrentComponent = sections.find(s => s.key === activeSection)?.component;
-        return CurrentComponent ? <CurrentComponent /> : null;
     };
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50 p-4 md:p-6">
+        <div className="p-4 sm:p-6 lg:p-8 h-full flex flex-col">
             <header className="mb-6">
                 <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Modulo Contabilità Smart</h1>
                 <p className="text-slate-600 mt-1">Gestione completa delle operazioni contabili.</p>
@@ -370,3 +661,7 @@ const ContSmartModule = () => {
 };
 
 export default ContSmartModule;
+
+
+
+
