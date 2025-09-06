@@ -1,22 +1,20 @@
 // #####################################################################
-// # Componente ComposeView - v2.2 (con Fix Invio Email)
+// # Componente ComposeView - v2.3 (Refactoring con Servizio API)
 // # File: opero-frontend/src/components/ComposeView.js
 // #####################################################################
 
 import React, { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { api } from '../services/api';
 
-//const API_URL = 'http://localhost:3001';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const extractEmail = (str) => {
     if (!str) return '';
     const match = str.match(/<([^>]+)>/);
     return match ? match[1] : str;
 };
 
-// CORREZIONE: Riceve accountId come prop
-function ComposeView({ session, accountId, emailToReply, replyType, onCancel, onSent }) {
+function ComposeView({ accountId, emailToReply, replyType, onCancel, onSent }) {
     const [to, setTo] = useState('');
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
@@ -24,87 +22,74 @@ function ComposeView({ session, accountId, emailToReply, replyType, onCancel, on
     const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
-        let newTo = '';
-        let newSubject = '';
-        let newBody = '';
-
         if (emailToReply) {
-            const originalMessage = `<br><br><br><p>---- Messaggio Originale ----</p><blockquote>${emailToReply.body.replace(/\n/g, '<br>')}</blockquote>`;
+            const originalMessage = `<br><br><br><p>---- Messaggio Originale ----</p><blockquote>${emailToReply.body.replace(/\\n/g, '<br>')}</blockquote>`;
             
             if (replyType === 'reply') {
-                newTo = extractEmail(emailToReply.from);
-                newSubject = `Re: ${emailToReply.subject}`;
-                newBody = `<p></p>${session.user.firma ? `<br><br>${session.user.firma}`: ''}` + originalMessage;
+                setTo(extractEmail(emailToReply.from) || '');
+                setSubject(`Re: ${emailToReply.subject}`);
+                setBody(originalMessage);
             } else if (replyType === 'replyAll') {
-                const allRecipients = new Set();
-                emailToReply.from_structured.forEach(addr => allRecipients.add(addr.address));
-                emailToReply.to_structured.forEach(addr => allRecipients.add(addr.address));
-                emailToReply.cc_structured.forEach(addr => allRecipients.add(addr.address));
-                
-                const currentUserEmail = session.user.email.toLowerCase();
-                const finalRecipients = Array.from(allRecipients).filter(email => email.toLowerCase() !== currentUserEmail);
-
-                newTo = finalRecipients.join(', ');
-                newSubject = `Re: ${emailToReply.subject}`;
-                newBody = `<p></p>${session.user.firma ? `<br><br>${session.user.firma}`: ''}` + originalMessage;
+                const allRecipients = [
+                    extractEmail(emailToReply.from),
+                    ...(emailToReply.to ? emailToReply.to.split(',').map(extractEmail) : [])
+                ].filter(Boolean).join(', ');
+                setTo(allRecipients);
+                setSubject(`Re: ${emailToReply.subject}`);
+                setBody(originalMessage);
             } else if (replyType === 'forward') {
-                newTo = '';
-                newSubject = `Fwd: ${emailToReply.subject}`;
-                newBody = `<p></p>${session.user.firma ? `<br><br>${session.user.firma}`: ''}<br><p>---- Messaggio Inoltrato ----</p><blockquote>${originalMessage.trim()}</blockquote>`;
+                setSubject(`Fw: ${emailToReply.subject}`);
+                setBody(originalMessage);
             }
-        } else {
-            newBody = `<p></p><br><br>${session.user.firma || ''}`;
         }
-        
-        setTo(newTo);
-        setSubject(newSubject);
-        setBody(newBody);
-    }, [emailToReply, replyType, session.user.email, session.user.firma]);
+    }, [emailToReply, replyType]);
 
     const handleAttachmentChange = (e) => {
         setAttachments([...e.target.files]);
     };
 
-    const handleSend = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSending(true);
 
         const formData = new FormData();
+        formData.append('accountId', accountId);
         formData.append('to', to);
         formData.append('subject', subject);
-        formData.append('text', body);
-        // CORREZIONE: Aggiunge l'accountId al form data
-        formData.append('accountId', accountId); 
+        formData.append('body', body);
         attachments.forEach(file => {
             formData.append('attachments', file);
         });
 
         try {
-            const response = await fetch(`${API_URL}/api/mail/send-email`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${session.token}` },
-                body: formData
+            const { data } = await api.post('/api/mail/send', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
             });
-            const data = await response.json();
+
             if (data.success) {
                 alert('Email inviata con successo!');
-                onSent();
+                if (onSent) onSent();
             } else {
-                alert(`Errore: ${data.message}`);
+                alert(`Errore nell'invio: ${data.message}`);
             }
         } catch (error) {
-            alert(`Errore di connessione: ${error.message}`);
+            console.error('Errore durante l\'invio dell\'email:', error);
+            alert(error.response?.data?.message || 'Errore di connessione durante l\'invio.');
+        } finally {
+            setIsSending(false);
         }
-        setIsSending(false);
     };
 
     return (
-        <div className="p-8 w-full">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">{emailToReply ? 'Rispondi' : 'Nuovo Messaggio'}</h2>
-            <form onSubmit={handleSend} className="flex flex-col gap-4">
+        <div className="bg-white p-6 rounded-lg shadow-xl border w-full h-full flex flex-col">
+            <h2 className="text-xl font-bold mb-4 border-b pb-2">Componi Messaggio</h2>
+            <form onSubmit={handleSubmit} className="flex flex-col flex-grow space-y-4">
                 <input type="text" value={to} onChange={e => setTo(e.target.value)} placeholder="A:" required className="p-2 border rounded-md" />
                 <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Oggetto:" required className="p-2 border rounded-md" />
-                <div className="h-64 mb-10">
+                
+                <div className="flex-grow h-64 mb-10">
                     <ReactQuill
                         theme="snow"
                         value={body}

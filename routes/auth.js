@@ -4,7 +4,7 @@
 // #####################################################################
 
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { dbPool, dbType } = require('../config/db'); // Importiamo anche dbType
 
@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'backup_secret_key_molto_sicura';
 const { verifyToken } = require('../utils/auth'); // Assicurati che questo import sia presente all'inizio del file
 
 // --- ROTTA DI LOGIN ---
-router.post('/authenticate', async (req, res) => {
+router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ success: false, message: 'Email e password sono obbligatorie.' });
@@ -44,14 +44,14 @@ router.post('/authenticate', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Password non corretta.' });
         }
 
-        const permissionsQuery = `SELECT f.Codice FROM Funzioni f JOIN ruoli_Funzioni rf ON f.ID = rf.Id_Funzione WHERE rf.ID_ruolo = ?`;
+        const permissionsQuery = `SELECT f.codice FROM funzioni f JOIN ruoli_funzioni rf ON f.id = rf.id_funzione WHERE rf.id_ruolo = ?`;
         const [permissionRows] = await connection.query(permissionsQuery, [user.id_ruolo]);
-        const permissions = permissionRows.map(p => p.Codice);
+        const permissions = permissionRows.map(p => p.codice);
 
         const modulesQuery = `
             SELECT m.codice, m.descrizione, m.chiave_componente 
-            FROM Ditte_Moduli dm 
-            JOIN Moduli m ON dm.codice_modulo = m.codice 
+            FROM ditte_moduli dm 
+            JOIN moduli m ON dm.codice_modulo = m.codice 
             WHERE dm.id_ditta = ?`;
         const [moduleRows] = await connection.query(modulesQuery, [user.id_ditta]);
         
@@ -105,11 +105,11 @@ router.get('/me', verifyToken, async (req, res) => {
             WHERE d.id = ?`;
         const [dittaRows] = await connection.query(dittaQuery, [dittaId]);
 
-        const permissionsQuery = `SELECT f.Codice FROM Funzioni f JOIN ruoli_Funzioni rf ON f.ID = rf.Id_Funzione WHERE rf.ID_ruolo = ?`;
+        const permissionsQuery = `SELECT f.codice FROM funzioni f JOIN ruoli_funzioni rf ON f.id = rf.id_funzione WHERE rf.id_ruolo = ?`;
         const [permissionRows] = await connection.query(permissionsQuery, [ruoloId]);
-        const permissions = permissionRows.map(p => p.Codice);
+        const permissions = permissionRows.map(p => p.codice);
 
-        const modulesQuery = `SELECT m.codice, m.descrizione, m.chiave_componente FROM Ditte_Moduli dm JOIN Moduli m ON dm.codice_modulo = m.codice WHERE dm.id_ditta = ?`;
+        const modulesQuery = `SELECT m.codice, m.descrizione, m.chiave_componente FROM ditte_moduli dm JOIN moduli m ON dm.codice_modulo = m.codice WHERE dm.id_ditta = ?`;
         const [moduleRows] = await connection.query(modulesQuery, [dittaId]);
 
         res.json({

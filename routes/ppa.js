@@ -1,5 +1,5 @@
 // #####################################################################
-// # Rotte per la Gestione del Sistema PPA - v1.7 (Versione Stabile)
+// # Rotte per la Gestione del Sistema ppa - v1.7 (Versione Stabile)
 // # File: opero/routes/ppa.js
 // #####################################################################
 
@@ -22,7 +22,7 @@ const checkAdminRole = (req, res, next) => {
 // --- GESTIONE PROCEDURE STANDARD (MODELLI) ---
 router.get('/procedure-standard', async (req, res) => {
     try {
-        const [rows] = await dbPool.query("SELECT ID as id, Descrizione as descrizione FROM PPA_ProcedureStandard ORDER BY Descrizione");
+        const [rows] = await dbPool.query("SELECT ID as id, Descrizione as descrizione FROM ppa_procedurestandard ORDER BY Descrizione");
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error("Errore in GET /procedure-standard:", error);
@@ -34,7 +34,7 @@ router.get('/procedure-standard', async (req, res) => {
 router.get('/procedures', async (req, res) => {
     const { id_ditta } = req.user;
     try {
-        const [rows] = await dbPool.query("SELECT ID as id, NomePersonalizzato as nome_personalizzato FROM PPA_ProcedureDitta WHERE ID_Ditta = ? ORDER BY NomePersonalizzato", [id_ditta]);
+        const [rows] = await dbPool.query("SELECT ID as id, NomePersonalizzato as nome_personalizzato FROM ppa_procedureditta WHERE ID_Ditta = ? ORDER BY NomePersonalizzato", [id_ditta]);
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error("Errore in GET /procedures:", error);
@@ -46,7 +46,7 @@ router.post('/procedures', checkAdminRole, async (req, res) => {
     const { id_ditta } = req.user;
     const { id_procedura_standard, nome_personalizzato } = req.body;
     try {
-        const [result] = await dbPool.query("INSERT INTO PPA_ProcedureDitta (ID_Ditta, ID_ProceduraStandard, NomePersonalizzato) VALUES (?, ?, ?)", [id_ditta, id_procedura_standard, nome_personalizzato]);
+        const [result] = await dbPool.query("INSERT INTO ppa_procedureditta (ID_Ditta, ID_ProceduraStandard, NomePersonalizzato) VALUES (?, ?, ?)", [id_ditta, id_procedura_standard, nome_personalizzato]);
         res.status(201).json({ success: true, message: 'Procedura creata con successo!', newId: result.insertId });
     } catch (error) {
         console.error("Errore in POST /procedures:", error);
@@ -61,8 +61,8 @@ router.get('/procedures/:procId/processes', async (req, res) => {
     try {
         const query = `
             SELECT p.ID as id, p.NomeProcesso as nome_processo 
-            FROM PPA_Processi p
-            JOIN PPA_ProcedureDitta pd ON p.ID_ProceduraDitta = pd.ID
+            FROM ppa_processi p
+            JOIN ppa_procedureditta pd ON p.ID_ProceduraDitta = pd.ID
             WHERE p.ID_ProceduraDitta = ? AND pd.ID_Ditta = ?
             ORDER BY p.OrdineSequenziale`;
         const [rows] = await dbPool.query(query, [procId, id_ditta]);
@@ -79,8 +79,8 @@ router.get('/procedures/:procId/full-actions', async (req, res) => {
     try {
         const query = `
             SELECT a.ID as id, a.NomeAzione as nome_azione, a.ID_RuoloDefault
-            FROM PPA_Azioni a
-            JOIN PPA_Processi p ON a.ID_Processo = p.ID
+            FROM ppa_azioni a
+            JOIN ppa_processi p ON a.ID_Processo = p.ID
             WHERE p.ID_ProceduraDitta = ?`;
         const [rows] = await dbPool.query(query, [procId]);
         res.json({ success: true, data: rows });
@@ -104,14 +104,14 @@ router.post('/assegna', checkAdminRole, async (req, res) => {
         await connection.beginTransaction();
 
         const [istanzaResult] = await connection.query(
-            "INSERT INTO PPA_IstanzeProcedure (ID_ProceduraDitta, ID_DittaTarget, ID_UtenteCreatore, DataPrevistaFine) VALUES (?, ?, ?, ?)",
+            "INSERT INTO ppa_istanzeprocedure (ID_ProceduraDitta, ID_DittaTarget, ID_UtenteCreatore, DataPrevistaFine) VALUES (?, ?, ?, ?)",
             [id_procedura_ditta, id_ditta_target, utenteCreatoreId, data_prevista_fine || null]
         );
         const newIstanzaId = istanzaResult.insertId;
 
         const [azioniModello] = await connection.query(
-            `SELECT a.ID, a.NomeAzione, a.Descrizione FROM PPA_Azioni a
-             JOIN PPA_Processi p ON a.ID_Processo = p.ID
+            `SELECT a.ID, a.NomeAzione, a.Descrizione FROM ppa_azioni a
+             JOIN ppa_processi p ON a.ID_Processo = p.ID
              WHERE p.ID_ProceduraDitta = ?`,
             [id_procedura_ditta]
         );
@@ -122,7 +122,7 @@ router.post('/assegna', checkAdminRole, async (req, res) => {
             const utenteAssegnatoId = assegnazioni[azione.ID];
             if (!utenteAssegnatoId) throw new Error(`Azione "${azione.NomeAzione}" non assegnata.`);
             const [istanzaAzioneResult] = await connection.query(
-                "INSERT INTO PPA_IstanzeAzioni (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza) VALUES (?, ?, ?, ?)",
+                "INSERT INTO ppa_istanzeazioni (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza) VALUES (?, ?, ?, ?)",
                 [newIstanzaId, azione.ID, utenteAssegnatoId, data_prevista_fine || null]
             );
             const newIstanzaAzioneId = istanzaAzioneResult.insertId;
@@ -133,18 +133,18 @@ router.post('/assegna', checkAdminRole, async (req, res) => {
         }
 
         const teamName = `Team Procedura #${newIstanzaId} - ${new Date().toLocaleDateString()}`;
-        const [teamResult] = await connection.query("INSERT INTO PPA_Team (ID_IstanzaProcedura, NomeTeam) VALUES (?, ?)", [newIstanzaId, teamName]);
+        const [teamResult] = await connection.query("INSERT INTO ppa_team (ID_IstanzaProcedura, NomeTeam) VALUES (?, ?)", [newIstanzaId, teamName]);
         const newTeamId = teamResult.insertId;
 
         const uniqueUserIds = [...new Set(Object.values(assegnazioni))];
         const teamMembersValues = uniqueUserIds.map(userId => [newTeamId, userId]);
-        await connection.query("INSERT INTO PPA_TeamMembri (ID_Team, ID_Utente) VALUES ?", [teamMembersValues]);
+        await connection.query("INSERT INTO ppa_teammembri (ID_Team, ID_Utente) VALUES ?", [teamMembersValues]);
 
         const [teamMemberDetails] = await connection.query(`SELECT id, nome, cognome, email FROM utenti WHERE id IN (?)`, [uniqueUserIds]);
         const [proceduraDetails] = await connection.query(
             `SELECT pd.NomePersonalizzato, d.ragione_sociale as DittaTarget 
-             FROM PPA_IstanzeProcedure ip
-             JOIN PPA_ProcedureDitta pd ON ip.ID_ProceduraDitta = pd.ID
+             FROM ppa_istanzeprocedure ip
+             JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
              JOIN ditte d ON ip.ID_DittaTarget = d.id 
              WHERE ip.ID = ?`, [newIstanzaId]
         );
@@ -198,8 +198,8 @@ router.get('/istanze', async (req, res) => {
     try {
         const query = `
             SELECT ip.ID as id, pd.NomePersonalizzato as nome_procedura, d.ragione_sociale as ditta_target, ip.DataInizio as data_inizio, ip.Stato as stato
-            FROM PPA_IstanzeProcedure ip
-            JOIN PPA_ProcedureDitta pd ON ip.ID_ProceduraDitta = pd.ID
+            FROM ppa_istanzeprocedure ip
+            JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
             JOIN ditte d ON ip.ID_DittaTarget = d.id
             WHERE pd.ID_Ditta = ? ORDER BY ip.DataInizio DESC`;
         const [rows] = await dbPool.query(query, [id_ditta]);
@@ -215,9 +215,9 @@ router.get('/istanze/:id/team', async (req, res) => {
     try {
         const query = `
             SELECT u.nome, u.cognome, u.email 
-            FROM PPA_TeamMembri tm
+            FROM ppa_teammembri tm
             JOIN utenti u ON tm.ID_Utente = u.id
-            JOIN PPA_Team t ON tm.ID_Team = t.ID
+            JOIN ppa_team t ON tm.ID_Team = t.ID
             WHERE t.ID_IstanzaProcedura = ?`;
         const [rows] = await dbPool.query(query, [istanzaId]);
         res.json({ success: true, data: rows });
@@ -239,13 +239,13 @@ router.post('/procedures/:procId/processes', checkAdminRole, async (req, res) =>
 
     try {
         // Opzionale: Verifichiamo che la procedura appartenga alla ditta dell'utente
-        const [procCheck] = await dbPool.query("SELECT ID FROM PPA_ProcedureDitta WHERE ID = ? AND ID_Ditta = ?", [procId, id_ditta]);
+        const [procCheck] = await dbPool.query("SELECT ID FROM ppa_procedureditta WHERE ID = ? AND ID_Ditta = ?", [procId, id_ditta]);
         if (procCheck.length === 0) {
             return res.status(404).json({ success: false, message: 'Procedura non trovata o non autorizzata.' });
         }
 
         const [result] = await dbPool.query(
-            "INSERT INTO PPA_Processi (ID_ProceduraDitta, NomeProcesso) VALUES (?, ?)",
+            "INSERT INTO ppa_processi (ID_ProceduraDitta, NomeProcesso) VALUES (?, ?)",
             [procId, nome_processo]
         );
 
@@ -268,8 +268,8 @@ router.patch('/processes/:processoId', checkAdminRole, async (req, res) => {
 
     try {
         const [result] = await dbPool.query(
-            `UPDATE PPA_Processi p
-             JOIN PPA_ProcedureDitta pd ON p.ID_ProceduraDitta = pd.ID
+            `UPDATE ppa_processi p
+             JOIN ppa_procedureditta pd ON p.ID_ProceduraDitta = pd.ID
              SET p.NomeProcesso = ?
              WHERE p.ID = ? AND pd.ID_Ditta = ?`,
             [nome_processo, processoId, id_ditta]
@@ -291,7 +291,7 @@ router.get('/processes/:processoId/actions', async (req, res) => {
     const { processoId } = req.params;
     try {
         const [rows] = await dbPool.query(
-            "SELECT ID as id, NomeAzione as nome_azione, Descrizione as descrizione, ID_RuoloDefault FROM PPA_Azioni WHERE ID_Processo = ?",
+            "SELECT ID as id, NomeAzione as nome_azione, Descrizione as descrizione, ID_RuoloDefault FROM ppa_azioni WHERE ID_Processo = ?",
             [processoId]
         );
         res.json({ success: true, data: rows });
@@ -311,7 +311,7 @@ router.post('/processes/:processoId/actions', checkAdminRole, async (req, res) =
 
     try {
         const [result] = await dbPool.query(
-            "INSERT INTO PPA_Azioni (ID_Processo, NomeAzione, Descrizione, ID_RuoloDefault) VALUES (?, ?, ?, ?)",
+            "INSERT INTO ppa_azioni (ID_Processo, NomeAzione, Descrizione, ID_RuoloDefault) VALUES (?, ?, ?, ?)",
             [processoId, nome_azione, descrizione, id_ruolo_default || null]
         );
         res.status(201).json({ success: true, message: 'Azione creata con successo!', newId: result.insertId });
@@ -333,9 +333,9 @@ router.patch('/actions/:azioneId', checkAdminRole, async (req, res) => {
 
     try {
         const [result] = await dbPool.query(
-            `UPDATE PPA_Azioni a
-             JOIN PPA_Processi p ON a.ID_Processo = p.ID
-             JOIN PPA_ProcedureDitta pd ON p.ID_ProceduraDitta = pd.ID
+            `UPDATE ppa_azioni as
+             JOIN ppa_processi p ON a.ID_Processo = p.ID
+             JOIN ppa_procedureditta pd ON p.ID_Proceduraditta = pd.ID
              SET a.NomeAzione = ?, a.Descrizione = ?, a.ID_RuoloDefault = ?
              WHERE a.ID = ? AND pd.ID_Ditta = ?`,
             [nome_azione, descrizione, id_ruolo_default || null, azioneId, id_ditta]

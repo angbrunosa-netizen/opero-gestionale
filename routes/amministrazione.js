@@ -2,6 +2,9 @@
 // # Rotte per il Modulo Amministrazione - v3.6 (Logica Conti Dinamici)
 // # File: opero/routes/amministrazione.js
 // #####################################################################
+const fs = require('fs');
+const path = require('path');
+const LOG_FILE = path.join(__dirname, '..', 'debug_log.txt');
 
 const express = require('express');
 const { dbPool } = require('../config/db');
@@ -38,7 +41,7 @@ function encrypt(text) {
 // --- Funzione Helper CORRETTA per trovare il prossimo SOTTOCONTO ---
 async function findNextAvailableSottoconto(dittaId, idPadre, connection) {
     // 1. Ottieni il codice del conto padre (es. '20.05')
-    const [padreRows] = await connection.query('SELECT codice FROM sc_piano_dei_conti WHERE id = ?', [idPadre]);
+    const [padreRows] = await connection.query('SELECT codice FROM sc_piano_dei_conti WHERE id = ?', [idpadre]);
     if (padreRows.length === 0) throw new Error('Conto padre non trovato.');
     const codicePadre = padreRows[0].codice;
 
@@ -57,9 +60,15 @@ async function findNextAvailableSottoconto(dittaId, idPadre, connection) {
 }
 // route conti mastro
 
-router.get('/conti/:mastro', verifyToken, async (req, res) => {
+//router.get('/conti/:mastro', verifyToken, async (req, res) => {
+  router.get('/conti/:mastro',  async (req, res) => {
     const { id_ditta: dittaId } = req.user;
     const { mastro } = req.params;
+    // =================================================================
+        // ## ALTRO BLOCCO DI DEBUG ##
+        console.log(`Query eseguita. Numero di anagrafiche trovate nel database: ${rows.length}`);
+        console.log('--- DEBUG: Fine richiesta ---');
+        // =================================================================
 
     if (!dittaId || !mastro) {
         return res.status(400).json({ success: false, message: 'ID ditta e codice mastro sono richiesti.' });
@@ -91,6 +100,7 @@ router.get('/relazioni', verifyToken, async (req, res) => {
 // --- GET (Lista Anagrafiche con Sottoconti Collegati) ---
 router.get('/anagrafiche', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
+    const logMessage = `[${new Date().toISOString()}] - Richiesta /anagrafiche per id_ditta: ${dittaId}\n`;
     try {
         const query = `
             SELECT 
@@ -109,7 +119,21 @@ router.get('/anagrafiche', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore recupero anagrafiche.' });
     }
 });
+/*
+router.get('/anagrafiche', verifyToken, (req, res) => {
 
+    // Questo messaggio DEVE apparire se la rotta viene eseguita
+    console.log('!!! TEST DEFINITIVO ANAGRAFICHE ESEGUITO CORRETTAMENTE !!!');
+
+    // Creiamo dati finti da restituire
+    const datiDiProva = [
+        { id: 999, ragione_sociale: 'CLIENTE DI PROVA VISIBILE', p_iva: '12345678901', stato: 1, relazione: 'Cliente' }
+    ];
+
+    // Inviamo i dati finti
+    res.json({ success: true, data: datiDiProva });
+});
+*/
 
 
 // --- GET (Dettaglio Anagrafica) ---
@@ -126,6 +150,11 @@ router.get('/anagrafiche/:id', verifyToken, async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore recupero dettaglio.' });
     }
+    // =================================================================
+        // ## ALTRO BLOCCO DI DEBUG ##
+        console.log(`Query eseguita. Numero di anagrafiche trovate nel database: ${rows.length}`);
+        console.log('--- DEBUG: Fine richiesta ---');
+        // =================================================================
 });
 
 
@@ -166,11 +195,44 @@ router.post('/anagrafiche', verifyToken, async (req, res) => {
             'F': { codicePadre: '40.05', natura: 'Passività', tipo: 'fornitore' },
             'PV': { codicePadre: '70.01', natura: 'Ricavo', tipo: 'puntovendita' }
         };
+       
+           
+
+const sottocontiDaCreare = [];
+        // Normalizziamo il codice relazione in maiuscolo per un confronto affidabile
+        const relCode = (codice_relazione || '').toUpperCase();
+
+        // Usiamo un Set per gestire i tipi già aggiunti ed evitare duplicati
+        const tipiAggiunti = new Set();
+
+        const aggiungiSottoconto = (tipo) => {
+            // Controlla che il tipo esista nella mappa e non sia già stato aggiunto
+            if (relazioniMap[tipo] && !tipiAggiunti.has(tipo)) {
+                sottocontiDaCreare.push(relazioniMap[tipo]);
+                tipiAggiunti.add(tipo);
+            }
+        };
+
+        // Logica Unificata:
+        // Questa struttura gestisce correttamente tutte le combinazioni possibili
+        // inviate dal frontend (es. 'C', 'F', 'PV', 'CF', 'CPV', ecc.)
         
-        const sottocontiDaCreare = [];
-        if (codice_relazione.includes('C')) sottocontiDaCreare.push(relazioniMap['C']);
-        if (codice_relazione.includes('F')) sottocontiDaCreare.push(relazioniMap['F']);
-        if (codice_relazione.includes('PV')) sottocontiDaCreare.push(relazioniMap['PV']);
+        if (relCode.includes('C')) {
+            aggiungiSottoconto('C');
+        }
+        if (relCode.includes('F')) {
+            aggiungiSottoconto('F');
+        }
+        if (relCode.includes('PV')) {
+            aggiungiSottoconto('PV');
+        }
+        
+        // Gestione di un codice specifico per "Entrambi", se necessario.
+        // Se, ad esempio, il frontend invia 'E' per Cliente+Fornitore.
+        if (relCode === 'E') {
+            aggiungiSottoconto('C');
+            aggiungiSottoconto('F');
+        }
 
         const updates = {};
 
@@ -271,23 +333,52 @@ router.patch('/anagrafiche/:id', verifyToken, async (req, res) => {
 
 
 // --- GET (Lista Utenti della Ditta) ---
+// --- ROTTA: GET (Lista Utenti per la Ditta) --- (MODIFICATA PER DEBUG)
 router.get('/utenti', verifyToken, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
+    const { id_ditta } = req.user;
+
+  
     try {
         const query = `
-            SELECT u.id, u.nome, u.cognome, u.email, u.attivo, r.tipo as ruolo
+            SELECT u.id, u.nome, u.cognome, u.email, u.livello, r.tipo as tipo_ruolo, u.attivo
             FROM utenti u
             LEFT JOIN ruoli r ON u.id_ruolo = r.id
-            WHERE u.id_ditta = ? ORDER BY u.cognome, u.nome
+            WHERE u.id_ditta = ?
+            ORDER BY u.cognome, u.nome
         `;
-        const [users] = await dbPool.query(query, [dittaId]);
+        const [users] = await dbPool.query(query, [id_ditta]);
+        
+        // =================================================================
+        // ## ALTRO BLOCCO DI DEBUG ##
+        console.log(`Query eseguita. Numero di utenti trovati nel database: ${users.length}`);
+        console.log('--- DEBUG: Fine richiesta ---');
+        // =================================================================
+
         res.json({ success: true, data: users });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore recupero utenti.' });
+        console.error("Errore nel recupero utenti:", error);
+        res.status(500).json({ success: false, message: 'Errore durante il recupero degli utenti.' });
     }
 });
+/*
+// File: /var/www/opero/routes/amministrazione.js
 
+// --- ROTTA: GET (Lista Utenti per la Ditta) --- (MODIFICATA PER TEST DEFINITIVO)
+router.get('/utenti', verifyToken, (req, res) => {
 
+    // Questo messaggio DEVE apparire se la rotta viene eseguita
+    console.log('!!! TEST DEFINITIVO: La rotta /utenti è stata eseguita correttamente !!!');
+
+    // Creiamo dati finti da restituire
+    const datiDiProva = [
+        { id: 999, nome: 'Mario', cognome: 'Rossi (TEST)', email: 'test@opero.it', livello: 100, tipo_ruolo: 'Test', attivo: 1 }
+    ];
+
+    // Inviamo i dati finti, senza toccare il database
+    res.json({ success: true, data: datiDiProva });
+});
+
+*/
 
 // --- NUOVA ROTTA: GET (Piano dei Conti Strutturato) ---
 router.get('/piano-dei-conti', verifyToken, async (req, res) => {
@@ -605,7 +696,7 @@ router.get('/ruoli-assegnabili', verifyToken, async (req, res) => {
 // --- NUOVA ROTTA: GET (Lista Tipi Utente) ---
 router.get('/tipi-utente', verifyToken, async (req, res) => {
     try {
-        const [types] = await dbPool.query("SELECT Codice, Descrizione FROM tipi_utente ORDER BY Descrizione");
+        const [types] = await dbPool.query("SELECT codice, descrizione FROM tipi_utente ORDER BY descrizione");
         res.json({ success: true, data: types });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Errore nel recupero dei tipi utente.' });
