@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon,WrenchScrewdriverIcon } from '@heroicons/react/24/solid';
+import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon,WrenchScrewdriverIcon,TrashIcon,ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
 // --- Componente Modale per Creazione/Modifica Piano dei Conti ---
 const PdcEditModal = ({ item, onSave, onCancel, pdcTree }) => {
@@ -324,9 +324,11 @@ const PlaceholderView = ({ title }) => (
 );
 // --- Componente Vista per Piano dei Conti ---
 const PianoDeiContiView = ({ user }) => {
+  // spostati all'interno DEL COMPONENTE PRINCIPALE
     const [pdcTree, setPdcTree] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    
     const [selectedItem, setSelectedItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     // NUOVO: Stato per tenere traccia dei nodi espansi (usiamo un Set per efficienza)
@@ -482,113 +484,240 @@ const PianoDeiContiView = ({ user }) => {
 };
 
 
-// #####################################################################
-// # NUOVO: Componente Vista per Gestione Funzioni Contabili
-// # Creato per la nuova sezione, segue lo stile del componente esistente
-// #####################################################################
-// #####################################################################
-// # Componente Vista per Gestione Funzioni Contabili
-// #####################################################################
-const GestioneFunzioniView = () => {
+const GestioneFunzioniView = ({ pdcTree }) => {
     const [funzioni, setFunzioni] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedFunzione, setSelectedFunzione] = useState(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    const fetchFunzioni = useCallback(async () => {
-        try {
-            setLoading(true);
-            const response = await api.get('/contsmart/funzioni');
-            if (Array.isArray(response.data)) {
-                 setFunzioni(response.data);
-            } 
-            else if (response.data && Array.isArray(response.data.data)) {
-                setFunzioni(response.data.data)
-            }
-            else {
-                setFunzioni([]);
-            }
-            setError('');
-        } catch (err) {
-            setError('Errore nel caricamento delle funzioni contabili.');
-            console.error(err);
-            setFunzioni([]); // Assicura che funzioni sia un array anche in caso di errore
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    // Stato per il modale di eliminazione
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [funzioneToDelete, setFunzioneToDelete] = useState(null);
 
     useEffect(() => {
-        fetchFunzioni();
-    }, [fetchFunzioni]);
+        const loadFunzioni = async () => {
+            try {
+                setLoading(true);
+                const response = await api.get('/contsmart/funzioni');
+                const dati = response.data?.data || [];
+                setFunzioni(dati);
+            } catch (err) {
+                setError('Errore nel caricamento delle funzioni contabili.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadFunzioni();
+    }, [refreshKey]);
     
-    const handleNewFunzione = () => {
-        setSelectedFunzione(null);
-        alert("Apertura modale per nuova funzione (da implementare)");
-    };
+    // Handler per Modifica/Creazione
+    const handleNewFunzione = () => { /*...*/ };
+    const handleEditFunzione = (funzione) => { /*...*/ };
+    const handleSaveFunzione = async (data, id) => { /*...*/ };
+    const handleCancelFunzione = () => { /*...*/ };
     
-    const handleEditFunzione = (funzione) => {
-        setSelectedFunzione(funzione);
-        alert(`Apertura modale per modifica funzione: ${funzione.nome_funzione} (da implementare)`);
+    // Handler per Eliminazione
+    const handleDeleteFunzione = (funzione) => {
+        setFunzioneToDelete(funzione);
+        setShowDeleteModal(true);
     };
+
+    const confirmDelete = async () => {
+        if (!funzioneToDelete) return;
+        try {
+            await api.delete(`/contsmart/funzioni/${funzioneToDelete.id}`);
+            setShowDeleteModal(false);
+            setFunzioneToDelete(null);
+            setRefreshKey(oldKey => oldKey + 1); // Forza l'aggiornamento
+        } catch (error) {
+            console.error("Errore durante l'eliminazione:", error);
+            alert("Si è verificato un errore durante l'eliminazione.");
+            setShowDeleteModal(false);
+        }
+    };
+
+    const cancelDelete = () => {
+        setShowDeleteModal(false);
+        setFunzioneToDelete(null);
+    };
+
 
     if (loading) return <div className="p-4">Caricamento in corso...</div>;
     if (error) return <div className="p-4 text-red-500">{error}</div>;
-
+    
     return (
         <div>
+            {isModalOpen && <FunzioneContabileEditModal item={selectedFunzione} onSave={handleSaveFunzione} onCancel={handleCancelFunzione} pdcTree={pdcTree} />}
+            {showDeleteModal && (
+                <DeleteConfirmationModal
+                    onConfirm={confirmDelete}
+                    onCancel={cancelDelete}
+                    message={`Sei sicuro di voler eliminare la funzione "${funzioneToDelete?.nome_funzione}"? L'operazione non è reversibile.`}
+                />
+            )}
+
             <div className="flex justify-end mb-4">
-                <button 
-                    onClick={handleNewFunzione}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow"
-                >
-                    <PlusIcon className="h-5 w-5" />
-                    Nuova Funzione
-                </button>
+                {/* Pulsante Nuova Funzione */}
             </div>
-            
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                            <th className="p-3 text-sm font-semibold text-slate-600">Codice</th>
-                            <th className="p-3 text-sm font-semibold text-slate-600">Nome Funzione</th>
-                            <th className="p-3 text-sm font-semibold text-slate-600">Categoria</th>
-                            <th className="p-3 text-sm font-semibold text-slate-600 text-center">Righe</th>
-                            <th className="p-3 text-sm font-semibold text-slate-600">Stato</th>
-                            <th className="p-3 text-sm font-semibold text-slate-600">Azioni</th>
-                        </tr>
-                    </thead>
+                     {/* Thead */}
                     <tbody>
-                        {funzioni.map(funzione => (
+                        {funzioni.length > 0 ? (
+                            funzioni.map(funzione => (
                             <tr key={funzione.id} className="border-b border-slate-200 hover:bg-slate-50">
-                                <td className="p-3 font-mono text-sm text-slate-700">{funzione.codice_funzione}</td>
-                                <td className="p-3 text-slate-800">{funzione.nome_funzione}</td>
-                                <td className="p-3 text-slate-600">{funzione.categoria}</td>
-                                {/* ##################################################################### */}
-                                {/* # CORREZIONE: Reso il calcolo della lunghezza più sicuro             */}
-                                {/* ##################################################################### */}
-                                <td className="p-3 text-center text-slate-600">{(funzione.righe || []).length}</td>
+                                {/* ... td per codice, nome, etc ... */}
                                 <td className="p-3">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${funzione.attiva ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                        {funzione.attiva ? 'Attiva' : 'Disattiva'}
-                                    </span>
-                                </td>
-                                <td className="p-3">
-                                    <button onClick={() => handleEditFunzione(funzione)} className="text-blue-600 hover:text-blue-800">
+                                    <button onClick={() => handleEditFunzione(funzione)} className="text-blue-600 hover:text-blue-800 mr-3">
                                         <PencilIcon className="h-5 w-5" />
+                                    </button>
+                                    <button onClick={() => handleDeleteFunzione(funzione)} className="text-red-500 hover:text-red-700">
+                                        <TrashIcon className="h-5 w-5" />
                                     </button>
                                 </td>
                             </tr>
-                        ))}
-                         {funzioni.length === 0 && !loading && (
-                            <tr>
-                                <td colSpan="6" className="p-4 text-center text-slate-500">Nessuna funzione contabile trovata.</td>
-                            </tr>
-                         )}
+                            ))
+                        ) : (
+                            <tr><td colSpan="6" className="p-4 text-center text-slate-500">Nessuna funzione contabile trovata.</td></tr>
+                        )}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    );
+};
+
+// #####################################################################
+// # NUOVO: Componente Modale per Creazione/Modifica Funzioni Contabili
+// #####################################################################
+const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
+    const [formData, setFormData] = useState({
+        codice_funzione: '',
+        nome_funzione: '',
+        descrizione: '',
+        categoria: 'Generale',
+        attiva: true,
+        righe: []
+    });
+
+    useEffect(() => {
+        if (item) {
+            setFormData({
+                codice_funzione: item.codice_funzione || '',
+                nome_funzione: item.nome_funzione || '',
+                descrizione: item.descrizione || '',
+                categoria: item.categoria || 'Generale',
+                attiva: item.attiva !== undefined ? item.attiva : true,
+                righe: item.righe || []
+            });
+        } else {
+             setFormData({
+                codice_funzione: '',
+                nome_funzione: '',
+                descrizione: '',
+                categoria: 'Generale',
+                attiva: true,
+                righe: [{ id_conto: '', tipo_movimento: 'D', descrizione_riga_predefinita: '', is_sottoconto_modificabile: true }]
+            });
+        }
+    }, [item]);
+    
+    const renderPdcOptions = (nodes, level = 0) => {
+        return nodes.flatMap(node => [
+            <option key={node.id} value={node.id}>
+                {'\u00A0'.repeat(level * 4)} {node.codice} - {node.descrizione}
+            </option>,
+            ...(node.figli && node.figli.length > 0 ? renderPdcOptions(node.figli, level + 1) : [])
+        ]);
+    };
+
+    const handleHeaderChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    };
+
+    const handleRigaChange = (index, e) => {
+        const { name, value, type, checked } = e.target;
+        const newRighe = [...formData.righe];
+        newRighe[index] = { ...newRighe[index], [name]: type === 'checkbox' ? checked : value };
+        setFormData(prev => ({ ...prev, righe: newRighe }));
+    };
+    
+    const addRiga = () => {
+        const newRiga = { id_conto: '', tipo_movimento: 'D', descrizione_riga_predefinita: '', is_sottoconto_modificabile: true };
+        setFormData(prev => ({ ...prev, righe: [...prev.righe, newRiga] }));
+    };
+
+    const removeRiga = (index) => {
+        const newRighe = formData.righe.filter((_, i) => i !== index);
+        setFormData(prev => ({ ...prev, righe: newRighe }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData, item ? item.id : null);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+                <h2 className="text-xl font-bold mb-4">{item ? 'Modifica Funzione' : 'Nuova Funzione Contabile'}</h2>
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2 space-y-6">
+                    <fieldset className="border p-4 rounded-md space-y-4">
+                        <legend className="text-lg font-medium px-2">Dati Principali</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="codice_funzione" className="block text-sm font-medium text-gray-700">Codice Funzione</label>
+                                <input type="text" name="codice_funzione" value={formData.codice_funzione} onChange={handleHeaderChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                            <div>
+                                <label htmlFor="nome_funzione" className="block text-sm font-medium text-gray-700">Nome Funzione</label>
+                                <input type="text" name="nome_funzione" value={formData.nome_funzione} onChange={handleHeaderChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                             <div>
+                                <label htmlFor="categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
+                                <input type="text" name="categoria" value={formData.categoria} onChange={handleHeaderChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                            <div className="flex items-center">
+                                <input type="checkbox" name="attiva" checked={formData.attiva} onChange={handleHeaderChange} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                <label htmlFor="attiva" className="ml-2 block text-sm text-gray-900">Attiva</label>
+                            </div>
+                        </div>
+                         <div>
+                            <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
+                            <textarea name="descrizione" value={formData.descrizione} onChange={handleHeaderChange} rows="2" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
+                        </div>
+                    </fieldset>
+                    
+                    <fieldset className="border p-4 rounded-md mt-6">
+                        <legend className="text-lg font-medium px-2">Righe Partita Doppia</legend>
+                        <div className="space-y-2">
+                            {formData.righe.map((riga, index) => (
+                                <div key={index} className="grid grid-cols-12 gap-2 items-center border-b py-2">
+                                    <select name="id_conto" value={riga.id_conto} onChange={(e) => handleRigaChange(index, e)} className="col-span-5 mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
+                                        <option value="">Seleziona un conto...</option>
+                                        {renderPdcOptions(pdcTree)}
+                                    </select>
+                                    <select name="tipo_movimento" value={riga.tipo_movimento} onChange={(e) => handleRigaChange(index, e)} className="col-span-2 mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
+                                        <option value="D">Dare</option>
+                                        <option value="A">Avere</option>
+                                    </select>
+                                    <input type="text" name="descrizione_riga_predefinita" placeholder="Descrizione" value={riga.descrizione_riga_predefinita} onChange={(e) => handleRigaChange(index, e)} className="col-span-4 mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm" />
+                                    <button type="button" onClick={() => removeRiga(index)} className="col-span-1 text-red-500 hover:text-red-700 justify-self-center"><TrashIcon className="h-5 w-5"/></button>
+                                </div>
+                            ))}
+                        </div>
+                         <button type="button" onClick={addRiga} className="mt-4 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                             <PlusIcon className="h-4 w-4"/> Aggiungi Riga
+                        </button>
+                    </fieldset>
+                </form>
+                 <div className="flex justify-end gap-4 mt-6 pt-4 border-t">
+                    <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Annulla</button>
+                    <button type="button" onClick={handleSubmit} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salva Funzione</button>
+                </div>
             </div>
         </div>
     );
@@ -602,25 +731,53 @@ const ContSmartModule = () => {
     const { user } = useAuth();
     const [activeSection, setActiveSection] = useState('pdc');
 
+    // Stato del Piano dei Conti spostato qui per essere condiviso
+
+    const [pdcTree, setPdcTree] = useState([]);
+     
+    const [pdcLoading, setPdcLoading] = useState(true);
+    const [pdcError, setPdcError] = useState('');
+
+
     const accessibleSections = [
         { key: 'pdc', label: 'Piano dei Conti', icon: FolderIcon, minLevel: 10 },
         { key: 'funzioni', label: 'Gestione Funzioni', icon: WrenchScrewdriverIcon, minLevel: 90 },
         { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50 },
         { key: 'report', label: 'Reportistica', icon: ChartBarIcon, minLevel: 50 },
     ].filter(sec => user && user.livello >= sec.minLevel);
+    
+    const fetchPdc = useCallback(async () => {
+        try {
+            setPdcLoading(true);
+            const response = await api.get('/contsmart/piano-dei-conti');
+            if (response.data && Array.isArray(response.data.data)) {
+                setPdcTree(response.data.data);
+            } else {
+                setPdcTree([]);
+            }
+        } catch (err) {
+            setPdcError('Errore nel caricamento del piano dei conti.');
+        } finally {
+            setPdcLoading(false);
+        }
+    }, []);
+    
+    useEffect(() => {
+        fetchPdc();
+    }, [fetchPdc]);
 
     const renderContent = () => {
         switch (activeSection) {
             case 'pdc':
                 return <PianoDeiContiView user={user} />;
             case 'funzioni':
-                return <GestioneFunzioniView />;
+                return <GestioneFunzioniView pdcTree={pdcTree} />;
             case 'registrazioni':
                 return <div className="p-4"><h2>Registrazioni (in costruzione)</h2></div>;
             case 'report':
                 return <div className="p-4"><h2>Reportistica (in costruzione)</h2></div>;
             default:
-                return <PianoDeiContiView user={user} />;
+                return <PianoDeiContiView user={user} pdcTree={pdcTree} fetchPdc={fetchPdc} />;
         }
     };
 

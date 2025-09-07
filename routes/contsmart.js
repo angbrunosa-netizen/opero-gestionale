@@ -329,5 +329,84 @@ router.post('/funzioni', [verifyToken, canManageFunzioni], async (req, res) => {
     }
 });
 
+// #####################################################################
+// # NUOVO: Rotta PUT per aggiornare una Funzione Contabile
+// #####################################################################
+// #####################################################################
+// # Rotta PUT per aggiornare una Funzione Contabile (Verificata)
+// #####################################################################
+router.put('/funzioni/:id', [verifyToken, canManageFunzioni], async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    const { id: idFunzione } = req.params;
+    const { codice_funzione, nome_funzione, descrizione, categoria, attiva, righe } = req.body;
+
+    if (!righe || !Array.isArray(righe)) {
+        return res.status(400).json({ success: false, message: 'Il campo righe è obbligatorio e deve essere un array.' });
+    }
+    
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+
+        const updateHeaderQuery = `
+            UPDATE sc_funzioni_contabili SET 
+            codice_funzione = ?, nome_funzione = ?, descrizione = ?, categoria = ?, attiva = ?
+            WHERE id = ? AND id_ditta = ?;
+        `;
+        await connection.query(updateHeaderQuery, [codice_funzione, nome_funzione, descrizione, categoria, attiva, idFunzione, dittaId]);
+        
+        await connection.query('DELETE FROM sc_funzioni_contabili_righe WHERE id_funzione_contabile = ?;', [idFunzione]);
+        
+        if (righe.length > 0) {
+            const righeValues = righe.map(r => [
+                idFunzione,
+                r.id_conto,
+                r.tipo_movimento,
+                r.descrizione_riga_predefinita,
+                r.is_sottoconto_modificabile
+            ]);
+            const insertRigheQuery = `
+                INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita, is_sottoconto_modificabile)
+                VALUES ?;
+            `;
+            await connection.query(insertRigheQuery, [righeValues]);
+        }
+
+        await connection.commit();
+        res.json({ success: true, message: 'Funzione contabile aggiornata con successo.' });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error("Errore aggiornamento funzione contabile:", error);
+        res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento della funzione.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+/*
+ * DELETE /funzioni/:id
+ * Elimina una funzione contabile esistente.
+ * Grazie a ON DELETE CASCADE nel DB, verranno eliminate anche le righe associate.
+ */
+router.delete('/funzioni/:id', [verifyToken, canManageFunzioni], async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    const { id: idFunzione } = req.params;
+
+    try {
+        const query = 'DELETE FROM sc_funzioni_contabili WHERE id = ? AND id_ditta = ?;';
+        const [result] = await dbPool.query(query, [idFunzione, dittaId]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Funzione non trovata o non autorizzata.' });
+        }
+
+        res.json({ success: true, message: 'Funzione contabile eliminata con successo.' });
+
+    } catch (error) {
+        console.error("Errore eliminazione funzione contabile:", error);
+        res.status(500).json({ success: false, message: 'Errore durante l\'eliminazione della funzione.' });
+    }
+});
 
 module.exports = router;
