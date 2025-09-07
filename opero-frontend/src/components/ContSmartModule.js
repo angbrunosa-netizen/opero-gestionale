@@ -3,7 +3,7 @@
 // # File: opero-gestionale-main/opero-frontend/src/components/ContSmartModule.js
 // #####################################################################
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef} from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon,WrenchScrewdriverIcon,TrashIcon,ExclamationTriangleIcon } from '@heroicons/react/24/solid';
@@ -483,7 +483,48 @@ const PianoDeiContiView = ({ user }) => {
     );
 };
 
+const DeleteConfirmationModal = ({ onConfirm, onCancel, message }) => {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+                <div className="flex items-start">
+                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <ExclamationTriangleIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900">
+                            Conferma Eliminazione
+                        </h3>
+                        <div className="mt-2">
+                            <p className="text-sm text-gray-500">
+                                {message}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button
+                        type="button"
+                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm"
+                        onClick={onConfirm}
+                    >
+                        Elimina
+                    </button>
+                    <button
+                        type="button"
+                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm"
+                        onClick={onCancel}
+                    >
+                        Annulla
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
+
+// --- Componente Vista per Gestione Funzioni Contabili (con logica di caricamento corretta) ---
 const GestioneFunzioniView = ({ pdcTree }) => {
     const [funzioni, setFunzioni] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -491,34 +532,80 @@ const GestioneFunzioniView = ({ pdcTree }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedFunzione, setSelectedFunzione] = useState(null);
     const [refreshKey, setRefreshKey] = useState(0);
-
-    // Stato per il modale di eliminazione
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [funzioneToDelete, setFunzioneToDelete] = useState(null);
 
+    // ## CORREZIONE APPLICATA QUI ##
     useEffect(() => {
+        let isMounted = true;
         const loadFunzioni = async () => {
             try {
                 setLoading(true);
                 const response = await api.get('/contsmart/funzioni');
-                const dati = response.data?.data || [];
-                setFunzioni(dati);
+                
+                // L'API restituisce direttamente un array. Controlliamo se è valido.
+                const datiRicevuti = response.data;
+
+                if (isMounted) {
+                    if (Array.isArray(datiRicevuti)) {
+                        setFunzioni(datiRicevuti);
+                    } else {
+                        // Se la risposta non è un array, impostiamo un array vuoto per sicurezza
+                        console.warn("La risposta dell'API per le funzioni non era un array:", datiRicevuti);
+                        setFunzioni([]);
+                    }
+                    setError('');
+                }
             } catch (err) {
-                setError('Errore nel caricamento delle funzioni contabili.');
+                if (isMounted) {
+                    setError('Errore nel caricamento delle funzioni contabili.');
+                    console.error("Errore critico nella chiamata API /contsmart/funzioni:", err);
+                    setFunzioni([]);
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
+
         loadFunzioni();
+
+        return () => {
+            isMounted = false;
+        };
     }, [refreshKey]);
     
-    // Handler per Modifica/Creazione
-    const handleNewFunzione = () => { /*...*/ };
-    const handleEditFunzione = (funzione) => { /*...*/ };
-    const handleSaveFunzione = async (data, id) => { /*...*/ };
-    const handleCancelFunzione = () => { /*...*/ };
+    const handleNewFunzione = () => {
+        setSelectedFunzione(null);
+        setIsModalOpen(true);
+    };
     
-    // Handler per Eliminazione
+    const handleEditFunzione = (funzione) => {
+        setSelectedFunzione(funzione);
+        setIsModalOpen(true);
+    };
+
+    const handleSaveFunzione = async (data, id) => {
+       try {
+            if (id) {
+                await api.put(`/contsmart/funzioni/${id}`, data);
+            } else {
+                await api.post('/contsmart/funzioni', data);
+            }
+            setIsModalOpen(false);
+            setRefreshKey(oldKey => oldKey + 1);
+        } catch (error) {
+            console.error("Errore nel salvataggio della funzione:", error);
+            alert("Si è verificato un errore durante il salvataggio.");
+        }
+    };
+
+    const handleCancelFunzione = () => {
+        setIsModalOpen(false);
+        setSelectedFunzione(null);
+    };
+
     const handleDeleteFunzione = (funzione) => {
         setFunzioneToDelete(funzione);
         setShowDeleteModal(true);
@@ -530,7 +617,7 @@ const GestioneFunzioniView = ({ pdcTree }) => {
             await api.delete(`/contsmart/funzioni/${funzioneToDelete.id}`);
             setShowDeleteModal(false);
             setFunzioneToDelete(null);
-            setRefreshKey(oldKey => oldKey + 1); // Forza l'aggiornamento
+            setRefreshKey(oldKey => oldKey + 1);
         } catch (error) {
             console.error("Errore durante l'eliminazione:", error);
             alert("Si è verificato un errore durante l'eliminazione.");
@@ -542,7 +629,6 @@ const GestioneFunzioniView = ({ pdcTree }) => {
         setShowDeleteModal(false);
         setFunzioneToDelete(null);
     };
-
 
     if (loading) return <div className="p-4">Caricamento in corso...</div>;
     if (error) return <div className="p-4 text-red-500">{error}</div>;
@@ -557,23 +643,41 @@ const GestioneFunzioniView = ({ pdcTree }) => {
                     message={`Sei sicuro di voler eliminare la funzione "${funzioneToDelete?.nome_funzione}"? L'operazione non è reversibile.`}
                 />
             )}
-
             <div className="flex justify-end mb-4">
-                {/* Pulsante Nuova Funzione */}
+                 <button onClick={handleNewFunzione} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow">
+                     <PlusIcon className="h-5 w-5" /> Nuova Funzione
+                 </button>
             </div>
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
                 <table className="w-full text-left">
-                     {/* Thead */}
+                     <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Codice</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Nome Funzione</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Categoria</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600 text-center">Righe</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Stato</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Azioni</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {funzioni.length > 0 ? (
                             funzioni.map(funzione => (
                             <tr key={funzione.id} className="border-b border-slate-200 hover:bg-slate-50">
-                                {/* ... td per codice, nome, etc ... */}
+                                <td className="p-3 font-mono text-sm text-slate-700">{funzione.codice_funzione}</td>
+                                <td className="p-3 text-slate-800">{funzione.nome_funzione}</td>
+                                <td className="p-3 text-slate-600">{funzione.categoria}</td>
+                                <td className="p-3 text-center text-slate-600">{(funzione.righe || []).length}</td>
+                                <td className="p-3">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${funzione.attiva ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                        {funzione.attiva ? 'Attiva' : 'Disattiva'}
+                                    </span>
+                                </td>
                                 <td className="p-3">
                                     <button onClick={() => handleEditFunzione(funzione)} className="text-blue-600 hover:text-blue-800 mr-3">
                                         <PencilIcon className="h-5 w-5" />
                                     </button>
-                                    <button onClick={() => handleDeleteFunzione(funzione)} className="text-red-500 hover:text-red-700">
+                                     <button onClick={() => handleDeleteFunzione(funzione)} className="text-red-500 hover:text-red-700">
                                         <TrashIcon className="h-5 w-5" />
                                     </button>
                                 </td>
@@ -723,21 +827,255 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
     );
 };
 
+// #####################################################################
+// # NUOVO: Componente Vista per le Registrazioni Contabili (con Logica di Quadratura)
+// #####################################################################
+const RegistrazioniView = ({ pdcTree, funzioni }) => {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [prossimoNumero, setProssimoNumero] = useState(null);
+    const [selectedFunzione, setSelectedFunzione] = useState('');
+    const [dataRegistrazione, setDataRegistrazione] = useState(new Date().toISOString().slice(0, 10));
+    const [righeScrittura, setRigheScrittura] = useState([]);
+    
+    // Stato per il controllo della quadratura
+    const [totaleDare, setTotaleDare] = useState(0);
+    const [totaleAvere, setTotaleAvere] = useState(0);
+    const [isQuadrata, setIsQuadrata] = useState(false);
+
+    const formRef = useRef(null);
+
+    // Caricamento del prossimo numero di registrazione
+    useEffect(() => {
+        const fetchProssimoNumero = async () => {
+            try {
+                // TODO: Creare l'endpoint nel backend per il numero progressivo
+                // const response = await api.get('/contsmart/registrazioni/prossimo-numero');
+                // setProssimoNumero(response.data.prossimoNumero);
+                setProssimoNumero(1); // Placeholder
+            } catch (err) {
+                setError('Impossibile caricare il prossimo numero di registrazione.');
+            }
+        };
+
+        fetchProssimoNumero();
+        setLoading(false);
+    }, []);
+
+    // Calcolo totali e verifica quadratura ogni volta che le righe cambiano
+    useEffect(() => {
+        let dare = 0;
+        let avere = 0;
+        righeScrittura.forEach(riga => {
+            const importo = parseFloat(riga.importo) || 0;
+            if (riga.tipo_movimento === 'D') {
+                dare += importo;
+            } else {
+                avere += importo;
+            }
+        });
+        
+        setTotaleDare(dare);
+        setTotaleAvere(avere);
+        
+        // Confronto preciso per la quadratura
+        setIsQuadrata(dare > 0 && avere > 0 && Math.abs(dare - avere) < 0.001);
+
+    }, [righeScrittura]);
+
+    // Gestione shortcut da tastiera
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'F1') {
+                event.preventDefault();
+                handleNewRegistrazione();
+            }
+            if (event.key === 'F12') {
+                event.preventDefault();
+                if (isQuadrata) {
+                    handleSaveRegistrazione();
+                } else {
+                    console.warn("Salvataggio bloccato: la scrittura non quadra.");
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isQuadrata, righeScrittura]); // Aggiunta dipendenze per avere lo stato aggiornato
+
+    const handleNewRegistrazione = () => {
+        console.log("F1 premuto: Avvio nuova registrazione.");
+        setSelectedFunzione('');
+        setRigheScrittura([]);
+        setDataRegistrazione(new Date().toISOString().slice(0, 10));
+    };
+    
+    const handleSaveRegistrazione = () => {
+        console.log("F12 premuto: Salvataggio registrazione.");
+        // TODO: Implementare la logica di salvataggio via API
+        alert('Scrittura quadrata, pronta per il salvataggio!');
+    };
+
+    const handleFunzioneChange = (e) => {
+        const funzioneId = e.target.value;
+        setSelectedFunzione(funzioneId);
+        
+        const funzioneSelezionata = funzioni.find(f => f.id === parseInt(funzioneId));
+        
+        if (funzioneSelezionata && funzioneSelezionata.righe) {
+            const nuoveRighe = funzioneSelezionata.righe.map((rigaTemplate, index) => ({
+                ...rigaTemplate,
+                key: `${funzioneId}-${index}`, // Chiave univoca per il rendering
+                importo: '',
+                descrizione: rigaTemplate.descrizione_riga_predefinita,
+            }));
+            setRigheScrittura(nuoveRighe);
+        } else {
+            setRigheScrittura([]);
+        }
+    };
+
+    const handleImportoChange = (key, nuovoImporto) => {
+        setRigheScrittura(prevRighe => 
+            prevRighe.map(riga => 
+                riga.key === key ? { ...riga, importo: nuovoImporto } : riga
+            )
+        );
+    };
+
+    if (loading) return <div className="p-4">Caricamento...</div>;
+    if (error) return <div className="p-4 text-red-500">{error}</div>;
+
+    return (
+        <div ref={formRef}>
+            <h2 className="text-xl font-semibold text-slate-800 mb-4">Nuova Registrazione Contabile</h2>
+            <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    {/* Intestazione Form */}
+                    <div>
+                        <label htmlFor="funzione" className="block text-sm font-medium text-slate-700">Funzione Contabile</label>
+                        <select id="funzione" value={selectedFunzione} onChange={handleFunzioneChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="">-- Seleziona una funzione --</option>
+                            {funzioni.map(f => <option key={f.id} value={f.id}>{f.nome_funzione}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="data" className="block text-sm font-medium text-slate-700">Data Registrazione</label>
+                        <input type="date" id="data" value={dataRegistrazione} onChange={(e) => setDataRegistrazione(e.target.value)} className="mt-1 block w-full text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"/>
+                    </div>
+                    <div>
+                        <label htmlFor="numero" className="block text-sm font-medium text-slate-700">N. Registrazione</label>
+                        <input type="text" id="numero" value={prossimoNumero || ''} readOnly className="mt-1 block w-full bg-slate-100 text-base border-slate-300 sm:text-sm rounded-md"/>
+                    </div>
+                </div>
+
+                {/* Tabella di inserimento righe */}
+                <div className="mt-8">
+                    {righeScrittura.length > 0 ? (
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="p-3 text-sm font-semibold text-slate-600 w-1/4">Conto</th>
+                                    <th className="p-3 text-sm font-semibold text-slate-600 w-1/2">Descrizione</th>
+                                    <th className="p-3 text-sm font-semibold text-slate-600 text-right">Dare</th>
+                                    <th className="p-3 text-sm font-semibold text-slate-600 text-right">Avere</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {righeScrittura.map(riga => (
+                                    <tr key={riga.key} className="border-b border-slate-200">
+                                        <td className="p-2 text-sm">{pdcTree.find(c => c.id === riga.id_conto)?.descrizione || 'Conto non trovato'}</td>
+                                        <td className="p-2 text-sm">{riga.descrizione}</td>
+                                        <td className="p-2">
+                                            {riga.tipo_movimento === 'D' && (
+                                                <input type="number" step="0.01" value={riga.importo} onChange={(e) => handleImportoChange(riga.key, e.target.value)} className="w-full text-right border-slate-300 rounded-md shadow-sm sm:text-sm" />
+                                            )}
+                                        </td>
+                                        <td className="p-2">
+                                            {riga.tipo_movimento === 'A' && (
+                                                <input type="number" step="0.01" value={riga.importo} onChange={(e) => handleImportoChange(riga.key, e.target.value)} className="w-full text-right border-slate-300 rounded-md shadow-sm sm:text-sm" />
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="font-bold">
+                                <tr>
+                                    <td colSpan="2" className="p-3 text-right">TOTALI</td>
+                                    <td className="p-3 text-right text-lg">{totaleDare.toFixed(2)} €</td>
+                                    <td className="p-3 text-right text-lg">{totaleAvere.toFixed(2)} €</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    ) : (
+                        <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
+                            <p className="text-slate-500">Seleziona una funzione contabile per iniziare.</p>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Sezione Riepilogo e Azioni */}
+                <div className="mt-8 pt-5 border-t border-slate-200 flex justify-between items-center">
+                    <div>
+                        {!isQuadrata && righeScrittura.length > 0 && (
+                            <p className="text-red-600 font-semibold">Errore: la scrittura non quadra. Sbilancio: {(totaleDare - totaleAvere).toFixed(2)} €</p>
+                        )}
+                         {isQuadrata && (
+                            <p className="text-green-600 font-semibold">Scrittura corretta.</p>
+                        )}
+                    </div>
+                    <div className="flex gap-3 items-center">
+                        <p className="text-sm text-slate-500 self-center">scorciatoie: <strong>F1</strong>=Nuovo | <strong>F12</strong>=Salva</p>
+                        <button onClick={handleNewRegistrazione} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300">Annulla</button>
+                        <button onClick={handleSaveRegistrazione} disabled={!isQuadrata} className={`px-4 py-2 rounded-lg text-white ${!isQuadrata ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>Salva Registrazione (F12)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 
 // #####################################################################
 // # Componente Principale: ContSmartModule (Aggiornato e Allineato)
 // #####################################################################
+// --- Componente Principale: ContSmartModule (Aggiornato per includere Registrazioni) ---
 const ContSmartModule = () => {
     const { user } = useAuth();
     const [activeSection, setActiveSection] = useState('pdc');
-
-    // Stato del Piano dei Conti spostato qui per essere condiviso
-
+    
+    // Stato e caricamento dati spostati qui per essere condivisi
     const [pdcTree, setPdcTree] = useState([]);
-     
-    const [pdcLoading, setPdcLoading] = useState(true);
-    const [pdcError, setPdcError] = useState('');
+    const [funzioni, setFunzioni] = useState([]);
+    const [loading, setLoading] = useState(true);
 
+    const fetchData = useCallback(async () => {
+        try {
+            setLoading(true);
+            const [pdcRes, funzioniRes] = await Promise.all([
+                api.get('/contsmart/piano-dei-conti'),
+                api.get('/contsmart/funzioni')
+            ]);
+            if (pdcRes.data && Array.isArray(pdcRes.data.data)) {
+                setPdcTree(pdcRes.data.data);
+            }
+            if (funzioniRes.data && Array.isArray(funzioniRes.data)) {
+                setFunzioni(funzioniRes.data);
+            }
+        } catch (error) {
+            console.error("Errore nel caricamento dati del modulo:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const accessibleSections = [
         { key: 'pdc', label: 'Piano dei Conti', icon: FolderIcon, minLevel: 10 },
@@ -745,39 +1083,21 @@ const ContSmartModule = () => {
         { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50 },
         { key: 'report', label: 'Reportistica', icon: ChartBarIcon, minLevel: 50 },
     ].filter(sec => user && user.livello >= sec.minLevel);
-    
-    const fetchPdc = useCallback(async () => {
-        try {
-            setPdcLoading(true);
-            const response = await api.get('/contsmart/piano-dei-conti');
-            if (response.data && Array.isArray(response.data.data)) {
-                setPdcTree(response.data.data);
-            } else {
-                setPdcTree([]);
-            }
-        } catch (err) {
-            setPdcError('Errore nel caricamento del piano dei conti.');
-        } finally {
-            setPdcLoading(false);
-        }
-    }, []);
-    
-    useEffect(() => {
-        fetchPdc();
-    }, [fetchPdc]);
 
     const renderContent = () => {
+        if (loading) return <div>Caricamento modulo...</div>;
+        
         switch (activeSection) {
             case 'pdc':
-                return <PianoDeiContiView user={user} />;
+                return <PianoDeiContiView user={user} pdcTree={pdcTree} fetchPdc={fetchData} />;
             case 'funzioni':
                 return <GestioneFunzioniView pdcTree={pdcTree} />;
             case 'registrazioni':
-                return <div className="p-4"><h2>Registrazioni (in costruzione)</h2></div>;
+                return <RegistrazioniView pdcTree={pdcTree} funzioni={funzioni} />;
             case 'report':
                 return <div className="p-4"><h2>Reportistica (in costruzione)</h2></div>;
             default:
-                return <PianoDeiContiView user={user} pdcTree={pdcTree} fetchPdc={fetchPdc} />;
+                return <PianoDeiContiView user={user} pdcTree={pdcTree} fetchPdc={fetchData} />;
         }
     };
 
@@ -790,26 +1110,22 @@ const ContSmartModule = () => {
             
             <div className="border-b border-slate-200 mb-6">
                 <nav className="-mb-px flex space-x-6">
-                    {accessibleSections.map(sec => {
-                        const Icon = sec.icon;
-                        return (
-                            <button 
-                                key={sec.key}
-                                onClick={() => setActiveSection(sec.key)}
-                                className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                    activeSection === sec.key 
-                                    ? 'border-blue-500 text-blue-600' 
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                }`}
-                            >
-                                <Icon className="h-5 w-5" />
-                                <span>{sec.label}</span>
-                            </button>
-                        );
-                    })}
+                    {accessibleSections.map(sec => (
+                        <button 
+                            key={sec.key}
+                            onClick={() => setActiveSection(sec.key)}
+                            className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                activeSection === sec.key 
+                                ? 'border-blue-500 text-blue-600' 
+                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                            }`}
+                        >
+                            <sec.icon className="h-5 w-5" />
+                            <span>{sec.label}</span>
+                        </button>
+                    ))}
                 </nav>
             </div>
-
             <main className="flex-1">
                 {renderContent()}
             </main>
