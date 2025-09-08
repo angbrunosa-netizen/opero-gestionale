@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef} from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon, PencilIcon,WrenchScrewdriverIcon,TrashIcon,ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon,ArrowPathIcon, PencilIcon,WrenchScrewdriverIcon,TrashIcon,ExclamationTriangleIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
 
 // --- Componente Modale per Creazione/Modifica Piano dei Conti ---
 const PdcEditModal = ({ item, onSave, onCancel, pdcTree }) => {
@@ -694,14 +694,16 @@ const GestioneFunzioniView = ({ pdcTree }) => {
 };
 
 // #####################################################################
-// # NUOVO: Componente Modale per Creazione/Modifica Funzioni Contabili
+// # MODIFICATO: Componente Modale per Creazione/Modifica Funzioni Contabili
 // #####################################################################
 const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
+    // ## MODIFICA QUI: Aggiunto `tipo_funzione` allo stato iniziale ##
     const [formData, setFormData] = useState({
         codice_funzione: '',
         nome_funzione: '',
         descrizione: '',
         categoria: 'Generale',
+        tipo_funzione: 'Primaria', // Valore di default
         attiva: true,
         righe: []
     });
@@ -713,6 +715,7 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                 nome_funzione: item.nome_funzione || '',
                 descrizione: item.descrizione || '',
                 categoria: item.categoria || 'Generale',
+                tipo_funzione: item.tipo_funzione || 'Primaria', // Carica il tipo esistente
                 attiva: item.attiva !== undefined ? item.attiva : true,
                 righe: item.righe || []
             });
@@ -722,6 +725,7 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                 nome_funzione: '',
                 descrizione: '',
                 categoria: 'Generale',
+                tipo_funzione: 'Primaria',
                 attiva: true,
                 righe: [{ id_conto: '', tipo_movimento: 'D', descrizione_riga_predefinita: '', is_sottoconto_modificabile: true }]
             });
@@ -784,8 +788,18 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                                 <label htmlFor="categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
                                 <input type="text" name="categoria" value={formData.categoria} onChange={handleHeaderChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
                             </div>
-                            <div className="flex items-center">
-                                <input type="checkbox" name="attiva" checked={formData.attiva} onChange={handleHeaderChange} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            {/* ## MODIFICA QUI: Aggiunto il selettore per il Tipo Funzione ## */}
+                            <div>
+                                <label htmlFor="tipo_funzione" className="block text-sm font-medium text-gray-700">Tipo Funzione</label>
+                                <select name="tipo_funzione" value={formData.tipo_funzione} onChange={handleHeaderChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="Primaria">Primaria</option>
+                                    <option value="Secondaria">Secondaria</option>
+                                    <option value="Sistemistica">Sistemistica</option>
+                                    <option value="Finanziaria">Finanziaria</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center pt-6">
+                                <input id="attiva" type="checkbox" name="attiva" checked={formData.attiva} onChange={handleHeaderChange} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                                 <label htmlFor="attiva" className="ml-2 block text-sm text-gray-900">Attiva</label>
                             </div>
                         </div>
@@ -827,210 +841,418 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
     );
 };
 
-// #####################################################################
-// # NUOVO: Componente Vista per le Registrazioni Contabili (con Logica di Quadratura)
-// #####################################################################
-const RegistrazioniView = ({ pdcTree, funzioni }) => {
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [prossimoNumero, setProssimoNumero] = useState(null);
-    const [selectedFunzione, setSelectedFunzione] = useState('');
-    const [dataRegistrazione, setDataRegistrazione] = useState(new Date().toISOString().slice(0, 10));
-    const [righeScrittura, setRigheScrittura] = useState([]);
+// --- Componente Vista per le Registrazioni Contabili ---
+const RegistrazioniView = ({ pdcTree, funzioni, anagrafiche, aliquoteIva, onSaveSuccess }) => {
     
-    // Stato per il controllo della quadratura
-    const [totaleDare, setTotaleDare] = useState(0);
-    const [totaleAvere, setTotaleAvere] = useState(0);
-    const [isQuadrata, setIsQuadrata] = useState(false);
+    // Assicura che le props siano sempre array per evitare l'errore .map()
+    const safeFunzioni = funzioni || [];
+    const safeAnagrafiche = anagrafiche || [];
+    const safeAliquoteIva = aliquoteIva || [];
 
-    const formRef = useRef(null);
+    const formRef = useRef(null); // Ref per il contenitore del form
+    
+    const initialState = {
+        selectedFunzioneId: '',
+        datiDocumento: {
+            id_anagrafica: '',
+            data_documento: new Date().toISOString().slice(0, 10),
+            numero_documento: '',
+            data_scadenza: '',
+            descrizione_testata: '',
+            totale_documento: '',
+        },
+        righeIva: [{ id: 1, imponibile: '', id_iva: '', aliquota: 0, imposta: 0 }],
+        righeScrittura: [],
+        isFinancial: false,
+    };
 
-    // Caricamento del prossimo numero di registrazione
-    useEffect(() => {
-        const fetchProssimoNumero = async () => {
-            try {
-                // TODO: Creare l'endpoint nel backend per il numero progressivo
-                // const response = await api.get('/contsmart/registrazioni/prossimo-numero');
-                // setProssimoNumero(response.data.prossimoNumero);
-                setProssimoNumero(1); // Placeholder
-            } catch (err) {
-                setError('Impossibile caricare il prossimo numero di registrazione.');
-            }
-        };
-
-        fetchProssimoNumero();
-        setLoading(false);
+    const [state, setState] = useState(initialState);
+    
+    const handleNewRegistrazione = useCallback(() => {
+        setState(initialState);
+        // Sposta il focus sul primo campo del form (la selezione della funzione)
+        setTimeout(() => formRef.current?.querySelector('#funzione')?.focus(), 0);
     }, []);
 
-    // Calcolo totali e verifica quadratura ogni volta che le righe cambiano
-    useEffect(() => {
-        let dare = 0;
-        let avere = 0;
-        righeScrittura.forEach(riga => {
-            const importo = parseFloat(riga.importo) || 0;
-            if (riga.tipo_movimento === 'D') {
-                dare += importo;
-            } else {
-                avere += importo;
+    // Gestione cambiamenti e calcoli
+    const handleFunzioneChange = (e) => {
+        const funzioneId = e.target.value;
+        const funzione = safeFunzioni.find(f => f.id === parseInt(funzioneId));
+
+        if (funzione?.tipo_funzione === 'Finanziaria') {
+            setState(prev => ({
+                ...prev,
+                selectedFunzioneId: funzioneId,
+                isFinancial: true,
+                datiDocumento: { ...initialState.datiDocumento, descrizione_testata: funzione.nome_funzione },
+                righeIva: [{ id: 1, imponibile: '', id_iva: '', aliquota: 0, imposta: 0 }],
+                righeScrittura: []
+            }));
+        } else {
+            const righePopolate = funzione?.righe.map((r, i) => ({...r, importo: '', key: i })) || [];
+            if (righePopolate.length > 0) {
+                 righePopolate.push({ key: Date.now(), id_conto: '', tipo_movimento: 'D', nome_conto: '', importo: '' });
             }
+            setState(prev => ({
+                ...prev,
+                selectedFunzioneId: funzioneId,
+                isFinancial: false,
+                datiDocumento: { ...initialState.datiDocumento, descrizione_testata: funzione.nome_funzione },
+                righeIva: [],
+                righeScrittura: righePopolate
+            }));
+        }
+    };
+    
+    const handleDocChange = (e) => {
+        const { name, value } = e.target;
+        setState(prev => ({
+            ...prev,
+            datiDocumento: { ...prev.datiDocumento, [name]: value }
+        }));
+    }
+
+    const handleIvaChange = (id, field, value) => {
+        setState(prev => ({
+            ...prev,
+            righeIva: prev.righeIva.map(riga => {
+                if (riga.id === id) {
+                    const newRiga = { ...riga, [field]: value };
+                    if (field === 'id_iva') {
+                        const aliquotaData = safeAliquoteIva.find(a => a.id === parseInt(value));
+                        newRiga.aliquota = aliquotaData ? aliquotaData.aliquota : 0;
+                    }
+                    const imponibile = parseFloat(newRiga.imponibile);
+                    if (!isNaN(imponibile) && newRiga.aliquota > 0) {
+                        newRiga.imposta = imponibile * (newRiga.aliquota / 100);
+                    } else {
+                        newRiga.imposta = 0;
+                    }
+                    return newRiga;
+                }
+                return riga;
+            })
+        }));
+    };
+
+    const handleNonFinancialRowChange = (index, field, value) => {
+        let righeAggiornate = state.righeScrittura.map((r, i) => {
+            if (i === index) {
+                const updatedRiga = { ...r, [field]: value };
+                if (field === 'id_conto') {
+                    const flatPdc = (nodes) => nodes.flatMap(n => [n, ...(n.figli ? flatPdc(n.figli) : [])]);
+                    const conto = flatPdc(pdcTree).find(c => c.id === parseInt(value));
+                    updatedRiga.nome_conto = conto ? `${conto.codice} - ${conto.descrizione}` : '';
+                }
+                return updatedRiga;
+            }
+            return r;
         });
-        
-        setTotaleDare(dare);
-        setTotaleAvere(avere);
-        
-        // Confronto preciso per la quadratura
-        setIsQuadrata(dare > 0 && avere > 0 && Math.abs(dare - avere) < 0.001);
 
-    }, [righeScrittura]);
+        const rigaModificata = righeAggiornate[index];
+        if (field === 'importo' && index === righeAggiornate.length - 1 && rigaModificata.importo && rigaModificata.id_conto) {
+            righeAggiornate.push({
+                key: Date.now(),
+                id_conto: '',
+                tipo_movimento: rigaModificata.tipo_movimento,
+                nome_conto: '',
+                importo: ''
+            });
+        }
+        setState(prev => ({ ...prev, righeScrittura: righeAggiornate }));
+    };
 
-    // Gestione shortcut da tastiera
+    const toggleRigaDA = (index) => {
+        setState(prev => ({
+            ...prev,
+            righeScrittura: prev.righeScrittura.map((r, i) => i === index ? { ...r, tipo_movimento: r.tipo_movimento === 'D' ? 'A' : 'D'} : r)
+        }));
+    }
+
+    const removeRigaNonFinancial = (index) => {
+        setState(prev => ({
+            ...prev,
+            righeScrittura: prev.righeScrittura.filter((_, i) => i !== index)
+        }));
+    }
+    
+    const addRigaIva = () => setState(prev => ({ ...prev, righeIva: [...prev.righeIva, {id: Date.now(), imponibile: '', id_iva: '', aliquota: 0, imposta: 0}] }));
+    const removeRigaIva = (id) => setState(prev => ({ ...prev, righeIva: prev.righeIva.filter(r => r.id !== id) }));
+    
+    const handleGeneraScrittura = () => {
+        const funzione = safeFunzioni.find(f => f.id === parseInt(state.selectedFunzioneId));
+        if (!funzione) return;
+
+        const totaleImponibile = state.righeIva.reduce((sum, r) => sum + (parseFloat(r.imponibile) || 0), 0);
+        const totaleImposta = state.righeIva.reduce((sum, r) => sum + r.imposta, 0);
+        
+        const anagrafica = safeAnagrafiche.find(a => a.id === parseInt(state.datiDocumento.id_anagrafica));
+        const contoAnagraficaId = anagrafica?.codice_relazione === 'F' ? anagrafica.id_sottoconto_fornitore : anagrafica?.id_sottoconto_cliente;
+        const contoAnagraficaTemplate = funzione.righe.find(r => r.nome_conto.toLowerCase().includes('clienti') || r.nome_conto.toLowerCase().includes('fornitori'));
+        const contoIvaTemplate = funzione.righe.find(r => r.nome_conto.toLowerCase().includes('iva'));
+        const contoRicavoCostoTemplate = funzione.righe.find(r => !r.nome_conto.toLowerCase().includes('iva') && !r.nome_conto.toLowerCase().includes('clienti') && !r.nome_conto.toLowerCase().includes('fornitori'));
+        
+        const newScrittura = [];
+        
+        const importoTotaleDocumento = parseFloat(state.datiDocumento.totale_documento) || 0;
+
+        // AVERE (Supplier/Customer)
+        if (contoAnagraficaTemplate && contoAnagraficaId && importoTotaleDocumento > 0) {
+            newScrittura.push({ ...contoAnagraficaTemplate, id_conto: contoAnagraficaId, importo: importoTotaleDocumento.toFixed(2), key: 'fornitore' });
+        }
+        // DARE (VAT and Cost)
+        if (contoIvaTemplate && totaleImposta > 0) {
+            newScrittura.push({ ...contoIvaTemplate, importo: totaleImposta.toFixed(2), key: 'iva' });
+        }
+        if (contoRicavoCostoTemplate && totaleImponibile > 0) {
+            newScrittura.push({ ...contoRicavoCostoTemplate, importo: totaleImponibile.toFixed(2), key: 'costo' });
+        }
+
+        // Add extra row for manual input
+        newScrittura.push({ key: Date.now(), id_conto: '', tipo_movimento: 'D', nome_conto: '', importo: '' });
+
+        setState(prev => ({ ...prev, righeScrittura: newScrittura }));
+    };
+
+    
+    const handleSaveRegistrazione = useCallback(async () => {
+        const payload = {
+            isFinancial: state.isFinancial,
+            datiDocumento: state.datiDocumento,
+            righeIva: state.righeIva,
+            righeScrittura: state.righeScrittura.filter(r => r.importo && r.id_conto), // Invia solo righe complete
+        };
+        try {
+            const response = await api.post('/contsmart/registrazioni', payload);
+            alert(response.data.message);
+            handleNewRegistrazione(); // Resetta il form
+            if (onSaveSuccess) onSaveSuccess();
+        } catch (error) {
+            console.error("Errore salvataggio registrazione:", error);
+            alert(error.response?.data?.message || "Si è verificato un errore durante il salvataggio.");
+        }
+    }, [state, onSaveSuccess, handleNewRegistrazione]);
+    
+    const totaleDare = state.righeScrittura.reduce((sum, r) => r.tipo_movimento === 'D' ? sum + (parseFloat(r.importo) || 0) : sum, 0);
+    const totaleAvere = state.righeScrittura.reduce((sum, r) => r.tipo_movimento === 'A' ? sum + (parseFloat(r.importo) || 0) : sum, 0);
+    const isPdQuadrata = Math.abs(totaleDare - totaleAvere) < 0.01;
+
+    // Calcoli per la verifica del totale documento
+    const totaleImponibile = state.righeIva.reduce((sum, r) => sum + (parseFloat(r.imponibile) || 0), 0);
+    const totaleImposta = state.righeIva.reduce((sum, r) => sum + r.imposta, 0);
+    const totaleCalcolato = totaleImponibile + totaleImposta;
+    const sbilancio = (parseFloat(state.datiDocumento.totale_documento) || 0) - totaleCalcolato;
+    const isVerificato = Math.abs(sbilancio) < 0.01 && state.datiDocumento.totale_documento;
+
+    const canSave = (totaleDare > 0 || totaleAvere > 0) && isPdQuadrata && (!state.isFinancial || isVerificato);
+
     useEffect(() => {
         const handleKeyDown = (event) => {
             if (event.key === 'F1') {
                 event.preventDefault();
-                handleNewRegistrazione();
+                if (!state.selectedFunzioneId) { // Logica F1 corretta
+                    handleNewRegistrazione();
+                }
             }
             if (event.key === 'F12') {
                 event.preventDefault();
-                if (isQuadrata) {
+                if (canSave) {
                     handleSaveRegistrazione();
                 } else {
-                    console.warn("Salvataggio bloccato: la scrittura non quadra.");
+                    alert("Impossibile salvare: la scrittura non è bilanciata o il totale non corrisponde.");
+                }
+            }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const focusable = Array.from(
+                    formRef.current.querySelectorAll('input, select, button:not([disabled])')
+                );
+                const index = focusable.indexOf(document.activeElement);
+                if (index > -1) {
+                    const nextIndex = event.key === 'ArrowDown'
+                        ? (index + 1) % focusable.length
+                        : (index - 1 + focusable.length) % focusable.length;
+                    focusable[nextIndex].focus();
                 }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [isQuadrata, righeScrittura]); // Aggiunta dipendenze per avere lo stato aggiornato
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [canSave, handleSaveRegistrazione, handleNewRegistrazione, state.selectedFunzioneId]);
 
-    const handleNewRegistrazione = () => {
-        console.log("F1 premuto: Avvio nuova registrazione.");
-        setSelectedFunzione('');
-        setRigheScrittura([]);
-        setDataRegistrazione(new Date().toISOString().slice(0, 10));
-    };
-    
-    const handleSaveRegistrazione = () => {
-        console.log("F12 premuto: Salvataggio registrazione.");
-        // TODO: Implementare la logica di salvataggio via API
-        alert('Scrittura quadrata, pronta per il salvataggio!');
-    };
 
-    const handleFunzioneChange = (e) => {
-        const funzioneId = e.target.value;
-        setSelectedFunzione(funzioneId);
-        
-        const funzioneSelezionata = funzioni.find(f => f.id === parseInt(funzioneId));
-        
-        if (funzioneSelezionata && funzioneSelezionata.righe) {
-            const nuoveRighe = funzioneSelezionata.righe.map((rigaTemplate, index) => ({
-                ...rigaTemplate,
-                key: `${funzioneId}-${index}`, // Chiave univoca per il rendering
-                importo: '',
-                descrizione: rigaTemplate.descrizione_riga_predefinita,
-            }));
-            setRigheScrittura(nuoveRighe);
-        } else {
-            setRigheScrittura([]);
-        }
-    };
-
-    const handleImportoChange = (key, nuovoImporto) => {
-        setRigheScrittura(prevRighe => 
-            prevRighe.map(riga => 
-                riga.key === key ? { ...riga, importo: nuovoImporto } : riga
-            )
-        );
-    };
-
-    if (loading) return <div className="p-4">Caricamento...</div>;
-    if (error) return <div className="p-4 text-red-500">{error}</div>;
+    const renderPdcOptionsForSelect = useCallback((nodes, level = 0) => {
+        return nodes.flatMap(node => [
+            <option key={node.id} value={node.id} disabled={node.tipo !== 'Sottoconto'}>
+                {'\u00A0'.repeat(level * 4)} {node.codice} - {node.descrizione}
+            </option>,
+            ...(node.figli && node.figli.length > 0 ? renderPdcOptionsForSelect(node.figli, level + 1) : [])
+        ]);
+    }, []);
 
     return (
         <div ref={formRef}>
             <h2 className="text-xl font-semibold text-slate-800 mb-4">Nuova Registrazione Contabile</h2>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {/* Intestazione Form */}
-                    <div>
-                        <label htmlFor="funzione" className="block text-sm font-medium text-slate-700">Funzione Contabile</label>
-                        <select id="funzione" value={selectedFunzione} onChange={handleFunzioneChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                            <option value="">-- Seleziona una funzione --</option>
-                            {funzioni.map(f => <option key={f.id} value={f.id}>{f.nome_funzione}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label htmlFor="data" className="block text-sm font-medium text-slate-700">Data Registrazione</label>
-                        <input type="date" id="data" value={dataRegistrazione} onChange={(e) => setDataRegistrazione(e.target.value)} className="mt-1 block w-full text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"/>
-                    </div>
-                    <div>
-                        <label htmlFor="numero" className="block text-sm font-medium text-slate-700">N. Registrazione</label>
-                        <input type="text" id="numero" value={prossimoNumero || ''} readOnly className="mt-1 block w-full bg-slate-100 text-base border-slate-300 sm:text-sm rounded-md"/>
-                    </div>
+            <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+                
+                <div>
+                    <label htmlFor="funzione" className="block text-sm font-medium text-slate-700">Funzione Contabile</label>
+                    <select id="funzione" value={state.selectedFunzioneId} onChange={handleFunzioneChange} className="mt-1 block w-full md:w-1/3 rounded-md border-gray-300 shadow-sm">
+                        <option value="">-- Seleziona una funzione --</option>
+                        {safeFunzioni.map(f => <option key={f.id} value={f.id}>{f.codice_funzione} - {f.nome_funzione}</option>)}
+                    </select>
                 </div>
+                
+                {state.isFinancial && (
+                     <fieldset className="border p-4 rounded-md">
+                        <legend className="text-lg font-medium px-2 flex items-center gap-2"><DocumentTextIcon className="h-5 w-5 text-slate-600"/> Dati Documento</legend>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-2 items-end">
+                             <div className="lg:col-span-2">
+                                <label htmlFor="id_anagrafica" className="block text-sm font-medium text-gray-700">Cliente/Fornitore</label>
+                                <select name="id_anagrafica" value={state.datiDocumento.id_anagrafica} onChange={handleDocChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="">Seleziona...</option>
+                                    {safeAnagrafiche.map(a => <option key={a.id} value={a.id}>{a.ragione_sociale}</option>)}
+                                </select>
+                             </div>
+                             <div>
+                                <label htmlFor="numero_documento" className="block text-sm font-medium text-gray-700">Numero Doc.</label>
+                                <input type="text" name="numero_documento" value={state.datiDocumento.numero_documento} onChange={handleDocChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                             </div>
+                             <div>
+                                <label htmlFor="data_documento" className="block text-sm font-medium text-gray-700">Data Doc.</label>
+                                <input type="date" name="data_documento" value={state.datiDocumento.data_documento} onChange={handleDocChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                             </div>
+                             <div>
+                                <label htmlFor="totale_documento" className="block text-sm font-medium text-gray-700">Totale Documento</label>
+                                <input type="number" step="0.01" name="totale_documento" value={state.datiDocumento.totale_documento} onChange={handleDocChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm font-bold text-right" />
+                             </div>
+                              <div className="lg:col-start-4">
+                                <label htmlFor="data_scadenza" className="block text-sm font-medium text-gray-700">Data Scadenza</label>
+                                <input type="date" name="data_scadenza" value={state.datiDocumento.data_scadenza} onChange={handleDocChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                             </div>
+                        </div>
+                    </fieldset>
+                )}
 
-                {/* Tabella di inserimento righe */}
-                <div className="mt-8">
-                    {righeScrittura.length > 0 ? (
-                        <table className="w-full text-left">
+                {state.isFinancial && (
+                    <fieldset className="border p-4 rounded-md">
+                        <legend className="text-lg font-medium px-2">% Dettaglio IVA</legend>
+                        <div className="space-y-2 mt-2">
+                            {state.righeIva.map((riga, index) => (
+                                <div key={riga.id} className="grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-5">
+                                        {index === 0 && <label className="text-sm font-medium text-gray-700">Imponibile</label>}
+                                        <input type="number" step="0.01" value={riga.imponibile} onChange={e => handleIvaChange(riga.id, 'imponibile', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                    </div>
+                                    <div className="col-span-3">
+                                        {index === 0 && <label className="text-sm font-medium text-gray-700">Aliquota IVA</label>}
+                                        <select value={riga.id_iva} onChange={e => handleIvaChange(riga.id, 'id_iva', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                            <option value="">Seleziona...</option>
+                                            {safeAliquoteIva.map(a => <option key={a.id} value={a.id}>{a.descrizione} ({a.aliquota}%)</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                        {index === 0 && <label className="text-sm font-medium text-gray-700">Imposta</label>}
+                                        <input type="text" readOnly value={riga.imposta.toFixed(2)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-slate-100" />
+                                    </div>
+                                    <div className="col-span-1 self-end">
+                                        <button type="button" onClick={() => removeRigaIva(riga.id)} className="text-red-500 hover:text-red-700"><TrashIcon className="h-5 w-5"/></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button type="button" onClick={addRigaIva} className="mt-4 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            <PlusIcon className="h-4 w-4"/> Aggiungi riga IVA
+                        </button>
+                        <div className="mt-4 p-3 bg-slate-50 rounded-lg flex justify-between items-center gap-6">
+                             <button onClick={handleGeneraScrittura} disabled={!isVerificato} className="px-4 py-2 rounded-lg text-white font-semibold bg-green-600 hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                                Genera Scrittura
+                            </button>
+                            <div className="flex gap-6">
+                                <div className="text-right">
+                                    <span className="text-sm text-slate-500">Totale Calcolato</span>
+                                    <p className="font-bold text-lg">{totaleCalcolato.toFixed(2)} €</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className={`text-sm ${isVerificato ? 'text-slate-500' : 'text-red-600'}`}>Sbilancio</span>
+                                    <p className={`font-bold text-lg ${isVerificato ? 'text-green-600' : 'text-red-600'}`}>{sbilancio.toFixed(2)} €</p>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+                )}
+
+                {state.righeScrittura.length > 0 && (
+                     <div className="mt-4">
+                         <h3 className="text-lg font-medium text-slate-800 mb-2">
+                             Scrittura in Partita Doppia
+                         </h3>
+                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b border-slate-200">
                                 <tr>
-                                    <th className="p-3 text-sm font-semibold text-slate-600 w-1/4">Conto</th>
-                                    <th className="p-3 text-sm font-semibold text-slate-600 w-1/2">Descrizione</th>
+                                    <th className="p-3 text-sm font-semibold text-slate-600 w-2/5">Conto</th>
                                     <th className="p-3 text-sm font-semibold text-slate-600 text-right">Dare</th>
                                     <th className="p-3 text-sm font-semibold text-slate-600 text-right">Avere</th>
+                                    <th className="p-3 text-sm font-semibold text-slate-600 text-center">Azioni</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {righeScrittura.map(riga => (
-                                    <tr key={riga.key} className="border-b border-slate-200">
-                                        <td className="p-2 text-sm">{pdcTree.find(c => c.id === riga.id_conto)?.descrizione || 'Conto non trovato'}</td>
-                                        <td className="p-2 text-sm">{riga.descrizione}</td>
-                                        <td className="p-2">
-                                            {riga.tipo_movimento === 'D' && (
-                                                <input type="number" step="0.01" value={riga.importo} onChange={(e) => handleImportoChange(riga.key, e.target.value)} className="w-full text-right border-slate-300 rounded-md shadow-sm sm:text-sm" />
-                                            )}
+                             <tbody>
+                                {state.righeScrittura.map((riga, idx) => (
+                                    <tr key={riga.key || idx} className="border-b border-slate-200">
+                                        <td className="p-2 text-sm">
+                                            <select
+                                                value={riga.id_conto}
+                                                onChange={e => handleNonFinancialRowChange(idx, 'id_conto', e.target.value)}
+                                                className="w-full border-slate-300 rounded-md shadow-sm sm:text-sm"
+                                            >
+                                                <option value="">-- Seleziona Conto --</option>
+                                                {renderPdcOptionsForSelect(pdcTree)}
+                                            </select>
                                         </td>
-                                        <td className="p-2">
-                                            {riga.tipo_movimento === 'A' && (
-                                                <input type="number" step="0.01" value={riga.importo} onChange={(e) => handleImportoChange(riga.key, e.target.value)} className="w-full text-right border-slate-300 rounded-md shadow-sm sm:text-sm" />
-                                            )}
+                                        <td className="p-2 text-right font-mono">
+                                             {riga.tipo_movimento === 'D' && (
+                                                <input type="number" step="0.01" value={riga.importo} onChange={e => handleNonFinancialRowChange(idx, 'importo', e.target.value)} className="w-full text-right border-slate-300 rounded-md shadow-sm sm:text-sm" />
+                                             )}
+                                        </td>
+                                        <td className="p-2 text-right font-mono">
+                                             {riga.tipo_movimento === 'A' && (
+                                                <input type="number" step="0.01" value={riga.importo} onChange={e => handleNonFinancialRowChange(idx, 'importo', e.target.value)} className="w-full text-right border-slate-300 rounded-md shadow-sm sm:text-sm" />
+                                             )}
+                                        </td>
+                                        <td className="p-2 text-center">
+                                            <button title="Inverti Dare/Avere" onClick={() => toggleRigaDA(idx)} className="text-slate-500 hover:text-blue-600 mr-2 inline-flex"><ArrowPathIcon className="h-5 w-5" /></button>
+                                            <button title="Elimina Riga" onClick={() => removeRigaNonFinancial(idx)} className="text-slate-500 hover:text-red-600 inline-flex"><TrashIcon className="h-5 w-5" /></button>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
-                            <tfoot className="font-bold">
+                             <tfoot className="font-bold">
                                 <tr>
-                                    <td colSpan="2" className="p-3 text-right">TOTALI</td>
-                                    <td className="p-3 text-right text-lg">{totaleDare.toFixed(2)} €</td>
-                                    <td className="p-3 text-right text-lg">{totaleAvere.toFixed(2)} €</td>
+                                    <td className="p-3 text-right">TOTALI</td>
+                                    <td className="p-3 text-right text-lg font-mono">{totaleDare.toFixed(2)} €</td>
+                                    <td className="p-3 text-right text-lg font-mono">{totaleAvere.toFixed(2)} €</td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
-                        </table>
-                    ) : (
-                        <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
-                            <p className="text-slate-500">Seleziona una funzione contabile per iniziare.</p>
-                        </div>
-                    )}
-                </div>
-                
-                {/* Sezione Riepilogo e Azioni */}
-                <div className="mt-8 pt-5 border-t border-slate-200 flex justify-between items-center">
-                    <div>
-                        {!isQuadrata && righeScrittura.length > 0 && (
-                            <p className="text-red-600 font-semibold">Errore: la scrittura non quadra. Sbilancio: {(totaleDare - totaleAvere).toFixed(2)} €</p>
-                        )}
-                         {isQuadrata && (
-                            <p className="text-green-600 font-semibold">Scrittura corretta.</p>
-                        )}
+                         </table>
                     </div>
-                    <div className="flex gap-3 items-center">
-                        <p className="text-sm text-slate-500 self-center">scorciatoie: <strong>F1</strong>=Nuovo | <strong>F12</strong>=Salva</p>
-                        <button onClick={handleNewRegistrazione} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300">Annulla</button>
-                        <button onClick={handleSaveRegistrazione} disabled={!isQuadrata} className={`px-4 py-2 rounded-lg text-white ${!isQuadrata ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>Salva Registrazione (F12)</button>
+                )}
+                
+                <div className="mt-6 pt-4 border-t flex justify-between items-center">
+                     <div className="flex gap-4 items-center">
+                        {!canSave && state.selectedFunzioneId && (
+                            <p className="text-red-600 font-semibold">Verificare la quadratura o i totali.</p>
+                        )}
+                         {canSave && (
+                            <p className="text-green-600 font-semibold">Pronto per il salvataggio.</p>
+                        )}
+                        <p className="text-xs text-slate-500 self-center hidden md:block">Scorciatoie: <strong>F1</strong>=Nuovo | <strong>F12</strong>=Salva | <strong>↑ ↓</strong>=Naviga</p>
+                    </div>
+                    <div>
+                        <button onClick={handleSaveRegistrazione} disabled={!canSave} className="px-4 py-2 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                            Salva Registrazione
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1040,64 +1262,85 @@ const RegistrazioniView = ({ pdcTree, funzioni }) => {
 
 
 
-// #####################################################################
-// # Componente Principale: ContSmartModule (Aggiornato e Allineato)
-// #####################################################################
-// --- Componente Principale: ContSmartModule (Aggiornato per includere Registrazioni) ---
+
+
+// --- Componente Principale: ContSmartModule ---
 const ContSmartModule = () => {
     const { user } = useAuth();
-    const [activeSection, setActiveSection] = useState('pdc');
+    const [activeSection, setActiveSection] = useState('registrazioni');
     
-    // Stato e caricamento dati spostati qui per essere condivisi
-    const [pdcTree, setPdcTree] = useState([]);
-    const [funzioni, setFunzioni] = useState([]);
+    const [masterData, setMasterData] = useState({
+        pdcTree: [],
+        funzioni: [],
+        anagrafiche: [],
+        aliquoteIva: []
+    });
     const [loading, setLoading] = useState(true);
 
-    const fetchData = useCallback(async () => {
+    const fetchMasterData = useCallback(async () => {
         try {
-            setLoading(true);
-            const [pdcRes, funzioniRes] = await Promise.all([
+            // Non impostiamo loading a true qui per evitare sfarfallii su refresh
+            const [pdcRes, funzioniRes, anagraficheRes, aliquoteRes] = await Promise.all([
                 api.get('/contsmart/piano-dei-conti'),
-                api.get('/contsmart/funzioni')
+                api.get('/contsmart/funzioni'),
+                api.get('/contsmart/anagrafiche-cf'),
+                api.get('/contsmart/aliquote-iva'),
             ]);
-            if (pdcRes.data && Array.isArray(pdcRes.data.data)) {
-                setPdcTree(pdcRes.data.data);
-            }
-            if (funzioniRes.data && Array.isArray(funzioniRes.data)) {
-                setFunzioni(funzioniRes.data);
-            }
+            setMasterData({
+                pdcTree: pdcRes.data?.data || [],
+                funzioni: funzioniRes.data || [],
+                anagrafiche: anagraficheRes.data?.data || [],
+                aliquoteIva: aliquoteRes.data?.data || [],
+            });
         } catch (error) {
             console.error("Errore nel caricamento dati del modulo:", error);
         } finally {
-            setLoading(false);
+            setLoading(false); // Imposta loading a false solo dopo che tutte le chiamate sono terminate
         }
     }, []);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        fetchMasterData();
+    }, [fetchMasterData]);
 
     const accessibleSections = [
+        { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50 },
         { key: 'pdc', label: 'Piano dei Conti', icon: FolderIcon, minLevel: 10 },
         { key: 'funzioni', label: 'Gestione Funzioni', icon: WrenchScrewdriverIcon, minLevel: 90 },
-        { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50 },
         { key: 'report', label: 'Reportistica', icon: ChartBarIcon, minLevel: 50 },
     ].filter(sec => user && user.livello >= sec.minLevel);
 
     const renderContent = () => {
-        if (loading) return <div>Caricamento modulo...</div>;
+        if (loading) return <div className="p-4 text-center text-slate-500">Caricamento modulo Contabilità Smart...</div>;
         
+        // Guardia di sicurezza per assicurare che i dati siano pronti
+        if (!masterData.pdcTree || !masterData.funzioni) {
+             return <div className="p-4 text-center text-slate-500">Inizializzazione dati...</div>;
+        }
+
         switch (activeSection) {
-            case 'pdc':
-                return <PianoDeiContiView user={user} pdcTree={pdcTree} fetchPdc={fetchData} />;
-            case 'funzioni':
-                return <GestioneFunzioniView pdcTree={pdcTree} />;
             case 'registrazioni':
-                return <RegistrazioniView pdcTree={pdcTree} funzioni={funzioni} />;
+                return <RegistrazioniView 
+                            pdcTree={masterData.pdcTree}
+                            funzioni={masterData.funzioni}
+                            anagrafiche={masterData.anagrafiche}
+                            aliquoteIva={masterData.aliquoteIva}
+                            onSaveSuccess={fetchMasterData} 
+                        />;
+            case 'pdc':
+                return <PianoDeiContiView user={user} pdcTree={masterData.pdcTree} fetchPdc={fetchMasterData} />;
+            case 'funzioni':
+                return <GestioneFunzioniView pdcTree={masterData.pdcTree} fetchMasterData={fetchMasterData} />;
             case 'report':
-                return <div className="p-4"><h2>Reportistica (in costruzione)</h2></div>;
+                 return <div className="p-4"><h2>Reportistica (in costruzione)</h2></div>;
             default:
-                return <PianoDeiContiView user={user} pdcTree={pdcTree} fetchPdc={fetchData} />;
+                return <RegistrazioniView 
+                            pdcTree={masterData.pdcTree}
+                            funzioni={masterData.funzioni}
+                            anagrafiche={masterData.anagrafiche}
+                            aliquoteIva={masterData.aliquoteIva}
+                            onSaveSuccess={fetchMasterData}
+                        />;
         }
     };
 
@@ -1134,7 +1377,4 @@ const ContSmartModule = () => {
 };
 
 export default ContSmartModule;
-
-
-
 

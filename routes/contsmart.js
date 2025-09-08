@@ -110,6 +110,7 @@ router.post('/piano-dei-conti', [verifyToken, canEditPdc], async (req, res) => {
  * GET /registrazioni
  * Recupera un elenco delle ultime testate delle registrazioni contabili.
  */
+// --- ROTTE PER LE REGISTRAZIONI CONTABILI ---
 router.get('/registrazioni', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
     try {
@@ -128,6 +129,7 @@ router.get('/registrazioni', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
 
 /**
  * POST /registrazioni
@@ -214,19 +216,25 @@ router.patch('/piano-dei-conti/:id', [verifyToken, canEditPdc], async (req, res)
  * @desc    Recupera tutte le funzioni contabili per la ditta dell'utente loggato
  * @access  Privato
  */
+/**
+ * @route   GET /api/contsmart/funzioni
+ * @desc    Recupera tutte le funzioni contabili per la ditta dell'utente loggato
+ * @access  Privato
+ */
 router.get('/funzioni', verifyToken, async (req, res) => {
     try {
         const { id_ditta } = req.user;
 
+        // ## MODIFICA QUI: Aggiunto f.tipo_funzione alla SELECT ##
         const query = `
             SELECT
-                f.id as funzione_id, f.codice_funzione, f.nome_funzione, f.descrizione, f.categoria, f.attiva,
+                f.id as funzione_id, f.codice_funzione, f.nome_funzione, f.descrizione, f.categoria, f.attiva, f.tipo_funzione,
                 r.id as riga_id, r.id_conto, p.Descrizione as nome_conto, r.tipo_movimento, r.descrizione_riga_predefinita, r.is_sottoconto_modificabile
             FROM sc_funzioni_contabili as f
             LEFT JOIN sc_funzioni_contabili_righe as r ON f.id = r.id_funzione_contabile
             LEFT JOIN sc_piano_dei_conti as p ON r.id_conto = p.id
             WHERE f.id_ditta = ?
-            ORDER BY f.id ASC;
+            ORDER BY f.codice_funzione ASC;
         `;
         
         const [funzioni] = await dbPool.query(query, [id_ditta]);
@@ -245,6 +253,7 @@ router.get('/funzioni', verifyToken, async (req, res) => {
                     descrizione: row.descrizione,
                     categoria: row.categoria,
                     attiva: row.attiva,
+                    tipo_funzione: row.tipo_funzione, // Aggiunto il campo
                     righe: []
                 };
             }
@@ -267,7 +276,6 @@ router.get('/funzioni', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore del server durante il recupero delle funzioni contabili.' });
     }
 });
-
 /**
  * @route   POST /api/contsmart/funzioni
  * @desc    Crea una nuova funzione contabile e le sue righe
@@ -406,6 +414,131 @@ router.delete('/funzioni/:id', [verifyToken, canManageFunzioni], async (req, res
     } catch (error) {
         console.error("Errore eliminazione funzione contabile:", error);
         res.status(500).json({ success: false, message: 'Errore durante l\'eliminazione della funzione.' });
+    }
+});
+
+// --- NUOVE ROTTE DI SUPPORTO PER REGISTRAZIONI ---
+
+/**
+ * GET /anagrafiche-cf
+ * Recupera un elenco semplificato di clienti e fornitori per la ditta.
+ */
+router.get('/anagrafiche-cf', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    try {
+        // ## MODIFICA QUI: Aggiunti id_sottoconto_fornitore e id_sottoconto_cliente ##
+        const query = `
+            SELECT id, ragione_sociale, codice_relazione, id_sottoconto_fornitore, id_sottoconto_cliente 
+            FROM ditte 
+            WHERE id_ditta_proprietaria = ? AND (codice_relazione = 'C' OR codice_relazione = 'F') 
+            ORDER BY ragione_sociale ASC
+        `;
+        const [rows] = await dbPool.query(query, [dittaId]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore recupero anagrafiche:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+/**
+ * GET /aliquote-iva
+ * Recupera le aliquote IVA disponibili per la ditta.
+ */
+router.get('/aliquote-iva', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    try {
+        const query = `
+            SELECT id, codice, descrizione, aliquota 
+            FROM iva_contabili 
+            WHERE id_ditta = ? 
+            ORDER BY aliquota ASC
+        `;
+        const [rows] = await dbPool.query(query, [dittaId]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore recupero aliquote IVA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+// #####################################################################
+// # NUOVO ENDPOINT DI SALVATAGGIO REGISTRAZIONI (v1.4)
+// #####################################################################
+router.post('/registrazioni', [verifyToken, canPostEntries], async (req, res) => {
+    const { id_ditta: dittaId, id: userId } = req.user;
+    const { isFinancial, datiDocumento, righeIva, righeScrittura } = req.body;
+
+    // 1. Validazione preliminare del payload
+    if (!righeScrittura || righeScrittura.length < 2) {
+        return res.status(400).json({ success: false, message: 'Dati incompleti: la scrittura contabile deve avere almeno due righe.' });
+    }
+    const totaleDare = righeScrittura.reduce((sum, r) => r.tipo_movimento === 'D' ? sum + parseFloat(r.importo || 0) : sum, 0);
+    const totaleAvere = righeScrittura.reduce((sum, r) => r.tipo_movimento === 'A' ? sum + parseFloat(r.importo || 0) : sum, 0);
+    if (Math.abs(totaleDare - totaleAvere) > 0.01) {
+        return res.status(400).json({ success: false, message: 'La registrazione non è bilanciata.' });
+    }
+    if (isFinancial && (!datiDocumento.id_anagrafica || !datiDocumento.data_scadenza)) {
+         return res.status(400).json({ success: false, message: 'Per le funzioni finanziarie, cliente/fornitore e data di scadenza sono obbligatori.' });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 2. Inserimento testata di registrazione
+        const [testataResult] = await connection.query(
+            'INSERT INTO sc_registrazioni_testata (id_ditta, id_utente, data_registrazione, descrizione_testata, stato) VALUES (?, ?, ?, ?, ?)',
+            [dittaId, userId, datiDocumento.data_documento, datiDocumento.descrizione_testata, 'Confermato']
+        );
+        const testataId = testataResult.insertId;
+
+        // 3. Inserimento righe di registrazione e gestione registri IVA
+        let idRigaCollegamentoIva = null;
+
+        for (const riga of righeScrittura) {
+            const [rigaResult] = await connection.query(
+                'INSERT INTO sc_registrazioni_righe (id_testata, id_conto, descrizione_riga, importo_dare, importo_avere) VALUES (?, ?, ?, ?, ?)',
+                [testataId, riga.id_conto, riga.nome_conto, riga.tipo_movimento === 'D' ? riga.importo : 0, riga.tipo_movimento === 'A' ? riga.importo : 0]
+            );
+            // Salva l'ID della prima riga di costo/ricavo per collegare i movimenti IVA
+            if (isFinancial && !riga.nome_conto.toLowerCase().includes('iva') && !riga.nome_conto.toLowerCase().includes('clienti') && !riga.nome_conto.toLowerCase().includes('fornitori') && idRigaCollegamentoIva === null) {
+                idRigaCollegamentoIva = rigaResult.insertId;
+            }
+        }
+        
+        // Se la funzione è finanziaria, processa le operazioni correlate
+        if (isFinancial) {
+            // 4a. Inserimento Partita Aperta
+            await connection.query(
+                'INSERT INTO sc_partite_aperte (id_ditta_anagrafica, data_scadenza, importo, stato, id_registrazione_testata) VALUES (?, ?, ?, ?, ?)',
+                [datiDocumento.id_anagrafica, datiDocumento.data_scadenza, totaleDare, 'APERTA', testataId]
+            );
+
+            // 4b. Inserimento Registri IVA
+            const anagrafica = await connection.query('SELECT codice_relazione FROM ditte WHERE id = ?', [datiDocumento.id_anagrafica]);
+            const tipoRegistro = anagrafica[0][0].codice_relazione === 'C' ? 'Vendite' : 'Acquisti';
+
+            for (const rigaIva of righeIva) {
+                if(parseFloat(rigaIva.imponibile) > 0) {
+                     await connection.query(
+                        'INSERT INTO sc_registri_iva (id_riga_registrazione, tipo_registro, data_documento, numero_documento, id_anagrafica, imponibile, aliquota_iva, importo_iva) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        [idRigaCollegamentoIva, tipoRegistro, datiDocumento.data_documento, datiDocumento.numero_documento, datiDocumento.id_anagrafica, rigaIva.imponibile, rigaIva.aliquota, rigaIva.imposta]
+                    );
+                }
+            }
+        }
+
+        // 5. Commit della transazione
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Registrazione creata con successo.', testataId });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore salvataggio registrazione complessa:", error);
+        res.status(500).json({ success: false, message: 'Errore durante il salvataggio della registrazione.' });
+    } finally {
+        connection.release();
     }
 });
 
