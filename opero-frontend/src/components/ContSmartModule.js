@@ -1,12 +1,21 @@
 // #####################################################################
-// # Componente per il Modulo ContSmart v1.1 (con Manutenzione PDC)
+// # Componente per il Modulo ContSmart v1.2 (con REPORT)
 // # File: opero-gestionale-main/opero-frontend/src/components/ContSmartModule.js
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useRef} from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon,ArrowPathIcon, PencilIcon,WrenchScrewdriverIcon,TrashIcon,ExclamationTriangleIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
+import { FolderIcon, PencilSquareIcon, ChartBarIcon, ChevronRightIcon, PlusIcon,ArrowPathIcon, PencilIcon,WrenchScrewdriverIcon,TrashIcon,ExclamationTriangleIcon, DocumentTextIcon, ChartPieIcon,Cog6ToothIcon } from '@heroicons/react/24/solid';
+import ReportView from './cont-smart/ReportView';
+import PianoContiManager from './cont-smart/PianoContiManager'; // Importato il componente reale
+import NuovaRegistrazione from './cont-smart/NuovaRegistrazione'; 
+import FunzioniContabiliManager from './cont-smart/FunzioniContabiliManager';
+// --- NOVITÀ: Aggiunta componenti placeholder per risolvere l'errore di compilazione ---
+//const PianoContiManager = () => <div className="p-4 border rounded-lg bg-slate-50">Componente Manutenzione Piano dei Conti in costruzione.</div>;
+//const FunzioniContabiliManager = () => <div className="p-4 border rounded-lg bg-slate-50">Componente Gestione Funzioni Contabili in costruzione.</div>;
+// --- FINE NOVITÀ ---
+
 
 // --- Componente Modale per Creazione/Modifica Piano dei Conti ---
 const PdcEditModal = ({ item, onSave, onCancel, pdcTree }) => {
@@ -114,6 +123,7 @@ const PdcEditModal = ({ item, onSave, onCancel, pdcTree }) => {
         </div>
     );
 };
+
 
 
 // --- Componenti di Sezione (MODIFICATO) ---
@@ -482,7 +492,6 @@ const PianoDeiContiView = ({ user }) => {
         </div>
     );
 };
-
 const DeleteConfirmationModal = ({ onConfirm, onCancel, message }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
@@ -523,58 +532,38 @@ const DeleteConfirmationModal = ({ onConfirm, onCancel, message }) => {
     );
 };
 
-
-// --- Componente Vista per Gestione Funzioni Contabili (con logica di caricamento corretta) ---
-const GestioneFunzioniView = ({ pdcTree }) => {
+/* la gestione delle funzioni contabili vista la complessità 
+è stata spostata su un componente separato FunzioniContabiliManager.js quando sarà finito provvedero a cancellare le righe 
+// --- Componente Vista per Gestione Funzioni Contabili ---
+const GestioneFunzioniView = ({ pdcTree, fetchMasterData }) => {
     const [funzioni, setFunzioni] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedFunzione, setSelectedFunzione] = useState(null);
-    const [refreshKey, setRefreshKey] = useState(0);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [funzioneToDelete, setFunzioneToDelete] = useState(null);
 
-    // ## CORREZIONE APPLICATA QUI ##
-    useEffect(() => {
-        let isMounted = true;
-        const loadFunzioni = async () => {
-            try {
-                setLoading(true);
-                const response = await api.get('/contsmart/funzioni');
-                
-                // L'API restituisce direttamente un array. Controlliamo se è valido.
-                const datiRicevuti = response.data;
-
-                if (isMounted) {
-                    if (Array.isArray(datiRicevuti)) {
-                        setFunzioni(datiRicevuti);
-                    } else {
-                        // Se la risposta non è un array, impostiamo un array vuoto per sicurezza
-                        console.warn("La risposta dell'API per le funzioni non era un array:", datiRicevuti);
-                        setFunzioni([]);
-                    }
-                    setError('');
-                }
-            } catch (err) {
-                if (isMounted) {
-                    setError('Errore nel caricamento delle funzioni contabili.');
-                    console.error("Errore critico nella chiamata API /contsmart/funzioni:", err);
-                    setFunzioni([]);
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+    const loadFunzioni = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/contsmart/funzioni');
+            if (Array.isArray(response.data)) {
+                setFunzioni(response.data);
+            } else {
+                setFunzioni([]);
             }
-        };
+            setError('');
+        } catch (err) {
+            setError('Errore nel caricamento delle funzioni contabili.');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
+    useEffect(() => {
         loadFunzioni();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [refreshKey]);
+    }, [loadFunzioni]);
     
     const handleNewFunzione = () => {
         setSelectedFunzione(null);
@@ -594,7 +583,8 @@ const GestioneFunzioniView = ({ pdcTree }) => {
                 await api.post('/contsmart/funzioni', data);
             }
             setIsModalOpen(false);
-            setRefreshKey(oldKey => oldKey + 1);
+            loadFunzioni();
+            fetchMasterData();
         } catch (error) {
             console.error("Errore nel salvataggio della funzione:", error);
             alert("Si è verificato un errore durante il salvataggio.");
@@ -617,7 +607,8 @@ const GestioneFunzioniView = ({ pdcTree }) => {
             await api.delete(`/contsmart/funzioni/${funzioneToDelete.id}`);
             setShowDeleteModal(false);
             setFunzioneToDelete(null);
-            setRefreshKey(oldKey => oldKey + 1);
+            loadFunzioni();
+            fetchMasterData();
         } catch (error) {
             console.error("Errore durante l'eliminazione:", error);
             alert("Si è verificato un errore durante l'eliminazione.");
@@ -654,10 +645,11 @@ const GestioneFunzioniView = ({ pdcTree }) => {
                         <tr>
                             <th className="p-3 text-sm font-semibold text-slate-600">Codice</th>
                             <th className="p-3 text-sm font-semibold text-slate-600">Nome Funzione</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600">Tipo</th>
                             <th className="p-3 text-sm font-semibold text-slate-600">Categoria</th>
                             <th className="p-3 text-sm font-semibold text-slate-600 text-center">Righe</th>
                             <th className="p-3 text-sm font-semibold text-slate-600">Stato</th>
-                            <th className="p-3 text-sm font-semibold text-slate-600">Azioni</th>
+                            <th className="p-3 text-sm font-semibold text-slate-600 text-center">Azioni</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -666,6 +658,7 @@ const GestioneFunzioniView = ({ pdcTree }) => {
                             <tr key={funzione.id} className="border-b border-slate-200 hover:bg-slate-50">
                                 <td className="p-3 font-mono text-sm text-slate-700">{funzione.codice_funzione}</td>
                                 <td className="p-3 text-slate-800">{funzione.nome_funzione}</td>
+                                <td className="p-3 text-slate-600 font-medium">{funzione.tipo_funzione}</td>
                                 <td className="p-3 text-slate-600">{funzione.categoria}</td>
                                 <td className="p-3 text-center text-slate-600">{(funzione.righe || []).length}</td>
                                 <td className="p-3">
@@ -673,18 +666,18 @@ const GestioneFunzioniView = ({ pdcTree }) => {
                                         {funzione.attiva ? 'Attiva' : 'Disattiva'}
                                     </span>
                                 </td>
-                                <td className="p-3">
-                                    <button onClick={() => handleEditFunzione(funzione)} className="text-blue-600 hover:text-blue-800 mr-3">
+                                <td className="p-3 text-center">
+                                    <button onClick={() => handleEditFunzione(funzione)} className="text-blue-600 hover:text-blue-800 mr-3 inline-flex">
                                         <PencilIcon className="h-5 w-5" />
                                     </button>
-                                     <button onClick={() => handleDeleteFunzione(funzione)} className="text-red-500 hover:text-red-700">
+                                     <button onClick={() => handleDeleteFunzione(funzione)} className="text-red-500 hover:text-red-700 inline-flex">
                                         <TrashIcon className="h-5 w-5" />
                                     </button>
                                 </td>
                             </tr>
                             ))
                         ) : (
-                            <tr><td colSpan="6" className="p-4 text-center text-slate-500">Nessuna funzione contabile trovata.</td></tr>
+                            <tr><td colSpan="7" className="p-4 text-center text-slate-500">Nessuna funzione contabile trovata.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -692,22 +685,20 @@ const GestioneFunzioniView = ({ pdcTree }) => {
         </div>
     );
 };
-
 // #####################################################################
 // # MODIFICATO: Componente Modale per Creazione/Modifica Funzioni Contabili
 // #####################################################################
+// --- Componente Modale per Creazione/Modifica Funzioni Contabili ---
 const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
-    // ## MODIFICA QUI: Aggiunto `tipo_funzione` allo stato iniziale ##
     const [formData, setFormData] = useState({
         codice_funzione: '',
         nome_funzione: '',
         descrizione: '',
         categoria: 'Generale',
-        tipo_funzione: 'Primaria', // Valore di default
+        tipo_funzione: 'Primaria',
         attiva: true,
         righe: []
     });
-
     useEffect(() => {
         if (item) {
             setFormData({
@@ -715,7 +706,7 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                 nome_funzione: item.nome_funzione || '',
                 descrizione: item.descrizione || '',
                 categoria: item.categoria || 'Generale',
-                tipo_funzione: item.tipo_funzione || 'Primaria', // Carica il tipo esistente
+                tipo_funzione: item.tipo_funzione || 'Primaria',
                 attiva: item.attiva !== undefined ? item.attiva : true,
                 righe: item.righe || []
             });
@@ -731,8 +722,7 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
             });
         }
     }, [item]);
-    
-    const renderPdcOptions = (nodes, level = 0) => {
+        const renderPdcOptions = (nodes, level = 0) => {
         return nodes.flatMap(node => [
             <option key={node.id} value={node.id}>
                 {'\u00A0'.repeat(level * 4)} {node.codice} - {node.descrizione}
@@ -740,34 +730,28 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
             ...(node.figli && node.figli.length > 0 ? renderPdcOptions(node.figli, level + 1) : [])
         ]);
     };
-
     const handleHeaderChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
-
     const handleRigaChange = (index, e) => {
         const { name, value, type, checked } = e.target;
         const newRighe = [...formData.righe];
         newRighe[index] = { ...newRighe[index], [name]: type === 'checkbox' ? checked : value };
         setFormData(prev => ({ ...prev, righe: newRighe }));
     };
-    
     const addRiga = () => {
         const newRiga = { id_conto: '', tipo_movimento: 'D', descrizione_riga_predefinita: '', is_sottoconto_modificabile: true };
         setFormData(prev => ({ ...prev, righe: [...prev.righe, newRiga] }));
     };
-
     const removeRiga = (index) => {
         const newRighe = formData.righe.filter((_, i) => i !== index);
         setFormData(prev => ({ ...prev, righe: newRighe }));
     };
-
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave(formData, item ? item.id : null);
     };
-
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
@@ -788,7 +772,6 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                                 <label htmlFor="categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
                                 <input type="text" name="categoria" value={formData.categoria} onChange={handleHeaderChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
                             </div>
-                            {/* ## MODIFICA QUI: Aggiunto il selettore per il Tipo Funzione ## */}
                             <div>
                                 <label htmlFor="tipo_funzione" className="block text-sm font-medium text-gray-700">Tipo Funzione</label>
                                 <select name="tipo_funzione" value={formData.tipo_funzione} onChange={handleHeaderChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
@@ -808,7 +791,6 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
                             <textarea name="descrizione" value={formData.descrizione} onChange={handleHeaderChange} rows="2" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
                         </div>
                     </fieldset>
-                    
                     <fieldset className="border p-4 rounded-md mt-6">
                         <legend className="text-lg font-medium px-2">Righe Partita Doppia</legend>
                         <div className="space-y-2">
@@ -840,6 +822,7 @@ const FunzioneContabileEditModal = ({ item, onSave, onCancel, pdcTree }) => {
         </div>
     );
 };
+*/
 
 // --- Componente Vista per le Registrazioni Contabili ---
 const RegistrazioniView = ({ pdcTree, funzioni, anagrafiche, aliquoteIva, onSaveSuccess }) => {
@@ -848,12 +831,14 @@ const RegistrazioniView = ({ pdcTree, funzioni, anagrafiche, aliquoteIva, onSave
     const safeFunzioni = funzioni || [];
     const safeAnagrafiche = anagrafiche || [];
     const safeAliquoteIva = aliquoteIva || [];
-
+    
+    // --- NOVITÀ FINE ---
     const formRef = useRef(null); // Ref per il contenitore del form
     
     const initialState = {
         selectedFunzioneId: '',
         datiDocumento: {
+            data_registrazione: new Date().toISOString().slice(0, 10), // Imposta la data di oggi come default  
             id_anagrafica: '',
             data_documento: new Date().toISOString().slice(0, 10),
             numero_documento: '',
@@ -988,9 +973,9 @@ const RegistrazioniView = ({ pdcTree, funzioni, anagrafiche, aliquoteIva, onSave
         
         const anagrafica = safeAnagrafiche.find(a => a.id === parseInt(state.datiDocumento.id_anagrafica));
         const contoAnagraficaId = anagrafica?.codice_relazione === 'F' ? anagrafica.id_sottoconto_fornitore : anagrafica?.id_sottoconto_cliente;
-        const contoAnagraficaTemplate = funzione.righe.find(r => r.nome_conto.toLowerCase().includes('clienti') || r.nome_conto.toLowerCase().includes('fornitori'));
-        const contoIvaTemplate = funzione.righe.find(r => r.nome_conto.toLowerCase().includes('iva'));
-        const contoRicavoCostoTemplate = funzione.righe.find(r => !r.nome_conto.toLowerCase().includes('iva') && !r.nome_conto.toLowerCase().includes('clienti') && !r.nome_conto.toLowerCase().includes('fornitori'));
+        const contoAnagraficaTemplate = funzione.righe.find(r => r.nome_conto && (r.nome_conto.toLowerCase().includes('clienti') || r.nome_conto.toLowerCase().includes('fornitori')));
+        const contoIvaTemplate = funzione.righe.find(r => r.nome_conto && r.nome_conto.toLowerCase().includes('iva'));
+        const contoRicavoCostoTemplate = funzione.righe.find(r => r.nome_conto && !r.nome_conto.toLowerCase().includes('iva') && !r.nome_conto.toLowerCase().includes('clienti') && !r.nome_conto.toLowerCase().includes('fornitori'));
         
         const newScrittura = [];
         
@@ -1261,87 +1246,29 @@ const RegistrazioniView = ({ pdcTree, funzioni, anagrafiche, aliquoteIva, onSave
 };
 
 
-
-
-
-// --- Componente Principale: ContSmartModule ---
 const ContSmartModule = () => {
     const { user } = useAuth();
-    const [activeSection, setActiveSection] = useState('registrazioni');
-    
-    const [masterData, setMasterData] = useState({
-        pdcTree: [],
-        funzioni: [],
-        anagrafiche: [],
-        aliquoteIva: []
-    });
-    const [loading, setLoading] = useState(true);
+    // Imposta 'pdc' come sezione di default per testare subito la nuova funzionalità
+    const [activeSection, setActiveSection] = useState('pdc'); 
 
-    const fetchMasterData = useCallback(async () => {
-        try {
-            // Non impostiamo loading a true qui per evitare sfarfallii su refresh
-            const [pdcRes, funzioniRes, anagraficheRes, aliquoteRes] = await Promise.all([
-                api.get('/contsmart/piano-dei-conti'),
-                api.get('/contsmart/funzioni'),
-                api.get('/contsmart/anagrafiche-cf'),
-                api.get('/contsmart/aliquote-iva'),
-            ]);
-            setMasterData({
-                pdcTree: pdcRes.data?.data || [],
-                funzioni: funzioniRes.data || [],
-                anagrafiche: anagraficheRes.data?.data || [],
-                aliquoteIva: aliquoteRes.data?.data || [],
-            });
-        } catch (error) {
-            console.error("Errore nel caricamento dati del modulo:", error);
-        } finally {
-            setLoading(false); // Imposta loading a false solo dopo che tutte le chiamate sono terminate
-        }
-    }, []);
+    const sections = [
+        { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50, component: NuovaRegistrazione },
+        { key: 'report', label: 'Report', icon: ChartBarIcon, minLevel: 30, component: ReportView },
+        // --- NOVITÀ: Utilizzo del componente reale invece del placeholder ---
+        { key: 'pdc', label: 'Manutenzione PDC', icon: WrenchScrewdriverIcon, minLevel: 90, component: PianoContiManager },
+        // --- FINE NOVITÀ ---
+        { key: 'funzioni', label: 'Funzioni Contabili', icon: Cog6ToothIcon, minLevel: 80, component: FunzioniContabiliManager },
+    ];
 
-    useEffect(() => {
-        fetchMasterData();
-    }, [fetchMasterData]);
-
-    const accessibleSections = [
-        { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50 },
-        { key: 'pdc', label: 'Piano dei Conti', icon: FolderIcon, minLevel: 10 },
-        { key: 'funzioni', label: 'Gestione Funzioni', icon: WrenchScrewdriverIcon, minLevel: 90 },
-        { key: 'report', label: 'Reportistica', icon: ChartBarIcon, minLevel: 50 },
-    ].filter(sec => user && user.livello >= sec.minLevel);
+    const accessibleSections = sections.filter(sec => user.livello > sec.minLevel);
 
     const renderContent = () => {
-        if (loading) return <div className="p-4 text-center text-slate-500">Caricamento modulo Contabilità Smart...</div>;
-        
-        // Guardia di sicurezza per assicurare che i dati siano pronti
-        if (!masterData.pdcTree || !masterData.funzioni) {
-             return <div className="p-4 text-center text-slate-500">Inizializzazione dati...</div>;
+        const section = accessibleSections.find(sec => sec.key === activeSection);
+        if (section) {
+            const Component = section.component;
+            return <Component />;
         }
-
-        switch (activeSection) {
-            case 'registrazioni':
-                return <RegistrazioniView 
-                            pdcTree={masterData.pdcTree}
-                            funzioni={masterData.funzioni}
-                            anagrafiche={masterData.anagrafiche}
-                            aliquoteIva={masterData.aliquoteIva}
-                            onSaveSuccess={fetchMasterData} 
-                        />;
-            case 'pdc':
-                return <PianoDeiContiView user={user} pdcTree={masterData.pdcTree} fetchPdc={fetchMasterData} />;
-            case 'funzioni':
-                return <GestioneFunzioniView pdcTree={masterData.pdcTree} fetchMasterData={fetchMasterData} />;
-            case 'report':
-                 return <div className="p-4"><h2>Reportistica (in costruzione)</h2></div>;
-            default:
-                return <RegistrazioniView 
-                            pdcTree={masterData.pdcTree}
-                            funzioni={masterData.funzioni}
-                            anagrafiche={masterData.anagrafiche}
-                            aliquoteIva={masterData.aliquoteIva}
-                            onSaveSuccess={fetchMasterData}
-                        />;
-        }
+        return <div className="text-slate-500">Seleziona una sezione.</div>;
     };
 
     return (
@@ -1352,12 +1279,12 @@ const ContSmartModule = () => {
             </header>
             
             <div className="border-b border-slate-200 mb-6">
-                <nav className="-mb-px flex space-x-6">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto">
                     {accessibleSections.map(sec => (
                         <button 
                             key={sec.key}
                             onClick={() => setActiveSection(sec.key)}
-                            className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                            className={`flex-shrink-0 flex items-center gap-2 py-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                                 activeSection === sec.key 
                                 ? 'border-blue-500 text-blue-600' 
                                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
@@ -1369,7 +1296,7 @@ const ContSmartModule = () => {
                     ))}
                 </nav>
             </div>
-            <main className="flex-1">
+            <main className="flex-1 bg-slate-50 p-4 rounded-lg">
                 {renderContent()}
             </main>
         </div>
@@ -1377,4 +1304,7 @@ const ContSmartModule = () => {
 };
 
 export default ContSmartModule;
+
+
+
 

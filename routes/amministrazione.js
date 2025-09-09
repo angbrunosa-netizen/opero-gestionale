@@ -152,8 +152,8 @@ router.get('/anagrafiche/:id', verifyToken, async (req, res) => {
     }
     // =================================================================
         // ## ALTRO BLOCCO DI DEBUG ##
-        console.log(`Query eseguita. Numero di anagrafiche trovate nel database: ${rows.length}`);
-        console.log('--- DEBUG: Fine richiesta ---');
+      //  console.log(`Query eseguita. Numero di anagrafiche trovate nel database: ${rows.length}`);
+       // console.log('--- DEBUG: Fine richiesta ---');
         // =================================================================
 });
 
