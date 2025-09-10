@@ -358,209 +358,129 @@ router.patch('/piano-dei-conti/:id', [verifyToken, canEditPdc], async (req, res)
     }
 });
 
-// --- NUOVA SEZIONE: ROTTE PER FUNZIONI CONTABILI ---
-
-/**
- * @route   GET /api/contsmart/funzioni
- * @desc    Recupera tutte le funzioni contabili per la ditta dell'utente loggato
- * @access  Privato
- */
-/**
- * @route   GET /api/contsmart/funzioni
- * @desc    Recupera tutte le funzioni contabili per la ditta dell'utente loggato
- * @access  Privato
- */
-
-// GET /tipi-funzione: Ottiene tutti i tipi di funzione disponibili
-router.get('/tipi-funzione', verifyToken, async (req, res) => {
+router.get('/pdc', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
     try {
-        const [rows] = await dbPool.query('SELECT * FROM sc_tipi_funzione_contabile ORDER BY nome_tipo');
+        const [rows] = await dbPool.query('SELECT id, codice, descrizione, tipo FROM sc_piano_dei_conti WHERE id_ditta = ? ORDER BY codice', [id_ditta]);
         res.json({ success: true, data: rows });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore recupero tipi funzione.' });
+        res.status(500).json({ success: false, message: 'Errore del server.' });
     }
 });
+// --- ROTTE FUNZIONI CONTABILI (FEDELI ALL'ORIGINALE) ---
 
-// GET /funzioni: Ottiene tutte le funzioni contabili per la ditta
+// --- ROTTE FUNZIONI CONTABILI (CON NOMI TABELLA CORRETTI) ---
+
+
 router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
     try {
-        // --- NOVITÀ: Aumento temporaneo del limite per GROUP_CONCAT ---
-        // Questo previene il troncamento dei dati per funzioni con molte righe.
         await dbPool.query('SET SESSION group_concat_max_len = 1000000;');
-
+        
+        // --- CORREZIONE DEFINITIVA: Utilizzo della colonna 'tipo_movimento' e FK corretta ---
         const query = `
             SELECT 
-                f.id_funzione, f.nome_funzione, f.descrizione, f.id_tipo_funzione,
-                tf.nome_tipo,
+                f.id, f.nome_funzione, f.descrizione, f.tipo_funzione,
                 GROUP_CONCAT(
                     DISTINCT
-                    JSON_OBJECT('id_riga', r.id_riga_funzione, 'id_sottoconto', r.id_sottoconto, 'dare_avere', r.dare_avere, 'descrizione_riga_predefinita', r.descrizione_riga_predefinita)
+                    JSON_OBJECT(
+                        'id', r.id, 
+                        'id_conto', r.id_conto, 
+                        'dare_avere', r.tipo_movimento, 
+                        'descrizione_riga_predefinita', r.descrizione_riga_predefinita
+                    )
                 ) as righe_predefinite
             FROM sc_funzioni_contabili f
-            JOIN sc_tipi_funzione_contabile tf ON f.id_tipo_funzione = tf.id_tipo
-            LEFT JOIN sc_righe_funzione_contabile r ON f.id_funzione = r.id_funzione
+            LEFT JOIN sc_funzioni_contabili_righe r ON f.id = r.id_funzione_contabile
             WHERE f.id_ditta = ?
-            GROUP BY f.id_funzione
+            GROUP BY f.id
             ORDER BY f.nome_funzione
         `;
         const [funzioni] = await dbPool.query(query, [id_ditta]);
         
         funzioni.forEach(f => {
-            if(f.righe_predefinite) {
+            if(f.righe_predefinite && f.righe_predefinite[0] !== null) {
                 f.righe_predefinite = JSON.parse(`[${f.righe_predefinite}]`);
             } else {
                 f.righe_predefinite = [];
             }
         });
-
-        res.json({ success: true, data: funzioni });
+        res.json(funzioni);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Errore recupero funzioni contabili.' });
+        console.error("Errore recupero funzioni:", error);
+        res.status(500).json({ message: 'Errore recupero funzioni contabili.' });
     }
 });
 
-/**
- * @route   POST /api/contsmart/funzioni
- * @desc    Crea una nuova funzione contabile e le sue righe
- * @access  Privato (protetto da middleware)
- */
-router.post('/funzioni', [verifyToken, canManageFunzioni], async (req, res) => {
-    const { codice_funzione, nome_funzione, descrizione, categoria, attiva, righe } = req.body;
+router.post('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
-
-    if (!codice_funzione || !nome_funzione || !righe || !Array.isArray(righe) || righe.length === 0) {
-        return res.status(400).json({ message: 'Campi obbligatori mancanti: codice_funzione, nome_funzione e almeno una riga sono necessari.' });
-    }
-
-    let connection;
+    const { nome_funzione, descrizione, tipo_funzione, righe_predefinite } = req.body;
+    const connection = await dbPool.getConnection();
     try {
-        connection = await dbPool.getConnection();
         await connection.beginTransaction();
-
-        const insertFunzioneQuery = `
-            INSERT INTO sc_funzioni_contabili (id_ditta, codice_funzione, nome_funzione, descrizione, categoria, attiva)
-            VALUES (?, ?, ?, ?, ?, ?);
-        `;
-        const [resultFunzione] = await connection.query(insertFunzioneQuery, [id_ditta, codice_funzione, nome_funzione, descrizione, categoria, attiva]);
-        const idFunzioneCreata = resultFunzione.insertId;
-
-        const righeValues = righe.map(riga => {
-            if (!riga.id_conto || !riga.tipo_movimento) {
-                throw new Error('Ogni riga deve avere id_conto e tipo_movimento.');
+        const [result] = await connection.query(
+            'INSERT INTO sc_funzioni_contabili (id_ditta, nome_funzione, descrizione, tipo_funzione) VALUES (?, ?, ?, ?)',
+            [id_ditta, nome_funzione, descrizione, tipo_funzione]
+        );
+        const idFunzione = result.insertId; 
+        if (righe_predefinite && righe_predefinite.length > 0) {
+            for (const riga of righe_predefinite) {
+                if (riga.id_conto) { 
+                    // --- CORREZIONE DEFINITIVA: Inserimento nella colonna 'tipo_movimento' ---
+                    await connection.query(
+                        'INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita) VALUES (?, ?, ?, ?)',
+                        [idFunzione, riga.id_conto, riga.dare_avere, riga.descrizione_riga_predefinita || '']
+                    );
+                }
             }
-            return [
-                idFunzioneCreata,
-                riga.id_conto,
-                riga.tipo_movimento,
-                riga.descrizione_riga_predefinita,
-                riga.is_sottoconto_modificabile
-            ];
-        });
-        
-        const insertRigheQuery = `
-            INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita, is_sottoconto_modificabile)
-            VALUES ?;
-        `;
-        await connection.query(insertRigheQuery, [righeValues]);
-
-        await connection.commit();
-        res.status(201).json({ success: true, message: 'Funzione contabile creata con successo.', id: idFunzioneCreata });
-
-    } catch (error) {
-        if (connection) await connection.rollback();
-        console.error("Errore creazione funzione contabile:", error);
-        
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ success: false, message: 'Una funzione con questo codice esiste già.' });
         }
-
-        res.status(500).json({ success: false, message: 'Errore del server durante la creazione della funzione.' });
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Funzione creata.' });
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore creazione funzione:", error);
+        res.status(500).json({ success: false, message: 'Errore creazione funzione.' });
     } finally {
-        if (connection) connection.release();
+        connection.release();
     }
 });
 
-// #####################################################################
-// # NUOVO: Rotta PUT per aggiornare una Funzione Contabile
-// #####################################################################
-// #####################################################################
-// # Rotta PUT per aggiornare una Funzione Contabile (Verificata)
-// #####################################################################
-router.put('/funzioni/:id', [verifyToken, canManageFunzioni], async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    const { id: idFunzione } = req.params;
-    const { codice_funzione, nome_funzione, descrizione, categoria, attiva, righe } = req.body;
-
-    if (!righe || !Array.isArray(righe)) {
-        return res.status(400).json({ success: false, message: 'Il campo righe è obbligatorio e deve essere un array.' });
-    }
-    
-    let connection;
+router.put('/funzioni/:id', verifyToken, canManageFunzioni, async (req, res) => {
+    const { id } = req.params; 
+    const { id_ditta } = req.user;
+    const { nome_funzione, descrizione, tipo_funzione, righe_predefinite } = req.body;
+    const connection = await dbPool.getConnection();
     try {
-        connection = await dbPool.getConnection();
         await connection.beginTransaction();
-
-        const updateHeaderQuery = `
-            UPDATE sc_funzioni_contabili SET 
-            codice_funzione = ?, nome_funzione = ?, descrizione = ?, categoria = ?, attiva = ?
-            WHERE id = ? AND id_ditta = ?;
-        `;
-        await connection.query(updateHeaderQuery, [codice_funzione, nome_funzione, descrizione, categoria, attiva, idFunzione, dittaId]);
+        await connection.query(
+            'UPDATE sc_funzioni_contabili SET nome_funzione = ?, descrizione = ?, tipo_funzione = ? WHERE id = ? AND id_ditta = ?',
+            [nome_funzione, descrizione, tipo_funzione, id, id_ditta]
+        );
         
-        await connection.query('DELETE FROM sc_funzioni_contabili_righe WHERE id_funzione_contabile = ?;', [idFunzione]);
-        
-        if (righe.length > 0) {
-            const righeValues = righe.map(r => [
-                idFunzione,
-                r.id_conto,
-                r.tipo_movimento,
-                r.descrizione_riga_predefinita,
-                r.is_sottoconto_modificabile
-            ]);
-            const insertRigheQuery = `
-                INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita, is_sottoconto_modificabile)
-                VALUES ?;
-            `;
-            await connection.query(insertRigheQuery, [righeValues]);
+        // --- CORREZIONE: FK corretta ---
+        await connection.query('DELETE FROM sc_funzioni_contabili_righe WHERE id_funzione_contabile = ?', [id]);
+        if (righe_predefinite && righe_predefinite.length > 0) {
+            for (const riga of righe_predefinite) {
+                 if(riga.id_conto) { 
+                    // --- CORREZIONE DEFINITIVA: Inserimento nella colonna 'tipo_movimento' ---
+                    await connection.query(
+                        'INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita) VALUES (?, ?, ?, ?)',
+                        [id, riga.id_conto, riga.dare_avere, riga.descrizione_riga_predefinita || '']
+                    );
+                 }
+            }
         }
-
         await connection.commit();
-        res.json({ success: true, message: 'Funzione contabile aggiornata con successo.' });
-
+        res.json({ success: true, message: 'Funzione aggiornata.' });
     } catch (error) {
-        if (connection) await connection.rollback();
-        console.error("Errore aggiornamento funzione contabile:", error);
-        res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento della funzione.' });
+        await connection.rollback();
+        console.error("Errore aggiornamento funzione:", error);
+        res.status(500).json({ success: false, message: 'Errore aggiornamento funzione.' });
     } finally {
-        if (connection) connection.release();
+        connection.release();
     }
 });
-/*
- * DELETE /funzioni/:id
- * Elimina una funzione contabile esistente.
- * Grazie a ON DELETE CASCADE nel DB, verranno eliminate anche le righe associate.
- */
-router.delete('/funzioni/:id', [verifyToken, canManageFunzioni], async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    const { id: idFunzione } = req.params;
 
-    try {
-        const query = 'DELETE FROM sc_funzioni_contabili WHERE id = ? AND id_ditta = ?;';
-        const [result] = await dbPool.query(query, [idFunzione, dittaId]);
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ success: false, message: 'Funzione non trovata o non autorizzata.' });
-        }
-
-        res.json({ success: true, message: 'Funzione contabile eliminata con successo.' });
-
-    } catch (error) {
-        console.error("Errore eliminazione funzione contabile:", error);
-        res.status(500).json({ success: false, message: 'Errore durante l\'eliminazione della funzione.' });
-    }
-});
 
 // --- NUOVE ROTTE DI SUPPORTO PER REGISTRAZIONI ---
 
@@ -611,6 +531,7 @@ router.get('/aliquote-iva', verifyToken, async (req, res) => {
    // #####################################################################
     // # NUOVO ENDPOINT DI SALVATAGGIO REGISTRAZIONI (v1.7)
     // #####################################################################
+   /* rotte vecchia gestione 
     router.post('/registrazioni', [verifyToken, canPostEntries], async (req, res) => {
         const { id_ditta: dittaId, id: userId } = req.user;
         const { isFinancial, datiDocumento, righeIva, righeScrittura } = req.body;
@@ -693,6 +614,78 @@ router.get('/aliquote-iva', verifyToken, async (req, res) => {
             connection.release();
         }
     });
+   */
+  // rotte REGISTRAZIONI NUOVE
+  //**********************************
+  // *******************************
+
+  router.post('/registrazioni', verifyToken, canPostEntries, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    const { isFinancial, datiDocumento, righeIva, righeScrittura } = req.body;
+
+    if (!datiDocumento || !datiDocumento.data_registrazione) {
+        return res.status(400).json({ success: false, message: "La data di registrazione è obbligatoria." });
+    }
+    if (!Array.isArray(righeScrittura) || righeScrittura.length === 0) {
+        return res.status(400).json({ success: false, message: 'Le righe della scrittura sono obbligatorie.' });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Inserimento Testata
+        const [testataResult] = await connection.query(
+            'INSERT INTO sc_registrazioni_testata (id_ditta, data_registrazione, id_anagrafica, numero_documento, data_documento, data_scadenza, descrizione) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [dittaId, datiDocumento.data_registrazione, datiDocumento.id_anagrafica, datiDocumento.numero_documento, datiDocumento.data_documento, datiDocumento.data_scadenza, datiDocumento.descrizione_testata]
+        );
+        const testataId = testataResult.insertId;
+
+        // 2. Inserimento Righe Scrittura
+        let idRigaCollegamentoIva = null;
+        for (const riga of righeScrittura) {
+            const [rigaResult] = await connection.query(
+                'INSERT INTO sc_registrazioni_righe (id_testata, id_conto, descrizione_riga, importo_dare, importo_avere) VALUES (?, ?, ?, ?, ?)',
+                [testataId, riga.id_conto, riga.descrizione_riga, riga.tipo_movimento === 'D' ? riga.importo : null, riga.tipo_movimento === 'A' ? riga.importo : null]
+            );
+            // Salvo l'ID della riga del fornitore/cliente per collegare il registro IVA
+            if (riga.isParteContropartitaFinanziaria) {
+                idRigaCollegamentoIva = rigaResult.insertId;
+            }
+        }
+
+        // 3. Inserimento nel Registro IVA (solo per funzioni finanziarie)
+        if (isFinancial && idRigaCollegamentoIva && righeIva && righeIva.length > 0) {
+            const [anagraficaResult] = await connection.query('SELECT codice_relazione FROM anagrafiche WHERE id = ?', [datiDocumento.id_anagrafica]);
+            if (anagraficaResult.length === 0) {
+                throw new Error(`Anagrafica con ID ${datiDocumento.id_anagrafica} non trovata.`);
+            }
+            const tipoRegistro = anagraficaResult[0].codice_relazione === 'C' ? 'Vendite' : 'Acquisti';
+
+            for (const rigaIva of righeIva) {
+                if (parseFloat(rigaIva.imponibile) > 0) {
+                    await connection.query(
+                        'INSERT INTO sc_registri_iva (id_riga_registrazione, tipo_registro, data_documento, numero_documento, id_anagrafica, imponibile, aliquota_iva, importo_iva) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        [idRigaCollegamentoIva, tipoRegistro, datiDocumento.data_documento, datiDocumento.numero_documento, datiDocumento.id_anagrafica, rigaIva.imponibile, rigaIva.aliquota, rigaIva.imposta]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Registrazione creata con successo.', id_testata: testataId });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore salvataggio registrazione complessa:", error);
+        res.status(500).json({ success: false, message: error.message || 'Errore interno del server.' });
+    } finally {
+        connection.release();
+    }
+});
+
+
+
 
     // #####################################################################
 // # --- NOVITÀ: ROTTE PER LA REPORTISTICA ---
@@ -726,7 +719,7 @@ router.get('/reports/giornale', verifyToken, canViewReports, async (req, res) =>
                 pc.descrizione AS descrizione_conto,
                 r.importo_dare,
                 r.importo_avere
-            FROM sc_registrazioni_testate t
+            FROM sc_registrazioni_testata t
             JOIN sc_registrazioni_righe r ON t.id = r.id_testata
             JOIN sc_piano_dei_conti pc ON r.id_conto = pc.id
             WHERE t.id_ditta = ? AND t.data_registrazione BETWEEN ? AND ?
@@ -766,7 +759,7 @@ router.get('/reports/scheda-contabile', verifyToken, canViewReports, async (req,
             SELECT 
                 COALESCE(SUM(r.importo_dare), 0) - COALESCE(SUM(r.importo_avere), 0) AS saldo_iniziale
             FROM sc_registrazioni_righe r
-            JOIN sc_registrazioni_testate t ON r.id_testata = t.id
+            JOIN sc_registrazioni_testata t ON r.id_testata = t.id
             WHERE t.id_ditta = ? AND r.id_conto = ? AND t.data_registrazione < ?;
         `;
         const [saldoRows] = await connection.query(saldoQuery, [id_ditta, contoId, startDate]);
@@ -782,7 +775,7 @@ router.get('/reports/scheda-contabile', verifyToken, canViewReports, async (req,
                 r.descrizione AS descrizione_riga,
                 r.importo_dare,
                 r.importo_avere
-            FROM sc_registrazioni_testate t
+            FROM sc_registrazioni_testata t
             JOIN sc_registrazioni_righe r ON t.id = r.id_testata
             WHERE t.id_ditta = ? AND r.id_conto = ? AND t.data_registrazione BETWEEN ? AND ?
             ORDER BY t.data_registrazione, t.id, r.id;
@@ -826,7 +819,7 @@ router.get('/reports/bilancio-verifica', verifyToken, canViewReports, async (req
                 COALESCE(SUM(r.importo_avere), 0) AS totale_avere
             FROM sc_piano_dei_conti pc
             LEFT JOIN sc_registrazioni_righe r ON pc.id = r.id_conto
-            LEFT JOIN sc_registrazioni_testate t ON r.id_testata = t.id AND t.data_registrazione <= ? AND t.id_ditta = ?
+            LEFT JOIN sc_registrazioni_testata t ON r.id_testata = t.id AND t.data_registrazione <= ? AND t.id_ditta = ?
             WHERE pc.id_ditta = ?
             GROUP BY pc.id, pc.codice, pc.descrizione, pc.tipo, pc.natura
             HAVING totale_dare > 0 OR totale_avere > 0
@@ -838,6 +831,50 @@ router.get('/reports/bilancio-verifica', verifyToken, canViewReports, async (req
     } catch (error) {
         console.error("Errore nel recupero del bilancio di verifica:", error);
         res.status(500).json({ success: false, message: "Errore del server durante il recupero dei dati." });
+    }
+});
+
+// --- NUOVA ROTTA: GET /anagrafiche-filtrate?categoria=... ---
+// Fornisce una lista di anagrafiche filtrate per Clienti o Fornitori
+// basandosi sulla categoria della funzione contabile.
+router.get('/anagrafiche-filtrate', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { categoria } = req.query;
+
+    if (!categoria) {
+        return res.status(400).json({ success: false, message: 'La categoria è obbligatoria.' });
+    }
+
+    let query;
+    const params = [id_ditta];
+
+    if (categoria.toLowerCase() === 'acquisto') {
+        // Seleziona tutte le anagrafiche che sono state definite come fornitori
+        query = `
+            SELECT id, ragione_sociale, indirizzo, citta, partita_iva 
+            FROM ditte 
+            WHERE id_ditta = ? AND id_sottoconto_fornitore IS NOT NULL 
+            ORDER BY ragione_sociale ASC
+        `;
+    } else if (categoria.toLowerCase() === 'vendita') {
+        // Seleziona tutte le anagrafiche che sono state definite come clienti
+        query = `
+            SELECT id, ragione_sociale, indirizzo, citta, partita_iva 
+            FROM ditte 
+            WHERE id_ditta = ? AND id_sottoconto_cliente IS NOT NULL 
+            ORDER BY ragione_sociale ASC
+        `;
+    } else {
+        // Categoria non valida o non gestita (es. 'Primaria')
+        return res.json({ success: true, data: [] });
+    }
+
+    try {
+        const [rows] = await dbPool.query(query, params);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore nel recupero anagrafiche filtrate:", error);
+        res.status(500).json({ success: false, message: 'Errore del server durante il recupero delle anagrafiche.' });
     }
 });
 
