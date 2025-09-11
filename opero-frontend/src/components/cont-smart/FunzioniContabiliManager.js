@@ -1,124 +1,127 @@
 // #####################################################################
-// # Componente Gestione Funzioni Contabili v3.1 (Corretto e Fedele)
+// # Componente Gestione Funzioni Contabili v9.0 (Fix Definitivo D/A)
 // # File: opero-gestionale/opero-frontend/src/components/cont-smart/FunzioniContabiliManager.js
 // #####################################################################
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
-import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
-// --- Componente Modale: Trasposizione 1:1 della logica originale ---
+// --- Sotto-componente: Modale per Creazione/Modifica ---
 const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
-    const [formData, setFormData] = useState({
-        nome_funzione: '',
-        descrizione: '',
-        tipo_funzione: 'Primaria', // Valore di default
-        righe_predefinite: []
-    });
-
-    useEffect(() => {
-        if (funzione) { // Modal in modalità modifica
-            setFormData({
-                nome_funzione: funzione.nome_funzione || '',
-                descrizione: funzione.descrizione || '',
-                tipo_funzione: funzione.tipo_funzione || 'Primaria',
-                righe_predefinite: funzione.righe_predefinite || []
-            });
-        } else { // Modal in modalità creazione
-            setFormData({
+    
+    const createInitialFormData = (func) => {
+        if (!func) {
+            return {
                 nome_funzione: '',
                 descrizione: '',
                 tipo_funzione: 'Primaria',
                 righe_predefinite: []
-            });
+            };
         }
+
+        // <span style="color:red;">// CORREZIONE DEFINITIVA: Logica di traduzione D/A -> DARE/AVERE</span>
+        // <span style="color:green;">// NUOVO: Questa logica ora interpreta correttamente i dati 'D' e 'A' provenienti dal backend.</span>
+        // <span style="color:green;">// Ho rafforzato il codice per leggere il campo `tipo_movimento` (aliased come `dare_avere` dalla rotta).</span>
+        const righeNormalizzate = (func.righe_predefinite || []).map(rigaBackend => {
+            let segnoPerFrontend = 'DARE'; // Default di sicurezza
+            
+            const tipoMovimentoDalBackend = rigaBackend.dare_avere; // Il backend lo chiama così nel JSON
+
+            if (tipoMovimentoDalBackend && typeof tipoMovimentoDalBackend === 'string' && tipoMovimentoDalBackend.toUpperCase() === 'A') {
+                segnoPerFrontend = 'AVERE';
+            }
+
+            return {
+                id_conto: rigaBackend.id_conto,
+                dare_avere: segnoPerFrontend, // Valore usato nel frontend: 'DARE' o 'AVERE'
+                descrizione_riga_predefinita: rigaBackend.descrizione_riga_predefinita || ''
+            };
+        });
+        
+        return {
+            nome_funzione: func.nome_funzione || '',
+            descrizione: func.descrizione || '',
+            tipo_funzione: func.tipo_funzione || 'Primaria',
+            righe_predefinite: righeNormalizzate
+        };
+    };
+
+    const [formData, setFormData] = useState(() => createInitialFormData(funzione));
+
+    useEffect(() => {
+        setFormData(createInitialFormData(funzione));
     }, [funzione]);
-    
-    const handleMainChange = (e) => {
+
+
+    const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleRigaChange = (index, e) => {
-        const { name, value } = e.target;
-        const righe = [...formData.righe_predefinite];
-        righe[index] = { ...righe[index], [name]: value };
-        setFormData(prev => ({ ...prev, righe_predefinite: righe }));
+    const handleRigaChange = (index, field, value) => {
+        const newRighe = [...formData.righe_predefinite];
+        newRighe[index][field] = value;
+        setFormData(prev => ({ ...prev, righe_predefinite: newRighe }));
     };
 
     const addRiga = () => {
         setFormData(prev => ({
             ...prev,
-            righe_predefinite: [...prev.righe_predefinite, { id_sottoconto: '', dare_avere: 'D', descrizione_riga_predefinita: '' }]
+            righe_predefinite: [...prev.righe_predefinite, { id_conto: '', dare_avere: 'DARE', descrizione_riga_predefinita: '' }]
         }));
     };
 
     const removeRiga = (index) => {
-        const righe = formData.righe_predefinite.filter((_, i) => i !== index);
-        setFormData(prev => ({ ...prev, righe_predefinite: righe }));
+        setFormData(prev => ({
+            ...prev,
+            righe_predefinite: prev.righe_predefinite.filter((_, i) => i !== index)
+        }));
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave(formData);
     };
-    
-    const sottoconti = pianoConti.filter(c => c.tipo === 'Sottoconto');
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl">
-                <h3 className="text-xl font-medium leading-6 text-gray-900 mb-6">
-                    {funzione ? 'Modifica Funzione Contabile' : 'Nuova Funzione Contabile'}
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                    {funzione ? 'Modifica Funzione Contabile' : 'Crea Nuova Funzione Contabile'}
                 </h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="nome_funzione" className="block text-sm font-medium text-gray-700">Nome Funzione</label>
-                            <input type="text" name="nome_funzione" value={formData.nome_funzione} onChange={handleMainChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                        </div>
-                        <div>
-                           <label htmlFor="tipo_funzione" className="block text-sm font-medium text-gray-700">Tipo Funzione</label>
-                           <select name="tipo_funzione" value={formData.tipo_funzione} onChange={handleMainChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                               <option value="Primaria">Primaria</option>
-                               <option value="Finanziaria">Finanziaria</option>
-                               <option value="Sistemistica">Sistemistica</option>
-                               <option value="Secondaria">Secondaria</option>
-                           </select>
-                        </div>
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+                    <div className="space-y-4 pr-2">
+                        <input type="text" name="nome_funzione" value={formData.nome_funzione} onChange={handleInputChange} placeholder="Nome Funzione" className="w-full rounded-md border-slate-300" required />
+                        <textarea name="descrizione" value={formData.descrizione} onChange={handleInputChange} placeholder="Descrizione" className="w-full rounded-md border-slate-300" rows="2"></textarea>
+                        <select name="tipo_funzione" value={formData.tipo_funzione} onChange={handleInputChange} className="w-full rounded-md border-slate-300">
+                            <option value="Primaria">Primaria</option>
+                            <option value="Acquisto">Acquisto</option>
+                            <option value="Vendita">Vendita</option>
+                        </select>
+                        
+                        <fieldset className="border p-2 rounded">
+                            <legend className="px-1 text-sm">Righe Predefinite</legend>
+                            {formData.righe_predefinite.map((riga, index) => (
+                                <div key={index} className="flex items-center gap-2 mb-2">
+                                    <select value={riga.id_conto} onChange={(e) => handleRigaChange(index, 'id_conto', e.target.value)} className="flex-grow rounded-md border-slate-300 text-sm">
+                                        <option value="">Seleziona Conto...</option>
+                                        {pianoConti.map(c => <option key={c.id} value={c.id}>{c.codice} - {c.descrizione}</option>)}
+                                    </select>
+                                    <select value={riga.dare_avere} onChange={(e) => handleRigaChange(index, 'dare_avere', e.target.value)} className="w-1/4 rounded-md border-slate-300 text-sm">
+                                        <option value="DARE">DARE</option>
+                                        <option value="AVERE">AVERE</option>
+                                    </select>
+                                    <input type="text" value={riga.descrizione_riga_predefinita} onChange={(e) => handleRigaChange(index, 'descrizione_riga_predefinita', e.target.value)} placeholder="Descrizione riga (opz.)" className="flex-grow rounded-md border-slate-300 text-sm"/>
+                                    <button type="button" onClick={() => removeRiga(index)} className="text-red-500"><TrashIcon className="h-5 w-5"/></button>
+                                </div>
+                            ))}
+                            <button type="button" onClick={addRiga} className="text-sm text-blue-600 flex items-center gap-1 mt-2"><PlusIcon className="h-4 w-4"/> Aggiungi riga</button>
+                        </fieldset>
                     </div>
-                     <div>
-                        <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
-                        <textarea name="descrizione" rows="2" value={formData.descrizione} onChange={handleMainChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
-                    </div>
-                    <fieldset className="border-t pt-4">
-                        <legend className="text-lg font-medium text-gray-800 mb-2">Righe Predefinite</legend>
-                        <div className="grid grid-cols-12 gap-2 text-sm font-semibold text-gray-600 px-2">
-                           <div className="col-span-6">Sottoconto</div>
-                           <div className="col-span-2">D/A</div>
-                           <div className="col-span-3">Descrizione</div>
-                        </div>
-                        {formData.righe_predefinite.map((riga, index) => (
-                             <div key={index} className="grid grid-cols-12 gap-2 items-center mt-1">
-                                 <select name="id_sottoconto" value={riga.id_sottoconto} onChange={(e) => handleRigaChange(index, e)} className="col-span-6 mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
-                                     <option value="">Seleziona un conto</option>
-                                     {sottoconti.map(sc => <option key={sc.id} value={sc.id}>{sc.codice} - {sc.descrizione}</option>)}
-                                 </select>
-                                 <select name="dare_avere" value={riga.dare_avere} onChange={(e) => handleRigaChange(index, e)} className="col-span-2 mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
-                                     <option value="D">Dare</option>
-                                     <option value="A">Avere</option>
-                                 </select>
-                                 <input type="text" name="descrizione_riga_predefinita" placeholder="Descrizione riga" value={riga.descrizione_riga_predefinita} onChange={(e) => handleRigaChange(index, e)} className="col-span-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm" />
-                                 <button type="button" onClick={() => removeRiga(index)} className="col-span-1 text-red-500 hover:text-red-700 justify-self-center"><TrashIcon className="h-5 w-5"/></button>
-                             </div>
-                         ))}
-                         <button type="button" onClick={addRiga} className="mt-4 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
-                             <PlusIcon className="h-4 w-4"/> Aggiungi Riga
-                        </button>
-                    </fieldset>
-                    <div className="mt-6 flex justify-end space-x-3 border-t pt-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Salva Funzione</button>
+                    <div className="mt-6 flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Salva</button>
                     </div>
                 </form>
             </div>
@@ -127,27 +130,42 @@ const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
 };
 
 
-// --- Componente Principale: Corretto per usare 'id' ---
+// --- Componente Principale ---
 const FunzioniContabiliManager = () => {
     const [funzioni, setFunzioni] = useState([]);
     const [pianoConti, setPianoConti] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingFunzione, setEditingFunzione] = useState(null);
+    const [confirmDelete, setConfirmDelete] = useState(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
-        setError(null);
+        setError('');
         try {
-            const [resFunzioni, resPdc] = await Promise.all([
+            const [funzioniRes, pdcRes] = await Promise.all([
                 api.get('/contsmart/funzioni'),
-                api.get('/contsmart/pdc')
+                api.get('/contsmart/pdc-tree') 
             ]);
-            setFunzioni(Array.isArray(resFunzioni.data) ? resFunzioni.data : []);
-            setPianoConti(resPdc.data.success ? resPdc.data.data : []);
+
+            const flattenPdc = (nodes) => {
+                let list = [];
+                if (!Array.isArray(nodes)) return [];
+                nodes.forEach(node => {
+                    list.push({ id: node.id, codice: node.codice, descrizione: node.descrizione });
+                    if (node.children) list = list.concat(flattenPdc(node.children));
+                });
+                return list;
+            };
+            
+            setFunzioni(funzioniRes.data);
+            const pianoContiData = pdcRes.data.data || pdcRes.data;
+            setPianoConti(flattenPdc(pianoContiData));
+
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Errore nel caricamento dati.');
+            setError('Errore nel caricamento dei dati. Riprova.');
+            console.error(err);
         } finally {
             setIsLoading(false);
         }
@@ -157,7 +175,7 @@ const FunzioniContabiliManager = () => {
         fetchData();
     }, [fetchData]);
 
-    const handleAdd = () => {
+    const handleCreate = () => {
         setEditingFunzione(null);
         setIsModalOpen(true);
     };
@@ -166,52 +184,64 @@ const FunzioniContabiliManager = () => {
         setEditingFunzione(funzione);
         setIsModalOpen(true);
     };
-
-    const handleDelete = async (id) => { // --- CORREZIONE: Riceve l'ID corretto
-        if (window.confirm('Sei sicuro di voler eliminare questa funzione?')) {
-            try {
-                await api.delete(`/contsmart/funzioni/${id}`);
-                fetchData();
-            } catch (err) {
-                alert(err.response?.data?.message || 'Errore durante l\'eliminazione.');
+    
+    const handleSave = async (formData) => {
+        // <span style="color:red;">// CORREZIONE DEFINITIVA: Traduzione DARE/AVERE -> D/A per il salvataggio</span>
+        // <span style="color:green;">// NUOVO: Prima di inviare i dati, creo un "payload" sicuro dove traduco i valori</span>
+        // <span style="color:green;">// 'DARE'/'AVERE' del frontend nei valori 'D'/'A' richiesti dal backend.</span>
+        const payload = {
+            ...formData,
+            righe_predefinite: formData.righe_predefinite.map(riga => ({
+                ...riga,
+                dare_avere: riga.dare_avere === 'AVERE' ? 'A' : 'D' // Traduzione
+            }))
+        };
+        
+        try {
+            if (editingFunzione) {
+                await api.put(`/contsmart/funzioni/${editingFunzione.id}`, payload);
+            } else {
+                await api.post('/contsmart/funzioni', payload);
             }
+            setIsModalOpen(false);
+            fetchData();
+        } catch (error) {
+            console.error("Errore salvataggio funzione:", error);
+            setError("Errore durante il salvataggio della funzione.");
         }
     };
     
-    const handleSave = async (formData) => {
-        try {
-            // --- CORREZIONE: La chiave per la modifica è 'id' ---
-            const id = editingFunzione?.id; 
-            if (id) {
-                await api.put(`/contsmart/funzioni/${id}`, formData);
-            } else {
-                await api.post('/contsmart/funzioni', formData);
-            }
-            fetchData();
-            setIsModalOpen(false);
-            setEditingFunzione(null);
-        } catch (err) {
-             alert(err.response?.data?.message || 'Errore durante il salvataggio.');
-        }
+    const handleDeleteRequest = (funzione) => {
+        setConfirmDelete(funzione);
     };
 
-    if (isLoading) return <div className="p-4 text-center">Caricamento...</div>;
-    if (error) return <div className="p-4 text-red-600 bg-red-50 rounded-md">Errore: {error}</div>;
+    const executeDelete = async () => {
+        if (!confirmDelete) return;
+        try {
+            await api.delete(`/contsmart/funzioni/${confirmDelete.id}`);
+            setConfirmDelete(null);
+            fetchData();
+        } catch (error) {
+            console.error("Errore eliminazione funzione:", error);
+            setError("Errore durante l'eliminazione della funzione.");
+            setConfirmDelete(null);
+        }
+    };
+    
+    if (isLoading) return <div className="flex justify-center p-4"><ArrowPathIcon className="h-6 w-6 animate-spin text-slate-500" /></div>;
+    if (error) return <div className="bg-red-100 text-red-700 p-3 rounded-md" role="alert">{error}</div>;
 
     return (
-        <div className="p-4 bg-white shadow rounded-lg">
+        <div className="p-1">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-slate-800">Gestione Funzioni Contabili</h2>
-                <div>
-                    <button onClick={fetchData} title="Ricarica" className="p-2 mr-2 text-slate-500 hover:text-slate-800"><ArrowPathIcon className="h-5 w-5"/></button>
-                    <button onClick={handleAdd} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                        <PlusIcon className="h-5 w-5 mr-2"/> Nuova Funzione
-                    </button>
-                </div>
+                <h2 className="text-xl font-semibold text-slate-700">Gestione Funzioni Contabili</h2>
+                <button onClick={handleCreate} className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                    <PlusIcon className="h-5 w-5 mr-1"/> Nuova Funzione
+                </button>
             </div>
-            
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left text-slate-600">
+
+            <div className="bg-white shadow rounded-lg overflow-x-auto">
+                <table className="w-full text-sm text-left text-slate-500">
                     <thead className="text-xs text-slate-700 uppercase bg-slate-50">
                         <tr>
                             <th scope="col" className="px-6 py-3">Nome Funzione</th>
@@ -222,15 +252,13 @@ const FunzioniContabiliManager = () => {
                     </thead>
                     <tbody>
                         {funzioni.map(f => (
-                            // --- CORREZIONE: La chiave univoca è 'id' ---
                             <tr key={f.id} className="bg-white border-b hover:bg-slate-50">
                                 <td className="px-6 py-4 font-medium text-slate-900">{f.nome_funzione}</td>
                                 <td className="px-6 py-4">{f.tipo_funzione}</td>
                                 <td className="px-6 py-4">{f.descrizione}</td>
                                 <td className="px-6 py-4 text-right">
                                     <button onClick={() => handleEdit(f)} className="p-1 text-blue-600 hover:text-blue-800"><PencilIcon className="h-4 w-4"/></button>
-                                    {/* --- CORREZIONE: Passo 'f.id' per l'eliminazione --- */}
-                                    <button onClick={() => handleDelete(f.id)} className="p-1 ml-2 text-red-600 hover:text-red-800"><TrashIcon className="h-4 w-4"/></button>
+                                    <button onClick={() => handleDeleteRequest(f)} className="p-1 ml-2 text-red-600 hover:text-red-800"><TrashIcon className="h-4 w-4"/></button>
                                 </td>
                             </tr>
                         ))}
@@ -246,8 +274,35 @@ const FunzioniContabiliManager = () => {
                     pianoConti={pianoConti}
                 />
             )}
+            
+            {confirmDelete && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                        <div className="flex items-start">
+                            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <ExclamationTriangleIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
+                            </div>
+                            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                <h3 className="text-lg font-medium text-gray-900">Elimina Funzione</h3>
+                                <div className="mt-2">
+                                    <p className="text-sm text-gray-500">Sei sicuro di voler eliminare la funzione "{confirmDelete.nome_funzione}"? Questa azione è irreversibile.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                            <button type="button" onClick={executeDelete} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">
+                                Elimina
+                            </button>
+                            <button type="button" onClick={() => setConfirmDelete(null)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm">
+                                Annulla
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
 export default FunzioniContabiliManager;
 

@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente Registrazioni Contabili v3.0 (Fix Calcolo e UI IVA)
+// # Componente Registrazioni Contabili v18.0 (Fix Definitivo Salvataggio con Sanitizzazione)
 // # File: opero-gestionale/opero-frontend/src/components/cont-smart/NuovaRegistrazione.js
 // #####################################################################
 
@@ -11,19 +11,17 @@ const NuovaRegistrazione = () => {
     // --- STATO DEL COMPONENTE ---
     const [funzioni, setFunzioni] = useState([]);
     const [pianoConti, setPianoConti] = useState([]);
-    // --- NOVITÀ: 'anagrafiche' ora conterrà la lista filtrata ---
-    const [anagrafiche, setAnagrafiche] = useState([]);
     const [aliquoteIva, setAliquoteIva] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    
+    const [anagrafiche, setAnagrafiche] = useState([]);
     const [isAnagraficheLoading, setIsAnagraficheLoading] = useState(false);
 
-    // --- STATO PER LA UI E RIFERIMENTI ---
     const [isEditing, setIsEditing] = useState(false);
     const [activeField, setActiveField] = useState(null);
     const formRef = useRef(null);
 
-    // --- Stato Iniziale e di Lavoro ---
     const initialState = useMemo(() => ({
         selectedFunzioneId: '',
         datiDocumento: {
@@ -41,7 +39,6 @@ const NuovaRegistrazione = () => {
     const [state, setState] = useState(initialState);
     const { selectedFunzioneId, datiDocumento, righeScrittura, scomposizioneIva } = state;
     
-    // --- Calcoli Derivati e Validazioni (useMemo) ---
     const { sbilancioDocumento, totaleImponibile, totaleIva } = useMemo(() => {
         const totaleIvaCalc = scomposizioneIva.reduce((acc, riga) => {
             const imponibile = parseFloat(riga.imponibile) || 0;
@@ -65,7 +62,18 @@ const NuovaRegistrazione = () => {
     const { totaleDare, totaleAvere, sbilancioScrittura } = useMemo(() => {
         const dare = righeScrittura.reduce((acc, riga) => acc + (parseFloat(riga.importo_dare) || 0), 0);
         const avere = righeScrittura.reduce((acc, riga) => acc + (parseFloat(riga.importo_avere) || 0), 0);
-        return { totaleDare: dare, totaleAvere: avere, sbilancioScrittura: dare - avere };
+        
+        // <span style="color:red;">// CORREZIONE DEFINITIVA: Logica di arrotondamento per robustezza.</span>
+        // <span style="color:green;">// Ho introdotto l'arrotondamento a 2 cifre decimali per prevenire errori di calcolo</span>
+        // <span style="color:green;">// con i numeri in virgola mobile, che sono la causa del mancato sblocco del tasto Salva.</span>
+        const roundedDare = Math.round(dare * 100) / 100;
+        const roundedAvere = Math.round(avere * 100) / 100;
+
+        return { 
+            totaleDare: roundedDare, 
+            totaleAvere: roundedAvere, 
+            sbilancioScrittura: roundedDare - roundedAvere 
+        };
     }, [righeScrittura]);
     
     const canGenerateScrittura = useMemo(() => {
@@ -83,14 +91,13 @@ const NuovaRegistrazione = () => {
         return funzioni.find(f => f.id === parseInt(selectedFunzioneId));
     }, [funzioni, selectedFunzioneId]);
 
-    // --- NOVITÀ: La fetch iniziale non carica più tutte le anagrafiche ---
     const fetchData = useCallback(async () => {
         try {
             setIsLoading(true);
             const [funzioniRes, pdcRes, ivaRes] = await Promise.all([
                 api.get('/contsmart/funzioni'),
                 api.get('/contsmart/pdc-tree'),
-                api.get('/contsmart/aliquote-iva')
+                api.get('/contsmart/aliquote-iva'),
             ]);
             
             const flattenPdcTree = (nodes) => {
@@ -106,14 +113,25 @@ const NuovaRegistrazione = () => {
                         node.children.forEach(child => traverse(child, level + 1));
                     }
                 };
-                nodes.forEach(node => traverse(node, 0));
+                if (Array.isArray(nodes)) {
+                    nodes.forEach(node => traverse(node, 0));
+                }
                 return flatList;
             };
 
-            setFunzioni(funzioniRes.data || []); 
-            const flattenedPdc = flattenPdcTree(pdcRes.data.data || []);
+            const rawFunzioni = funzioniRes.data || [];
+            const normalizedFunzioni = rawFunzioni.map(funzione => ({
+                ...funzione,
+                righe_predefinite: (funzione.righe_predefinite || []).map(riga => ({
+                    ...riga,
+                    dare_avere: riga.tipo_movimento || riga.dare_avere || 'D'
+                }))
+            }));
+
+            setFunzioni(normalizedFunzioni); 
+            const flattenedPdc = flattenPdcTree(pdcRes.data?.data || []);
             setPianoConti(flattenedPdc);
-            setAliquoteIva(ivaRes.data.data || []);
+            setAliquoteIva(ivaRes.data?.data || []);
             
             setError('');
         } catch (err) {
@@ -123,29 +141,29 @@ const NuovaRegistrazione = () => {
             setIsLoading(false);
         }
     }, []);
-
-    // --- NOVITÀ: useEffect per caricare le anagrafiche filtrate quando la funzione cambia ---
+    
     useEffect(() => {
-        const fetchFilteredAnagrafiche = async () => {
-            if (selectedFunzione && selectedFunzione.tipo_funzione === 'Finanziaria' && selectedFunzione.categoria) {
-                setIsAnagraficheLoading(true);
-                try {
-                    const res = await api.get(`/contsmart/anagrafiche-filtrate?categoria=${selectedFunzione.categoria}`);
-                    setAnagrafiche(res.data.data || []);
-                } catch (error) {
-                    console.error("Errore nel caricamento delle anagrafiche filtrate:", error);
-                    setAnagrafiche([]); // Svuota in caso di errore
-                } finally {
-                    setIsAnagraficheLoading(false);
-                }
-            } else {
-                setAnagrafiche([]); // Svuota se la funzione non è adatta o non ha categoria
+        const fetchAnagraficheFiltrate = async () => {
+            if (!selectedFunzione || selectedFunzione.tipo_funzione !== 'Finanziaria' || !selectedFunzione.categoria) {
+                setAnagrafiche([]);
+                return;
+            }
+
+            setIsAnagraficheLoading(true);
+            try {
+                const res = await api.get(`/amministrazione/ditte?categoria=${selectedFunzione.categoria}`);
+                setAnagrafiche(res.data?.data || []);
+            } catch (error) {
+                console.error("Errore nel caricamento delle anagrafiche filtrate:", error);
+                setError(`Impossibile caricare l'elenco di ${selectedFunzione.categoria}.`);
+                setAnagrafiche([]);
+            } finally {
+                setIsAnagraficheLoading(false);
             }
         };
 
-        fetchFilteredAnagrafiche();
+        fetchAnagraficheFiltrate();
     }, [selectedFunzione]);
-
 
     const handleNewRegistration = useCallback(() => {
         setState(initialState);
@@ -155,22 +173,45 @@ const NuovaRegistrazione = () => {
     }, [initialState]);
     
     const handleSaveRegistrazione = useCallback(async () => {
+        const righeInvalide = righeScrittura.some(riga => !riga.id_conto);
+        if (righeInvalide) {
+            alert("Errore: una o più righe della scrittura non hanno un conto associato. Selezionare un conto per ogni riga prima di salvare.");
+            return;
+        }
+
         if (!canSave) {
-            alert("La scrittura non è bilanciata o è incompleta.");
+            alert("La scrittura non è bilanciata, non contiene almeno due righe o ha importo nullo. Impossibile salvare.");
             return;
         }
         try {
-            const payload = {
-                testata: { ...datiDocumento, id_funzione: selectedFunzioneId },
-                righe: righeScrittura
+            const sanitizedTestata = {
+                ...datiDocumento,
+                id_funzione: parseInt(selectedFunzioneId) || null,
+                id_anagrafica: parseInt(datiDocumento.id_anagrafica) || null,
+                totale_documento: parseFloat(datiDocumento.totale_documento) || null,
+                data_documento: datiDocumento.data_documento ? datiDocumento.data_documento : null,
             };
+
+            const sanitizedRighe = righeScrittura.map(({id, ...riga}) => ({
+                ...riga,
+                id_conto: parseInt(riga.id_conto),
+                importo_dare: parseFloat(riga.importo_dare) || 0,
+                importo_avere: parseFloat(riga.importo_avere) || 0
+            }));
+            
+            const payload = {
+                testata: sanitizedTestata,
+                righe: sanitizedRighe
+            };
+
             await api.post('/contsmart/registrazioni', payload);
             alert('Registrazione salvata con successo!');
             setIsEditing(false);
             setState(initialState);
         } catch (error) {
             console.error('Errore nel salvataggio:', error);
-            alert('Errore durante il salvataggio della registrazione.');
+            const serverMessage = error.response?.data?.message || 'Errore durante il salvataggio della registrazione.';
+            alert(serverMessage);
         }
     }, [canSave, datiDocumento, selectedFunzioneId, righeScrittura, initialState]);
     
@@ -183,6 +224,7 @@ const NuovaRegistrazione = () => {
     const handleFunzioneChange = (e) => {
         const id = e.target.value;
         const funzioneScelta = funzioni.find(f => f.id === parseInt(id));
+        
         setState(prev => ({
             ...initialState,
             selectedFunzioneId: id,
@@ -193,12 +235,19 @@ const NuovaRegistrazione = () => {
         }));
         
         if (funzioneScelta && funzioneScelta.tipo_funzione !== 'Finanziaria') {
-            const righeVuote = [
-                { id: Date.now(), id_conto: '', descrizione: '', importo_dare: '', importo_avere: '' },
-                { id: Date.now() + 1, id_conto: '', descrizione: '', importo_dare: '', importo_avere: '' }
-            ];
-            setState(prev => ({ ...prev, righeScrittura: righeVuote }));
+            const righeGenerate = (funzioneScelta.righe_predefinite || []).map(rigaTemplate => {
+                const isAvere = (rigaTemplate.dare_avere || 'D').toUpperCase() === 'A';
+                return {
+                    id: Date.now() + Math.random(),
+                    id_conto: rigaTemplate.id_conto,
+                    descrizione: rigaTemplate.descrizione_riga_predefinita || '',
+                    importo_dare: isAvere ? '' : '',
+                    importo_avere: isAvere ? '' : ''
+                };
+            });
+            setState(prev => ({ ...prev, righeScrittura: righeGenerate }));
         }
+
         setActiveField('data_registrazione');
     };
 
@@ -220,7 +269,21 @@ const NuovaRegistrazione = () => {
     };
 
     const handleRigaChange = (id, field, value) => {
-        setState(prev => ({ ...prev, righeScrittura: prev.righeScrittura.map(r => r.id === id ? { ...r, [field]: value } : r) }));
+        setState(prev => ({
+            ...prev,
+            righeScrittura: prev.righeScrittura.map(riga => {
+                if (riga.id === id) {
+                    const updatedRiga = { ...riga, [field]: value };
+                    if (field === 'importo_dare' && (parseFloat(value) || 0) !== 0) {
+                        updatedRiga.importo_avere = '';
+                    } else if (field === 'importo_avere' && (parseFloat(value) || 0) !== 0) {
+                        updatedRiga.importo_dare = '';
+                    }
+                    return updatedRiga;
+                }
+                return riga;
+            })
+        }));
     };
 
     const addRigaScrittura = () => {
@@ -233,33 +296,56 @@ const NuovaRegistrazione = () => {
 
     const handleGenerateScrittura = () => {
         if (!canGenerateScrittura || !selectedFunzione || !selectedFunzione.righe_predefinite) {
-            alert("Impossibile generare: funzione non selezionata o non configurata correttamente.");
+            alert("Impossibile generare: i dati del documento non sono completi o la funzione non è configurata.");
+            return;
+        }
+
+        const anagraficaSelezionata = anagrafiche.find(a => a.id === parseInt(datiDocumento.id_anagrafica));
+        if (!anagraficaSelezionata) {
+            alert("Selezionare un cliente/fornitore prima di generare la scrittura.");
             return;
         }
 
         const righePredefinite = selectedFunzione.righe_predefinite;
-        const righeDare = righePredefinite.filter(r => r.dare_avere === 'D');
-        const righeAvere = righePredefinite.filter(r => r.dare_avere === 'A');
+        const righeDare = righePredefinite.filter(r => (r.dare_avere || 'D').toUpperCase() === 'D');
+        const righeAvere = righePredefinite.filter(r => (r.dare_avere || 'D').toUpperCase() === 'A');
         let righeGenerate = [];
+        const categoria = (selectedFunzione.categoria || '').trim().toLowerCase();
 
-        if (righeAvere.length === 1 && righeDare.length >= 2) {
-            righeGenerate.push({ id: Date.now(), id_conto: righeAvere[0].id_conto, descrizione: righeAvere[0].descrizione_riga_predefinita || `Fatt. ${datiDocumento.num_documento}`, importo_dare: '', importo_avere: parseFloat(datiDocumento.totale_documento).toFixed(2) });
-            righeGenerate.push({ id: Date.now() + 1, id_conto: righeDare[0].id_conto, descrizione: righeDare[0].descrizione_riga_predefinita || 'Costo acquisto', importo_dare: totaleImponibile.toFixed(2), importo_avere: '' });
+        if (categoria === 'acquisti') {
+            const contoFornitore = righeAvere.length > 0 ? righeAvere[0] : null;
+            const contoCosto = righeDare.length > 0 ? righeDare[0] : null;
+            const contoIva = righeDare.length > 1 ? righeDare[1] : null;
+
+            const idContoFornitore = anagraficaSelezionata.id_sottoconto_fornitore || contoFornitore?.id_conto;
+
+            righeGenerate.push({ id: Date.now(), id_conto: idContoFornitore, descrizione: `Ns. Rif. ${datiDocumento.num_documento} ${anagraficaSelezionata.ragione_sociale}`, importo_dare: '', importo_avere: parseFloat(datiDocumento.totale_documento).toFixed(2) });
+            righeGenerate.push({ id: Date.now() + 1, id_conto: contoCosto?.id_conto, descrizione: contoCosto?.descrizione_riga_predefinita || 'Costo acquisto', importo_dare: totaleImponibile.toFixed(2), importo_avere: '' });
+            
             if (totaleIva > 0) {
-                righeGenerate.push({ id: Date.now() + 2, id_conto: righeDare[1].id_conto, descrizione: righeDare[1].descrizione_riga_predefinita || 'IVA ns/credito', importo_dare: totaleIva.toFixed(2), importo_avere: '' });
+                righeGenerate.push({ id: Date.now() + 2, id_conto: contoIva?.id_conto, descrizione: contoIva?.descrizione_riga_predefinita || 'IVA ns/credito', importo_dare: totaleIva.toFixed(2), importo_avere: '' });
             }
-        } else if (righeDare.length === 1 && righeAvere.length >= 2) {
-            righeGenerate.push({ id: Date.now(), id_conto: righeDare[0].id_conto, descrizione: righeDare[0].descrizione_riga_predefinita || `Fatt. ${datiDocumento.num_documento}`, importo_dare: parseFloat(datiDocumento.totale_documento).toFixed(2), importo_avere: '' });
-            righeGenerate.push({ id: Date.now() + 1, id_conto: righeAvere[0].id_conto, descrizione: righeAvere[0].descrizione_riga_predefinita || 'Ricavo vendita', importo_dare: '', importo_avere: totaleImponibile.toFixed(2) });
+        } 
+        else if (categoria === 'vendite') {
+            const contoCliente = righeDare.length > 0 ? righeDare[0] : null;
+            const contoRicavo = righeAvere.length > 0 ? righeAvere[0] : null;
+            const contoIva = righeAvere.length > 1 ? righeAvere[1] : null;
+
+            const idContoCliente = anagraficaSelezionata.id_sottoconto_cliente || contoCliente?.id_conto;
+
+            righeGenerate.push({ id: Date.now(), id_conto: idContoCliente, descrizione: `Vs. Rif. ${datiDocumento.num_documento} ${anagraficaSelezionata.ragione_sociale}`, importo_dare: parseFloat(datiDocumento.totale_documento).toFixed(2), importo_avere: '' });
+            righeGenerate.push({ id: Date.now() + 1, id_conto: contoRicavo?.id_conto, descrizione: contoRicavo?.descrizione_riga_predefinita || 'Ricavo vendita', importo_dare: '', importo_avere: totaleImponibile.toFixed(2) });
+            
             if (totaleIva > 0) {
-                righeGenerate.push({ id: Date.now() + 2, id_conto: righeAvere[1].id_conto, descrizione: righeAvere[1].descrizione_riga_predefinita || 'IVA ns/debito', importo_dare: '', importo_avere: totaleIva.toFixed(2) });
+                righeGenerate.push({ id: Date.now() + 2, id_conto: contoIva?.id_conto, descrizione: contoIva?.descrizione_riga_predefinita || 'IVA ns/debito', importo_dare: '', importo_avere: totaleIva.toFixed(2) });
             }
-        } else {
-            alert("Configurazione della funzione non valida per la generazione automatica. (Es. Fattura Acquisto richiede 1 conto in Avere e 2 in Dare).");
-            return;
         }
         
-        setState(prev => ({...prev, righeScrittura: righeGenerate }));
+        if(righeGenerate.length > 0) {
+            setState(prev => ({...prev, righeScrittura: righeGenerate }));
+        } else {
+             alert("Categoria della funzione non gestita per la generazione automatica.");
+        }
     };
 
     useEffect(() => { fetchData(); }, [fetchData]);
@@ -307,8 +393,8 @@ const NuovaRegistrazione = () => {
                 <div ref={formRef}>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 mb-6">
                         <div className="md:col-span-2">
-                             <label htmlFor="selectedFunzioneId" className="block text-sm font-medium text-slate-700 mb-1">Tipo Scrittura</label>
-                             <select id="selectedFunzioneId" name="selectedFunzioneId" value={selectedFunzioneId} onChange={handleFunzioneChange} onFocus={handleFocus} className={getFieldClass('selectedFunzioneId')}>
+                            <label htmlFor="selectedFunzioneId" className="block text-sm font-medium text-slate-700 mb-1">Tipo Scrittura</label>
+                            <select id="selectedFunzioneId" name="selectedFunzioneId" value={selectedFunzioneId} onChange={handleFunzioneChange} onFocus={handleFocus} className={getFieldClass('selectedFunzioneId')}>
                                 <option value="">-- Seleziona una funzione --</option>
                                 {funzioni.map(f => <option key={f.id} value={f.id}>{f.nome_funzione}</option>)}
                             </select>
@@ -324,16 +410,15 @@ const NuovaRegistrazione = () => {
                             <legend className="px-2 font-semibold text-slate-600">Dati Documento e Testata</legend>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div><label htmlFor="data_registrazione" className="block text-sm font-medium text-slate-700 mb-1">Data Registrazione</label><input type="date" name="data_registrazione" value={datiDocumento.data_registrazione} onChange={handleDocChange} onFocus={handleFocus} className={getFieldClass('data_registrazione')} /></div>
-                                {/* --- NOVITÀ: Select per anagrafica aggiornata --- */}
                                 <div className="md:col-span-3">
                                     <label htmlFor="id_anagrafica" className="block text-sm font-medium text-slate-700 mb-1">
-                                        {selectedFunzione?.categoria === 'Acquisto' ? 'Fornitore' : selectedFunzione?.categoria === 'Vendita' ? 'Cliente' : 'Anagrafica'}
+                                        {selectedFunzione?.categoria === 'Acquisti' ? 'Fornitore' : selectedFunzione?.categoria === 'Vendite' ? 'Cliente' : 'Anagrafica'}
                                     </label>
                                     <select name="id_anagrafica" value={datiDocumento.id_anagrafica} onChange={handleDocChange} onFocus={handleFocus} className={getFieldClass('id_anagrafica')} disabled={isAnagraficheLoading}>
                                         <option value="">{isAnagraficheLoading ? 'Caricamento...' : '-- Seleziona --'}</option>
                                         {anagrafiche.map(a => (
                                             <option key={a.id} value={a.id}>
-                                                {`${a.ragione_sociale} (${a.citta || 'N/D'}, P.IVA: ${a.partita_iva || 'N/D'})`}
+                                                {`${a.ragione_sociale} (${a.citta || 'N/D'}, P.IVA: ${a.p_iva || 'N/D'})`}
                                             </option>
                                         ))}
                                     </select>
@@ -367,8 +452,8 @@ const NuovaRegistrazione = () => {
                         </>
                         )}
                         <fieldset className="border rounded-lg p-4">
-                             <legend className="px-2 font-semibold text-slate-600">Scrittura in Partita Doppia</legend>
-                             <table className="w-full text-sm text-left text-slate-500">
+                            <legend className="px-2 font-semibold text-slate-600">Scrittura in Partita Doppia</legend>
+                            <table className="w-full text-sm text-left text-slate-500">
                                 <thead className="text-xs text-slate-700 uppercase bg-slate-100"><tr><th className="px-2 py-2 w-3/12">Conto</th><th className="px-2 py-2 w-4/12">Descrizione</th><th className="px-2 py-2 w-2/12">Dare</th><th className="px-2 py-2 w-2/12">Avere</th><th className="px-2 py-2 w-1/12"></th></tr></thead>
                                 <tbody>
                                 {righeScrittura.map(riga => (
@@ -385,7 +470,7 @@ const NuovaRegistrazione = () => {
                                     <tr><td colSpan="5"><button onClick={addRigaScrittura} className="text-sm text-blue-600 flex items-center gap-1 mt-2"><PlusIcon className="h-4 w-4"/> Aggiungi riga libera</button></td></tr>
                                     <tr className="border-t-2"><td colSpan="2" className="p-2 text-right font-bold">Sbilancio P.D.: <span className={`font-mono ${Math.abs(sbilancioScrittura) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>{sbilancioScrittura.toFixed(2)}</span></td><td className="p-2 text-right font-bold font-mono bg-slate-100">{totaleDare.toFixed(2)}</td><td className="p-2 text-right font-bold font-mono bg-slate-100">{totaleAvere.toFixed(2)}</td><td></td></tr>
                                 </tfoot>
-                             </table>
+                            </table>
                         </fieldset>
                         <div className="mt-6 flex justify-end"><button onClick={handleSaveRegistrazione} disabled={!canSave} className="px-6 py-3 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"><ArrowDownTrayIcon className="h-5 w-5"/> Salva Registrazione (F12)</button></div>
                     </>
@@ -396,5 +481,4 @@ const NuovaRegistrazione = () => {
     );
 };
 export default NuovaRegistrazione;
-
 

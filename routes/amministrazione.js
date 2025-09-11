@@ -703,4 +703,37 @@ router.get('/tipi-utente', verifyToken, async (req, res) => {
     }
 });
 
+router.get('/ditte', verifyToken, checkLevel, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { categoria } = req.query; // Legge la categoria (es. 'Vendita') dai parametri
+
+    try {
+        let query = `
+            SELECT id, ragione_sociale, citta, p_iva, codice_relazione, id_sottoconto_cliente, id_sottoconto_fornitore 
+            FROM ditte 
+            WHERE id_ditta_proprietaria = ?
+        `;
+        const params = [id_ditta];
+
+        // Applica il filtro solo se la categoria è specificata
+        if (categoria) {
+            if (categoria.toLowerCase() === 'vendita') {
+                query += ` AND codice_relazione IN ('C', 'E')`;
+            } else if (categoria.toLowerCase() === 'acquisto') {
+                query += ` AND codice_relazione = 'F'`;
+            }
+        }
+        
+        query += ` ORDER BY ragione_sociale`;
+        
+        const [ditte] = await dbPool.query(query, params);
+        res.json({ success: true, data: ditte });
+
+    } catch (error) {
+        console.error("Errore recupero ditte filtrate:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero delle ditte.' });
+    }
+});
+
+
 module.exports = router;

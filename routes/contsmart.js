@@ -372,15 +372,22 @@ router.get('/pdc', verifyToken, async (req, res) => {
 // --- ROTTE FUNZIONI CONTABILI (CON NOMI TABELLA CORRETTI) ---
 
 
+// GET /funzioni - Recupera tutte le funzioni contabili con le loro righe
 router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
     try {
         await dbPool.query('SET SESSION group_concat_max_len = 1000000;');
         
-        // --- CORREZIONE DEFINITIVA: Utilizzo della colonna 'tipo_movimento' e FK corretta ---
+        // <span style="color:red;">// CORREZIONE DEFINITIVA: Aggiunto il campo 'categoria' alla SELECT</span>
+        // <span style="color:green;">// Questa modifica risolve il problema per cui il frontend non riceveva la categoria</span>
+        // <span style="color:green;">// e non poteva filtrare correttamente le anagrafiche.</span>
         const query = `
             SELECT 
-                f.id, f.nome_funzione, f.descrizione, f.tipo_funzione,
+                f.id, 
+                f.nome_funzione, 
+                f.descrizione, 
+                f.tipo_funzione, 
+                f.categoria, 
                 GROUP_CONCAT(
                     DISTINCT
                     JSON_OBJECT(
@@ -400,7 +407,12 @@ router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
         
         funzioni.forEach(f => {
             if(f.righe_predefinite && f.righe_predefinite[0] !== null) {
-                f.righe_predefinite = JSON.parse(`[${f.righe_predefinite}]`);
+                try {
+                    f.righe_predefinite = JSON.parse(`[${f.righe_predefinite}]`);
+                } catch (e) {
+                    console.error("Errore nel parsing JSON per la funzione ID:", f.id);
+                    f.righe_predefinite = [];
+                }
             } else {
                 f.righe_predefinite = [];
             }
@@ -411,6 +423,7 @@ router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
         res.status(500).json({ message: 'Errore recupero funzioni contabili.' });
     }
 });
+
 
 router.post('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
@@ -848,7 +861,7 @@ router.get('/anagrafiche-filtrate', verifyToken, async (req, res) => {
     let query;
     const params = [id_ditta];
 
-    if (categoria.toLowerCase() === 'acquisto') {
+    if (categoria.toLowerCase() === 'Acquisti') {
         // Seleziona tutte le anagrafiche che sono state definite come fornitori
         query = `
             SELECT id, ragione_sociale, indirizzo, citta, partita_iva 
@@ -856,7 +869,7 @@ router.get('/anagrafiche-filtrate', verifyToken, async (req, res) => {
             WHERE id_ditta = ? AND id_sottoconto_fornitore IS NOT NULL 
             ORDER BY ragione_sociale ASC
         `;
-    } else if (categoria.toLowerCase() === 'vendita') {
+    } else if (categoria.toLowerCase() === 'Vendite') {
         // Seleziona tutte le anagrafiche che sono state definite come clienti
         query = `
             SELECT id, ragione_sociale, indirizzo, citta, partita_iva 
@@ -878,6 +891,95 @@ router.get('/anagrafiche-filtrate', verifyToken, async (req, res) => {
     }
 });
 
+// <span style="color:green;">// NUOVO: Rotta per recuperare i sottoconti figli di un mastro specifico (es. 'CLIENTI' o 'FORNITORI')</span>
+// <span style="color:green;">// Scopo: Isolare i conti specifici (es. tutti i clienti) per poi cercare le anagrafiche collegate.</span>
+router.get('/sottoconti-per-natura', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { natura } = req.query; // Es. 'CLIENTI' o 'FORNITORI'
+
+    if (!natura) {
+        return res.status(400).json({ success: false, message: 'La natura del conto è obbligatoria.' });
+    }
+
+    try {
+        // 1. Trova l'ID del mastro (es. 'CLIENTI') basandosi sulla sua descrizione
+        const [mastro] = await dbPool.query(
+            'SELECT id FROM sc_piano_dei_conti WHERE id_ditta = ? AND tipo = "Mastro" AND UPPER(descrizione) LIKE ?',
+            [id_ditta, `%${natura.toUpperCase()}%`]
+        );
+
+        if (mastro.length === 0) {
+            return res.json({ success: true, data: [] }); // Nessun mastro trovato
+        }
+        const idMastro = mastro[0].id;
+
+        // 2. Trova tutti i conti figli diretti (i conti, es. 'Clienti Italia')
+        const [conti] = await dbPool.query(
+            'SELECT id FROM sc_piano_dei_conti WHERE id_ditta = ? AND id_padre = ?',
+            [id_ditta, idMastro]
+        );
+        const idConti = conti.map(c => c.id);
+
+        if (idConti.length === 0) {
+             return res.json({ success: true, data: [] });
+        }
+
+        // 3. Trova tutti i sottoconti che appartengono a quei conti
+        const [sottoconti] = await dbPool.query(
+            'SELECT id FROM sc_piano_dei_conti WHERE id_ditta = ? AND tipo = "Sottoconto" AND id_padre IN (?)',
+            [id_ditta, idConti]
+        );
+
+        res.json({ success: true, data: sottoconti.map(s => s.id) }); // Restituisce solo gli ID dei sottoconti
+
+    } catch (error) {
+        console.error("Errore recupero sottoconti per natura:", error);
+        res.status(500).json({ success: false, message: 'Errore del server durante il recupero dei sottoconti.' });
+    }
+});
+
+
+// <span style="color:red;">// MODIFICA: La rotta 'anagrafiche-filtrate' ora è più intelligente</span>
+// <span style="color:green;">// Accetta una lista di ID di sottoconti e restituisce solo le ditte collegate.</span>
+router.get('/anagrafiche-filtrate', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { categoria, sottocontoIds } = req.query; // sottocontoIds è una stringa di ID separati da virgola: "1,2,3"
+
+    if (!categoria || !sottocontoIds) {
+        return res.status(400).json({ success: false, message: 'Categoria e lista di sottoconti sono obbligatori.' });
+    }
+
+    const ids = sottocontoIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+
+    if (ids.length === 0) {
+        return res.json({ success: true, data: [] }); // Se non ci sono ID validi, restituisce un array vuoto
+    }
+
+    let colonnaSottoconto;
+    if (categoria.toLowerCase() === 'Acquisti') {
+        colonnaSottoconto = 'id_sottoconto_fornitore';
+    } else if (categoria.toLowerCase() === 'Vendite') {
+        colonnaSottoconto = 'id_sottoconto_cliente';
+    } else {
+        return res.json({ success: true, data: [] }); // Categoria non gestita
+    }
+
+    try {
+        const query = `
+            SELECT id, ragione_sociale, citta, partita_iva 
+            FROM ditte 
+            WHERE id_ditta = ? AND ?? IN (?) 
+            ORDER BY ragione_sociale ASC
+        `;
+        const params = [id_ditta, colonnaSottoconto, ids];
+        
+        const [rows] = await dbPool.query(query, params);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore nel caricamento delle anagrafiche filtrate:", error);
+        res.status(500).json({ success: false, message: 'Errore del server.' });
+    }
+});
 
 module.exports = router;
 // 
