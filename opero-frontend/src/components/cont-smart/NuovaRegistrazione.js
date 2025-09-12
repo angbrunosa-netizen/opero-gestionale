@@ -29,6 +29,7 @@ const NuovaRegistrazione = () => {
             id_anagrafica: '',
             num_documento: '',
             data_documento: '',
+            data_scadenza: '',
             totale_documento: '',
             descrizione: '',
         },
@@ -425,6 +426,17 @@ const NuovaRegistrazione = () => {
                                 </div>
                                 <div><label htmlFor="num_documento" className="block text-sm font-medium text-slate-700 mb-1">Num. Documento</label><input type="text" name="num_documento" value={datiDocumento.num_documento} onChange={handleDocChange} onFocus={handleFocus} className={getFieldClass('num_documento')} /></div>
                                 <div><label htmlFor="data_documento" className="block text-sm font-medium text-slate-700 mb-1">Data Documento</label><input type="date" name="data_documento" value={datiDocumento.data_documento} onChange={handleDocChange} onFocus={handleFocus} className={getFieldClass('data_documento')} /></div>
+                                 <div>
+                                    <label htmlFor="data_scadenza" className="block text-sm font-medium text-slate-700 mb-1">Data Scadenza</label>
+                                    <input 
+                                        type="date" 
+                                        name="data_scadenza" 
+                                        value={datiDocumento.data_scadenza} 
+                                        onChange={handleDocChange} 
+                                        onFocus={handleFocus} 
+                                        className={getFieldClass('data_scadenza')} 
+                                    />
+                                </div>
                                 <div><label htmlFor="totale_documento" className="block text-sm font-medium text-slate-700 mb-1">Totale Documento</label><input type="number" step="0.01" name="totale_documento" value={datiDocumento.totale_documento} onChange={handleDocChange} onFocus={handleFocus} className={getFieldClass('totale_documento')} /></div>
                                 <div className="md:col-span-4"><label htmlFor="descrizione" className="block text-sm font-medium text-slate-700 mb-1">Descrizione Registrazione</label><input type="text" name="descrizione" value={datiDocumento.descrizione} onChange={handleDocChange} onFocus={handleFocus} className={getFieldClass('descrizione')} /></div>
                             </div>
