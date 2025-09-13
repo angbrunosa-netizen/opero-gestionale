@@ -29,6 +29,12 @@ const { v4: uuidv4 } = require('uuid'); // Per generare token unici
 const secret = process.env.ENCRYPTION_SECRET || 'default_secret_key_32_chars_!!';
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(String(secret)).digest('base64').substr(0, 32);
 const IV_LENGTH = 16;
+const canManageAdminSettings = (req, res, next) => {
+    if (req.user.livello <= 90) {
+        return res.status(403).json({ success: false, message: 'Accesso negato. Livello utente non sufficiente.' });
+    }
+    next();
+};
 
 function encrypt(text) {
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -703,35 +709,120 @@ router.get('/tipi-utente', verifyToken, async (req, res) => {
     }
 });
 
-router.get('/ditte', verifyToken, checkLevel, async (req, res) => {
+
+
+// =====================================================================
+// GESTIONE PROGRESSIVI
+// =====================================================================
+
+// GET /api/amministrazione/progressivi - Ottiene tutti i progressivi per la ditta
+router.get('/progressivi', verifyToken, canManageAdminSettings, async (req, res) => {
     const { id_ditta } = req.user;
-    const { categoria } = req.query; // Legge la categoria (es. 'Vendita') dai parametri
+    try {
+        const [progressivi] = await dbPool.query(
+            'SELECT * FROM an_progressivi WHERE id_ditta = ? ORDER BY codice_progressivo',
+            [id_ditta]
+        );
+        res.json({ success: true, data: progressivi });
+    } catch (error) {
+        console.error("Errore nel recupero dei progressivi:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// POST /api/amministrazione/progressivi - Crea un nuovo progressivo
+router.post('/progressivi', verifyToken, canManageAdminSettings, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { codice_progressivo, descrizione, ultimo_numero, serie } = req.body;
+
+    if (!codice_progressivo || !descrizione || ultimo_numero === undefined) {
+        return res.status(400).json({ success: false, message: 'Codice, descrizione e ultimo numero sono obbligatori.' });
+    }
+
+    try {
+        const [result] = await dbPool.query(
+            'INSERT INTO an_progressivi (id_ditta, codice_progressivo, descrizione, ultimo_numero, serie) VALUES (?, ?, ?, ?, ?)',
+            [id_ditta, codice_progressivo.toUpperCase(), descrizione, parseInt(ultimo_numero), serie || null]
+        );
+        res.status(201).json({ success: true, message: 'Progressivo creato con successo.', id: result.insertId });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: 'Un progressivo con questo codice e serie esiste già.' });
+        }
+        console.error("Errore nella creazione del progressivo:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// PUT /api/amministrazione/progressivi/:id - Aggiorna un progressivo esistente
+router.put('/progressivi/:id', verifyToken, canManageAdminSettings, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { id } = req.params;
+    const { descrizione, ultimo_numero } = req.body;
+
+    if (!descrizione || ultimo_numero === undefined) {
+        return res.status(400).json({ success: false, message: 'Descrizione e ultimo numero sono obbligatori.' });
+    }
+
+    try {
+        const [result] = await dbPool.query(
+            'UPDATE an_progressivi SET descrizione = ?, ultimo_numero = ? WHERE id = ? AND id_ditta = ?',
+            [descrizione, parseInt(ultimo_numero), id, id_ditta]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Progressivo non trovato o non appartenente alla ditta.' });
+        }
+
+        res.json({ success: true, message: 'Progressivo aggiornato con successo.' });
+    } catch (error) {
+        console.error("Errore nell'aggiornamento del progressivo:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// GET /api/amministrazione/ditte - Ottiene l'elenco delle ditte con filtri avanzati
+// GET /api/amministrazione/ditte - Ottiene l'elenco delle ditte con filtri avanzati
+router.get('/ditte', verifyToken, async (req, res) => {
+    // <span style="color:red;">// NUOVO: LOG DI DIAGNOSTICA</span>
+    // <span style="color:green;">// Questo messaggio deve apparire nel terminale del SERVER ogni volta che il frontend chiede l'elenco delle anagrafiche.</span>
+    // <span style="color:green;">// Se non lo vedi, significa che il server sta eseguendo una versione vecchia di questo file.</span>
+    console.log('[SERVER DEBUG] Ricevuta richiesta a /api/amministrazione/ditte');
+    console.log('[SERVER DEBUG] Parametri ricevuti:', req.query);
+
+    const { id_ditta } = req.user;
+    const { relazioni } = req.query;
 
     try {
         let query = `
-            SELECT id, ragione_sociale, citta, p_iva, codice_relazione, id_sottoconto_cliente, id_sottoconto_fornitore 
-            FROM ditte 
-            WHERE id_ditta_proprietaria = ?
+            SELECT d.id, d.ragione_sociale, d.citta, d.p_iva, d.codice_relazione 
+            FROM ditte d 
+            WHERE d.id_ditta_proprietaria = ? AND d.stato = 1
         `;
         const params = [id_ditta];
 
-        // Applica il filtro solo se la categoria è specificata
-        if (categoria) {
-            if (categoria.toLowerCase() === 'vendita') {
-                query += ` AND codice_relazione IN ('C', 'E')`;
-            } else if (categoria.toLowerCase() === 'acquisto') {
-                query += ` AND codice_relazione = 'F'`;
+        if (relazioni) {
+            const codiciRelazione = relazioni.split(',').map(r => r.trim());
+            if (codiciRelazione.length > 0) {
+                query += ' AND d.codice_relazione IN (?)';
+                params.push(codiciRelazione);
+                
+            } else {
+                return res.json({ success: true, data: [] });
             }
+        } else {
+            
+            return res.json({ success: true, data: [] });
         }
-        
-        query += ` ORDER BY ragione_sociale`;
-        
+
+        query += ' ORDER BY d.ragione_sociale';
+
         const [ditte] = await dbPool.query(query, params);
         res.json({ success: true, data: ditte });
 
     } catch (error) {
-        console.error("Errore recupero ditte filtrate:", error);
-        res.status(500).json({ success: false, message: 'Errore nel recupero delle ditte.' });
+        console.error("Errore nel recupero delle anagrafiche:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 

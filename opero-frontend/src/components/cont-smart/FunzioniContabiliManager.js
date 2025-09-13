@@ -1,14 +1,14 @@
-// #####################################################################
-// # Componente Gestione Funzioni Contabili v9.0 (Fix Definitivo D/A)
-// # File: opero-gestionale/opero-frontend/src/components/cont-smart/FunzioniContabiliManager.js
-// #####################################################################
+    // #####################################################################
+    // # Componente Gestione Funzioni Contabili v9.0 (Fix Definitivo D/A)
+    // # File: opero-gestionale/opero-frontend/src/components/cont-smart/FunzioniContabiliManager.js
+    // #####################################################################
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../../services/api';
-import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+    import React, { useState, useEffect, useCallback } from 'react';
+    import { api } from '../../services/api';
+    import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
-// --- Sotto-componente: Modale per Creazione/Modifica ---
-const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
+    // --- Sotto-componente: Modale per Creazione/Modifica ---
+   const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
     
     const createInitialFormData = (func) => {
         if (!func) {
@@ -16,25 +16,18 @@ const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
                 nome_funzione: '',
                 descrizione: '',
                 tipo_funzione: 'Primaria',
+                categoria: '',
                 righe_predefinite: []
             };
         }
 
-        // <span style="color:red;">// CORREZIONE DEFINITIVA: Logica di traduzione D/A -> DARE/AVERE</span>
-        // <span style="color:green;">// NUOVO: Questa logica ora interpreta correttamente i dati 'D' e 'A' provenienti dal backend.</span>
-        // <span style="color:green;">// Ho rafforzato il codice per leggere il campo `tipo_movimento` (aliased come `dare_avere` dalla rotta).</span>
+        // <span style="color:red;">// CORREZIONE: Ora legge il campo 'tipo_movimento' dal backend.</span>
         const righeNormalizzate = (func.righe_predefinite || []).map(rigaBackend => {
-            let segnoPerFrontend = 'DARE'; // Default di sicurezza
-            
-            const tipoMovimentoDalBackend = rigaBackend.dare_avere; // Il backend lo chiama così nel JSON
-
-            if (tipoMovimentoDalBackend && typeof tipoMovimentoDalBackend === 'string' && tipoMovimentoDalBackend.toUpperCase() === 'A') {
-                segnoPerFrontend = 'AVERE';
-            }
-
+            // Traduce 'D'/'A' in 'DARE'/'AVERE' solo per la visualizzazione nel form
+            const segnoPerFrontend = rigaBackend.tipo_movimento === 'A' ? 'AVERE' : 'DARE';
             return {
                 id_conto: rigaBackend.id_conto,
-                dare_avere: segnoPerFrontend, // Valore usato nel frontend: 'DARE' o 'AVERE'
+                dare_avere: segnoPerFrontend, // Questo nome è usato solo nello stato del form
                 descrizione_riga_predefinita: rigaBackend.descrizione_riga_predefinita || ''
             };
         });
@@ -43,6 +36,7 @@ const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
             nome_funzione: func.nome_funzione || '',
             descrizione: func.descrizione || '',
             tipo_funzione: func.tipo_funzione || 'Primaria',
+            categoria: func.categoria || '',
             righe_predefinite: righeNormalizzate
         };
     };
@@ -94,11 +88,15 @@ const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
                     <div className="space-y-4 pr-2">
                         <input type="text" name="nome_funzione" value={formData.nome_funzione} onChange={handleInputChange} placeholder="Nome Funzione" className="w-full rounded-md border-slate-300" required />
                         <textarea name="descrizione" value={formData.descrizione} onChange={handleInputChange} placeholder="Descrizione" className="w-full rounded-md border-slate-300" rows="2"></textarea>
+                        
                         <select name="tipo_funzione" value={formData.tipo_funzione} onChange={handleInputChange} className="w-full rounded-md border-slate-300">
                             <option value="Primaria">Primaria</option>
-                            <option value="Acquisto">Acquisto</option>
-                            <option value="Vendita">Vendita</option>
+                            <option value="Secondaria">Secondaria</option>
+                            <option value="Finanziaria">Finanziaria</option>
+                            <option value="Sistema">Sistema</option>
                         </select>
+
+                        <input type="text" name="categoria" value={formData.categoria} onChange={handleInputChange} placeholder="Categoria (es. Acquisti, Vendite)" className="w-full rounded-md border-slate-300" />
                         
                         <fieldset className="border p-2 rounded">
                             <legend className="px-1 text-sm">Righe Predefinite</legend>
@@ -129,71 +127,71 @@ const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
     );
 };
 
+    // --- Componente Principale ---
+    const FunzioniContabiliManager = () => {
+        const [funzioni, setFunzioni] = useState([]);
+        const [pianoConti, setPianoConti] = useState([]);
+        const [isLoading, setIsLoading] = useState(true);
+        const [error, setError] = useState('');
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [editingFunzione, setEditingFunzione] = useState(null);
+        const [confirmDelete, setConfirmDelete] = useState(null);
 
-// --- Componente Principale ---
-const FunzioniContabiliManager = () => {
-    const [funzioni, setFunzioni] = useState([]);
-    const [pianoConti, setPianoConti] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingFunzione, setEditingFunzione] = useState(null);
-    const [confirmDelete, setConfirmDelete] = useState(null);
+        const fetchData = useCallback(async () => {
+            setIsLoading(true);
+            setError('');
+            try {
+                const [funzioniRes, pdcRes] = await Promise.all([
+                    api.get('/contsmart/funzioni'),
+                    api.get('/contsmart/pdc-tree') 
+                ]);
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        setError('');
-        try {
-            const [funzioniRes, pdcRes] = await Promise.all([
-                api.get('/contsmart/funzioni'),
-                api.get('/contsmart/pdc-tree') 
-            ]);
+                const flattenPdc = (nodes) => {
+                    let list = [];
+                    if (!Array.isArray(nodes)) return [];
+                    nodes.forEach(node => {
+                        list.push({ id: node.id, codice: node.codice, descrizione: node.descrizione });
+                        if (node.children) list = list.concat(flattenPdc(node.children));
+                    });
+                    return list;
+                };
+                
+                setFunzioni(funzioniRes.data);
+                const pianoContiData = pdcRes.data.data || pdcRes.data;
+                setPianoConti(flattenPdc(pianoContiData));
 
-            const flattenPdc = (nodes) => {
-                let list = [];
-                if (!Array.isArray(nodes)) return [];
-                nodes.forEach(node => {
-                    list.push({ id: node.id, codice: node.codice, descrizione: node.descrizione });
-                    if (node.children) list = list.concat(flattenPdc(node.children));
-                });
-                return list;
-            };
-            
-            setFunzioni(funzioniRes.data);
-            const pianoContiData = pdcRes.data.data || pdcRes.data;
-            setPianoConti(flattenPdc(pianoContiData));
+            } catch (err) {
+                setError('Errore nel caricamento dei dati. Riprova.');
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        }, []);
 
-        } catch (err) {
-            setError('Errore nel caricamento dei dati. Riprova.');
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+        useEffect(() => {
+            fetchData();
+        }, [fetchData]);
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        const handleCreate = () => {
+            setEditingFunzione(null);
+            setIsModalOpen(true);
+        };
 
-    const handleCreate = () => {
-        setEditingFunzione(null);
-        setIsModalOpen(true);
-    };
-
-    const handleEdit = (funzione) => {
-        setEditingFunzione(funzione);
-        setIsModalOpen(true);
-    };
-    
-    const handleSave = async (formData) => {
-        // <span style="color:red;">// CORREZIONE DEFINITIVA: Traduzione DARE/AVERE -> D/A per il salvataggio</span>
-        // <span style="color:green;">// NUOVO: Prima di inviare i dati, creo un "payload" sicuro dove traduco i valori</span>
-        // <span style="color:green;">// 'DARE'/'AVERE' del frontend nei valori 'D'/'A' richiesti dal backend.</span>
+        const handleEdit = (funzione) => {
+            setEditingFunzione(funzione);
+            setIsModalOpen(true);
+        };
+        
+      const handleSave = async (formData) => {
+        // <span style="color:red;">// CORREZIONE DEFINITIVA: Sostituita la logica di mapping con una più esplicita e sicura.</span>
+        // <span style="color:green;">// Questo approccio previene errori dovuti a proprietà inattese e garantisce
+        // <span style="color:green;">// che il campo 'tipo_movimento' sia sempre valorizzato correttamente.</span>
         const payload = {
             ...formData,
             righe_predefinite: formData.righe_predefinite.map(riga => ({
-                ...riga,
-                dare_avere: riga.dare_avere === 'AVERE' ? 'A' : 'D' // Traduzione
+                id_conto: riga.id_conto,
+                descrizione_riga_predefinita: riga.descrizione_riga_predefinita,
+                tipo_movimento: riga.dare_avere === 'AVERE' ? 'A' : 'D'
             }))
         };
         
@@ -211,98 +209,101 @@ const FunzioniContabiliManager = () => {
         }
     };
     
-    const handleDeleteRequest = (funzione) => {
-        setConfirmDelete(funzione);
-    };
+        
+        const handleDeleteRequest = (funzione) => {
+            setConfirmDelete(funzione);
+        };
 
-    const executeDelete = async () => {
-        if (!confirmDelete) return;
-        try {
-            await api.delete(`/contsmart/funzioni/${confirmDelete.id}`);
-            setConfirmDelete(null);
-            fetchData();
-        } catch (error) {
-            console.error("Errore eliminazione funzione:", error);
-            setError("Errore durante l'eliminazione della funzione.");
-            setConfirmDelete(null);
-        }
-    };
-    
-    if (isLoading) return <div className="flex justify-center p-4"><ArrowPathIcon className="h-6 w-6 animate-spin text-slate-500" /></div>;
-    if (error) return <div className="bg-red-100 text-red-700 p-3 rounded-md" role="alert">{error}</div>;
+        const executeDelete = async () => {
+            if (!confirmDelete) return;
+            try {
+                await api.delete(`/contsmart/funzioni/${confirmDelete.id}`);
+                setConfirmDelete(null);
+                fetchData();
+            } catch (error) {
+                console.error("Errore eliminazione funzione:", error);
+                setError("Errore durante l'eliminazione della funzione.");
+                setConfirmDelete(null);
+            }
+        };
+        
+        if (isLoading) return <div className="flex justify-center p-4"><ArrowPathIcon className="h-6 w-6 animate-spin text-slate-500" /></div>;
+        if (error) return <div className="bg-red-100 text-red-700 p-3 rounded-md" role="alert">{error}</div>;
 
-    return (
-        <div className="p-1">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-slate-700">Gestione Funzioni Contabili</h2>
-                <button onClick={handleCreate} className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                    <PlusIcon className="h-5 w-5 mr-1"/> Nuova Funzione
-                </button>
-            </div>
+        return (
+            <div className="p-1">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold text-slate-700">Gestione Funzioni Contabili</h2>
+                    <button onClick={handleCreate} className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                        <PlusIcon className="h-5 w-5 mr-1"/> Nuova Funzione
+                    </button>
+                </div>
 
-            <div className="bg-white shadow rounded-lg overflow-x-auto">
-                <table className="w-full text-sm text-left text-slate-500">
-                    <thead className="text-xs text-slate-700 uppercase bg-slate-50">
-                        <tr>
-                            <th scope="col" className="px-6 py-3">Nome Funzione</th>
-                            <th scope="col" className="px-6 py-3">Tipo</th>
-                            <th scope="col" className="px-6 py-3">Descrizione</th>
-                            <th scope="col" className="px-6 py-3 text-right">Azioni</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {funzioni.map(f => (
-                            <tr key={f.id} className="bg-white border-b hover:bg-slate-50">
-                                <td className="px-6 py-4 font-medium text-slate-900">{f.nome_funzione}</td>
-                                <td className="px-6 py-4">{f.tipo_funzione}</td>
-                                <td className="px-6 py-4">{f.descrizione}</td>
-                                <td className="px-6 py-4 text-right">
-                                    <button onClick={() => handleEdit(f)} className="p-1 text-blue-600 hover:text-blue-800"><PencilIcon className="h-4 w-4"/></button>
-                                    <button onClick={() => handleDeleteRequest(f)} className="p-1 ml-2 text-red-600 hover:text-red-800"><TrashIcon className="h-4 w-4"/></button>
-                                </td>
+                <div className="bg-white shadow rounded-lg overflow-x-auto">
+                    <table className="w-full text-sm text-left text-slate-500">
+                        <thead className="text-xs text-slate-700 uppercase bg-slate-50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3">Nome Funzione</th>
+                                <th scope="col" className="px-6 py-3">Tipo</th>
+                                 <th scope="col" className="px-6 py-3">Categoria</th>
+                                <th scope="col" className="px-6 py-3">Descrizione</th>
+                                <th scope="col" className="px-6 py-3 text-right">Azioni</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {funzioni.map(f => (
+                                <tr key={f.id} className="bg-white border-b hover:bg-slate-50">
+                                    <td className="px-6 py-4 font-medium text-slate-900">{f.nome_funzione}</td>
+                                    <td className="px-6 py-4">{f.tipo_funzione}</td>
+                                     <td className="px-6 py-4">{f.categoria || '-'}</td>
+                                    <td className="px-6 py-4">{f.descrizione}</td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button onClick={() => handleEdit(f)} className="p-1 text-blue-600 hover:text-blue-800"><PencilIcon className="h-4 w-4"/></button>
+                                        <button onClick={() => handleDeleteRequest(f)} className="p-1 ml-2 text-red-600 hover:text-red-800"><TrashIcon className="h-4 w-4"/></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-            {isModalOpen && (
-                <FunzioneEditModal 
-                    funzione={editingFunzione}
-                    onSave={handleSave}
-                    onCancel={() => setIsModalOpen(false)}
-                    pianoConti={pianoConti}
-                />
-            )}
-            
-            {confirmDelete && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-                        <div className="flex items-start">
-                            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                <ExclamationTriangleIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
-                            </div>
-                            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 className="text-lg font-medium text-gray-900">Elimina Funzione</h3>
-                                <div className="mt-2">
-                                    <p className="text-sm text-gray-500">Sei sicuro di voler eliminare la funzione "{confirmDelete.nome_funzione}"? Questa azione è irreversibile.</p>
+                {isModalOpen && (
+                    <FunzioneEditModal 
+                        funzione={editingFunzione}
+                        onSave={handleSave}
+                        onCancel={() => setIsModalOpen(false)}
+                        pianoConti={pianoConti}
+                    />
+                )}
+                
+                {confirmDelete && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                            <div className="flex items-start">
+                                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                    <ExclamationTriangleIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
                                 </div>
+                                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                    <h3 className="text-lg font-medium text-gray-900">Elimina Funzione</h3>
+                                    <div className="mt-2">
+                                        <p className="text-sm text-gray-500">Sei sicuro di voler eliminare la funzione "{confirmDelete.nome_funzione}"? Questa azione è irreversibile.</p>
+                                    </div>
+                                </div>  
                             </div>
-                        </div>
-                        <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                            <button type="button" onClick={executeDelete} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">
-                                Elimina
-                            </button>
-                            <button type="button" onClick={() => setConfirmDelete(null)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm">
-                                Annulla
-                            </button>
+                            <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                                <button type="button" onClick={executeDelete} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">
+                                    Elimina
+                                </button>
+                                <button type="button" onClick={() => setConfirmDelete(null)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm">
+                                    Annulla
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
-    );
-};
+                )}
+            </div>
+        );
+    };
 
-export default FunzioniContabiliManager;
+    export default FunzioniContabiliManager;
 

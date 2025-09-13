@@ -7,18 +7,16 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { api } from '../services/api'; 
 
 import { useAuth } from '../context/AuthContext';
-import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
+import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon,BuildingOffice2Icon,  DocumentTextIcon, AtSymbolIcon, Cog8ToothIcon, HashtagIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
 import UserForm from './UserForm'; // Esempio, potrebbero essere gestori più complessi
 import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
+import ProgressiviManager from './amministrazione/ProgressiviManager';
 
 //const AnagraficheManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Anagrafiche</h2><p>Interfaccia per la gestione di Clienti e Fornitori.</p></div>;
 //const UserManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Utenti</h2><p>Interfaccia per la gestione degli utenti della ditta.</p></div>;
 //const PianoDeiContiManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Piano dei Conti</h2><p>Interfaccia per la gestione di Mastri, Conti e Sottoconti.</p></div>;
 //const MailAccountsManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Account Email</h2><p>Interfaccia per la configurazione degli account email della ditta.</p></div>;
 const NoPermissionMessage = () => <div className="p-6 text-center text-gray-500"><p>Non disponi delle autorizzazioni necessarie per visualizzare questa sezione.</p></div>;
-
-
-
 // --- Componente Modale per Form di Modifica/Creazione Anagrafica (AGGIORNATO CON CAMPI COMPLETI) ---
 function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
 const { user } = useAuth();
@@ -850,7 +848,10 @@ const AmministrazioneModule = () => {
         { key: 'utenti', label: 'Gestione Utenti', permission: 'UTENTI_VIEW', icon: UsersIcon },
         { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: Cog6ToothIcon },
         { key: 'mail_accounts', label: 'Account Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon},
-        { key: 'ppa', label: 'Configurazione PPA', permission: 'PPA_MODULE', icon: QueueListIcon }, // <-- NUOVA VOCE
+        { key: 'ppa', label: 'Configurazione PPA', permission: 'PPA_MODULE', icon: QueueListIcon },
+        // <span style="color:green;">// NUOVO: Aggiunta la voce di menu per la gestione dei progressivi.</span>
+        // <span style="color:green;">// Il permesso richiesto è 'PROGRESSIVI_MANAGE'.</span>
+        { key: 'progressivi', label: 'Gestione Progressivi', permission: 'PROGRESSIVI_MANAGE', icon: HashtagIcon },
     ];
 
     // Filtriamo le voci di menu in base ai permessi dell'utente.
@@ -877,7 +878,9 @@ const AmministrazioneModule = () => {
             case 'utenti': return <UserManager />;
             case 'pdc': return <PianoDeiContiManager />;
             case 'mail_accounts': return <MailAccountsManager />;
-            case 'ppa': return <PPAModule />; // <-- NUOVO CASO PER IL PPA
+            case 'ppa': return <PPAModule />;
+            // <span style="color:green;">// NUOVO: Aggiunto il caso per visualizzare il nuovo componente.</span>
+            case 'progressivi': return <ProgressiviManager />;
             default: return <p className="p-6">Seleziona una voce dal menu.</p>;
         }
     };

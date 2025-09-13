@@ -5,14 +5,6 @@
 exports.up = async function(knex) {
   // Rimuove le tabelle obsolete nell'ordine corretto per rispettare le foreign keys.
   // Prima le tabelle che referenziano altre (es. pagamenti -> fatture).
-  await knex.schema.dropTableIfExists('pagamenti');
-  await knex.schema.dropTableIfExists('incassi');
-  await knex.schema.dropTableIfExists('fatture_attive');
-  await knex.schema.dropTableIfExists('fatture_passive');
-  await knex.schema.dropTableIfExists('libro_giornale');
-  await knex.schema.dropTableIfExists('iva_contabili');
-  await knex.schema.dropTableIfExists('funzioni_contabili_automatiche');
-  await knex.schema.dropTableIfExists('funzioni_contabili');
  await knex.schema.dropTableIfExists('preventivi'); 
 };
 

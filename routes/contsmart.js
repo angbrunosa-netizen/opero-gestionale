@@ -6,6 +6,7 @@
 const express = require('express');
 const { dbPool } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
+const { getNextProgressivo } = require('../utils/progressivi');
 const router = express.Router();
 const knex = require('../config/db');
 
@@ -256,10 +257,7 @@ router.get('/registrazioni', verifyToken, async (req, res) => {
 // REGISTRAZIONI CONTABILI
 // ---------------------------------------------------------------------
 
-// POST /api/contsmart/registrazioni
-// Salva una nuova registrazione contabile complessa (testata, righe, IVA, partite aperte)
-// POST /api/contsmart/registrazioni
-router.post('/registrazioni', verifyToken, async (req, res) => {
+router.post('/registrazioni', verifyToken, canPostEntries, async (req, res) => {
     const { id_ditta, id: id_utente } = req.user;
     const { testata, righe } = req.body;
 
@@ -269,64 +267,70 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
 
     let connection;
     try {
+        const numeroProtocollo = await getNextProgressivo('PROT_CONT', id_ditta);
+
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
 
-        // 1. Inserisci testata
-        const testataSql = `
-            INSERT INTO sc_registrazioni_testata 
-            (id_ditta, id_utente, data_registrazione, data_documento, numero_documento, id_anagrafica, totale_documento, descrizione) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const testataParams = [
-            id_ditta, id_utente, testata.data_registrazione, testata.data_documento,
-            testata.num_documento, testata.id_anagrafica || null, testata.totale_documento, testata.descrizione
-        ];
-        const [testataResult] = await connection.query(testataSql, testataParams);
-        const idTestata = testataResult.insertId;
+        const {
+            data_registrazione, data_documento, num_documento,
+            id_anagrafica, totale_documento, descrizione, data_scadenza
+        } = testata;
 
-        // 2. Inserisci righe
-        if (righe.length > 0) {
-            const righeSql = `
-                INSERT INTO sc_registrazioni_righe
-                (id_testata, id_ditta, id_conto, descrizione, importo_dare, importo_avere)
-                VALUES ?
-            `;
-            const righeValues = righe.map(riga => [
-                idTestata, id_ditta, riga.id_conto, riga.descrizione,
-                riga.importo_dare || 0, riga.importo_avere || 0
-            ]);
-            await connection.query(righeSql, [righeValues]);
+        if (!data_registrazione) {
+            await connection.rollback();
+            return res.status(400).json({ message: "La data di registrazione è obbligatoria." });
         }
 
-        // 3. Gestisci Partita Aperta
-        if (testata.id_anagrafica) {
-            const rigaPartitaAperta = righe.find(r =>
-                parseFloat(r.importo_dare) === parseFloat(testata.totale_documento) ||
-                parseFloat(r.importo_avere) === parseFloat(testata.totale_documento)
+        const queryTestata = `
+            INSERT INTO sc_registrazioni_testata 
+            (id_ditta, id_utente, data_registrazione, descrizione_testata, data_documento, numero_documento, totale_documento, id_ditte, numero_protocollo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const [resultTestata] = await connection.query(queryTestata, [
+            id_ditta, id_utente, data_registrazione, descrizione,
+            data_documento || null, num_documento || null, totale_documento || null,
+            id_anagrafica || null, numeroProtocollo
+        ]);
+        const idTestata = resultTestata.insertId;
+
+        for (const riga of righe) {
+            await connection.query(
+                'INSERT INTO sc_registrazioni_righe (id_testata, id_conto, descrizione_riga, importo_dare, importo_avere) VALUES (?, ?, ?, ?, ?)',
+                [ idTestata, riga.id_conto, riga.descrizione, riga.importo_dare || 0, riga.importo_avere || 0 ]
             );
-            if (rigaPartitaAperta) {
-                const paSql = `
-                    INSERT INTO sc_partite_aperte
-                    (id_ditta, id_testata, data_registrazione, id_anagrafica, importo, segno, data_scadenza, pagato)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `;
-                const paParams = [
-                    id_ditta, idTestata, testata.data_registrazione, testata.id_anagrafica,
-                    testata.totale_documento, (rigaPartitaAperta.importo_avere || 0) > 0 ? 'A' : 'D',
-                    testata.data_scadenza || testata.data_documento, false
-                ];
-                await connection.query(paSql, paParams);
-            }
+        }
+        
+        if (id_anagrafica) {
+            await connection.query(
+                'INSERT INTO sc_partite_aperte (id_ditta_anagrafica, data_scadenza, importo, data_registrazione, id_registrazione_testata) VALUES (?, ?, ?, ?, ?)',
+                [ id_anagrafica, data_scadenza || data_documento, totale_documento, data_registrazione, idTestata ]
+            );
         }
 
         await connection.commit();
-        res.status(201).json({ message: "Registrazione salvata con successo." });
 
+        // <span style="color:red;">// CORREZIONE: Creazione del messaggio di successo personalizzato.</span>
+        // <span style="color:green;">// Formattiamo la data e costruiamo la stringa come richiesto.</span>
+        const [anno, mese, giorno] = data_registrazione.split('-');
+        const dataFormattata = `${giorno}/${mese}/${anno}`;
+        const messaggioSuccesso = `Scrittura registrata con numero protocollo ${numeroProtocollo} del ${dataFormattata}`;
+
+        res.status(201).json({ 
+            success: true, 
+            message: messaggioSuccesso, 
+            id_registrazione: idTestata, 
+            numero_protocollo: numeroProtocollo 
+        });
+    
     } catch (error) {
-        if (connection) await connection.rollback();
+        if (connection) await connection.rollback(); 
         console.error("Errore durante il salvataggio della registrazione:", error);
-        res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
+        res.status(500).json({ 
+            message: 'Errore interno del server durante il salvataggio.', 
+            details: error.sqlMessage || error.message 
+        });
+    
     } finally {
         if (connection) connection.release();
     }
@@ -372,28 +376,21 @@ router.get('/pdc', verifyToken, async (req, res) => {
 // --- ROTTE FUNZIONI CONTABILI (CON NOMI TABELLA CORRETTI) ---
 
 
-// GET /funzioni - Recupera tutte le funzioni contabili con le loro righe
+// GET /api/contsmart/funzioni - Recupera tutte le funzioni contabili
+// GET /api/contsmart/funzioni - Recupera tutte le funzioni contabili
 router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
     try {
         await dbPool.query('SET SESSION group_concat_max_len = 1000000;');
         
-        // <span style="color:red;">// CORREZIONE DEFINITIVA: Aggiunto il campo 'categoria' alla SELECT</span>
-        // <span style="color:green;">// Questa modifica risolve il problema per cui il frontend non riceveva la categoria</span>
-        // <span style="color:green;">// e non poteva filtrare correttamente le anagrafiche.</span>
         const query = `
             SELECT 
-                f.id, 
-                f.nome_funzione, 
-                f.descrizione, 
-                f.tipo_funzione, 
-                f.categoria, 
+                f.id, f.nome_funzione, f.descrizione, f.tipo_funzione, f.categoria, 
                 GROUP_CONCAT(
-                    DISTINCT
-                    JSON_OBJECT(
+                    DISTINCT JSON_OBJECT(
                         'id', r.id, 
                         'id_conto', r.id_conto, 
-                        'dare_avere', r.tipo_movimento, 
+                        'tipo_movimento', r.tipo_movimento, 
                         'descrizione_riga_predefinita', r.descrizione_riga_predefinita
                     )
                 ) as righe_predefinite
@@ -410,7 +407,6 @@ router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
                 try {
                     f.righe_predefinite = JSON.parse(`[${f.righe_predefinite}]`);
                 } catch (e) {
-                    console.error("Errore nel parsing JSON per la funzione ID:", f.id);
                     f.righe_predefinite = [];
                 }
             } else {
@@ -424,25 +420,24 @@ router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     }
 });
 
-
+// POST /api/contsmart/funzioni - Crea una nuova funzione contabile
 router.post('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
-    const { nome_funzione, descrizione, tipo_funzione, righe_predefinite } = req.body;
+    const { nome_funzione, descrizione, tipo_funzione, categoria, righe_predefinite } = req.body;
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
         const [result] = await connection.query(
-            'INSERT INTO sc_funzioni_contabili (id_ditta, nome_funzione, descrizione, tipo_funzione) VALUES (?, ?, ?, ?)',
-            [id_ditta, nome_funzione, descrizione, tipo_funzione]
+            'INSERT INTO sc_funzioni_contabili (id_ditta, nome_funzione, descrizione, tipo_funzione, categoria) VALUES (?, ?, ?, ?, ?)',
+            [id_ditta, nome_funzione, descrizione, tipo_funzione, categoria]
         );
         const idFunzione = result.insertId; 
         if (righe_predefinite && righe_predefinite.length > 0) {
             for (const riga of righe_predefinite) {
-                if (riga.id_conto) { 
-                    // --- CORREZIONE DEFINITIVA: Inserimento nella colonna 'tipo_movimento' ---
+                if (riga.id_conto) {
                     await connection.query(
                         'INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita) VALUES (?, ?, ?, ?)',
-                        [idFunzione, riga.id_conto, riga.dare_avere, riga.descrizione_riga_predefinita || '']
+                        [idFunzione, riga.id_conto, riga.tipo_movimento, riga.descrizione_riga_predefinita || '']
                     );
                 }
             }
@@ -458,27 +453,26 @@ router.post('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     }
 });
 
+// PUT /api/contsmart/funzioni/:id - Aggiorna una funzione contabile
 router.put('/funzioni/:id', verifyToken, canManageFunzioni, async (req, res) => {
     const { id } = req.params; 
     const { id_ditta } = req.user;
-    const { nome_funzione, descrizione, tipo_funzione, righe_predefinite } = req.body;
+    const { nome_funzione, descrizione, tipo_funzione, categoria, righe_predefinite } = req.body;
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
         await connection.query(
-            'UPDATE sc_funzioni_contabili SET nome_funzione = ?, descrizione = ?, tipo_funzione = ? WHERE id = ? AND id_ditta = ?',
-            [nome_funzione, descrizione, tipo_funzione, id, id_ditta]
+            'UPDATE sc_funzioni_contabili SET nome_funzione = ?, descrizione = ?, tipo_funzione = ?, categoria = ? WHERE id = ? AND id_ditta = ?',
+            [nome_funzione, descrizione, tipo_funzione, categoria, id, id_ditta]
         );
         
-        // --- CORREZIONE: FK corretta ---
         await connection.query('DELETE FROM sc_funzioni_contabili_righe WHERE id_funzione_contabile = ?', [id]);
         if (righe_predefinite && righe_predefinite.length > 0) {
             for (const riga of righe_predefinite) {
                  if(riga.id_conto) { 
-                    // --- CORREZIONE DEFINITIVA: Inserimento nella colonna 'tipo_movimento' ---
                     await connection.query(
                         'INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita) VALUES (?, ?, ?, ?)',
-                        [id, riga.id_conto, riga.dare_avere, riga.descrizione_riga_predefinita || '']
+                        [id, riga.id_conto, riga.tipo_movimento, riga.descrizione_riga_predefinita || '']
                     );
                  }
             }
@@ -493,8 +487,6 @@ router.put('/funzioni/:id', verifyToken, canManageFunzioni, async (req, res) => 
         connection.release();
     }
 });
-
-
 // --- NUOVE ROTTE DI SUPPORTO PER REGISTRAZIONI ---
 
 /**
@@ -632,68 +624,73 @@ router.get('/aliquote-iva', verifyToken, async (req, res) => {
   //**********************************
   // *******************************
 
-  router.post('/registrazioni', verifyToken, canPostEntries, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    const { isFinancial, datiDocumento, righeIva, righeScrittura } = req.body;
+router.post('/registrazioni', verifyToken, canPostEntries, async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { testata, righe } = req.body;
 
-    if (!datiDocumento || !datiDocumento.data_registrazione) {
-        return res.status(400).json({ success: false, message: "La data di registrazione è obbligatoria." });
+    if (!testata || !righe || !Array.isArray(righe) || righe.length === 0) {
+        return res.status(400).json({ message: "Dati di registrazione incompleti o non validi." });
     }
-    if (!Array.isArray(righeScrittura) || righeScrittura.length === 0) {
-        return res.status(400).json({ success: false, message: 'Le righe della scrittura sono obbligatorie.' });
+
+    const {
+        data_registrazione, data_documento, num_documento,
+        id_anagrafica, totale_documento, descrizione, data_scadenza
+    } = testata;
+
+    if (!data_registrazione) {
+        return res.status(400).json({ message: "La data di registrazione è obbligatoria." });
     }
 
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // 1. Inserimento Testata
-        const [testataResult] = await connection.query(
-            'INSERT INTO sc_registrazioni_testata (id_ditta, data_registrazione, id_anagrafica, numero_documento, data_documento, data_scadenza, descrizione) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [dittaId, datiDocumento.data_registrazione, datiDocumento.id_anagrafica, datiDocumento.numero_documento, datiDocumento.data_documento, datiDocumento.data_scadenza, datiDocumento.descrizione_testata]
-        );
-        const testataId = testataResult.insertId;
+        // <span style="color:green;">// NUOVO: Ottiene il prossimo numero di protocollo prima di salvare.</span>
+        const numeroProtocollo = await getNextProgressivo('PROT_CONT', id_ditta, connection);
 
-        // 2. Inserimento Righe Scrittura
-        let idRigaCollegamentoIva = null;
-        for (const riga of righeScrittura) {
-            const [rigaResult] = await connection.query(
-                'INSERT INTO sc_registrazioni_righe (id_testata, id_conto, descrizione_riga, importo_dare, importo_avere) VALUES (?, ?, ?, ?, ?)',
-                [testataId, riga.id_conto, riga.descrizione_riga, riga.tipo_movimento === 'D' ? riga.importo : null, riga.tipo_movimento === 'A' ? riga.importo : null]
-            );
-            // Salvo l'ID della riga del fornitore/cliente per collegare il registro IVA
-            if (riga.isParteContropartitaFinanziaria) {
-                idRigaCollegamentoIva = rigaResult.insertId;
-            }
+        // 1. Inserisci la testata della registrazione, includendo il nuovo protocollo
+        const queryTestata = `
+            INSERT INTO sc_registrazioni_testata 
+            (id_ditta, id_utente, data_registrazione, descrizione_testata, data_documento, numero_documento, totale_documento, id_ditte, numero_protocollo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const [resultTestata] = await connection.query(queryTestata, [
+            id_ditta, id_utente, data_registrazione, descrizione,
+            data_documento || null, num_documento || null, totale_documento || null,
+            id_anagrafica || null, numeroProtocollo
+        ]);
+        const idTestata = resultTestata.insertId;
+
+        // 2. Inserisci le righe della scrittura (invariato)
+        for (const riga of righe) {
+            const queryRiga = `
+                INSERT INTO sc_registrazioni_righe
+                (id_testata, id_conto, descrizione_riga, importo_dare, importo_avere)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            await connection.query(queryRiga, [ idTestata, riga.id_conto, riga.descrizione, riga.importo_dare || 0, riga.importo_avere || 0 ]);
         }
-
-        // 3. Inserimento nel Registro IVA (solo per funzioni finanziarie)
-        if (isFinancial && idRigaCollegamentoIva && righeIva && righeIva.length > 0) {
-            const [anagraficaResult] = await connection.query('SELECT codice_relazione FROM anagrafiche WHERE id = ?', [datiDocumento.id_anagrafica]);
-            if (anagraficaResult.length === 0) {
-                throw new Error(`Anagrafica con ID ${datiDocumento.id_anagrafica} non trovata.`);
-            }
-            const tipoRegistro = anagraficaResult[0].codice_relazione === 'C' ? 'Vendite' : 'Acquisti';
-
-            for (const rigaIva of righeIva) {
-                if (parseFloat(rigaIva.imponibile) > 0) {
-                    await connection.query(
-                        'INSERT INTO sc_registri_iva (id_riga_registrazione, tipo_registro, data_documento, numero_documento, id_anagrafica, imponibile, aliquota_iva, importo_iva) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [idRigaCollegamentoIva, tipoRegistro, datiDocumento.data_documento, datiDocumento.numero_documento, datiDocumento.id_anagrafica, rigaIva.imponibile, rigaIva.aliquota, rigaIva.imposta]
-                    );
-                }
-            }
+        
+        // 3. Gestisci la Partita Aperta (invariato)
+        if (id_anagrafica) {
+            const queryPartitaAperta = `
+                INSERT INTO sc_partite_aperte
+                (id_ditta_anagrafica, data_scadenza, importo, data_registrazione, id_registrazione_testata)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            await connection.query(queryPartitaAperta, [ id_anagrafica, data_scadenza || data_documento, totale_documento, data_registrazione, idTestata ]);
         }
 
         await connection.commit();
-        res.status(201).json({ success: true, message: 'Registrazione creata con successo.', id_testata: testataId });
-
+        res.status(201).json({ success: true, message: 'Registrazione salvata con successo.', id_registrazione: idTestata, numero_protocollo: numeroProtocollo });
+    
     } catch (error) {
-        await connection.rollback();
-        console.error("Errore salvataggio registrazione complessa:", error);
-        res.status(500).json({ success: false, message: error.message || 'Errore interno del server.' });
+        if (connection) await connection.rollback(); 
+        console.error("Errore durante il salvataggio della registrazione:", error);
+        res.status(500).json({ message: error.message || 'Errore interno del server durante il salvataggio.' });
+    
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 });
 
@@ -713,20 +710,24 @@ router.get('/aliquote-iva', verifyToken, async (req, res) => {
  */
 router.get('/reports/giornale', verifyToken, canViewReports, async (req, res) => {
     const { id_ditta } = req.user;
-    const { startDate, endDate } = req.query;
+    const { data_inizio, data_fine } = req.query;
 
-    if (!startDate || !endDate) {
+    if (!data_inizio || !data_fine) {
         return res.status(400).json({ success: false, message: 'Le date di inizio e fine sono obbligatorie.' });
     }
 
     try {
+        // <span style="color:red;">// CORREZIONE DEFINITIVA: I nomi delle colonne sono stati allineati allo schema del database.</span>
+        // <span style="color:green;">// 't.descrizione' è diventato 't.descrizione_testata'.</span>
+        // <span style="color:green;">// 'r.descrizione' è diventato 'r.descrizione_riga'.</span>
         const query = `
             SELECT 
                 t.id AS id_testata,
                 t.data_registrazione,
-                t.descrizione AS descrizione_testata,
+                t.numero_protocollo,
+                t.descrizione_testata,
                 r.id AS id_riga,
-                r.descrizione AS descrizione_riga,
+                r.descrizione_riga,
                 r.id_conto,
                 pc.codice AS codice_conto,
                 pc.descrizione AS descrizione_conto,
@@ -736,17 +737,21 @@ router.get('/reports/giornale', verifyToken, canViewReports, async (req, res) =>
             JOIN sc_registrazioni_righe r ON t.id = r.id_testata
             JOIN sc_piano_dei_conti pc ON r.id_conto = pc.id
             WHERE t.id_ditta = ? AND t.data_registrazione BETWEEN ? AND ?
-            ORDER BY t.data_registrazione, t.id, r.id;
+            ORDER BY t.data_registrazione, t.numero_protocollo, r.id;
         `;
-        const [rows] = await dbPool.query(query, [id_ditta, startDate, endDate]);
-        res.status(200).json({ success: true, data: rows });
+        
+        const [rows] = await dbPool.query(query, [id_ditta, data_inizio, data_fine]);
+        res.json({ success: true, data: rows });
 
     } catch (error) {
         console.error("Errore nel recupero del libro giornale:", error);
-        res.status(500).json({ success: false, message: "Errore del server durante il recupero dei dati." });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Errore interno del server durante il recupero del libro giornale.',
+            details: error.sqlMessage || error.message
+        });
     }
 });
-
 /**
  * @route GET /api/contsmart/reports/scheda-contabile
  * @description Recupera i movimenti di un singolo conto (scheda contabile/partitario).
@@ -755,56 +760,56 @@ router.get('/reports/giornale', verifyToken, canViewReports, async (req, res) =>
  * @param {string} endDate - Data di fine (YYYY-MM-DD)
  * @param {number} contoId - ID del conto dal piano dei conti
  */
+// <span style="color:green;">// NUOVO: GET /api/contsmart/reports/scheda-contabile - Genera i dati per la scheda contabile di un conto.</span>
 router.get('/reports/scheda-contabile', verifyToken, canViewReports, async (req, res) => {
     const { id_ditta } = req.user;
-    const { startDate, endDate, contoId } = req.query;
+    const { id_conto, data_inizio, data_fine } = req.query;
 
-    if (!startDate || !endDate || !contoId) {
-        return res.status(400).json({ success: false, message: 'Le date e l\'ID del conto sono obbligatori.' });
+    if (!id_conto || !data_inizio || !data_fine) {
+        return res.status(400).json({ success: false, message: 'ID Conto, data di inizio e fine sono obbligatori.' });
     }
 
-    let connection;
+    const connection = await dbPool.getConnection();
     try {
-        connection = await dbPool.getConnection();
-        
         // 1. Calcola il saldo iniziale
         const saldoQuery = `
-            SELECT 
-                COALESCE(SUM(r.importo_dare), 0) - COALESCE(SUM(r.importo_avere), 0) AS saldo_iniziale
+            SELECT (SUM(COALESCE(r.importo_dare, 0)) - SUM(COALESCE(r.importo_avere, 0))) as saldo_iniziale
             FROM sc_registrazioni_righe r
             JOIN sc_registrazioni_testata t ON r.id_testata = t.id
-            WHERE t.id_ditta = ? AND r.id_conto = ? AND t.data_registrazione < ?;
+            WHERE r.id_conto = ? AND t.id_ditta = ? AND t.data_registrazione < ?
         `;
-        const [saldoRows] = await connection.query(saldoQuery, [id_ditta, contoId, startDate]);
-        const saldo_iniziale = saldoRows[0].saldo_iniziale;
+        const [saldoRows] = await connection.query(saldoQuery, [id_conto, id_ditta, data_inizio]);
+        const saldo_iniziale = saldoRows[0]?.saldo_iniziale || 0;
 
         // 2. Recupera i movimenti nel periodo
         const movimentiQuery = `
             SELECT 
-                t.id AS id_testata,
                 t.data_registrazione,
-                t.descrizione AS descrizione_testata,
-                r.id AS id_riga,
-                r.descrizione AS descrizione_riga,
+                t.numero_protocollo,
+                t.descrizione_testata,
+                r.descrizione_riga,
                 r.importo_dare,
                 r.importo_avere
-            FROM sc_registrazioni_testata t
-            JOIN sc_registrazioni_righe r ON t.id = r.id_testata
-            WHERE t.id_ditta = ? AND r.id_conto = ? AND t.data_registrazione BETWEEN ? AND ?
-            ORDER BY t.data_registrazione, t.id, r.id;
+            FROM sc_registrazioni_righe r
+            JOIN sc_registrazioni_testata t ON r.id_testata = t.id
+            WHERE r.id_conto = ? AND t.id_ditta = ? AND t.data_registrazione BETWEEN ? AND ?
+            ORDER BY t.data_registrazione, t.numero_protocollo, r.id
         `;
-        const [movimenti] = await connection.query(movimentiQuery, [id_ditta, contoId, startDate, endDate]);
-        
-        connection.release();
-        res.status(200).json({ success: true, data: { saldo_iniziale, movimenti } });
+        const [movimenti] = await connection.query(movimentiQuery, [id_conto, id_ditta, data_inizio, data_fine]);
+
+        res.json({ success: true, data: { saldo_iniziale, movimenti } });
 
     } catch (error) {
-        if(connection) connection.release();
         console.error("Errore nel recupero della scheda contabile:", error);
-        res.status(500).json({ success: false, message: "Errore del server durante il recupero dei dati." });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Errore interno del server.',
+            details: error.sqlMessage || error.message
+        });
+    } finally {
+        if (connection) connection.release();
     }
 });
-
 
 /**
  * @route GET /api/contsmart/reports/bilancio-verifica
@@ -1056,6 +1061,29 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
     } catch (error) {
         console.error("Errore durante il salvataggio della registrazione:", error);
         res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
+    }
+});
+
+// ---------------------------------------------------------------------
+// REPORTISTICA
+// ---------------------------------------------------------------------
+
+// <span style="color:green;">// NUOVO: GET /api/contsmart/pdc-flat - Restituisce un elenco "piatto" dei sottoconti.</span>
+// <span style="color:green;">// Questa rotta risolve l'errore 404 segnalato.</span>
+router.get('/pdc-flat', verifyToken, canViewReports, async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const query = `
+            SELECT id, codice, descrizione 
+            FROM sc_piano_dei_conti 
+            WHERE id_ditta = ? AND tipo = 'Sottoconto' 
+            ORDER BY codice ASC
+        `;
+        const [conti] = await dbPool.query(query, [id_ditta]);
+        res.json({ success: true, data: conti });
+    } catch (error) {
+        console.error("Errore nel recupero del piano dei conti flat:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
