@@ -1,37 +1,46 @@
 // #####################################################################
-// # Caricatore di Moduli Dinamico - v2.0 (con Registro)
-// # File: opero-frontend/src/components/ModuleLoader.js
+// # Caricatore di Moduli v3.0 (Allineato al Registro Unificato)
+// # File: opero-gestionale/opero-frontend/src/components/ModuleLoader.js
 // #####################################################################
 
-import React from 'react';
-import { getModuleComponent } from '../lib/moduleRegistry'; // Importiamo la nostra nuova funzione
+import React, { Suspense } from 'react';
+// Importiamo 'componentMap' dal registro dei moduli.
+import { componentMap } from '../lib/moduleRegistry'; 
+import { ArrowPathIcon } from '@heroicons/react/24/solid';
+
+// Componente per mostrare un indicatore di caricamento mentre il modulo viene scaricato.
+const LoadingFallback = () => (
+    <div className="flex items-center justify-center h-full">
+        <ArrowPathIcon className="h-8 w-8 animate-spin text-slate-500" />
+    </div>
+);
 
 /**
- * Componente che riceve una chiave testuale e renderizza il modulo corretto.
- * @param {object} props
- * @param {string} props.moduleKey - La chiave univoca del modulo (es. 'AMMINISTRAZIONE').
+ * Questo componente agisce come un "router" per visualizzare il modulo corretto
+ * in base alla chiave del modulo attivo passata come prop.
  */
 const ModuleLoader = ({ moduleKey }) => {
-  // Otteniamo il componente dal nostro registro
-  const ModuleComponent = getModuleComponent(moduleKey);
+    // Selezioniamo il componente direttamente dalla mappa.
+    const ComponentToRender = componentMap[moduleKey];
 
-  // Se la chiave non corrisponde a nessun componente, mostriamo un messaggio.
-  if (!ModuleComponent) {
+    if (!ComponentToRender) {
+        // Messaggio di fallback se nessun modulo è selezionato o la chiave non è valida.
+        return (
+            <div className="p-6 text-center text-slate-600">
+                <h2 className="text-xl font-semibold">Benvenuto in Opero</h2>
+                <p>Seleziona un modulo dalla barra laterale per iniziare.</p>
+            </div>
+        );
+    }
+
+    // React.Suspense è necessario per gestire il caricamento "lazy" dei componenti.
+    // Mostra il componente 'LoadingFallback' mentre il codice del modulo viene scaricato.
     return (
-      <div className="text-center p-8 bg-yellow-100 border border-yellow-400 rounded">
-        <h2 className="text-xl font-semibold">Modulo non implementato</h2>
-        <p>Il modulo con chiave '<strong>{moduleKey}</strong>' non è stato ancora configurato nel file `moduleRegistry.js`.</p>
-      </div>
+        <Suspense fallback={<LoadingFallback />}>
+            <ComponentToRender />
+        </Suspense>
     );
-  }
-
-  // Usiamo Suspense per mostrare un messaggio di caricamento mentre il componente
-  // del modulo viene scaricato dal browser.
-  return (
-    <React.Suspense fallback={<div className="text-center p-8">Caricamento modulo...</div>}>
-      <ModuleComponent />
-    </React.Suspense>
-  );
 };
 
 export default ModuleLoader;
+

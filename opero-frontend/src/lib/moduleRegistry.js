@@ -1,45 +1,85 @@
 // #####################################################################
-// # Registro dei Moduli - v1.0
-// # File: opero-frontend/src/lib/moduleRegistry.js
+// # Registro Centrale dei Moduli v3.1 (Unificato e Allineato)
+// # File: opero-gestionale/opero-frontend/src/lib/moduleRegistry.js
 // #####################################################################
 
 import React from 'react';
-// File: opero-frontend/src/lib/moduleRegistry.js
-// ... altri import
-import PPAModule from '../components/PPAModule'; // Aggiungi questo
+import { 
+    HomeIcon, 
+    CalculatorIcon, 
+    CogIcon, 
+    UsersIcon, 
+    ChartBarIcon, 
+    EnvelopeIcon,
+    BanknotesIcon 
+} from '@heroicons/react/24/outline';
 
+// --- Definizione del Menu Laterale (per la UI) ---
+// Questo array definisce l'aspetto, l'ordine e i permessi di ogni voce nel menu.
+// La 'key' di ogni oggetto DEVE corrispondere a una chiave in 'componentMap'.
+export const modules = [
+    {
+        key: 'DASHBOARD',
+        label: 'Dashboard',
+        icon: HomeIcon,
+        permission: 'DASHBOARD_VIEW'
+    },
+    {
+        key: 'CONT_SMART', // Chiave utilizzata nel tuo componentMap
+        label: 'Contabilità',
+        icon: CalculatorIcon,
+        permission: 'CONT_SMART_MODULE'
+    },
+    {
+        key: 'PPA_MODULE', // Chiave utilizzata nel tuo componentMap
+        label: 'Processi',
+        icon: ChartBarIcon,
+        permission: 'PPA_MODULE'
+    },
+    {
+        key: 'FIN_SMART', // Chiave utilizzata nel tuo componentMap
+        label: 'Finanze',
+        icon: BanknotesIcon,
+        permission: 'FINANZE_VIEW'
+    },
+    {
+        key: 'MAIL', // Chiave utilizzata nel tuo componentMap
+        label: 'Posta',
+        icon: EnvelopeIcon,
+        permission: 'MAIL_MODULE'
+    },
+    {
+        key: 'AMMINISTRAZIONE', // Chiave utilizzata nel tuo componentMap
+        label: 'Amministrazione',
+        icon: UsersIcon,
+        permission: 'AMMINISTRAZIONE_MODULE'
+    },
+    {
+        key: 'ADMIN_PANEL', // Chiave utilizzata nel tuo componentMap
+        label: 'Admin Sistema',
+        icon: CogIcon,
+        permission: 'ADMIN_PANEL_VIEW'
+    }
+];
 
-// Importiamo tutti i componenti "contenitore" dei nostri moduli in modo 'lazy'
-// per ottimizzare il caricamento dell'applicazione (code-splitting).
-const AmministrazioneModule = React.lazy(() => import('../components/AmministrazioneModule'));
+// --- Mappatura dei Componenti (per la logica di caricamento) ---
+// Usiamo React.lazy per il code-splitting, migliorando le performance.
+const Dashboard = React.lazy(() => import('../components/Dashboard'));
 const ContSmartModule = React.lazy(() => import('../components/ContSmartModule'));
+const PPAModule = React.lazy(() => import('../components/PPAModule'));
+const FinanzeModule = React.lazy(() => import('../components/FinanzeModule'));
 const MailModule = React.lazy(() => import('../components/MailModule'));
+const AmministrazioneModule = React.lazy(() => import('../components/AmministrazioneModule'));
 const AdminPanel = React.lazy(() => import('../components/AdminPanel'));
-const moduleRegistry = { 
-    'PPA_MODULE': PPAModule, // Aggiungi questa riga
-};
 
-// Aggiungi qui i futuri moduli che creerai...
-// const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
-
-/**
- * Mappatura statica tra la chiave univoca (dal DB) e il componente React.
- * Questa è l'unica parte di codice che dovrai modificare quando aggiungi un nuovo modulo.
- */
-const componentMap = {
-  AMMINISTRAZIONE: AmministrazioneModule,
+// Questa mappa collega la 'key' definita sopra al componente React da caricare.
+export const componentMap = {
+  DASHBOARD: Dashboard,
   CONT_SMART: ContSmartModule,
+  PPA_MODULE: PPAModule,
+  FIN_SMART: FinanzeModule,
   MAIL: MailModule,
+  AMMINISTRAZIONE: AmministrazioneModule,
   ADMIN_PANEL: AdminPanel,
-  PPA_MODULE: PPAModule, // Aggiunto PPA alla mappa principale per coerenza
-};
-
-/**
- * Funzione che restituisce un componente React basato sulla sua chiave.
- * @param {string} componentKey - La chiave univoca del componente (es. 'AMMINISTRAZIONE').
- * @returns {React.Component | null} Il componente React corrispondente o null se non trovato.
- */
-export const getModuleComponent = (componentKey) => {
-  return componentMap[componentKey] || null;
 };
 

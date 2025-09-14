@@ -827,4 +827,22 @@ router.get('/ditte', verifyToken, async (req, res) => {
 });
 
 
+router.get('/ditta-info', verifyToken, async (req, res) => {
+    // L'id_ditta viene estratto dal token JWT, garantendo che l'utente
+    // possa vedere solo i dati della propria azienda.
+    const { id_ditta } = req.user;
+    try {
+        const [rows] = await dbPool.query(
+            'SELECT ragione_sociale, indirizzo, citta, provincia, cap, p_iva, codice_fiscale FROM ditte WHERE id = ?',
+            [id_ditta]
+        );
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Dati della ditta non trovati.' });
+        }
+        res.json({ success: true, data: rows[0] });
+    } catch (error) {
+        console.error("Errore nel recupero dei dati della ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
 module.exports = router;

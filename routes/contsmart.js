@@ -1063,6 +1063,48 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
         res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
     }
 });
+// GET /api/contsmart/partite-aperte - Recupera le partite aperte (crediti o debiti)
+router.get('/partite-aperte', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { tipo } = req.query; // 'attive' per i crediti, 'passive' per i debiti
+
+    if (!tipo || !['attive', 'passive'].includes(tipo)) {
+        return res.status(400).json({ success: false, message: "Il tipo di partita ('attive' o 'passive') è obbligatorio." });
+    }
+
+    // Determina i codici di relazione da cercare in base al tipo richiesto
+    const codiciRelazione = (tipo === 'attive') ? ['C', 'E'] : ['F', 'E'];
+
+    try {
+        const query = `
+            SELECT 
+                pa.id,
+                pa.data_scadenza,
+                pa.importo,
+                pa.stato,
+                pa.id_registrazione_testata,
+                d.ragione_sociale,
+                rt.numero_documento,
+                rt.data_documento
+            FROM sc_partite_aperte pa
+            JOIN ditte d ON pa.id_ditta_anagrafica = d.id
+            LEFT JOIN sc_registrazioni_testata rt ON pa.id_registrazione_testata = rt.id
+            WHERE 
+                d.id_ditta_proprietaria = ? 
+                AND pa.stato = 'APERTA'
+                AND d.codice_relazione IN (?)
+            ORDER BY d.ragione_sociale, pa.data_scadenza;
+        `;
+        
+        const [partite] = await dbPool.query(query, [id_ditta, codiciRelazione]);
+        res.json({ success: true, data: partite });
+
+    } catch (error) {
+        console.error(`Errore nel recupero delle partite ${tipo}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 
 // ---------------------------------------------------------------------
 // REPORTISTICA

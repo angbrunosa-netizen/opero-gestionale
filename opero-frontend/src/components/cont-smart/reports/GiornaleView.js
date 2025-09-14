@@ -1,12 +1,13 @@
 // #####################################################################
-// # Componente per la Visualizzazione del Libro Giornale v2.0
+// # Componente per la Visualizzazione del Libro Giornale v2.3 (Fix Definitivo Export PDF)
 // # File: opero-gestionale/opero-frontend/src/components/cont-smart/reports/GiornaleView.js
 // #####################################################################
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../services/api';
-import { ArrowPathIcon, MagnifyingGlassIcon,ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, MagnifyingGlassIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
+// Funzione per caricare script esterni dinamicamente
 const loadScript = (src) => {
     return new Promise((resolve, reject) => {
         if (document.querySelector(`script[src="${src}"]`)) {
@@ -20,47 +21,57 @@ const loadScript = (src) => {
         document.body.appendChild(script);
     });
 };
+
 const GiornaleView = () => {
     const [righe, setRighe] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
- const [scriptsLoaded, setScriptsLoaded] = useState(false);
-    // Funzioni per impostare le date di default
+    const [scriptsLoaded, setScriptsLoaded] = useState(false);
+    const [dittaInfo, setDittaInfo] = useState(null); // NUOVO: Stato per i dati della ditta
     const getToday = () => new Date().toISOString().split('T')[0];
     const getStartOfYear = () => new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0];
 
-    // Stato per i filtri di data
     const [filtri, setFiltri] = useState({
         data_inizio: getStartOfYear(),
         data_fine: getToday()
     });
-    // Funzione per caricare script esterni dinamicamente
 
+   // Carica le librerie per l'export PDF e i dati della ditta
+   // Carica le librerie per l'export PDF e i dati della ditta
+    useEffect(() => {
+        Promise.all([
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"),
+            api.get('/amministrazione/ditta-info') // Chiamata per i dati dell'azienda
+        ]).then(([, , dittaRes]) => {
+            if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.API.autoTable === 'function') {
+                setScriptsLoaded(true);
+            }
+            setDittaInfo(dittaRes.data.data);
+        }).catch(error => {
+            console.error("Errore nel caricamento iniziale:", error);
+            setError("Impossibile caricare le risorse necessarie per il report.");
+        });
+    }, []);
 
 
     const fetchData = useCallback(async () => {
         if (!filtri.data_inizio || !filtri.data_fine) {
-            setError("Le date di inizio e fine sono obbligatorie per la ricerca.");
+            setError("Le date di inizio e fine sono obbligatorie.");
             return;
         }
         setIsLoading(true);
         setError('');
         try {
-            // La chiamata API ora include i parametri per le date
-            const response = await api.get('/contsmart/reports/giornale', {
-                params: filtri
-            });
+            const response = await api.get('/contsmart/reports/giornale', { params: filtri });
             setRighe(response.data.data || []);
         } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Errore sconosciuto.';
-            setError(`Impossibile caricare i dati del libro giornale: ${errorMessage}`);
-            console.error(err);
+            setError('Impossibile caricare i dati: ' + (err.response?.data?.message || err.message));
         } finally {
             setIsLoading(false);
         }
     }, [filtri]);
 
-    // Carica i dati al primo rendering del componente
     useEffect(() => {
         fetchData();
     }, [fetchData]);
@@ -75,7 +86,6 @@ const GiornaleView = () => {
         fetchData();
     };
 
-    // Raggruppa le righe per testata per una visualizzazione chiara
     const registrazioniRaggruppate = righe.reduce((acc, riga) => {
         if (!acc[riga.id_testata]) {
             acc[riga.id_testata] = {
@@ -93,7 +103,7 @@ const GiornaleView = () => {
         acc[riga.id_testata].totale_avere += parseFloat(riga.importo_avere);
         return acc;
     }, {});
-
+    
     const handleExportCSV = () => {
         if (righe.length === 0) return;
         
@@ -125,54 +135,87 @@ const GiornaleView = () => {
     };
 
     const handleExportPDF = () => {
-        if (Object.keys(registrazioniRaggruppate).length === 0 || !scriptsLoaded) return;
+        if (!scriptsLoaded || !dittaInfo || righe.length === 0) {
+            alert("Dati o librerie per la generazione del PDF non sono pronti. Riprova.");
+            return;
+        }
+        
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
-        doc.setFontSize(18);
-        doc.text("Libro Giornale", 14, 22);
-        doc.setFontSize(11);
-        doc.text(`Periodo dal ${new Date(filtri.data_inizio).toLocaleDateString('it-IT')} al ${new Date(filtri.data_fine).toLocaleDateString('it-IT')}`, 14, 30);
+        // Prepara i dati per la tabella, aggiungendo una proprietà 'meta' per il tracciamento
+        const tableBody = righe.map(riga => ({
+            data: new Date(riga.data_registrazione).toLocaleDateString('it-IT'),
+            protocollo: riga.numero_protocollo,
+            conto: `${riga.codice_conto} - ${riga.descrizione_conto}`,
+            descrizione: riga.descrizione_riga || riga.descrizione_testata,
+            dare: parseFloat(riga.importo_dare),
+            avere: parseFloat(riga.importo_avere),
+            meta: {} // Oggetto per memorizzare la pagina di appartenenza
+        }));
 
-        let startY = 40;
-        
-        Object.values(registrazioniRaggruppate).forEach(reg => {
-            if (startY > 260) { // Page break
-                doc.addPage();
-                startY = 20;
-            }
-            
-            doc.setFontSize(10);
-            doc.setFont(undefined, 'bold');
-            doc.text(`Prot. ${reg.numero_protocollo} del ${new Date(reg.data_registrazione).toLocaleDateString('it-IT')} - ${reg.descrizione_testata}`, 14, startY);
-            
-            const tableBody = reg.righe.map(r => [
-                `${r.codice_conto} - ${r.descrizione_conto}`,
-                r.descrizione_riga,
-                parseFloat(r.importo_dare).toFixed(2),
-                parseFloat(r.importo_avere).toFixed(2)
-            ]);
-            
-            tableBody.push([
-                { content: 'Totali', colSpan: 1, styles: { halign: 'right', fontStyle: 'bold' } },
-                '',
-                { content: reg.totale_dare.toFixed(2), styles: { halign: 'right', fontStyle: 'bold' } },
-                { content: reg.totale_avere.toFixed(2), styles: { halign: 'right', fontStyle: 'bold' } }
-            ]);
+        doc.autoTable({
+            head: [['Data', 'Prot.', 'Conto', 'Descrizione', 'Dare', 'Avere']],
+            body: tableBody.map(r => Object.values(r).slice(0, -1)), // Passa solo i dati, non 'meta'
+            theme: 'grid',
+            startY: 40,
+            margin: { top: 35, bottom: 25 },
+            // Questo hook viene eseguito per ogni cella e ci permette di "marcare" ogni riga con il suo numero di pagina
+            willDrawCell: (data) => {
+                if (data.section === 'body') {
+                    // La riga originale è in data.row.raw
+                    const originalRow = tableBody[data.row.index];
+                    if (originalRow) {
+                        originalRow.meta.pageNumber = data.pageNumber;
+                    }
+                }
+            },
+            didDrawPage: (data) => {
+                // --- Intestazione ---
+                doc.setFontSize(14); doc.setFont(undefined, 'bold');
+                doc.text(dittaInfo.ragione_sociale, 14, 15);
+                doc.setFontSize(9); doc.setFont(undefined, 'normal');
+                doc.text(`${dittaInfo.indirizzo} - ${dittaInfo.cap} ${dittaInfo.citta} (${dittaInfo.provincia})`, 14, 21);
+                doc.text(`P.IVA: ${dittaInfo.p_iva} - C.F: ${dittaInfo.codice_fiscale}`, 14, 26);
+                doc.setFontSize(14); doc.setFont(undefined, 'bold');
+                doc.text("Libro Giornale", doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+                doc.setFontSize(8);
+                doc.text(`Stampa del: ${new Date().toLocaleDateString('it-IT')}`, doc.internal.pageSize.getWidth() - 14, 15, { align: 'right' });
+                doc.text(`Pagina ${data.pageNumber}`, doc.internal.pageSize.getWidth() - 14, 20, { align: 'right' });
+                
+                // --- Calcolo e Stampa dei Riporti e Totali ---
+                
+                // Calcola il riporto dalle pagine PRECEDENTI
+                const riportoDare = tableBody
+                    .filter(row => row.meta.pageNumber < data.pageNumber)
+                    .reduce((sum, row) => sum + row.dare, 0);
+                const riportoAvere = tableBody
+                    .filter(row => row.meta.pageNumber < data.pageNumber)
+                    .reduce((sum, row) => sum + row.avere, 0);
 
-            doc.autoTable({
-                startY: startY + 2,
-                head: [['Conto', 'Descrizione', 'Dare', 'Avere']],
-                body: tableBody,
-                theme: 'grid',
-                headStyles: { fillColor: [74, 85, 104] }, // slate-700
-                footStyles: { fontStyle: 'bold', fillColor: [241, 245, 249] }, // slate-100
-            });
-            
-            startY = doc.lastAutoTable.finalY + 10;
+                if (data.pageNumber > 1) {
+                    const riportoText = `Riporto dalla pagina precedente: Dare ${riportoDare.toFixed(2)} - Avere ${riportoAvere.toFixed(2)}`;
+                    doc.setFontSize(7);
+                    doc.setFont(undefined, 'italic');
+                    doc.text(riportoText, 14, 34);
+                }
+
+                // Calcola i totali progressivi FINO ALLA PAGINA CORRENTE
+                const totaleDareProgressivo = tableBody
+                    .filter(row => row.meta.pageNumber <= data.pageNumber)
+                    .reduce((sum, row) => sum + row.dare, 0);
+                const totaleAvereProgressivo = tableBody
+                    .filter(row => row.meta.pageNumber <= data.pageNumber)
+                    .reduce((sum, row) => sum + row.avere, 0);
+                
+                const totaliText = `Totali a riportare: Dare ${totaleDareProgressivo.toFixed(2)} - Avere ${totaleAvereProgressivo.toFixed(2)}`;
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'bold');
+                doc.text(totaliText, 14, doc.internal.pageSize.getHeight() - 15);
+            },
         });
 
-        doc.save('libro_giornale.pdf');
+        doc.save(`Libro_Giornale_${filtri.data_inizio}_${filtri.data_fine}.pdf`);
     };
 
     return (
@@ -202,11 +245,10 @@ const GiornaleView = () => {
                         className="block w-full text-sm rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     />
                 </div>
-                <div className="self-end">
-                    <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 transition-colors">
+                <div className="self-end flex gap-2">
+                    <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700">
                         <MagnifyingGlassIcon className="h-5 w-5" /> Cerca
                     </button>
-                    {/* Pulsanti di Esportazione */}
                     <button type="button" onClick={handleExportCSV} disabled={righe.length === 0} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 disabled:bg-slate-400">
                         <ArrowDownTrayIcon className="h-5 w-5" /> CSV
                     </button>
@@ -216,9 +258,6 @@ const GiornaleView = () => {
                 </div>
             </form>
 
-            {isLoading && <div className="text-center p-8"><ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-slate-500" /></div>}
-            {error && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert"><p className="font-bold">Errore</p><p>{error}</p></div>}
-            
             {!isLoading && !error && (
                 <div className="space-y-4">
                     {Object.values(registrazioniRaggruppate).map(reg => (
@@ -263,3 +302,4 @@ const GiornaleView = () => {
 };
 
 export default GiornaleView;
+
