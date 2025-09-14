@@ -1,14 +1,14 @@
 // #####################################################################
-// # Componente Gestione Partite Aperte v2.0 (Refactoring con DynamicReportTable)
+// # Componente Gestione Partite Aperte v2.1 (Fix: Esportazione Componente)
 // # File: opero-gestionale/opero-frontend/src/components/finanze/PartiteAperteManager.js
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../../services/api';
-import DynamicReportTable from '../../shared/DynamicReportTable'; // NUOVO: Importazione del componente dinamico
+import DynamicReportTable from '../../shared/DynamicReportTable';
 import { ArrowPathIcon, DocumentTextIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
-// Funzione per caricare script esterni per il PDF
+// Funzione per caricare script esterni per il PDF (invariata)
 const loadScript = (src) => {
     return new Promise((resolve, reject) => {
         if (document.querySelector(`script[src="${src}"]`)) {
@@ -22,7 +22,9 @@ const loadScript = (src) => {
     });
 };
 
-const PartiteAperteManager = () => {
+// CORREZIONE: Il componente è ora dichiarato come una "named export".
+// La parola chiave "export" viene aggiunta prima di "const".
+export const PartiteAperteManager = () => {
     const [activeTab, setActiveTab] = useState('attive'); // 'attive' o 'passive'
     const [partite, setPartite] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]); // NUOVO: Stato di selezione "piatto"
@@ -30,132 +32,111 @@ const PartiteAperteManager = () => {
     const [error, setError] = useState('');
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
 
-    // Carica le librerie per l'export PDF
+    // Caricamento script per PDF
     useEffect(() => {
         Promise.all([
-            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
-            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js")
-        ]).then(() => setScriptsLoaded(true)).catch(err => console.error("Errore caricamento script PDF:", err));
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js')
+        ]).then(() => {
+            setScriptsLoaded(true);
+        }).catch(err => {
+            console.error(err);
+            setError('Impossibile caricare le librerie per la generazione PDF.');
+        });
     }, []);
-
-    const fetchData = useCallback(async () => {
+    
+    const fetchPartite = useCallback(async () => {
         setIsLoading(true);
         setError('');
-        setSelectedIds([]); // Resetta la selezione al cambio tab o al refresh
         try {
-            const response = await api.get('/contsmart/partite-aperte', { params: { tipo: activeTab } });
-            setPartite(response.data.data || []);
+            const endpoint = activeTab === 'attive' ? '/reports/partite-aperte/attive' : '/reports/partite-aperte/passive';
+            const response = await api.get(endpoint);
+            setPartite(response.data);
+            setSelectedIds([]); // Deseleziona tutto al cambio tab o refresh
         } catch (err) {
-            setError('Impossibile caricare le partite aperte. ' + (err.response?.data?.message || err.message));
+            console.error("Errore nel recupero delle partite aperte:", err);
+            setError('Impossibile caricare i dati. Riprovare più tardi.');
         } finally {
             setIsLoading(false);
         }
     }, [activeTab]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    const handleSelect = (id) => {
-        setSelectedIds(prev => 
-            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-        );
+        fetchPartite();
+    }, [fetchPartite]);
+    
+    const handleSelectionChange = (newSelectedIds) => {
+        setSelectedIds(newSelectedIds);
     };
 
-    const handleSelectAll = (currentData) => {
-        if (selectedIds.length === currentData.length) {
-            setSelectedIds([]);
-        } else {
-            setSelectedIds(currentData.map(item => item.id));
-        }
-    };
+    const columns = useMemo(() => [
+        { key: 'ragione_sociale', label: 'Cliente/Fornitore', sortable: true },
+        { key: 'numero_documento', label: 'Num. Doc.', sortable: true },
+        { key: 'data_documento', label: 'Data Doc.', sortable: true, format: 'date' },
+        { key: 'data_scadenza', label: 'Scadenza', sortable: true, format: 'date', highlight: (value) => new Date(value) < new Date() },
+        { key: 'importo_scaduto', label: 'Importo', sortable: true, format: 'currency' },
+        { key: 'giorni_ritardo', label: 'Ritardo (gg)', sortable: true, align: 'center' }
+    ], []);
 
     const handleGeneratePDF = () => {
-        if (!scriptsLoaded) {
-            alert("Libreria PDF non ancora caricata. Riprova tra un momento.");
+        if (!scriptsLoaded || !window.jspdf) {
+            setError('Libreria PDF non ancora caricata.');
             return;
         }
-        const itemsToPrint = partite.filter(item => selectedIds.includes(item.id));
-        if (itemsToPrint.length === 0) {
-            alert("Seleziona almeno una partita per generare l'estratto conto.");
-            return;
-        }
-
-        // Raggruppa gli elementi selezionati per anagrafica
-        const groupedByAnagrafica = itemsToPrint.reduce((acc, p) => {
-            (acc[p.ragione_sociale] = acc[p.ragione_sociale] || []).push(p);
-            return acc;
-        }, {});
-
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        let startY = 22;
-
-        doc.setFontSize(18);
-        doc.text("Estratto Conto Partite Scoperte", 14, startY);
-        startY += 8;
-        doc.setFontSize(11);
-        doc.text(`Situazione al: ${new Date().toLocaleDateString('it-IT')}`, 14, startY);
-        startY += 10;
         
-        for (const anagrafica in groupedByAnagrafica) {
-            if (startY > 250) {
-                doc.addPage();
-                startY = 22;
-            }
+        const selectedPartite = partite.filter(p => selectedIds.includes(p.id));
+        if (selectedPartite.length === 0) return;
 
-            doc.setFontSize(14);
-            doc.setFont(undefined, 'bold');
-            doc.text(anagrafica, 14, startY);
-            startY += 7;
+        const first = selectedPartite[0];
+        const title = activeTab === 'attive' ? `Estratto Conto Cliente: ${first.ragione_sociale}` : `Estratto Conto Fornitore: ${first.ragione_sociale}`;
+        
+        doc.setFontSize(18);
+        doc.text(title, 14, 22);
 
-            const items = groupedByAnagrafica[anagrafica];
-            const tableBody = items.map(item => [
-                item.numero_documento || 'N/D',
+        const tableColumn = ["Num. Doc.", "Data Doc.", "Scadenza", "Importo", "Ritardo (gg)"];
+        const tableRows = [];
+
+        selectedPartite.forEach(item => {
+            const ticketData = [
+                item.numero_documento,
                 new Date(item.data_documento).toLocaleDateString('it-IT'),
                 new Date(item.data_scadenza).toLocaleDateString('it-IT'),
-                parseFloat(item.importo).toFixed(2) + ' €'
-            ]);
-            const total = items.reduce((sum, item) => sum + parseFloat(item.importo), 0);
-            
-            doc.autoTable({
-                startY: startY,
-                head: [['N. Doc', 'Data Doc.', 'Scadenza', 'Importo']],
-                body: tableBody,
-                theme: 'striped',
-                foot: [['', '', 'Totale', `${total.toFixed(2)} €`]],
-                footStyles: { fontStyle: 'bold', fontSize: 10 },
-            });
-            startY = doc.lastAutoTable.finalY + 15;
-        }
+                new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(item.importo_scaduto),
+                item.giorni_ritardo,
+            ];
+            tableRows.push(ticketData);
+        });
 
-        doc.save(`estratto_conto.pdf`);
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 30,
+        });
+        
+        doc.save(`estratto_conto_${first.ragione_sociale.replace(/\s/g, '_')}.pdf`);
     };
 
-    // NUOVO: Definizione delle colonne per DynamicReportTable
-    const columns = useMemo(() => [
-        {
-            key: 'selection',
-            header: <input type="checkbox" onChange={() => handleSelectAll(partite)} checked={selectedIds.length === partite.length && partite.length > 0} />,
-            render: (item) => <input type="checkbox" onChange={() => handleSelect(item.id)} checked={selectedIds.includes(item.id)} />
-        },
-        { key: 'ragione_sociale', header: 'Cliente/Fornitore' },
-        { key: 'numero_documento', header: 'N. Doc' },
-        { key: 'data_documento', header: 'Data Doc.', render: (item) => new Date(item.data_documento).toLocaleDateString('it-IT') },
-        { key: 'data_scadenza', header: 'Scadenza', render: (item) => <span className="font-semibold text-red-600">{new Date(item.data_scadenza).toLocaleDateString('it-IT')}</span> },
-        { key: 'importo', header: 'Importo', render: (item) => <span className="font-mono text-right block">{parseFloat(item.importo).toFixed(2)} €</span> },
-    ], [partite, selectedIds]);
-
     return (
-        <div className="p-6 bg-slate-50">
-            <h1 className="text-2xl font-bold text-slate-800 mb-4">Gestione Finanze</h1>
-            <div className="border-b border-slate-200">
-                <nav className="-mb-px flex space-x-8">
-                    <button onClick={() => setActiveTab('attive')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'attive' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
-                        Crediti verso Clienti
+        <div className="p-4 sm:p-6 bg-slate-50 min-h-screen">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center border-b pb-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800">Gestione Scadenziario</h1>
+                        <p className="text-sm text-slate-500">Visualizza e gestisci i crediti e debiti aperti.</p>
+                    </div>
+                    <button onClick={fetchPartite} disabled={isLoading} className="p-2 rounded-full hover:bg-slate-100 disabled:opacity-50">
+                        <ArrowPathIcon className={`h-5 w-5 text-slate-600 ${isLoading ? 'animate-spin' : ''}`} />
                     </button>
-                    <button onClick={() => setActiveTab('passive')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'passive' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
-                        Debiti verso Fornitori
+                </div>
+
+                <nav className="mt-4">
+                    <button onClick={() => setActiveTab('attive')} className={`px-4 py-2 text-sm font-medium rounded-l-md ${activeTab === 'attive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                        Partite Aperte Clienti
+                    </button>
+                    <button onClick={() => setActiveTab('passive')} className={`px-4 py-2 text-sm font-medium rounded-r-md ${activeTab === 'passive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                        Partite Aperte Fornitori
                     </button>
                 </nav>
             </div>
@@ -172,13 +153,14 @@ const PartiteAperteManager = () => {
 
                 {error && <div className="bg-red-100 text-red-700 p-4 rounded-md mb-4">{error}</div>}
 
-                {/* NUOVO: Utilizzo del componente DynamicReportTable */}
                 <DynamicReportTable
                     data={partite}
                     columns={columns}
                     isLoading={isLoading}
                     title={activeTab === 'attive' ? 'Crediti Aperti' : 'Debiti Aperti'}
-                    defaultSort={{ key: 'ragione_sociale', direction: 'ascending' }}
+                    defaultSort={{ key: 'ragione_sociale', direction: 'asc' }}
+                    onSelectionChange={handleSelectionChange}
+                    isSelectable={true}
                 />
             </div>
         </div>

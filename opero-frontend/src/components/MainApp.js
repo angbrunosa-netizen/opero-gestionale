@@ -24,6 +24,7 @@ import ShortcutSettingsModal from './ShortcutSettingsModal';
 // ++ NUOVI IMPORT PER LE ICONE ++
 import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import AttivitaPPA from './AttivitaPPA';
+import FinanzeModule from './FinanzeModule';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -497,6 +498,7 @@ const MainApp = () => {
             case 'CONT_SMART': return <ContSmartModule />;
             case 'MAIL': return <MailModule />;
             case 'RUBRICA': return <AddressBook />;
+            case 'FIN_SMART': return <FinanzeModule />;
             default: return <div className="p-6">Seleziona un modulo per iniziare.</div>;
         }
     };

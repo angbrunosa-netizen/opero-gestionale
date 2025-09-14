@@ -40,7 +40,7 @@ export const modules = [
         key: 'FIN_SMART', // Chiave utilizzata nel tuo componentMap
         label: 'Finanze',
         icon: BanknotesIcon,
-        permission: 'FINANZE_VIEW'
+        permission: 'FIN_SMART'
     },
     {
         key: 'MAIL', // Chiave utilizzata nel tuo componentMap

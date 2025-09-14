@@ -6,6 +6,7 @@ exports.up = async function(knex) {
   // Elenco consolidato e definitivo di tutte le tabelle, colonne e relative chiavi primarie da correggere.
   const tablesToFix = [
     // Dipendenze dirette da 'ditte'
+    { table: 'sc_funzioni_contabili', column: 'id_ditta', references: 'ditte.id' },
     { table: 'app_ruoli', column: 'id_ditta', references: 'ditte.id' },
     { table: 'ditte_moduli', column: 'id_ditta', references: 'ditte.id' },
     { table: 'ditta_mail_accounts', column: 'id_ditta', references: 'ditte.id' },

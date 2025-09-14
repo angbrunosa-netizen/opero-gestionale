@@ -1129,5 +1129,46 @@ router.get('/pdc-flat', verifyToken, canViewReports, async (req, res) => {
     }
 });
 
+// #####################################################################
+// # NUOVA ROUTE: API per recuperare le Partite Aperte (Attive/Passive)
+// #####################################################################
+router.get('/reports/partite-aperte/:tipo', async (req, res) => {
+    const { id_ditta } = req.user;
+    const { tipo } = req.params; // 'attive' o 'passive'
+
+    // Validazione del parametro 'tipo' per sicurezza
+    if (tipo !== 'attive' && tipo !== 'passive') {
+        return res.status(400).json({ error: 'Tipo di partita non valido.' });
+    }
+
+    try {
+        // Query per recuperare le partite aperte
+        const partite = await db('sc_partite_aperte')
+            .join('ditte', 'sc_partite_aperte.id_anagrafica', 'ditte.id')
+            .where('sc_partite_aperte.id_ditta', id_ditta)
+            .andWhere('sc_partite_aperte.tipo_partita', tipo)
+            .andWhere('sc_partite_aperte.stato', 'aperta')
+            .select(
+                'sc_partite_aperte.id',
+                'sc_partite_aperte.data_documento',
+                'sc_partite_aperte.data_scadenza',
+                'sc_partite_aperte.numero_documento',
+                'ditte.ragione_sociale',
+                'sc_partite_aperte.importo',
+                'sc_partite_aperte.insoluto'
+            )
+            .orderBy('sc_partite_aperte.data_scadenza', 'asc');
+
+        res.json(partite);
+
+    } catch (error) {
+        console.error("Errore nel recupero delle partite aperte:", error);
+        res.status(500).json({ error: 'Si è verificato un errore nel recupero dei dati delle partite aperte.' });
+    }
+});
+
+
 module.exports = router;
+
+
 // 
