@@ -191,26 +191,45 @@ useEffect(() => {
     }, [initialState]);
     
     const handleSaveRegistrazione = useCallback(async () => {
-        if (!canSave) return;
+        const righeInvalide = righeScrittura.some(riga => !riga.id_conto);
+        if (righeInvalide) {
+            alert("Errore: una o più righe della scrittura non hanno un conto associato. Selezionare un conto per ogni riga prima di salvare.");
+            return;
+        }
+
+        if (!canSave) {
+            alert("La scrittura non è bilanciata, non contiene almeno due righe o ha importo nullo. Impossibile salvare.");
+            return;
+        }
         try {
+            // Prepara il payload con i nomi corretti attesi dal backend
             const payload = {
-                datiDocumento: { ...datiDocumento, id_funzione_contabile: parseInt(selectedFunzioneId), id_anagrafica: parseInt(datiDocumento.id_anagrafica) || null, totale_documento: parseFloat(datiDocumento.totale_documento) || 0 },
-                scrittura: righeScrittura.map(({id, ...r}) => ({ ...r, id_conto: parseInt(r.id_conto), importo_dare: parseFloat(r.importo_dare) || 0, importo_avere: parseFloat(r.importo_avere) || 0 })),
-                iva: scomposizioneIva.filter(r => parseFloat(r.imponibile) > 0).map(r => {
-                    const aliquota = aliquoteIva.find(a => a.id === parseInt(r.id_aliquota));
-                    const imponibile = parseFloat(r.imponibile) || 0;
-                    return { id_codice_iva: parseInt(r.id_aliquota), imponibile, imposta: parseFloat((imponibile * (aliquota ? parseFloat(aliquota.aliquota) : 0) / 100).toFixed(2)) };
-                })
+                testata: {
+                    ...datiDocumento,
+                    id_anagrafica: parseInt(datiDocumento.id_anagrafica) || null,
+                    totale_documento: parseFloat(datiDocumento.totale_documento) || null,
+                },
+                righe: righeScrittura.map(({id, ...riga}) => ({
+                    ...riga,
+                    id_conto: parseInt(riga.id_conto),
+                    importo_dare: parseFloat(riga.importo_dare) || 0,
+                    importo_avere: parseFloat(riga.importo_avere) || 0
+                }))
             };
+
+            await api.post('/contsmart/registrazioni', payload);
             const response = await api.post('/contsmart/registrazioni', payload);
-            alert(response.data.message);
+            //alert('Registrazione salvata con successo!');
+              alert(response.data.message); 
             setIsEditing(false);
             setState(initialState);
         } catch (error) {
-            alert(error.response?.data?.message || 'Errore nel salvataggio.');
+            console.error('Errore nel salvataggio:', error);
+            const serverMessage = error.response?.data?.message || 'Errore durante il salvataggio della registrazione.';
+            alert(serverMessage);
         }
-    }, [canSave, datiDocumento, righeScrittura, scomposizioneIva, aliquoteIva, selectedFunzioneId, initialState]);
-
+    }, [canSave, datiDocumento, righeScrittura, initialState]);
+    
     const handleCancelRegistration = () => {
         setIsEditing(false);
         setState(initialState);
@@ -289,89 +308,79 @@ useEffect(() => {
     const removeRigaScrittura = (id) => {
         setState(prev => ({ ...prev, righeScrittura: prev.righeScrittura.filter(r => r.id !== id) }));
     };
-        // <span style="color:red;">// NUOVA LOGICA DI GENERAZIONE SCRITTURA</span>
     const handleGenerateScrittura = () => {
-        if (!canGenerateScrittura || !selectedFunzione) return;
-        
-        // <span style="color:green;">// 1. Recuperiamo l'anagrafica completa usando l'id_anagrafica selezionato dall'utente.</span>
-        const anagraficaSelezionata = anagrafiche.find(a => a.id === parseInt(datiDocumento.id_anagrafica));
-        if (!anagraficaSelezionata) { 
-            alert("Anagrafica non trovata. Selezionare un cliente/fornitore valido."); 
-            return; 
+        if (!canGenerateScrittura || !selectedFunzione || !selectedFunzione.righe_predefinite) {
+            alert("Impossibile generare: i dati del documento non sono completi o la funzione non è configurata.");
+            return;
         }
+ 
 
-        let righeGenerate = [];
-        const templates = selectedFunzione.righe_predefinite;
-        
-        const findTemplateByAccountType = (typeKeyword) => {
-            return templates.find(r => {
-                const conto = pianoConti.find(c => c.id === r.id_conto);
-                return conto && conto.descrizione.toLowerCase().includes(typeKeyword);
-            });
-        };
+        const handleFocus = (e) => setActiveField(e.target.name);
+    const getFieldClass = (fieldName) => { /* ... */ };
 
-        const tplClienteFornitore = findTemplateByAccountType('clienti') || findTemplateByAccountType('fornitori');
-        const tplIva = findTemplateByAccountType('iva');
-        const tplCostoRicavo = templates.find(r => r.id_conto !== tplClienteFornitore?.id_conto && r.id_conto !== tplIva?.id_conto);
+    if (isLoading) return <div className="text-center p-8"><ArrowPathIcon className="h-6 w-6 animate-spin mx-auto" /> Caricamento dati...</div>;
+    if (error) return <div className="text-red-600 bg-red-100 p-4 rounded-md">Errore: {error}</div>;
 
-        if (!tplClienteFornitore || !tplCostoRicavo) {
-            alert("Funzione non configurata correttamente: impossibile identificare i conti Cliente/Fornitore e Costo/Ricavo.");
+        const anagraficaSelezionata = anagrafiche.find(a => a.id === parseInt(datiDocumento.id_anagrafica));
+        if (!anagraficaSelezionata) {
+            alert("Selezionare un cliente/fornitore prima di generare la scrittura.");
             return;
         }
 
-        // <span style="color:red;">// MODIFICA CRITICA: Logica di selezione del sottoconto resa più robusta e chiara.</span>
-        const isAvereCF = (tplClienteFornitore.tipo_movimento || 'A').toUpperCase() === 'A';
-        
-        let idContoDaUsare;
-        const contoGenericoTemplate = pianoConti.find(c => c.id === tplClienteFornitore.id_conto);
+        const righePredefinite = selectedFunzione.righe_predefinite;
+        const righeDare = righePredefinite.filter(r => (r.dare_avere || 'D').toUpperCase() === 'D');
+        const righeAvere = righePredefinite.filter(r => (r.dare_avere || 'D').toUpperCase() === 'A');
+        let righeGenerate = [];
+        const categoria = (selectedFunzione.categoria || '').trim();
 
-        // Aggiungiamo un log per il debug, così puoi vedere i dati usati per la decisione.
-        console.log('[DEBUG] Dati per selezione sottoconto:', {
-            anagrafica: anagraficaSelezionata,
-            contoGenerico: contoGenericoTemplate,
-            sottocontoCliente: anagraficaSelezionata.id_sottoconto_cliente,
-            sottocontoFornitore: anagraficaSelezionata.id_sottoconto_fornitore,
-        });
+        if (categoria === 'Acquisti') {
+            const contoFornitore = righeAvere.find(r => pianoConti.find(c => c.id === r.id_conto && !c.descrizione.toLowerCase().includes('iva')));
+            const contoIva = righeAvere.find(r => pianoConti.find(c => c.id === r.id_conto && c.descrizione.toLowerCase().includes('iva')));
+            const contoCosto = righeDare[0]; // Si assume un solo conto costo in DARE
 
-        // 2. Determiniamo se il template della funzione si riferisce a Clienti o Fornitori.
-        const isCliente = contoGenericoTemplate && contoGenericoTemplate.descrizione.toLowerCase().includes('clienti');
-        const isFornitore = contoGenericoTemplate && contoGenericoTemplate.descrizione.toLowerCase().includes('fornitori');
+            if (!contoFornitore || !contoCosto) {
+                alert("Funzione di acquisto non configurata correttamente (manca conto Fornitore o Costo).");
+                return;
+            }
 
-        // 3. Applichiamo la logica di priorità:
-        // Se il template è per 'Clienti' E l'anagrafica selezionata ha un sottoconto cliente specifico, usiamo quello.
-        if (isCliente && anagraficaSelezionata.id_sottoconto_cliente) {
-            idContoDaUsare = anagraficaSelezionata.id_sottoconto_cliente;
-            console.log('[DEBUG] Scelto SOTTOCONTO CLIENTE:', idContoDaUsare);
-        // Altrimenti, se il template è per 'Fornitori' E l'anagrafica selezionata ha un sottoconto fornitore, usiamo quello.
-        } else if (isFornitore && anagraficaSelezionata.id_sottoconto_fornitore) {
-            idContoDaUsare = anagraficaSelezionata.id_sottoconto_fornitore;
-            console.log('[DEBUG] Scelto SOTTOCONTO FORNITORE:', idContoDaUsare);
-        } else {
-            // 4. Fallback: se nessuna delle condizioni precedenti è vera, usiamo il conto generico del template.
-            idContoDaUsare = tplClienteFornitore.id_conto;
-            console.log('[DEBUG] Scelto CONTO GENERICO (Fallback):', idContoDaUsare);
-        }
-        
-        righeGenerate.push({ id: Date.now(), id_conto: idContoDaUsare, descrizione: `Rif. doc ${datiDocumento.numero_documento} ${anagraficaSelezionata.ragione_sociale}`, importo_dare: !isAvereCF ? datiDocumento.totale_documento : '', importo_avere: isAvereCF ? datiDocumento.totale_documento : '' });
+            const idContoFornitore = anagraficaSelezionata.id_sottoconto_fornitore || contoFornitore.id_conto;
+            righeGenerate.push({ id: Date.now(), id_conto: idContoFornitore, descrizione: `Ns. Rif. ${datiDocumento.num_documento} ${anagraficaSelezionata.ragione_sociale}`, importo_dare: '', importo_avere: parseFloat(datiDocumento.totale_documento).toFixed(2) });
+            righeGenerate.push({ id: Date.now() + 1, id_conto: contoCosto.id_conto, descrizione: contoCosto.descrizione_riga_predefinita || 'Costo acquisto', importo_dare: totaleImponibile.toFixed(2), importo_avere: '' });
+            if (totaleIva > 0 && contoIva) {
+                righeGenerate.push({ id: Date.now() + 2, id_conto: contoIva.id_conto, descrizione: contoIva.descrizione_riga_predefinita || 'IVA ns/credito', importo_dare: totaleIva.toFixed(2), importo_avere: '' });
+            }
 
-        // Riga Costo/Ricavo (logica invariata)
-        const isAvereCR = (tplCostoRicavo.tipo_movimento || 'D').toUpperCase() === 'A';
-        righeGenerate.push({ id: Date.now() + 1, id_conto: tplCostoRicavo.id_conto, descrizione: tplCostoRicavo.descrizione_riga_predefinita, importo_dare: !isAvereCR ? totaleImponibile.toFixed(2) : '', importo_avere: isAvereCR ? totaleImponibile.toFixed(2) : '' });
+        } else if (categoria === 'Vendite') {
+            const contoCliente = righeDare[0]; // Si assume un solo conto cliente in DARE
 
-        // Righe IVA (logica invariata)
-        if (tplIva) {
-            scomposizioneIva.forEach((rigaIva, index) => {
-                const imponibile = parseFloat(rigaIva.imponibile) || 0;
-                if (imponibile === 0) return;
-                const aliquota = aliquoteIva.find(a => a.id === parseInt(rigaIva.id_aliquota));
-                const imposta = (imponibile * (aliquota ? parseFloat(aliquota.aliquota) : 0) / 100);
-                if (imposta > 0) {
-                    const isAvereIva = (tplIva.tipo_movimento || 'D').toUpperCase() === 'A';
-                    righeGenerate.push({ id: Date.now() + 2 + index, id_conto: tplIva.id_conto, descrizione: `${tplIva.descrizione_riga_predefinita || 'IVA'} ${aliquota?.aliquota || ''}%`, importo_dare: !isAvereIva ? imposta.toFixed(2) : '', importo_avere: isAvereIva ? imposta.toFixed(2) : '' });
-                }
+            // <span style="color:green;">// NUOVO: Identifica i conti in AVERE in modo robusto, non basandosi sull'ordine.</span>
+            const contoIva = righeAvere.find(riga => {
+                const conto = pianoConti.find(c => c.id === riga.id_conto);
+                return conto && conto.descrizione.toLowerCase().includes('iva');
             });
+            const contoRicavo = righeAvere.find(riga => {
+                const conto = pianoConti.find(c => c.id === riga.id_conto);
+                return conto && (!contoIva || conto.id !== contoIva.id_conto);
+            });
+
+            if (!contoCliente || !contoRicavo) {
+                alert("Impossibile generare la scrittura: la funzione di vendita non è configurata correttamente (mancano i conti Cliente o Ricavo).");
+                return;
+            }
+
+            const idContoCliente = anagraficaSelezionata.id_sottoconto_cliente || contoCliente.id_conto;
+            righeGenerate.push({ id: Date.now(), id_conto: idContoCliente, descrizione: `Vs. Rif. ${datiDocumento.num_documento} ${anagraficaSelezionata.ragione_sociale}`, importo_dare: parseFloat(datiDocumento.totale_documento).toFixed(2), importo_avere: '' });
+            righeGenerate.push({ id: Date.now() + 1, id_conto: contoRicavo.id_conto, descrizione: contoRicavo.descrizione_riga_predefinita || 'Ricavo vendita', importo_dare: '', importo_avere: totaleImponibile.toFixed(2) });
+            if (totaleIva > 0 && contoIva) {
+                righeGenerate.push({ id: Date.now() + 2, id_conto: contoIva.id_conto, descrizione: contoIva.descrizione_riga_predefinita || 'IVA ns/debito', importo_dare: '', importo_avere: totaleIva.toFixed(2) });
+            }
         }
-        setState(prev => ({ ...prev, righeScrittura: righeGenerate }));
+        
+        if(righeGenerate.length > 0) {
+            setState(prev => ({...prev, righeScrittura: righeGenerate }));
+        } else {
+             alert("Categoria della funzione non gestita per la generazione automatica.");
+        }
     };
     useEffect(() => { fetchData(); }, [fetchData]);
 

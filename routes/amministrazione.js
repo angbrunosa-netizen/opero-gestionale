@@ -795,7 +795,7 @@ router.get('/ditte', verifyToken, async (req, res) => {
 
     try {
         let query = `
-            SELECT d.id, d.ragione_sociale, d.citta, d.p_iva, d.codice_relazione 
+            SELECT d.id, d.ragione_sociale, d.citta, d.p_iva, d.codice_relazione,id_sottoconto_cliente,id_sottoconto_fornitore
             FROM ditte d 
             WHERE d.id_ditta_proprietaria = ? AND d.stato = 1
         `;

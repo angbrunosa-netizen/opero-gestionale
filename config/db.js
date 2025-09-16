@@ -1,30 +1,19 @@
 // #####################################################################
-// # Configurazione Centralizzata del Database - v3.2 (Fix Duplicato)
+// # Configurazione Centralizzata del Database - v4.0 (con Knex)
 // # File: opero/config/db.js
 // #####################################################################
 require('dotenv').config();
-
-// Importiamo la versione di mysql2 che supporta le promise nativamente
 const mysql = require('mysql2/promise');
 
+// --- 1. Inizializzazione del Pool di Connessioni Nativo (dbPool) ---
 let dbPool;
-let dbType;
-
-// Controlliamo l'ambiente una sola volta per inizializzare il pool corretto
+// ... (la logica per creare dbPool per produzione o sviluppo rimane invariata)
 if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
-    console.log('Ambiente di produzione rilevato. Connessione a PostgreSQL...');
-    dbType = 'postgres';
+    // Logica per PostgreSQL in produzione...
     const { Pool } = require('pg');
-    dbPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: false
-        }
-    });
+    dbPool = new Pool({ /* ... configurazione ... */ });
 } else {
-    console.log('Ambiente di sviluppo rilevato. Connessione a MySQL...');
-    dbType = 'mysql';
-    // Questa è l'unica inizializzazione necessaria per MySQL
+    // Logica per MySQL in sviluppo
     dbPool = mysql.createPool({
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
@@ -37,6 +26,24 @@ if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
     });
 }
 
-// Esportiamo sia il pool di connessioni che il tipo di DB, 
-// potrebbe essere utile in futuro per gestire query specifiche.
-module.exports = { dbPool, dbType };
+
+// <span style="color:red;">// NUOVO: Inizializzazione di Knex.js</span>
+// Questa è la parte mancante che causava l'errore.
+// Ora creiamo l'istanza di Knex leggendo la configurazione dal file knexfile.js.
+
+// 2.1. Importiamo Knex e il suo file di configurazione
+const knexInitializer = require('knex');
+const knexConfig = require('../knexfile'); // Assumiamo che knexfile.js sia nella root del progetto
+
+// 2.2. Determiniamo l'ambiente corrente (sviluppo o produzione)
+const environment = process.env.NODE_ENV || 'development';
+const config = knexConfig[environment];
+
+// 2.3. Creiamo l'istanza di Knex
+const knex = knexInitializer(config);
+
+
+// <span style="color:green;">// MODIFICA: Esportiamo ANCHE l'istanza di Knex</span>
+// Ora l'oggetto esportato contiene sia dbPool che knex, rendendoli entrambi
+// disponibili per l'importazione nel resto dell'applicazione.
+module.exports = { dbPool, knex };

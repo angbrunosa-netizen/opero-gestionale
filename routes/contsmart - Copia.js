@@ -8,7 +8,7 @@ const { dbPool } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
 const { getNextProgressivo } = require('../utils/progressivi');
 const router = express.Router();
-const { knex } = require('../config/db');
+const knex = require('../config/db');
 
 //const { authenticate, authorize } = require('../utils/auth');
 // --- Middleware di Autorizzazione Specifici ---
@@ -256,108 +256,124 @@ router.get('/registrazioni', verifyToken, async (req, res) => {
 // ---------------------------------------------------------------------
 // REGISTRAZIONI CONTABILI
 // ---------------------------------------------------------------------
+
+// POST /api/contsmart/registrazioni
 router.post('/registrazioni', verifyToken, async (req, res) => {
     const { id_ditta, id: id_utente } = req.user;
+    // <span style="color:green;">// MODIFICA: Aggiunto id_funzione_contabile al destructuring</span>
     const { datiDocumento, scrittura, iva } = req.body;
 
     if (!datiDocumento || !datiDocumento.id_funzione_contabile || !scrittura || !Array.isArray(scrittura) || scrittura.length === 0) {
-        return res.status(400).json({ message: "Dati di registrazione incompleti. La funzione contabile è obbligatoria." });
+        return res.status(400).json({ message: "Dati di registrazione incompleti o non validi. La funzione contabile è obbligatoria." });
+    }
+
+    const { id_funzione_contabile, data_registrazione, data_documento, numero_documento, id_anagrafica, totale_documento } = datiDocumento;
+
+    if (!data_registrazione) {
+        return res.status(400).json({ message: "La data di registrazione è obbligatoria." });
     }
 
     try {
         await knex.transaction(async (trx) => {
-            
-            const funzioneDettagli = await trx('sc_funzioni_contabili')
-                .where('id', datiDocumento.id_funzione_contabile)
-                .select('tipo_funzione', 'categoria')
+            // <span style="color:green;">// NUOVO: Recupero i dettagli della funzione contabile per determinarne il comportamento</span>
+            const funzione = await trx('sc_funzioni_contabili')
+                .join('sc_tipi_funzione', 'sc_funzioni_contabili.id_tipo_funzione', 'sc_tipi_funzione.id')
+                .where('sc_funzioni_contabili.id', id_funzione_contabile)
+                .select('sc_tipi_funzione.tipo_funzione', 'sc_tipi_funzione.categoria')
                 .first();
 
-            if (!funzioneDettagli) {
-                throw new Error('Funzione contabile non trovata o non valida.');
+            if (!funzione) {
+                // Questo throw farà scattare il rollback della transazione
+                throw new Error('Funzione contabile non trovata.');
             }
-            
-            const isStorno = (funzioneDettagli.categoria || '').toLowerCase().includes('storno');
 
-            const lastProto = await trx('sc_registrazioni_testata')
-                .where('id_ditta', id_ditta)
-                .max('numero_protocollo as max_protocollo')
-                .first();
-
-            const nextProtocollo = (lastProto.max_protocollo || 0) + 1;
+            // <span style="color:red;">// NUOVO: Validazione robusta per la presenza dell'IVA</span>
+            // Se la funzione è di tipo Acquisti o Vendite, la sezione IVA è obbligatoria.
+            if (
+                (funzione.categoria === 'Acquisti' || funzione.categoria === 'Vendite') && 
+                (!iva || !Array.isArray(iva) || iva.length === 0)
+            ) {
+                // Questo throw causerà un rollback e invierà un errore chiaro al client.
+                throw new Error('Le registrazioni di tipo Acquisto o Vendita devono obbligatoriamente includere i dati IVA.');
+            }
 
             const [idTestata] = await trx('sc_registrazioni_testata').insert({
                 id_ditta,
                 id_utente,
-                numero_protocollo: nextProtocollo,
-                data_registrazione: datiDocumento.data_registrazione,
-                data_documento: datiDocumento.data_documento || null,
-                numero_documento: datiDocumento.numero_documento || null,
-                id_ditte: datiDocumento.id_anagrafica || null,
-                totale_documento: datiDocumento.totale_documento || 0,
-                descrizione_testata: datiDocumento.descrizione
+                data_registrazione,
+                data_documento,
+                numero_documento,
+                id_anagrafica,
+                totale_documento,
+                descrizione: `Registrazione doc. n. ${numero_documento || 'N/A'} del ${data_documento || 'N/A'}`
             });
 
-            // <span style="color:red;">// MODIFICA: Campi allineati allo schema di 'sc_registrazioni_righe'</span>
             const righeDaInserire = scrittura.map(riga => ({
-                id_testata: idTestata,
-                //id_ditta, // Campo non presente nella tabella righe
+                id_testata,
+                id_ditta,
                 id_conto: riga.id_conto,
-                descrizione_riga: riga.descrizione, // Campo rinominato
+                descrizione: riga.descrizione,
                 importo_dare: riga.importo_dare || 0,
                 importo_avere: riga.importo_avere || 0,
             }));
             await trx('sc_registrazioni_righe').insert(righeDaInserire);
-            
-            if ((funzioneDettagli.tipo_funzione === 'Finanziaria' || funzioneDettagli.tipo_funzione === 'Pagamento') && datiDocumento.id_anagrafica) {
-                let tipo_movimento = null;
-                const categoria = (funzioneDettagli.categoria || '');
 
-                if (categoria.includes('Acquisti')) {
-                    tipo_movimento = isStorno ? 'Apertura_Credito' : 'Apertura_Debito';
-                } else if (categoria.includes('Vendite')) {
-                    tipo_movimento = isStorno ? 'Apertura_Debito' : 'Apertura_Credito';
-                } else if (categoria.includes('Pagamenti')) {
-                     const rigaContropartitaPagamento = scrittura.find(r => r.id_conto === datiDocumento.id_anagrafica);
-                     const segnoPagamento = rigaContropartitaPagamento?.importo_avere > 0 ? 'A' : 'D';
-                     tipo_movimento = segnoPagamento === 'A' ? 'Chiusura_Credito' : 'Chiusura_Debito';
+            // <span style="color:green;">// NUOVO: Logica avanzata per la creazione/chiusura delle partite aperte</span>
+            if (funzione.tipo_funzione === 'Finanziaria' && id_anagrafica) {
+                let tipo_movimento = null;
+                switch (funzione.categoria) {
+                    case 'Acquisti':
+                        tipo_movimento = 'Apertura_Debito';
+                        break;
+                    case 'Vendite':
+                        tipo_movimento = 'Apertura_Credito';
+                        break;
+                    case 'Pagamenti':
+                        tipo_movimento = 'Chiusura';
+                        break;
                 }
                 
+                // Se la funzione gestisce una partita (Apertura o Chiusura), la registro.
                 if (tipo_movimento) {
-                    // <span style="color:red;">// MODIFICA: Campo 'id_testata' rinominato in 'id_registrazione_testata'</span>
                     await trx('sc_partite_aperte').insert({
                         id_ditta,
-                        id_registrazione_testata: idTestata, // Campo rinominato
-                        data_registrazione: datiDocumento.data_registrazione,
-                        id_ditta_anagrafica: datiDocumento.id_anagrafica,
-                        id_sottoconto: datiDocumento.id_anagrafica,
-                        numero_documento: datiDocumento.numero_documento,
-                        data_documento: datiDocumento.data_documento,
-                        tipo_movimento: tipo_movimento,
-                        importo: datiDocumento.totale_documento,
-                        stato: 'aperta',
+                        id_testata,
+                        data_registrazione,
+                        id_anagrafica,
+                        // <span style="color:green;">// NUOVO: Popolo i nuovi campi</span>
+                        id_sottoconto: id_anagrafica, // Assumiamo che l'anagrafica sia il sottoconto
+                        numero_documento,
+                        data_documento,
+                        tipo_movimento,
+                        importo: totale_documento,
+                        stato: 'aperta', // Lo stato iniziale è sempre aperta, la chiusura è un tipo di movimento
+                        segno: scrittura.find(r => r.id_conto === id_anagrafica)?.importo_avere > 0 ? 'A' : 'D',
                         data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento,
+                        pagato: tipo_movimento === 'Chiusura' ? true : false
                     });
                 }
             }
 
+            // <span style="color:green;">// NUOVO: Implementazione Punto 3 - Registrazione automatica dell'IVA</span>
             if (iva && Array.isArray(iva) && iva.length > 0) {
                 const righeIvaDaInserire = iva.map(rigaIva => ({
-                    //id_ditta,
-                    //id_testata: idTestata,
-                    //data_registrazione: datiDocumento.data_registrazione,
-                    id_anagrafica: datiDocumento.id_anagrafica || null,
-                    aliquota_iva: rigaIva.id_codice_iva,
+                    id_ditta,
+                    id_testata,
+                    data_registrazione,
+                    id_anagrafica,
+                    id_codice_iva: rigaIva.id_codice_iva,
                     imponibile: rigaIva.imponibile,
-                    importo_iva: rigaIva.imposta
+                    imposta: rigaIva.imposta
                 }));
                 await trx('sc_registri_iva').insert(righeIvaDaInserire);
             }
-            
-            await trx('log_accessi').insert({
+
+            // (Logica LOG invariata)
+             await trx('log_accessi').insert({
                 id_utente,
                 id_ditta,
-                id_funzione_accessibile: 1,
-                dettagli_azione: `Creata registrazione contabile id_testata: ${idTestata} tramite funzione id: ${datiDocumento.id_funzione_contabile}`
+                id_funzione_accessibile: 1, // Assumiamo 1 per "Creazione Registrazione"
+                dettagli_azione: `Creata registrazione contabile con id_testata: ${idTestata}; id_funzione: ${id_funzione_contabile}`
             });
         });
 
@@ -367,6 +383,7 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
         res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
     }
 });
+
 
 /**
  * PATCH /piano-dei-conti/:id
@@ -634,7 +651,85 @@ router.get('/aliquote-iva', verifyToken, async (req, res) => {
     }
 });
 
-  
+  /*
+  // rotte REGISTRAZIONI NUOVE
+  //**********************************
+  // *******************************
+
+router.post('/registrazioni', verifyToken, canPostEntries, async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { testata, righe } = req.body;
+
+    if (!testata || !righe || !Array.isArray(righe) || righe.length === 0) {
+        return res.status(400).json({ message: "Dati di registrazione incompleti o non validi." });
+    }
+
+    const {
+        data_registrazione, data_documento, num_documento,
+        id_anagrafica, totale_documento, descrizione, data_scadenza
+    } = testata;
+
+    if (!data_registrazione) {
+        return res.status(400).json({ message: "La data di registrazione è obbligatoria." });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // <span style="color:green;">// NUOVO: Ottiene il prossimo numero di protocollo prima di salvare.</span>
+        const numeroProtocollo = await getNextProgressivo('PROT_CONT', id_ditta, connection);
+
+        // 1. Inserisci la testata della registrazione, includendo il nuovo protocollo
+        const queryTestata = `
+            INSERT INTO sc_registrazioni_testata 
+            (id_ditta, id_utente, data_registrazione, descrizione_testata, data_documento, numero_documento, totale_documento, id_ditte, numero_protocollo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const [resultTestata] = await connection.query(queryTestata, [
+            id_ditta, id_utente, data_registrazione, descrizione,
+            data_documento || null, num_documento || null, totale_documento || null,
+            id_anagrafica || null, numeroProtocollo
+        ]);
+        const idTestata = resultTestata.insertId;
+
+        // 2. Inserisci le righe della scrittura (invariato)
+        for (const riga of righe) {
+            const queryRiga = `
+                INSERT INTO sc_registrazioni_righe
+                (id_testata, id_conto, descrizione_riga, importo_dare, importo_avere)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            await connection.query(queryRiga, [ idTestata, riga.id_conto, riga.descrizione, riga.importo_dare || 0, riga.importo_avere || 0 ]);
+        }
+        
+        // 3. Gestisci la Partita Aperta (invariato)
+        if (id_anagrafica) {
+            const queryPartitaAperta = `
+                INSERT INTO sc_partite_aperte
+                (id_ditta_anagrafica, data_scadenza, importo, data_registrazione, id_registrazione_testata)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            await connection.query(queryPartitaAperta, [ id_anagrafica, data_scadenza || data_documento, totale_documento, data_registrazione, idTestata ]);
+        }
+
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Registrazione salvata con successo.', id_registrazione: idTestata, numero_protocollo: numeroProtocollo });
+    
+    } catch (error) {
+        if (connection) await connection.rollback(); 
+        console.error("Errore durante il salvataggio della registrazione:", error);
+        res.status(500).json({ message: error.message || 'Errore interno del server durante il salvataggio.' });
+    
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+
+*/
+
+
     // #####################################################################
 // # --- NOVITÀ: ROTTE PER LA REPORTISTICA ---
 // #####################################################################
