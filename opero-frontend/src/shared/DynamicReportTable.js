@@ -1,55 +1,109 @@
 // #####################################################################
-// # Componente React Riutilizzabile per Report Dinamici
-// # File: opero-gestionale/opero-frontend/src/shared/DynamicReportTable.js
+// # Componente React Riutilizzabile per Report Dinamici v2.0 (Fix Formattazione)
+// # File: opero-frontend/src/shared/DynamicReportTable.js
 // #####################################################################
 
-import React, { useState, useMemo } from 'react';
+import React,  { useState, useMemo, useEffect } from 'react';
 import { TableCellsIcon, MagnifyingGlassIcon, ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
-const DynamicReportTable = ({ data = [], columns = [], isLoading = false, title = "Report", defaultSort = {} }) => {
+// <span style="color:red;">// CORREZIONE: Sub-componente robusto per la formattazione delle celle</span>
+const RenderCell = ({ value, format }) => {
+    if (value === null || typeof value === 'undefined') {
+        return <span className="text-slate-400">N/D</span>;
+    }
+
+    if (format === 'date') {
+        const date = new Date(value);
+        if (date instanceof Date && !isNaN(date)) {
+            return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+        return <span className="text-red-500">Data Invalida</span>;
+    }
+
+    if (format === 'currency') {
+        const number = Number(value);
+        if (!isNaN(number)) {
+            return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(number);
+        }
+        return <span className="text-red-500">Valore Invalido</span>;
+    }
+    
+    return value.toString();
+};
+
+
+const DynamicReportTable = ({ 
+    data = [], 
+    columns = [], 
+    isLoading = false, 
+    title = "Report", 
+    defaultSort = {},
+    isSelectable = false,
+    onSelectionChange = () => {}
+}) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState(defaultSort);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(15);
+    const [selectedRows, setSelectedRows] = useState([]);
 
-    // --- Memoizzazione per ottimizzare le performance ---
+    // Reset paginazione e selezione quando i dati cambiano
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedRows([]);
+    }, [data, searchTerm]);
+
+    useEffect(() => {
+        onSelectionChange(selectedRows);
+    }, [selectedRows, onSelectionChange]);
+
+    const handleRowSelect = (id) => {
+        setSelectedRows(prev => 
+            prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedRows(paginatedData.map(item => item.id));
+        } else {
+            setSelectedRows([]);
+        }
+    };
+
     const processedData = useMemo(() => {
         let filteredData = [...data];
 
-        // 1. Filtro di ricerca
         if (searchTerm) {
             filteredData = filteredData.filter(item =>
                 columns.some(column => {
-                    if (column.key === 'selection') return false; // Esclude la colonna delle checkbox dalla ricerca
                     const value = item[column.key];
                     return value ? value.toString().toLowerCase().includes(searchTerm.toLowerCase()) : false;
                 })
             );
         }
 
-        // 2. Ordinamento
         if (sortConfig.key) {
             filteredData.sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) {
-                    return sortConfig.direction === 'ascending' ? -1 : 1;
-                }
-                if (a[sortConfig.key] > b[sortConfig.key]) {
-                    return sortConfig.direction === 'ascending' ? 1 : -1;
-                }
+                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
             });
         }
+
         return filteredData;
     }, [data, searchTerm, sortConfig, columns]);
 
-    // --- Gestione della paginazione ---
     const totalPages = Math.ceil(processedData.length / itemsPerPage);
-    const paginatedData = processedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return processedData.slice(startIndex, startIndex + itemsPerPage);
+    }, [processedData, currentPage, itemsPerPage]);
 
-    const handleSort = (key) => {
-        let direction = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
         }
         setSortConfig({ key, direction });
     };
@@ -61,61 +115,74 @@ const DynamicReportTable = ({ data = [], columns = [], isLoading = false, title 
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                     <TableCellsIcon className="h-6 w-6" />
                     {title}
-                </h3>
+                </h2>
                 <div className="relative w-full sm:w-auto">
-                    <MagnifyingGlassIcon className="h-5 w-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                         type="text"
-                        placeholder="Cerca..."
+                        placeholder="Cerca in tutte le colonne..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 pr-4 py-2 w-full sm:w-64 rounded-md border border-slate-300 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full sm:w-64 pl-10 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 </div>
             </div>
 
             <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50">
-                        <tr>
-                            {columns.map((column) => (
-                                <th key={column.key} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                                    <div onClick={() => column.key !== 'selection' && handleSort(column.key)} className="flex items-center gap-2 cursor-pointer">
-                                        {column.header}
-                                        {sortConfig.key === column.key && (
-                                            sortConfig.direction === 'ascending' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                <table className="w-full">
+                    <thead>
+                        <tr className="bg-slate-100">
+                            {isSelectable && (
+                                <th className="p-3 text-sm font-semibold text-slate-600 text-center w-12">
+                                    <input type="checkbox" onChange={handleSelectAll} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                </th>
+                            )}
+                            {columns.map(column => (
+                                <th key={column.key} onClick={() => column.sortable && requestSort(column.key)} className={`p-3 text-sm font-semibold text-slate-600 ${column.align === 'center' ? 'text-center' : 'text-left'} ${column.sortable ? 'cursor-pointer hover:bg-slate-200' : ''}`}>
+                                    <div className="flex items-center gap-1">
+                                        {column.label}
+                                        {column.sortable && sortConfig.key === column.key && (
+                                            sortConfig.direction === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
                                         )}
                                     </div>
                                 </th>
                             ))}
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-slate-200">
+                    <tbody>
                         {isLoading ? (
-                            <tr><td colSpan={columns.length} className="text-center py-8"><ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-slate-500" /></td></tr>
+                            <tr><td colSpan={columns.length + (isSelectable ? 1 : 0)} className="text-center py-8"><ArrowPathIcon className="h-6 w-6 animate-spin mx-auto text-slate-500" /></td></tr>
                         ) : paginatedData.length > 0 ? (
-                            paginatedData.map((item) => (
-                                <tr key={item.id} className="hover:bg-slate-50">
-                                    {columns.map((column) => (
-                                        <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                                            {column.render ? column.render(item) : item[column.key]}
+                            paginatedData.map(item => (
+                                <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                    {isSelectable && (
+                                        <td className="p-3 text-sm text-slate-500 text-center">
+                                            <input type="checkbox" checked={selectedRows.includes(item.id)} onChange={() => handleRowSelect(item.id)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                                         </td>
-                                    ))}
+                                    )}
+                                    {columns.map(column => {
+                                        const isHighlighted = column.highlight ? column.highlight(item[column.key]) : false;
+                                        return (
+                                            <td key={column.key} className={`p-3 text-sm text-slate-700 ${column.align === 'center' ? 'text-center' : 'text-left'} ${isHighlighted ? 'text-red-600 font-bold' : ''}`}>
+                                                {/* <span style="color:red;">// CORREZIONE: Utilizzo del sub-componente per una visualizzazione sicura</span> */}
+                                                <RenderCell value={item[column.key]} format={column.format} />
+                                            </td>
+                                        );
+                                    })}
                                 </tr>
                             ))
                         ) : (
-                            <tr><td colSpan={columns.length} className="text-center py-8">Nessun dato trovato.</td></tr>
+                            <tr><td colSpan={columns.length + (isSelectable ? 1 : 0)} className="text-center py-8 text-slate-500">Nessun dato trovato.</td></tr>
                         )}
                     </tbody>
                 </table>
             </div>
 
-            {/* Paginazione */}
             {!isLoading && totalPages > 1 && (
                  <div className="flex items-center justify-between pt-4">
                     <span className="text-sm text-slate-600">

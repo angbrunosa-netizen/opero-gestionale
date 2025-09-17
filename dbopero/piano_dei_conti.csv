@@ -1,0 +1,32 @@
+﻿Codice;Descrizione;Tipo;Natura;Codice Padre
+10;"IMMOBILIZZAZIONI";Mastro;Attività;
+10.01;"Immobilizzazioni materiali";Conto;Attività;10
+10.01.001;"Fabbricati";Sottoconto;Attività;10.01
+10.01.002;"Impianti e macchinari";Sottoconto;Attività;10.01
+20;"ATTIVO CIRCOLANTE";Mastro;Attività;
+20.05;"Crediti v/Clienti";Conto;Attività;20
+20.05.001;"Clienti Italia";Sottoconto;Attività;20.05
+20.05.002;"SALATI E DOLCI";Sottoconto;Attività;20.05
+20.05.003;"linux spa";Sottoconto;Attività;20.05
+20.15;"Disponibilità liquide";Conto;Attività;20
+20.15.001;"Banca c/c";Sottoconto;Attività;20.15
+20.15.002;"Cassa contanti";Sottoconto;Attività;20.15
+20.20;"Crediti Erariali";Conto;Attività;20
+20.20.01;"IVA A CREDITO";Sottoconto;Attività;20.20
+30;"PATRIMONIO NETTO";Mastro;Patrimonio Netto;
+30.01;"Capitale Sociale";Conto;Patrimonio Netto;30
+40;"DEBITI";Mastro;Passività;
+40.05;"Debiti v/Fornitori";Conto;Passività;40
+40.05.001;"Fornitori Italia";Sottoconto;Passività;40.05
+40.05.002;"SARACENARE EXPORT";Sottoconto;Passività;40.05
+40.05.003;"linux spa";Sottoconto;Passività;40.05
+40.10;"Debiti Tributari";Conto;Passività;40
+40.10.001;"Erario c/IVA";Sottoconto;Passività;40.10
+60;"COSTI DELLA PRODUZIONE";Mastro;Costo;
+60.01;"Acquisti";Conto;Costo;60
+60.01.001;"Materie prime c/acquisti";Sottoconto;Costo;60.01
+60.05;"Servizi";Conto;Costo;60
+60.05.001;"Consulenze professionali";Sottoconto;Costo;60.05
+70;"RICAVI DELLE VENDITE";Mastro;Ricavo;
+70.01;"Ricavi";Conto;Ricavo;70
+70.01.001;"Prodotti finiti c/vendite";Sottoconto;Ricavo;70.01

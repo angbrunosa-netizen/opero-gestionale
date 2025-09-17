@@ -259,14 +259,15 @@ router.get('/registrazioni', verifyToken, async (req, res) => {
 router.post('/registrazioni', verifyToken, async (req, res) => {
     const { id_ditta, id: id_utente } = req.user;
     const { datiDocumento, scrittura, iva } = req.body;
-
+      
     if (!datiDocumento || !datiDocumento.id_funzione_contabile || !scrittura || !Array.isArray(scrittura) || scrittura.length === 0) {
         return res.status(400).json({ message: "Dati di registrazione incompleti. La funzione contabile è obbligatoria." });
     }
 
     try {
+        let nextProtocollo; // Definiamo la variabile qui per renderla accessibile alla fine
+
         await knex.transaction(async (trx) => {
-            
             const funzioneDettagli = await trx('sc_funzioni_contabili')
                 .where('id', datiDocumento.id_funzione_contabile)
                 .select('tipo_funzione', 'categoria')
@@ -283,12 +284,10 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
                 .max('numero_protocollo as max_protocollo')
                 .first();
 
-            const nextProtocollo = (lastProto.max_protocollo || 0) + 1;
+            nextProtocollo = (lastProto.max_protocollo || 0) + 1;
 
             const [idTestata] = await trx('sc_registrazioni_testata').insert({
-                id_ditta,
-                id_utente,
-                numero_protocollo: nextProtocollo,
+                id_ditta, id_utente, numero_protocollo: nextProtocollo,
                 data_registrazione: datiDocumento.data_registrazione,
                 data_documento: datiDocumento.data_documento || null,
                 numero_documento: datiDocumento.numero_documento || null,
@@ -296,17 +295,56 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
                 totale_documento: datiDocumento.totale_documento || 0,
                 descrizione_testata: datiDocumento.descrizione
             });
+            
+            const righeNonIva = scrittura.filter(r => !r.descrizione.toLowerCase().includes('iva'));
+            const righeIvaTemplate = scrittura.filter(r => r.descrizione.toLowerCase().includes('iva'));
 
-            // <span style="color:red;">// MODIFICA: Campi allineati allo schema di 'sc_registrazioni_righe'</span>
-            const righeDaInserire = scrittura.map(riga => ({
+            const righeNonIvaDaInserire = righeNonIva.map(riga => ({
                 id_testata: idTestata,
-                //id_ditta, // Campo non presente nella tabella righe
                 id_conto: riga.id_conto,
-                descrizione_riga: riga.descrizione, // Campo rinominato
+                descrizione_riga: riga.descrizione,
                 importo_dare: riga.importo_dare || 0,
                 importo_avere: riga.importo_avere || 0,
             }));
-            await trx('sc_registrazioni_righe').insert(righeDaInserire);
+            await trx('sc_registrazioni_righe').insert(righeNonIvaDaInserire);
+
+            if (iva && Array.isArray(iva) && iva.length > 0) {
+                let tipoRegistroIva = null;
+                if (funzioneDettagli.categoria.includes('Acquisti')) {
+                    tipoRegistroIva = 'Acquisti';
+                } else if (funzioneDettagli.categoria.includes('Vendite')) {
+                    tipoRegistroIva = 'Vendite';
+                }
+
+                if (tipoRegistroIva) {
+                    for (const rigaIva of iva) {
+                        if (rigaIva.imposta > 0) {
+                            const templateRigaIva = righeIvaTemplate[0];
+                            
+                            const [idRigaIvaInserita] = await trx('sc_registrazioni_righe').insert({
+                                id_testata: idTestata,
+                                id_conto: templateRigaIva.id_conto,
+                                descrizione_riga: templateRigaIva.descrizione,
+                                importo_dare: templateRigaIva.importo_dare > 0 ? rigaIva.imposta : 0,
+                                importo_avere: templateRigaIva.importo_avere > 0 ? rigaIva.imposta : 0,
+                            }).returning('id');
+
+                            const codiceIva = await trx('iva_contabili').where('id', rigaIva.id_codice_iva).first();
+
+                            await trx('sc_registri_iva').insert({
+                                id_riga_registrazione: idRigaIvaInserita,
+                                tipo_registro: tipoRegistroIva,
+                                data_documento: datiDocumento.data_documento,
+                                numero_documento: datiDocumento.numero_documento,
+                                id_anagrafica: datiDocumento.id_anagrafica || null,
+                                imponibile: rigaIva.imponibile,
+                                aliquota_iva: codiceIva ? codiceIva.aliquota : 0,
+                                importo_iva: rigaIva.imposta
+                            });
+                        }
+                    }
+                }
+            }
             
             if ((funzioneDettagli.tipo_funzione === 'Finanziaria' || funzioneDettagli.tipo_funzione === 'Pagamento') && datiDocumento.id_anagrafica) {
                 let tipo_movimento = null;
@@ -323,45 +361,35 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
                 }
                 
                 if (tipo_movimento) {
-                    // <span style="color:red;">// MODIFICA: Campo 'id_testata' rinominato in 'id_registrazione_testata'</span>
                     await trx('sc_partite_aperte').insert({
                         id_ditta,
-                        id_registrazione_testata: idTestata, // Campo rinominato
+                        id_registrazione_testata: idTestata,
                         data_registrazione: datiDocumento.data_registrazione,
+                        id_anagrafica: datiDocumento.id_anagrafica,
                         id_ditta_anagrafica: datiDocumento.id_anagrafica,
                         id_sottoconto: datiDocumento.id_anagrafica,
                         numero_documento: datiDocumento.numero_documento,
                         data_documento: datiDocumento.data_documento,
                         tipo_movimento: tipo_movimento,
                         importo: datiDocumento.totale_documento,
-                        stato: 'aperta',
+                        stato: 'APERTA',
                         data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento,
                     });
                 }
             }
-
-            if (iva && Array.isArray(iva) && iva.length > 0) {
-                const righeIvaDaInserire = iva.map(rigaIva => ({
-                    //id_ditta,
-                    //id_testata: idTestata,
-                    //data_registrazione: datiDocumento.data_registrazione,
-                    id_anagrafica: datiDocumento.id_anagrafica || null,
-                    aliquota_iva: rigaIva.id_codice_iva,
-                    imponibile: rigaIva.imponibile,
-                    importo_iva: rigaIva.imposta
-                }));
-                await trx('sc_registri_iva').insert(righeIvaDaInserire);
-            }
             
-            await trx('log_accessi').insert({
-                id_utente,
-                id_ditta,
-                id_funzione_accessibile: 1,
-                dettagli_azione: `Creata registrazione contabile id_testata: ${idTestata} tramite funzione id: ${datiDocumento.id_funzione_contabile}`
+            await trx('log_azioni').insert({
+                id_utente, id_ditta, azione: 'Creazione Registrazione Contabile',
+                dettagli: `ID Testata: ${idTestata}, Funzione: ${datiDocumento.id_funzione_contabile}`
             });
+
         });
 
-        res.status(201).json({ message: "Registrazione salvata con successo." });
+        res.status(201).json({ 
+            message: `Registrazione salvata con protocollo N. ${nextProtocollo} del ${datiDocumento.data_registrazione}`,
+            numero_protocollo: nextProtocollo,
+            data_registrazione: datiDocumento.data_registrazione
+        });
     } catch (error) {
         console.error("Errore durante il salvataggio della registrazione:", error);
         res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
@@ -931,75 +959,90 @@ router.get('/anagrafiche-filtrate', verifyToken, async (req, res) => {
 // GET /api/contsmart/funzioni-contabili
 // Restituisce l'elenco delle funzioni contabili per la ditta corrente
 // GET /api/contsmart/funzioni-contabili
+
 router.get('/funzioni-contabili', verifyToken, async (req, res) => {
     const { id_ditta } = req.user;
     try {
         const funzioni = await knex('sc_funzioni_contabili')
-            .leftJoin('sc_tipi_funzione_contabile', 'sc_funzioni_contabili.id_tipo_funzione', 'sc_tipi_funzione_contabile.id')
-            .select(
-                'sc_funzioni_contabili.id',
-                'sc_funzioni_contabili.nome_funzione',
-                'sc_funzioni_contabili.descrizione',
-                'sc_tipi_funzione_contabile.nome_tipo as tipo_funzione',
-                 'sc_tipi_funzione_contabile.codice_tipo as codice_tipo_funzione'
-            )
+            .where({ id_ditta, attiva: 1 })
+            .select('id', 'nome_funzione', 'descrizione', 'tipo_funzione', 'categoria', 'gestioni_abbinate');
+
+        const tutteLeRighe = await knex('sc_funzioni_contabili_righe')
+            .join('sc_funzioni_contabili', 'sc_funzioni_contabili_righe.id_funzione_contabile', 'sc_funzioni_contabili.id')
             .where('sc_funzioni_contabili.id_ditta', id_ditta)
-            .orWhereNull('sc_funzioni_contabili.id_ditta')
-            .orderBy('sc_funzioni_contabili.nome_funzione');
-        res.json(funzioni);
+            .select('sc_funzioni_contabili_righe.*'); // Seleziona tutti i campi, inclusi i nuovi
+
+        const risultato = funzioni.map(funzione => ({
+            ...funzione,
+            // Knex con MySQL restituisce il SET come una stringa, la convertiamo in array per il frontend
+            gestioni_abbinate: funzione.gestioni_abbinate ? funzione.gestioni_abbinate.split(',') : [],
+            righe_predefinite: tutteLeRighe.filter(riga => riga.id_funzione_contabile === funzione.id)
+        }));
+
+        res.json({ success: true, data: risultato });
     } catch (error) {
         console.error("Errore nel recupero delle funzioni contabili:", error);
-        res.status(500).json({ message: "Errore del server nel recupero delle funzioni contabili." });
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
-// POST /funzioni-contabili - Crea una nuova funzione contabile
-router.post('/funzioni-contabili', async (req, res) => {
-    const { nome_funzione, descrizione, tipo_funzione, categoria } = req.body;
-    // Assumiamo che l'id_ditta sia recuperato dal token/sessione
-    const id_ditta = req.user.id_ditta; 
-
-    if (!nome_funzione || !tipo_funzione || !categoria) {
-        return res.status(400).json({ message: 'Nome, tipo e categoria della funzione sono obbligatori.' });
-    }
+router.post('/funzioni-contabili', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { testata, righe } = req.body;
 
     try {
-        // [NUOVO] LOGICA PER CODICE PROGRESSIVO
-        // 1. Trova il codice_funzione più alto per la ditta corrente.
-        const result = await req.db('sc_funzioni_contabili')
-            .where({ id_ditta })
-            .max({ max_code: req.db.raw('CAST(codice_funzione AS UNSIGNED)') }); // Converte in numero per l'ordinamento
+        await knex.transaction(async trx => {
+            const [idTestata] = await trx('sc_funzioni_contabili').insert({
+                ...testata,
+                id_ditta,
+                gestioni_abbinate: (testata.gestioni_abbinate || []).join(',')
+            });
 
-        let nextCode = 1;
-        // 2. Se esiste un massimo, lo incrementa. Altrimenti, parte da 1.
-        if (result && result.length > 0 && result[0].max_code) {
-            nextCode = result[0].max_code + 1;
-        }
-        // [FINE NUOVO]
-
-        const nuovaFunzione = {
-            id_ditta,
-            codice_funzione: nextCode.toString(), // Salva il nuovo codice come stringa
-            nome_funzione: nome_funzione.toUpperCase(),
-            descrizione,
-            tipo_funzione,
-            categoria
-        };
-
-        const [id] = await req.db('sc_funzioni_contabili').insert(nuovaFunzione);
-
-        res.status(201).json({ id, ...nuovaFunzione });
-
+            if (righe && righe.length > 0) {
+                const righeDaInserire = righe.map(riga => ({
+                    ...riga,
+                    id_funzione_contabile: idTestata,
+                }));
+                await trx('sc_funzioni_contabili_righe').insert(righeDaInserire);
+            }
+        });
+        res.status(201).json({ success: true, message: 'Funzione creata con successo.' });
     } catch (error) {
-        console.error('Errore creazione funzione:', error);
-        if (error.code === 'ER_DUP_ENTRY') {
-             return res.status(409).json({ message: 'Errore di duplicazione. Il codice funzione generato potrebbe essere già in uso.' });
-        }
-        res.status(500).json({ message: 'Errore interno del server durante la creazione della funzione.' });
+        console.error("Errore nella creazione della funzione:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
+router.patch('/funzioni-contabili/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+    const { testata, righe } = req.body;
 
+    try {
+        await knex.transaction(async trx => {
+            await trx('sc_funzioni_contabili')
+                .where({ id: id, id_ditta: id_ditta })
+                .update({
+                    ...testata,
+                    gestioni_abbinate: (testata.gestioni_abbinate || []).join(',')
+                });
+            
+            await trx('sc_funzioni_contabili_righe').where('id_funzione_contabile', id).del();
+
+            if (righe && righe.length > 0) {
+                const righeDaInserire = righe.map(riga => ({
+                    ...riga,
+                    id_funzione_contabile: id,
+                }));
+                await trx('sc_funzioni_contabili_righe').insert(righeDaInserire);
+            }
+        });
+        res.json({ success: true, message: 'Funzione aggiornata con successo.' });
+    } catch (error) {
+        console.error(`Errore nell'aggiornamento della funzione ${id}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
 // POST /api/contsmart/registrazioni
 
 

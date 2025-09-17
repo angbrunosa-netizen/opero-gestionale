@@ -714,13 +714,13 @@ router.get('/tipi-utente', verifyToken, async (req, res) => {
 // =====================================================================
 // GESTIONE PROGRESSIVI
 // =====================================================================
-
 // GET /api/amministrazione/progressivi - Ottiene tutti i progressivi per la ditta
 router.get('/progressivi', verifyToken, canManageAdminSettings, async (req, res) => {
     const { id_ditta } = req.user;
     try {
+        // <span style="color:green;">// MODIFICATO: Seleziona esplicitamente i campi per includere data_ult.</span>
         const [progressivi] = await dbPool.query(
-            'SELECT * FROM an_progressivi WHERE id_ditta = ? ORDER BY codice_progressivo',
+            'SELECT id, codice_progressivo, descrizione, ultimo_numero, serie, data_ult, formato FROM an_progressivi WHERE id_ditta = ? ORDER BY codice_progressivo',
             [id_ditta]
         );
         res.json({ success: true, data: progressivi });
@@ -733,16 +733,18 @@ router.get('/progressivi', verifyToken, canManageAdminSettings, async (req, res)
 // POST /api/amministrazione/progressivi - Crea un nuovo progressivo
 router.post('/progressivi', verifyToken, canManageAdminSettings, async (req, res) => {
     const { id_ditta } = req.user;
-    const { codice_progressivo, descrizione, ultimo_numero, serie } = req.body;
+    // <span style="color:green;">// MODIFICATO: Aggiunto data_ult ai campi accettati.</span>
+    const { codice_progressivo, descrizione, ultimo_numero, serie, data_ult } = req.body;
 
     if (!codice_progressivo || !descrizione || ultimo_numero === undefined) {
         return res.status(400).json({ success: false, message: 'Codice, descrizione e ultimo numero sono obbligatori.' });
     }
 
     try {
+        // <span style="color:green;">// MODIFICATO: La query ora include il campo data_ult (se fornito).</span>
         const [result] = await dbPool.query(
-            'INSERT INTO an_progressivi (id_ditta, codice_progressivo, descrizione, ultimo_numero, serie) VALUES (?, ?, ?, ?, ?)',
-            [id_ditta, codice_progressivo.toUpperCase(), descrizione, parseInt(ultimo_numero), serie || null]
+            'INSERT INTO an_progressivi (id_ditta, codice_progressivo, descrizione, ultimo_numero, serie, data_ult) VALUES (?, ?, ?, ?, ?, ?)',
+            [id_ditta, codice_progressivo.toUpperCase(), descrizione, parseInt(ultimo_numero), serie || null, data_ult || null]
         );
         res.status(201).json({ success: true, message: 'Progressivo creato con successo.', id: result.insertId });
     } catch (error) {
@@ -758,16 +760,19 @@ router.post('/progressivi', verifyToken, canManageAdminSettings, async (req, res
 router.put('/progressivi/:id', verifyToken, canManageAdminSettings, async (req, res) => {
     const { id_ditta } = req.user;
     const { id } = req.params;
-    const { descrizione, ultimo_numero } = req.body;
+    // <span style="color:green;">// MODIFICATO: Aggiunto data_ult ai campi per l'aggiornamento.</span>
+    const { descrizione, ultimo_numero, data_ult } = req.body;
 
-    if (!descrizione || ultimo_numero === undefined) {
-        return res.status(400).json({ success: false, message: 'Descrizione e ultimo numero sono obbligatori.' });
+    // <span style="color:green;">// MODIFICATO: Validazione estesa a data_ult.</span>
+    if (!descrizione || ultimo_numero === undefined || !data_ult) {
+        return res.status(400).json({ success: false, message: 'Descrizione, ultimo numero e data ultimo utilizzo sono obbligatori.' });
     }
 
     try {
+        // <span style="color:green;">// MODIFICATO: La query di UPDATE ora gestisce anche data_ult.</span>
         const [result] = await dbPool.query(
-            'UPDATE an_progressivi SET descrizione = ?, ultimo_numero = ? WHERE id = ? AND id_ditta = ?',
-            [descrizione, parseInt(ultimo_numero), id, id_ditta]
+            'UPDATE an_progressivi SET descrizione = ?, ultimo_numero = ?, data_ult = ? WHERE id = ? AND id_ditta = ?',
+            [descrizione, parseInt(ultimo_numero), data_ult, id, id_ditta]
         );
 
         if (result.affectedRows === 0) {
@@ -780,6 +785,8 @@ router.put('/progressivi/:id', verifyToken, canManageAdminSettings, async (req, 
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
+
 
 // GET /api/amministrazione/ditte - Ottiene l'elenco delle ditte con filtri avanzati
 // GET /api/amministrazione/ditte - Ottiene l'elenco delle ditte con filtri avanzati

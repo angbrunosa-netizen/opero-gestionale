@@ -1,125 +1,319 @@
-    // #####################################################################
-    // # Componente Gestione Funzioni Contabili v9.0 (Fix Definitivo D/A)
-    // # File: opero-gestionale/opero-frontend/src/components/cont-smart/FunzioniContabiliManager.js
-    // #####################################################################
+// #####################################################################
+// # Componente Gestione Funzioni Contabili v3.0 (con Tabella, Ricerca e Ordinamento)
+// # File: opero-frontend/src/components/cont-smart/FunzioniContabiliManager.js
+// #####################################################################
 
-    import React, { useState, useEffect, useCallback } from 'react';
-    import { api } from '../../services/api';
-    import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { api } from '../../services/api';
+import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon, ArrowsUpDownIcon } from '@heroicons/react/24/solid';
 
-    // --- Sotto-componente: Modale per Creazione/Modifica ---
-   const FunzioneEditModal = ({ funzione, onSave, onCancel, pianoConti }) => {
-    
-    const createInitialFormData = (func) => {
-        if (!func) {
-            return {
-                nome_funzione: '',
-                descrizione: '',
-                tipo_funzione: 'Primaria',
-                categoria: '',
-                righe_predefinite: []
+const FunzioniContabiliManager = () => {
+    const [funzioni, setFunzioni] = useState([]);
+    const [pianoConti, setPianoConti] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [selectedFunzione, setSelectedFunzione] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // <span style="color:green;">// NUOVO: Stati per la gestione della ricerca e dell'ordinamento</span>
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: 'nome_funzione', direction: 'ascending' });
+
+    const fetchData = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            const [funzioniRes, pdcRes] = await Promise.all([
+                api.get('/contsmart/funzioni-contabili'),
+                api.get('/contsmart/pdc-tree'),
+            ]);
+            
+            setFunzioni(funzioniRes.data.data || []);
+
+            const flattenPdc = (nodes) => {
+                let flat = [];
+                nodes.forEach(node => {
+                    flat.push({ id: node.id, descrizione: node.descrizione, isSelectable: node.tipo === 'Sottoconto' });
+                    if (node.children) flat = flat.concat(flattenPdc(node.children));
+                });
+                return flat;
             };
+            setPianoConti(flattenPdc(pdcRes.data.data || []));
+
+        } catch (err) {
+            setError('Impossibile caricare i dati.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    // <span style="color:green;">// NUOVO: Logica di filtraggio e ordinamento</span>
+    const sortedAndFilteredFunzioni = useMemo(() => {
+        let filtered = [...funzioni];
+        if (searchTerm) {
+            filtered = filtered.filter(funzione =>
+                (funzione.nome_funzione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (funzione.descrizione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (funzione.tipo_funzione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (funzione.categoria || '').toLowerCase().includes(searchTerm.toLowerCase())
+            );
         }
 
-        // <span style="color:red;">// CORREZIONE: Ora legge il campo 'tipo_movimento' dal backend.</span>
-        const righeNormalizzate = (func.righe_predefinite || []).map(rigaBackend => {
-            // Traduce 'D'/'A' in 'DARE'/'AVERE' solo per la visualizzazione nel form
-            const segnoPerFrontend = rigaBackend.tipo_movimento === 'A' ? 'AVERE' : 'DARE';
-            return {
-                id_conto: rigaBackend.id_conto,
-                dare_avere: segnoPerFrontend, // Questo nome è usato solo nello stato del form
-                descrizione_riga_predefinita: rigaBackend.descrizione_riga_predefinita || ''
-            };
-        });
-        
-        return {
-            nome_funzione: func.nome_funzione || '',
-            descrizione: func.descrizione || '',
-            tipo_funzione: func.tipo_funzione || 'Primaria',
-            categoria: func.categoria || '',
-            righe_predefinite: righeNormalizzate
-        };
+        if (sortConfig.key) {
+            filtered.sort((a, b) => {
+                if (a[sortConfig.key] < b[sortConfig.key]) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (a[sortConfig.key] > b[sortConfig.key]) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return filtered;
+    }, [funzioni, searchTerm, sortConfig]);
+
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
     };
 
-    const [formData, setFormData] = useState(() => createInitialFormData(funzione));
+    const handleOpenModal = (funzione = null) => {
+        setSelectedFunzione(funzione);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedFunzione(null);
+    };
+
+    const handleSave = async (funzioneData) => {
+        try {
+            if (selectedFunzione && selectedFunzione.id) {
+                await api.patch(`/contsmart/funzioni-contabili/${selectedFunzione.id}`, funzioneData);
+            } else {
+                await api.post('/contsmart/funzioni-contabili', funzioneData);
+            }
+            fetchData();
+            handleCloseModal();
+        } catch (error) {
+            alert("Salvataggio fallito.");
+        }
+    };
+
+    if (isLoading) return <div><ArrowPathIcon className="h-6 w-6 animate-spin mx-auto" /></div>;
+    if (error) return <div className="text-red-500">{error}</div>;
+
+    const SortableHeader = ({ field, label }) => (
+        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(field)}>
+            <div className="flex items-center">
+                {label}
+                {sortConfig.key === field && <span className="ml-1">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>}
+            </div>
+        </th>
+    );
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Gestione Funzioni Contabili</h2>
+                <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 shadow-sm hover:bg-blue-700">
+                    <PlusIcon className="h-5 w-5" /> Nuova Funzione
+                </button>
+            </div>
+            
+            <div className="mb-4">
+                <input
+                    type="text"
+                    placeholder="Cerca per nome, tipo, categoria..."
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <SortableHeader field="nome_funzione" label="Nome Funzione" />
+                            <SortableHeader field="tipo_funzione" label="Tipo" />
+                            <SortableHeader field="categoria" label="Categoria" />
+                            <th scope="col" className="relative px-6 py-3">
+                                <span className="sr-only">Modifica</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {sortedAndFilteredFunzioni.map(funzione => (
+                            <tr key={funzione.id}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm font-medium text-gray-900">{funzione.nome_funzione}</div>
+                                    <div className="text-sm text-gray-500">{funzione.descrizione}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {funzione.tipo_funzione}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {funzione.categoria}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onClick={() => handleOpenModal(funzione)} className="text-blue-600 hover:text-blue-900">
+                                        <PencilIcon className="h-5 w-5" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {isModalOpen && (
+                <FunzioneModal
+                    funzione={selectedFunzione}
+                    onClose={handleCloseModal}
+                    onSave={handleSave}
+                    pianoConti={pianoConti}
+                />
+            )}
+        </div>
+    );
+};
+
+const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
+    const [testata, setTestata] = useState({
+        nome_funzione: '', descrizione: '', tipo_funzione: 'Primaria', categoria: '', gestioni_abbinate: []
+    });
+    const [righe, setRighe] = useState([]);
 
     useEffect(() => {
-        setFormData(createInitialFormData(funzione));
+        if (funzione) {
+            setTestata({
+                nome_funzione: funzione.nome_funzione || '',
+                descrizione: funzione.descrizione || '',
+                tipo_funzione: funzione.tipo_funzione || 'Primaria',
+                categoria: funzione.categoria || '',
+                gestioni_abbinate: funzione.gestioni_abbinate || []
+            });
+            setRighe(funzione.righe_predefinite.map(r => ({...r, uniqueId: Math.random()})));
+        }
     }, [funzione]);
-
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    
+    const handleTestataChange = (e) => {
+        setTestata({ ...testata, [e.target.name]: e.target.value });
+    };
+    
+    const handleGestioneAbbinataChange = (e) => {
+        const { value, checked } = e.target;
+        setTestata(prev => {
+            const gestioni = new Set(prev.gestioni_abbinate);
+            if (checked) gestioni.add(value);
+            else gestioni.delete(value);
+            return { ...prev, gestioni_abbinate: Array.from(gestioni) };
+        });
     };
 
-    const handleRigaChange = (index, field, value) => {
-        const newRighe = [...formData.righe_predefinite];
-        newRighe[index][field] = value;
-        setFormData(prev => ({ ...prev, righe_predefinite: newRighe }));
+    const handleRigaChange = (uniqueId, field, value) => {
+        let newRighe = righe.map(r => r.uniqueId === uniqueId ? { ...r, [field]: value } : r);
+        
+        if (field === 'is_conto_ricerca' && value === true) {
+            newRighe = newRighe.map(r => r.uniqueId !== uniqueId ? { ...r, is_conto_ricerca: false } : r);
+        }
+        
+        setRighe(newRighe);
     };
 
     const addRiga = () => {
-        setFormData(prev => ({
-            ...prev,
-            righe_predefinite: [...prev.righe_predefinite, { id_conto: '', dare_avere: 'DARE', descrizione_riga_predefinita: '' }]
-        }));
+        setRighe([...righe, { uniqueId: Math.random(), id_conto: '', tipo_movimento: 'D', is_sottoconto_modificabile: true, is_conto_ricerca: false, descrizione_riga_predefinita: '' }]);
     };
-
-    const removeRiga = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            righe_predefinite: prev.righe_predefinite.filter((_, i) => i !== index)
-        }));
-    };
-
+    
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(formData);
+        onSave({ testata, righe: righe.map(({uniqueId, ...rest}) => rest) });
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
-                    {funzione ? 'Modifica Funzione Contabile' : 'Crea Nuova Funzione Contabile'}
-                </h3>
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-                    <div className="space-y-4 pr-2">
-                        <input type="text" name="nome_funzione" value={formData.nome_funzione} onChange={handleInputChange} placeholder="Nome Funzione" className="w-full rounded-md border-slate-300" required />
-                        <textarea name="descrizione" value={formData.descrizione} onChange={handleInputChange} placeholder="Descrizione" className="w-full rounded-md border-slate-300" rows="2"></textarea>
-                        
-                        <select name="tipo_funzione" value={formData.tipo_funzione} onChange={handleInputChange} className="w-full rounded-md border-slate-300">
-                            <option value="Primaria">Primaria</option>
-                            <option value="Secondaria">Secondaria</option>
-                            <option value="Finanziaria">Finanziaria</option>
-                            <option value="Sistema">Sistema</option>
-                        </select>
-
-                        <input type="text" name="categoria" value={formData.categoria} onChange={handleInputChange} placeholder="Categoria (es. Acquisti, Vendite)" className="w-full rounded-md border-slate-300" />
-                        
-                        <fieldset className="border p-2 rounded">
-                            <legend className="px-1 text-sm">Righe Predefinite</legend>
-                            {formData.righe_predefinite.map((riga, index) => (
-                                <div key={index} className="flex items-center gap-2 mb-2">
-                                    <select value={riga.id_conto} onChange={(e) => handleRigaChange(index, 'id_conto', e.target.value)} className="flex-grow rounded-md border-slate-300 text-sm">
-                                        <option value="">Seleziona Conto...</option>
-                                        {pianoConti.map(c => <option key={c.id} value={c.id}>{c.codice} - {c.descrizione}</option>)}
-                                    </select>
-                                    <select value={riga.dare_avere} onChange={(e) => handleRigaChange(index, 'dare_avere', e.target.value)} className="w-1/4 rounded-md border-slate-300 text-sm">
-                                        <option value="DARE">DARE</option>
-                                        <option value="AVERE">AVERE</option>
-                                    </select>
-                                    <input type="text" value={riga.descrizione_riga_predefinita} onChange={(e) => handleRigaChange(index, 'descrizione_riga_predefinita', e.target.value)} placeholder="Descrizione riga (opz.)" className="flex-grow rounded-md border-slate-300 text-sm"/>
-                                    <button type="button" onClick={() => removeRiga(index)} className="text-red-500"><TrashIcon className="h-5 w-5"/></button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={addRiga} className="text-sm text-blue-600 flex items-center gap-1 mt-2"><PlusIcon className="h-4 w-4"/> Aggiungi riga</button>
-                        </fieldset>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4">
+             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold mb-6">{funzione ? 'Modifica' : 'Crea'} Funzione Contabile</h3>
+                <form onSubmit={handleSubmit}>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
+                        <div className="relative">
+                            <label htmlFor="nome_funzione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Nome Funzione</label>
+                            <input type="text" name="nome_funzione" id="nome_funzione" value={testata.nome_funzione} onChange={handleTestataChange} required className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
+                        </div>
+                        <div className="relative">
+                            <label htmlFor="categoria" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Categoria</label>
+                            <input type="text" name="categoria" id="categoria" value={testata.categoria} onChange={handleTestataChange} className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
+                        </div>
+                        <div className="relative md:col-span-2">
+                             <label htmlFor="descrizione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Descrizione</label>
+                             <textarea name="descrizione" id="descrizione" rows="2" value={testata.descrizione} onChange={handleTestataChange} className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
+                        </div>
+                         <div className="relative">
+                            <label htmlFor="tipo_funzione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Tipo Funzione</label>
+                            <select name="tipo_funzione" id="tipo_funzione" value={testata.tipo_funzione} onChange={handleTestataChange} className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600">
+                                <option>Primaria</option>
+                                <option>Finanziaria</option>
+                                <option>Secondaria</option>
+                                <option>Sistema</option>
+                            </select>
+                        </div>
                     </div>
-                    <div className="mt-6 flex justify-end gap-3 pt-4 border-t">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Salva</button>
+
+                    <div className="mb-4 border p-3 rounded-md">
+                        <p className="font-semibold text-sm mb-2">Gestioni Abbinate</p>
+                        <div className="flex flex-wrap gap-x-6 gap-y-2">
+                            <label className="inline-flex items-center">
+                                <input type="checkbox" value="I" checked={testata.gestioni_abbinate.includes('I')} onChange={handleGestioneAbbinataChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                <span className="ml-2 text-sm">Gestione IVA</span>
+                            </label>
+                            <label className="inline-flex items-center">
+                                <input type="checkbox" value="C" checked={testata.gestioni_abbinate.includes('C')} onChange={handleGestioneAbbinataChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                <span className="ml-2 text-sm">Centri di Costo</span>
+                            </label>
+                             <label className="inline-flex items-center">
+                                <input type="checkbox" value="E" checked={testata.gestioni_abbinate.includes('E')} onChange={handleGestioneAbbinataChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                <span className="ml-2 text-sm">Elenchi</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <h4 className="font-semibold mb-2 mt-6">Righe Predefinite</h4>
+                    <div className="space-y-3 mb-4">
+                        {righe.map(riga => (
+                            <div key={riga.uniqueId} className="grid grid-cols-12 gap-2 items-center p-2 border rounded-md">
+                                <select value={riga.id_conto} onChange={e => handleRigaChange(riga.uniqueId, 'id_conto', e.target.value)} className="col-span-12 md:col-span-5 p-2 border rounded text-sm">
+                                    <option value="">Seleziona Conto</option>
+                                    {pianoConti.map(c => <option key={c.id} value={c.id} disabled={!c.isSelectable}>{c.descrizione}</option>)}
+                                </select>
+                                <select value={riga.tipo_movimento} onChange={e => handleRigaChange(riga.uniqueId, 'tipo_movimento', e.target.value)} className="col-span-6 md:col-span-2 p-2 border rounded text-sm">
+                                    <option value="D">DARE</option>
+                                    <option value="A">AVERE</option>
+                                </select>
+                                <label className="col-span-6 md:col-span-4 flex items-center text-sm select-none">
+                                    <input type="checkbox" checked={riga.is_conto_ricerca} onChange={e => handleRigaChange(riga.uniqueId, 'is_conto_ricerca', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                    <span className="ml-2">Conto di Ricerca</span>
+                                </label>
+                                <button type="button" onClick={() => setRighe(righe.filter(r => r.uniqueId !== riga.uniqueId))} className="col-span-12 md:col-span-1 p-2 text-red-500 hover:bg-red-100 rounded-full flex justify-center">
+                                    <TrashIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                    <button type="button" onClick={addRiga} className="text-sm text-blue-600 mb-6 flex items-center gap-1"><PlusIcon className="h-4 w-4"/> Aggiungi Riga</button>
+
+                    <div className="flex justify-end gap-4">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva</button>
                     </div>
                 </form>
             </div>
@@ -127,183 +321,6 @@
     );
 };
 
-    // --- Componente Principale ---
-    const FunzioniContabiliManager = () => {
-        const [funzioni, setFunzioni] = useState([]);
-        const [pianoConti, setPianoConti] = useState([]);
-        const [isLoading, setIsLoading] = useState(true);
-        const [error, setError] = useState('');
-        const [isModalOpen, setIsModalOpen] = useState(false);
-        const [editingFunzione, setEditingFunzione] = useState(null);
-        const [confirmDelete, setConfirmDelete] = useState(null);
 
-        const fetchData = useCallback(async () => {
-            setIsLoading(true);
-            setError('');
-            try {
-                const [funzioniRes, pdcRes] = await Promise.all([
-                    api.get('/contsmart/funzioni'),
-                    api.get('/contsmart/pdc-tree') 
-                ]);
-
-                const flattenPdc = (nodes) => {
-                    let list = [];
-                    if (!Array.isArray(nodes)) return [];
-                    nodes.forEach(node => {
-                        list.push({ id: node.id, codice: node.codice, descrizione: node.descrizione });
-                        if (node.children) list = list.concat(flattenPdc(node.children));
-                    });
-                    return list;
-                };
-                
-                setFunzioni(funzioniRes.data);
-                const pianoContiData = pdcRes.data.data || pdcRes.data;
-                setPianoConti(flattenPdc(pianoContiData));
-
-            } catch (err) {
-                setError('Errore nel caricamento dei dati. Riprova.');
-                console.error(err);
-            } finally {
-                setIsLoading(false);
-            }
-        }, []);
-
-        useEffect(() => {
-            fetchData();
-        }, [fetchData]);
-
-        const handleCreate = () => {
-            setEditingFunzione(null);
-            setIsModalOpen(true);
-        };
-
-        const handleEdit = (funzione) => {
-            setEditingFunzione(funzione);
-            setIsModalOpen(true);
-        };
-        
-      const handleSave = async (formData) => {
-        // <span style="color:red;">// CORREZIONE DEFINITIVA: Sostituita la logica di mapping con una più esplicita e sicura.</span>
-        // <span style="color:green;">// Questo approccio previene errori dovuti a proprietà inattese e garantisce
-        // <span style="color:green;">// che il campo 'tipo_movimento' sia sempre valorizzato correttamente.</span>
-        const payload = {
-            ...formData,
-            righe_predefinite: formData.righe_predefinite.map(riga => ({
-                id_conto: riga.id_conto,
-                descrizione_riga_predefinita: riga.descrizione_riga_predefinita,
-                tipo_movimento: riga.dare_avere === 'AVERE' ? 'A' : 'D'
-            }))
-        };
-        
-        try {
-            if (editingFunzione) {
-                await api.put(`/contsmart/funzioni/${editingFunzione.id}`, payload);
-            } else {
-                await api.post('/contsmart/funzioni', payload);
-            }
-            setIsModalOpen(false);
-            fetchData();
-        } catch (error) {
-            console.error("Errore salvataggio funzione:", error);
-            setError("Errore durante il salvataggio della funzione.");
-        }
-    };
-    
-        
-        const handleDeleteRequest = (funzione) => {
-            setConfirmDelete(funzione);
-        };
-
-        const executeDelete = async () => {
-            if (!confirmDelete) return;
-            try {
-                await api.delete(`/contsmart/funzioni/${confirmDelete.id}`);
-                setConfirmDelete(null);
-                fetchData();
-            } catch (error) {
-                console.error("Errore eliminazione funzione:", error);
-                setError("Errore durante l'eliminazione della funzione.");
-                setConfirmDelete(null);
-            }
-        };
-        
-        if (isLoading) return <div className="flex justify-center p-4"><ArrowPathIcon className="h-6 w-6 animate-spin text-slate-500" /></div>;
-        if (error) return <div className="bg-red-100 text-red-700 p-3 rounded-md" role="alert">{error}</div>;
-
-        return (
-            <div className="p-1">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold text-slate-700">Gestione Funzioni Contabili</h2>
-                    <button onClick={handleCreate} className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                        <PlusIcon className="h-5 w-5 mr-1"/> Nuova Funzione
-                    </button>
-                </div>
-
-                <div className="bg-white shadow rounded-lg overflow-x-auto">
-                    <table className="w-full text-sm text-left text-slate-500">
-                        <thead className="text-xs text-slate-700 uppercase bg-slate-50">
-                            <tr>
-                                <th scope="col" className="px-6 py-3">Nome Funzione</th>
-                                <th scope="col" className="px-6 py-3">Tipo</th>
-                                 <th scope="col" className="px-6 py-3">Categoria</th>
-                                <th scope="col" className="px-6 py-3">Descrizione</th>
-                                <th scope="col" className="px-6 py-3 text-right">Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {funzioni.map(f => (
-                                <tr key={f.id} className="bg-white border-b hover:bg-slate-50">
-                                    <td className="px-6 py-4 font-medium text-slate-900">{f.nome_funzione}</td>
-                                    <td className="px-6 py-4">{f.tipo_funzione}</td>
-                                     <td className="px-6 py-4">{f.categoria || '-'}</td>
-                                    <td className="px-6 py-4">{f.descrizione}</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button onClick={() => handleEdit(f)} className="p-1 text-blue-600 hover:text-blue-800"><PencilIcon className="h-4 w-4"/></button>
-                                        <button onClick={() => handleDeleteRequest(f)} className="p-1 ml-2 text-red-600 hover:text-red-800"><TrashIcon className="h-4 w-4"/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {isModalOpen && (
-                    <FunzioneEditModal 
-                        funzione={editingFunzione}
-                        onSave={handleSave}
-                        onCancel={() => setIsModalOpen(false)}
-                        pianoConti={pianoConti}
-                    />
-                )}
-                
-                {confirmDelete && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-                            <div className="flex items-start">
-                                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                    <ExclamationTriangleIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
-                                </div>
-                                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                    <h3 className="text-lg font-medium text-gray-900">Elimina Funzione</h3>
-                                    <div className="mt-2">
-                                        <p className="text-sm text-gray-500">Sei sicuro di voler eliminare la funzione "{confirmDelete.nome_funzione}"? Questa azione è irreversibile.</p>
-                                    </div>
-                                </div>  
-                            </div>
-                            <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                                <button type="button" onClick={executeDelete} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">
-                                    Elimina
-                                </button>
-                                <button type="button" onClick={() => setConfirmDelete(null)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm">
-                                    Annulla
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    export default FunzioniContabiliManager;
+export default FunzioniContabiliManager;
 
