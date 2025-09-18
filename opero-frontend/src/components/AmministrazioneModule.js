@@ -3,25 +3,25 @@
 // # File: opero-frontend/src/components/AmministrazioneModule.js
 // #####################################################################
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect ,useMemo} from 'react';
 import { api } from '../services/api'; 
-
+import PianoContiManager from './cont-smart/PianoContiManager'; // Importato il componente reale
 import { useAuth } from '../context/AuthContext';
-import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon,BuildingOffice2Icon,  DocumentTextIcon, AtSymbolIcon, Cog8ToothIcon, HashtagIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
+import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon,BuildingOffice2Icon,WrenchScrewdriverIcon, DocumentTextIcon, AtSymbolIcon, Cog8ToothIcon, HashtagIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
 import UserForm from './UserForm'; // Esempio, potrebbero essere gestori più complessi
 import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
 import ProgressiviManager from './amministrazione/ProgressiviManager';
+//import DynamicReportTable from '../shared/DynamicReportTable'; // <-- IMPORTAZIONE COMPONENTE
 
 //const AnagraficheManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Anagrafiche</h2><p>Interfaccia per la gestione di Clienti e Fornitori.</p></div>;
 //const UserManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Utenti</h2><p>Interfaccia per la gestione degli utenti della ditta.</p></div>;
 //const PianoDeiContiManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Piano dei Conti</h2><p>Interfaccia per la gestione di Mastri, Conti e Sottoconti.</p></div>;
 //const MailAccountsManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Account Email</h2><p>Interfaccia per la configurazione degli account email della ditta.</p></div>;
 const NoPermissionMessage = () => <div className="p-6 text-center text-gray-500"><p>Non disponi delle autorizzazioni necessarie per visualizzare questa sezione.</p></div>;
-// --- Componente Modale per Form di Modifica/Creazione Anagrafica (AGGIORNATO CON CAMPI COMPLETI) ---
+// --- Componente Modale per Form di Modifica/Creazione Anagrafica ---
 function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
-const { user } = useAuth();
-console.log('USER OBJECT IN AMMINISTRAZIONE MODULE primo:', user);
-
+    const { user } = useAuth();
+    
     const [formData, setFormData] = useState({
         ragione_sociale: '',
         indirizzo: '',
@@ -42,27 +42,29 @@ console.log('USER OBJECT IN AMMINISTRAZIONE MODULE primo:', user);
     const [relazioni, setRelazioni] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-console.log('USER OBJECT IN AMMINISTRAZIONE MODULE:', user);
+
     useEffect(() => {
         const fetchData = async () => {
-                    console.log('AMMINISTRAZIONE: Eseguo useEffect perché "user" è cambiato.');
-
-
             setIsLoading(true);
             try {
                 const relazioniRes = await api.get('/amministrazione/relazioni');
                 setRelazioni(relazioniRes.data.data);
-        console.log('AMMINISTRAZIONE: Eseguo useEffect perché ho caricato.');
 
                 if (anagraficaId) {
                     const anagraficaRes = await api.get(`/amministrazione/anagrafiche/${anagraficaId}`);
-                    // Mappiamo i nomi dei campi dal DB allo stato del form se necessario
                     const data = anagraficaRes.data.data;
                     setFormData({
                         ...data,
-                        tel1: data.tel1 || data.tel || '', // Compatibilità con vecchi nomi
+                        tel1: data.tel1 || data.tel || '', 
                         mail_1: data.mail_1 || data.email || '',
                         sdi: data.sdi || data.codice_sdi || ''
+                    });
+                } else {
+                    // Per le nuove anagrafiche, imposta uno stato iniziale pulito
+                    setFormData({
+                        ragione_sociale: '', indirizzo: '', citta: '', provincia: '', cap: '',
+                        tel1: '', tel2: '', mail_1: '', mail_2: '', pec: '', sdi: '',
+                        p_iva: '', codice_fiscale: '', stato: 1, codice_relazione: '',
                     });
                 }
             } catch (err) {
@@ -93,115 +95,115 @@ console.log('USER OBJECT IN AMMINISTRAZIONE MODULE:', user);
                 {error && <p className="text-red-500 mb-4"><strong>Errore:</strong> {error}</p>}
                 <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-4 flex-grow">
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Colonna 1 */}
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">ID</label>
-                                <input value={formData.id || 'Automatico'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">Ragione Sociale</label>
-                                <input name="ragione_sociale" value={formData.ragione_sociale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
-                                <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
+                         {/* Colonna 1 */}
+                         <div className="space-y-4">
                              <div>
-                                <label className="block text-sm font-medium text-slate-700">Città</label>
-                                <input name="citta" value={formData.citta || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">Provincia</label>
-                                <input name="provincia" value={formData.provincia || ''} onChange={handleChange} required maxLength="2" className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                            <div>
-                                    <label className="block text-sm font-medium text-slate-700">CAP</label>
-                                    <input name="cap" value={formData.cap || ''} onChange={handleChange} required maxLength="5" className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                        </div>
+                                 <label className="block text-sm font-medium text-slate-700">ID</label>
+                                 <input value={formData.id || 'Automatico'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-700">Ragione Sociale</label>
+                                 <input name="ragione_sociale" value={formData.ragione_sociale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
+                                 <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">Città</label>
+                                 <input name="citta" value={formData.citta || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-700">Provincia</label>
+                                 <input name="provincia" value={formData.provincia || ''} onChange={handleChange} required maxLength="2" className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                             <div>
+                                     <label className="block text-sm font-medium text-slate-700">CAP</label>
+                                     <input name="cap" value={formData.cap || ''} onChange={handleChange} required maxLength="5" className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                         </div>
 
-                        {/* Colonna 2 */}
-                        <div className="space-y-4">
-                             <div>
-                                <label className="block text-sm font-medium text-slate-700">Telefono 1</label>
-                                <input name="tel1" value={formData.tel1 || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                             <div>
-                                <label className="block text-sm font-medium text-slate-700">Telefono 2</label>
-                                <input name="tel2" value={formData.tel2 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                             <div>
-                                <label className="block text-sm font-medium text-slate-700">Email 1</label>
-                                <input type="email" name="mail_1" value={formData.mail_1 || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                             <div>
-                                <label className="block text-sm font-medium text-slate-700">Email 2</label>
-                                <input type="email" name="mail_2" value={formData.mail_2 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                             <div>
-                                <label className="block text-sm font-medium text-slate-700">PEC</label>
-                                <input type="email" name="pec" value={formData.pec || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                        </div>
+                         {/* Colonna 2 */}
+                         <div className="space-y-4">
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">Telefono 1</label>
+                                 <input name="tel1" value={formData.tel1 || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">Telefono 2</label>
+                                 <input name="tel2" value={formData.tel2 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">Email 1</label>
+                                 <input type="email" name="mail_1" value={formData.mail_1 || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">Email 2</label>
+                                 <input type="email" name="mail_2" value={formData.mail_2 || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">PEC</label>
+                                 <input type="email" name="pec" value={formData.pec || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                         </div>
 
-                        {/* Colonna 3 */}
-                        <div className="space-y-4">
+                         {/* Colonna 3 */}
+                         <div className="space-y-4">
+                              <div>
+                                 <label className="block text-sm font-medium text-slate-700">Codice SDI</label>
+                                 <input name="sdi" value={formData.sdi || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
                              <div>
-                                <label className="block text-sm font-medium text-slate-700">Codice SDI</label>
-                                <input name="sdi" value={formData.sdi || ''} onChange={handleChange} className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">Partita IVA</label>
-                                <input name="p_iva" value={formData.p_iva || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
-                                <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700">Relazione</label>
-                                <select name="codice_relazione" value={formData.codice_relazione || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" disabled={!!anagraficaId}>
-                                    <option value="" disabled>Seleziona...</option>
-                                    {relazioni.map(rel => (
-                                        <option key={rel.codice} value={rel.codice}>{rel.descrizione}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="flex items-center pt-2">
-                                <input type="checkbox" name="stato" id="stato" checked={!!formData.stato} onChange={handleChange} className="h-4 w-4 rounded" />
-                                <label htmlFor="stato" className="ml-2 block text-sm text-slate-800">Attivo</label>
-                            </div>
-                        </div>
-                        
-                        {/* Sottoconti collegati (sola lettura) */}
-                        {anagraficaId && (
-                            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 mt-2">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500">ID Sottoconto Cliente</label>
-                                    <input value={formData.id_sottoconto_cliente || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
-                                </div>
+                                 <label className="block text-sm font-medium text-slate-700">Partita IVA</label>
+                                 <input name="p_iva" value={formData.p_iva || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
+                                 <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-700">Relazione</label>
+                                 {/* // <span style="color:green;">// MODIFICA: Rimosso il 'disabled' per permettere la modifica della relazione</span> */}
+                                 <select name="codice_relazione" value={formData.codice_relazione || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md">
+                                     <option value="" disabled>Seleziona...</option>
+                                     {relazioni.map(rel => (
+                                         <option key={rel.codice} value={rel.codice}>{rel.descrizione}</option>
+                                     ))}
+                                 </select>
+                             </div>
+                             <div className="flex items-center pt-2">
+                                 <input type="checkbox" name="stato" id="stato" checked={!!formData.stato} onChange={handleChange} className="h-4 w-4 rounded" />
+                                 <label htmlFor="stato" className="ml-2 block text-sm text-slate-800">Attivo</label>
+                             </div>
+                         </div>
+                         
+                         {/* Sottoconti collegati (sola lettura) */}
+                         {anagraficaId && (
+                             <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 mt-2">
                                  <div>
-                                    <label className="block text-sm font-medium text-slate-500">ID Sottoconto Fornitore</label>
-                                    <input value={formData.id_sottoconto_fornitore || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
-                                </div>
-                                 <div>
-                                    <label className="block text-sm font-medium text-slate-500">ID Sottoconto P. Vendita</label>
-                                    <input value={formData.id_sottoconto_puntovendita || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
-                                </div>
-                            </div>
-                        )}
+                                     <label className="block text-sm font-medium text-slate-500">ID Sottoconto Cliente</label>
+                                     <input value={formData.id_sottoconto_cliente || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                 </div>
+                                  <div>
+                                     <label className="block text-sm font-medium text-slate-500">ID Sottoconto Fornitore</label>
+                                     <input value={formData.id_sottoconto_fornitore || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                 </div>
+                                  <div>
+                                     <label className="block text-sm font-medium text-slate-500">ID Sottoconto P. Vendita</label>
+                                     <input value={formData.id_sottoconto_puntovendita || 'N/A'} readOnly className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                 </div>
+                             </div>
+                         )}
+                      </div>
+                     <div className="flex justify-end gap-4 pt-4 border-t mt-4">
+                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
+                         <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
                      </div>
-                    <div className="flex justify-end gap-4 pt-4 border-t mt-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                 </form>
+             </div>
+         </div>
     );
 }
-
 
 
 // --- Componente per la Gestione Utenti (Placeholder) ---
@@ -329,182 +331,7 @@ function UserManager() {
 
 
 
-// --- Componente per il Piano dei Conti Tabellare ---
-function PianoDeiContiManager() {
-    const [activeTab, setActiveTab] = useState('mastri');
-    const [data, setData] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const { hasPermission } = useAuth();
-
-    const canEdit = hasPermission('PDC_EDIT', 95);
-
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        setError('');
-        try {
-            const { data: responseData } = await api.get(`/amministrazione/${activeTab}`);
-            if (responseData.success) {
-                setData(responseData.data);
-            } else {
-                setError(responseData.message);
-            }
-        } catch (err) {
-            setError('Errore di connessione.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [activeTab]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-    
-    const handleOpenModal = (item = null) => {
-        setSelectedItem(item);
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setSelectedItem(null);
-    };
-
-    const handleSave = async (formData) => {
-        const isNew = !selectedItem;
-        const method = isNew ? 'post' : 'patch';
-        const id = isNew ? '' : `/${selectedItem.id || selectedItem.codice}`;
-        const url = `/amministrazione/${activeTab}${id}`;
-
-        try {
-            const { data: responseData } = await api[method](url, formData);
-            alert(responseData.message);
-            if (responseData.success) {
-                handleCloseModal();
-                fetchData(); // Ricarica i dati
-            }
-        } catch (err) {
-            alert(err.response?.data?.message || 'Errore durante il salvataggio.');
-        }
-    };
-
-
-    const renderTable = () => {
-        if (isLoading) return <p>Caricamento...</p>;
-        if (error) return <p className="text-red-500">{error}</p>;
-        if (data.length === 0) return <p>Nessun dato trovato.</p>;
-
-        const headers = Object.keys(data[0]);
-
-        return (
-            <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50">
-                        <tr>
-                            {headers.map(header => <th key={header} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">{header.replace('_', ' ')}</th>)}
-                            {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-200">
-                        {data.map((row, index) => (
-                            <tr key={row.id || row.codice || index}>
-                                {headers.map(header => <td key={header} className="px-6 py-4 whitespace-nowrap text-sm">{row[header]}</td>)}
-                                {canEdit && <td className="px-6 py-4 text-center"><button onClick={() => handleOpenModal(row)} className="text-blue-600 hover:text-blue-900">Modifica</button></td>}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        );
-    };
-
-    return (
-        <div>
-            {isModalOpen && <PdcEditModal item={selectedItem} itemType={activeTab} onSave={handleSave} onCancel={handleCloseModal} />}
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-slate-700">Piano dei Conti</h3>
-                {canEdit && <button onClick={() => handleOpenModal(null)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">+ Nuovo</button>}
-            </div>
-            <div className="mb-4 border-b border-slate-200">
-                <nav className="-mb-px flex space-x-6">
-                    <button onClick={() => setActiveTab('mastri')} className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'mastri' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>Mastri</button>
-                    <button onClick={() => setActiveTab('conti')} className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'conti' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>Conti</button>
-                    <button onClick={() => setActiveTab('sottoconti')} className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'sottoconti' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>Sottoconti</button>
-                </nav>
-            </div>
-            {renderTable()}
-        </div>
-    );
-}
-
-// --- Componente Modale per Modifica/Creazione Piano dei Conti ---
-function PdcEditModal({ item, itemType, onSave, onCancel }) {
-    const [formData, setFormData] = useState(item || {});
-    
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave(formData);
-    };
-
-    const renderFields = () => {
-        switch (itemType) {
-            case 'mastri':
-                return (
-                    <>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Codice</label>
-                            <input name="codice" value={formData.codice || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" disabled={!!item} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Descrizione</label>
-                            <input name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Tipo</label>
-                            <input name="tipo" value={formData.tipo || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Gruppo</label>
-                            <input name="gruppo" value={formData.gruppo || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                    </>
-                );
-            case 'conti':
-            case 'sottoconti':
-                return (
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Descrizione</label>
-                        <input name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
-                <h3 className="text-xl font-semibold mb-4 text-slate-800">{item ? 'Modifica' : 'Nuovo'} {itemType.slice(0, -1)}</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {renderFields()}
-                    <div className="flex justify-end gap-4 pt-4 border-t mt-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-}
-
+/*
 
 // --- Componente per la Gestione Anagrafiche (AGGIORNATO) ---
 function AnagraficheManager() {
@@ -519,9 +346,128 @@ function AnagraficheManager() {
         setIsLoading(true);
         try {
             const { data } = await api.get('/amministrazione/anagrafiche');
-            if (data.success) setAnagrafiche(data.data); else setError(data.message);
-        } catch (err) { setError('Errore di connessione.'); } 
-        finally { setIsLoading(false); }
+            if (data.success) {
+                setAnagrafiche(data.data);
+            } else {
+                setError(data.message);
+            }
+        } catch (err) {
+            setError('Errore di connessione.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleOpenModal = (id = null) => {
+        setSelectedAnagraficaId(id);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedAnagraficaId(null);
+        fetchData(); 
+    };
+
+    const handleSave = async (formData) => {
+        const isNew = !formData.id;
+        const url = isNew ? '/amministrazione/anagrafiche' : `/amministrazione/anagrafiche/${formData.id}`;
+        const method = isNew ? 'post' : 'patch';
+
+        try {
+            const { data } = await api[method](url, formData);
+            alert(data.message);
+            if (data.success) {
+                handleCloseModal();
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || 'Errore durante il salvaggio.');
+        }
+    };
+
+    const canCreate = true; // hasPermission('ANAGRAFICHE_CREATE');
+    const canEdit = true; // hasPermission('ANAGRAFICHE_EDIT');
+
+    if (isLoading) return <div>Caricamento...</div>;
+    if (error) return <div className="text-red-500">Errore: {error}</div>;
+
+    return (
+        <div>
+            {isModalOpen && <AnagraficaEditModal anagraficaId={selectedAnagraficaId} onSave={handleSave} onCancel={handleCloseModal} />}
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-slate-700">Anagrafiche Aziende </h3>
+                {canCreate && <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">+ Nuova Anagrafica</button>}
+            </div>
+            <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ragione Sociale</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Relazione</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sottoconti (C/F/PV)</th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Stato</th>
+                            {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                        {anagrafiche.map(row => (
+                            <tr key={row.id} className="hover:bg-slate-50">
+                                <td className="px-6 py-4 text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
+                                <td className="px-6 py-4 text-sm text-slate-600">{row.relazione}</td>
+                                <td className="px-6 py-4 text-sm text-slate-600 font-mono">
+                                    {row.codice_cliente && <div>C: {row.codice_cliente}</div>}
+                                    {row.codice_fornitore && <div>F: {row.codice_fornitore}</div>}
+                                    {row.codice_puntovendita && <div>PV: {row.codice_puntovendita}</div>}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                    
+                                    <div 
+                                        className={`h-3 w-3 rounded-full mx-auto ${row.stato == 1 ? 'bg-green-500' : 'bg-red-500'}`}
+                                        title={row.stato == 1 ? 'Attivo' : 'Inattivo'}
+                                    ></div>
+                                </td>
+                                {canEdit && <td className="px-6 py-4 text-center text-sm font-medium"><button onClick={() => handleOpenModal(row.id)} className="text-blue-600 hover:text-blue-900">Modifica</button></td>}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+*/
+
+// --- Componente per la Gestione Anagrafiche (AGGIORNATO) ---
+function AnagraficheManager() {
+    const [anagrafiche, setAnagrafiche] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedAnagraficaId, setSelectedAnagraficaId] = useState(null);
+    const { hasPermission } = useAuth();
+    
+    // <span style="color:green;">// NUOVO: Stati per la gestione della ricerca e dei filtri</span>
+    const [searchTerm, setSearchTerm] = useState('');
+    const [relazioneFilter, setRelazioneFilter] = useState('');
+
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const { data } = await api.get('/amministrazione/anagrafiche');
+            if (data.success) {
+                setAnagrafiche(data.data);
+                console.log("Dati anagrafiche ricevuti:", data.data);
+            } else {
+                setError(data.message);
+            }
+        } catch (err) {
+            setError('Errore di connessione.');
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
@@ -553,49 +499,106 @@ function AnagraficheManager() {
         }
     };
 
-    const canCreate = hasPermission('ANAGRAFICHE_CREATE');
-    const canEdit = hasPermission('ANAGRAFICHE_EDIT');
+    const canCreate = true; 
+    const canEdit = true; 
+
+    // <span style="color:green;">// NUOVO: Logica per filtrare i dati in base allo stato dei filtri</span>
+    const filteredAnagrafiche = useMemo(() => {
+        return anagrafiche.filter(anag => {
+            const searchTermLower = searchTerm.toLowerCase();
+            const matchesSearch = anag.ragione_sociale.toLowerCase().includes(searchTermLower) ||
+                                  (anag.p_iva && anag.p_iva.includes(searchTerm)) ||
+                                  (anag.codice_fiscale && anag.codice_fiscale.toLowerCase().includes(searchTermLower));
+
+            const matchesRelazione = relazioneFilter ? anag.relazione === relazioneFilter : true;
+
+            return matchesSearch && matchesRelazione;
+        });
+    }, [anagrafiche, searchTerm, relazioneFilter]);
+
+    // Estrae le opzioni uniche per il filtro a tendina delle relazioni
+    const relazioneOptions = useMemo(() => [...new Set(anagrafiche.map(item => item.relazione))], [anagrafiche]);
+
+
+    if (error) return <div className="text-red-500">Errore: {error}</div>;
 
     return (
         <div>
             {isModalOpen && <AnagraficaEditModal anagraficaId={selectedAnagraficaId} onSave={handleSave} onCancel={handleCloseModal} />}
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-slate-700">Anagrafiche Clienti & Fornitori</h3>
+                <h3 className="text-xl font-semibold text-slate-700">Anagrafiche Aziende</h3>
                 {canCreate && <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">+ Nuova Anagrafica</button>}
             </div>
-             <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ragione Sociale</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Relazione</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sottoconti (C/F/PV)</th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Stato</th>
-                            {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-200">
-                        {anagrafiche.map(row => (
-                            <tr key={row.id} className="hover:bg-slate-50">
-                                <td className="px-6 py-4 text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
-                                <td className="px-6 py-4 text-sm text-slate-600">{row.relazione}</td>
-                                <td className="px-6 py-4 text-sm text-slate-600">
-                                    {row.id_sottoconto_cliente && <span className="mr-2">C: {row.id_sottoconto_cliente}</span>}
-                                    {row.id_sottoconto_fornitore && <span className="mr-2">F: {row.id_sottoconto_fornitore}</span>}
-                                    {row.id_sottoconto_puntovendita && <span>PV: {row.id_sottoconto_puntovendita}</span>}
-                                </td>
-                                <td className="px-6 py-4 text-center text-sm">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${row.stato ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{row.stato ? 'Attivo' : 'Inattivo'}</span>
-                                </td>
-                                {canEdit && <td className="px-6 py-4 text-center text-sm font-medium"><button onClick={() => handleOpenModal(row.id)} className="text-blue-600 hover:text-blue-900">Modifica</button></td>}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+
+            {/* // <span style="color:green;">// NUOVO: Controlli per la ricerca e il filtro</span> */}
+            <div className="mb-4 p-4 bg-white shadow-md rounded-lg flex items-center gap-4">
+                <input
+                    type="text"
+                    placeholder="Cerca per nome, P.IVA..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="p-2 border rounded-md w-full md:w-1/3"
+                />
+                <select
+                    value={relazioneFilter}
+                    onChange={(e) => setRelazioneFilter(e.target.value)}
+                    className="p-2 border rounded-md"
+                >
+                    <option value="">Tutte le relazioni</option>
+                    {relazioneOptions.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
             </div>
+            
+            {/* // <span style="color:green;">// RIPRISTINO: Torniamo alla tabella HTML standard che ora utilizza i dati filtrati</span> */}
+            {isLoading ? (
+                 <div>Caricamento...</div>
+            ) : (
+                <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ragione Sociale</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Relazione</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sottoconti (C/F/PV)</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Stato</th>
+                                {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-200">
+                            {filteredAnagrafiche.length > 0 ? (
+                                filteredAnagrafiche.map(row => (
+                                    <tr key={row.id} className="hover:bg-slate-50">
+                                        <td className="px-6 py-4 text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-600">{row.relazione}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-600 font-mono">
+                                            {row.codice_cliente && <div>C: {row.codice_cliente}</div>}
+                                            {row.codice_fornitore && <div>F: {row.codice_fornitore}</div>}
+                                            {row.codice_puntovendita && <div>PV: {row.codice_puntovendita}</div>}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div 
+                                                className={`h-3 w-3 rounded-full mx-auto ${row.stato == 1 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                title={row.stato == 1 ? 'Attivo' : 'Inattivo'}
+                                            ></div>
+                                        </td>
+                                        {canEdit && <td className="px-6 py-4 text-center text-sm font-medium"><button onClick={() => handleOpenModal(row.id)} className="text-blue-600 hover:text-blue-900">Modifica</button></td>}
+                                    </tr>
+                                ))
+                             ) : (
+                                <tr>
+                                    <td colSpan="5" className="text-center p-4">Nessuna anagrafica corrisponde ai criteri di ricerca.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }
+
+
+
 // --- Componente Modale per Account Email ---
 function MailAccountEditModal({ account, onSave, onCancel }) {
     const [formData, setFormData] = useState({
@@ -834,86 +837,6 @@ function MailAccountsManager() {
     );
 }
 
-
-
-// =====================================================================
-// ============ COMPONENTE PRINCIPALE DEL MODULO =======================
-// =====================================================================
-const AmministrazioneModule = () => {
-    const { hasPermission } = useAuth();
-    
-    // Definiamo tutte le possibili voci di menu con la loro chiave, etichetta, icona e permesso richiesto.
-    const menuItems = [
-        { key: 'anagrafiche', label: 'Clienti / Fornitori', permission: 'ANAGRAFICHE_VIEW', icon: BuildingOfficeIcon },
-        { key: 'utenti', label: 'Gestione Utenti', permission: 'UTENTI_VIEW', icon: UsersIcon },
-        { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: Cog6ToothIcon },
-        { key: 'mail_accounts', label: 'Account Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon},
-        { key: 'ppa', label: 'Configurazione PPA', permission: 'PPA_MODULE', icon: QueueListIcon },
-        // <span style="color:green;">// NUOVO: Aggiunta la voce di menu per la gestione dei progressivi.</span>
-        // <span style="color:green;">// Il permesso richiesto è 'PROGRESSIVI_MANAGE'.</span>
-        { key: 'progressivi', label: 'Gestione Progressivi', permission: 'PROGRESSIVI_MANAGE', icon: HashtagIcon },
-    ];
-
-    // Filtriamo le voci di menu in base ai permessi dell'utente.
-    const accessibleMenuItems = menuItems.filter(item => hasPermission(item.permission));
-
-    // Lo stato 'activeMenu' parte dalla prima voce di menu accessibile.
-    const [activeMenu, setActiveMenu] = useState(accessibleMenuItems.length > 0 ? accessibleMenuItems[0].key : null);
-
-    const renderContent = () => {
-        // Se l'utente non ha accesso a nessuna funzione, mostra un messaggio.
-        if (!activeMenu) {
-            return <NoPermissionMessage />;
-        }
-
-        // Controlla di nuovo il permesso prima di renderizzare, per sicurezza.
-        const currentItem = menuItems.find(item => item.key === activeMenu);
-        if (!currentItem || !hasPermission(currentItem.permission)) {
-            return <NoPermissionMessage />;
-        }
-        
-        // Switch per visualizzare il componente corretto.
-        switch (activeMenu) {
-            case 'anagrafiche': return <AnagraficheManager />;
-            case 'utenti': return <UserManager />;
-            case 'pdc': return <PianoDeiContiManager />;
-            case 'mail_accounts': return <MailAccountsManager />;
-            case 'ppa': return <PPAModule />;
-            // <span style="color:green;">// NUOVO: Aggiunto il caso per visualizzare il nuovo componente.</span>
-            case 'progressivi': return <ProgressiviManager />;
-            default: return <p className="p-6">Seleziona una voce dal menu.</p>;
-        }
-    };
-
-    return (
-        <div className="flex w-full h-full bg-gray-50">
-            <aside className="w-64 border-r border-slate-200 p-4 bg-white flex-shrink-0">
-                <h2 className="font-bold mb-4 text-slate-700 text-lg">Menu Amministrazione</h2>
-                <ul className="space-y-2">
-                    {accessibleMenuItems.map(item => {
-                        const Icon = item.icon;
-                        return (
-                            <li key={item.key}>
-                                <button 
-                                    onClick={() => setActiveMenu(item.key)} 
-                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center gap-3 ${activeMenu === item.key ? 'bg-blue-100 text-blue-700 font-semibold' : 'hover:bg-slate-100'}`}
-                                >
-                                    <Icon className="h-5 w-5 flex-shrink-0" />
-                                    <span>{item.label}</span>
-                                </button>
-                            </li>
-                        );
-                    })}
-                </ul>
-            </aside>
-            <main className="flex-1 p-6 overflow-y-auto">
-                {renderContent()}
-            </main>
-        </div>
-    );
-};
-
-
 // --- Componente Modale per la Gestione Utente (POTENZIATO con Etichette) ---
 function UserEditModal({ userId, onSave, onCancel }) {
     const [formData, setFormData] = useState({});
@@ -1069,4 +992,85 @@ function UserEditModal({ userId, onSave, onCancel }) {
         </div>
     );
 }
+
+// =====================================================================
+// ============ COMPONENTE PRINCIPALE DEL MODULO =======================
+// =====================================================================
+const AmministrazioneModule = () => {
+    const { hasPermission } = useAuth();
+    
+    // Definiamo tutte le possibili voci di menu con la loro chiave, etichetta, icona e permesso richiesto.
+    const menuItems = [
+        { key: 'anagrafiche', label: 'Gestione Aziende', permission: 'ANAGRAFICHE_VIEW', icon: BuildingOfficeIcon },
+        { key: 'utenti', label: 'Gestione Utenti', permission: 'UTENTI_VIEW', icon: UsersIcon },
+        //{ key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: Cog6ToothIcon },
+        { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: WrenchScrewdriverIcon, minLevel: 90, component: PianoContiManager },
+        { key: 'mail_accounts', label: 'Account Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon},
+        { key: 'ppa', label: 'Configurazione PPA', permission: 'PPA_MODULE', icon: QueueListIcon },
+        // <span style="color:green;">// NUOVO: Aggiunta la voce di menu per la gestione dei progressivi.</span>
+        // <span style="color:green;">// Il permesso richiesto è 'PROGRESSIVI_MANAGE'.</span>
+        { key: 'progressivi', label: 'Gestione Progressivi', permission: 'PROGRESSIVI_MANAGE', icon: HashtagIcon },
+    ];
+
+    // Filtriamo le voci di menu in base ai permessi dell'utente.
+    const accessibleMenuItems = menuItems.filter(item => hasPermission(item.permission));
+
+    // Lo stato 'activeMenu' parte dalla prima voce di menu accessibile.
+    const [activeMenu, setActiveMenu] = useState(accessibleMenuItems.length > 0 ? accessibleMenuItems[0].key : null);
+
+    const renderContent = () => {
+        // Se l'utente non ha accesso a nessuna funzione, mostra un messaggio.
+        if (!activeMenu) {
+            return <NoPermissionMessage />;
+        }
+
+        // Controlla di nuovo il permesso prima di renderizzare, per sicurezza.
+        const currentItem = menuItems.find(item => item.key === activeMenu);
+        if (!currentItem || !hasPermission(currentItem.permission)) {
+            return <NoPermissionMessage />;
+        }
+        
+        // Switch per visualizzare il componente corretto.
+        switch (activeMenu) {
+            case 'anagrafiche': return <AnagraficheManager />;
+            case 'utenti': return <UserManager />;
+            case 'pdc': return <PianoContiManager />;
+            case 'mail_accounts': return <MailAccountsManager />;
+            case 'ppa': return <PPAModule />;
+            // <span style="color:green;">// NUOVO: Aggiunto il caso per visualizzare il nuovo componente.</span>
+            case 'progressivi': return <ProgressiviManager />;
+            default: return <p className="p-6">Seleziona una voce dal menu.</p>;
+        }
+    };
+
+    return (
+        <div className="flex w-full h-full bg-gray-50">
+            <aside className="w-64 border-r border-slate-200 p-4 bg-white flex-shrink-0">
+                <h2 className="font-bold mb-4 text-slate-700 text-lg">Menu Amministrazione</h2>
+                <ul className="space-y-2">
+                    {accessibleMenuItems.map(item => {
+                        const Icon = item.icon;
+                        return (
+                            <li key={item.key}>
+                                <button 
+                                    onClick={() => setActiveMenu(item.key)} 
+                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center gap-3 ${activeMenu === item.key ? 'bg-blue-100 text-blue-700 font-semibold' : 'hover:bg-slate-100'}`}
+                                >
+                                    <Icon className="h-5 w-5 flex-shrink-0" />
+                                    <span>{item.label}</span>
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </aside>
+            <main className="flex-1 p-6 overflow-y-auto">
+                {renderContent()}
+            </main>
+        </div>
+    );
+};
+
+
+
 export default AmministrazioneModule;
