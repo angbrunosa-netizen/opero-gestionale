@@ -12,62 +12,97 @@ const router = express.Router();
 router.use(verifyToken);
 
 // --- GET (attivita futuri per l'utente loggato) ---
+// MODIFICATO: routes/attivita.js
+
+// MODIFICATO: routes/attivita.js
+
+// MODIFICATO: routes/attivita.js
+
+// MODIFICATO: routes/attivita.js
+
 router.get('/mie-future', async (req, res) => {
     const { id: utenteId } = req.user;
     const oggi = new Date().toISOString().split('T')[0];
 
     try {
-       // console.log(`[DEBUG] Esecuzione query /mie-future per utente con ID: ${req.user.id}`);
-         //       console.log(`[DEBUG ATTIVITA] Ricerca per utenteId: ${utenteId}, data >= ${oggi}`);
-           //     console.log('[DEBUG TOKEN] Dati utente dal token:', req.user);
-
+        // NUOVO: La query è stata completamente riscritta per rispecchiare la struttura corretta del database,
+        // aggiungendo la join a ppa_istanzeprocedure per trovare l'utente creatore.
         const query = `
-            SELECT i.id, i.titolo, i.data_scadenza, i.stato, 
-                   c.nome as creatore_nome, c.cognome as creatore_cognome
-            FROM attivita i
-            JOIN utenti c ON i.id_utente_creatore = c.id
-            WHERE i.id_utente_assegnato = ? AND i.data_scadenza >= ?
-            ORDER BY i.data_scadenza ASC
+            SELECT 
+                i.ID as id,
+                a.NomeAzione as titolo,
+                i.DataScadenza as data_scadenza,
+                i.ID_Stato as stato,
+                c.nome as creatore_nome,
+                c.cognome as creatore_cognome
+            FROM 
+                ppa_istanzeazioni i
+            JOIN
+                ppa_istanzeprocedure ip ON i.ID_IstanzaProcedura = ip.ID -- NUOVO: Join alla procedura per trovare il creatore
+            JOIN 
+                utenti c ON ip.ID_UtenteCreatore = c.id                  -- MODIFICATO: La join per il nome del creatore usa la tabella delle procedure
+            JOIN
+                ppa_azioni a ON i.ID_Azione = a.ID
+            WHERE 
+                i.ID_UtenteAssegnato = ?
+                AND i.DataScadenza >= ?
+            ORDER BY 
+                i.DataScadenza ASC
             LIMIT 5
         `;
+        
         const [attivita] = await dbPool.query(query, [utenteId, oggi]);
         res.json({ success: true, data: attivita });
+
     } catch (error) {
+        console.error("Errore nella route /mie-future:", error); 
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
+
 // --- GET (Tutti gli attivita futuri della ditta per Admin) ---
 router.get('/ditta/future', checkRole([1, 2]), async (req, res) => {
-    //console.log('[DEBUG TOKEN] Dati ditta dal token:', req.user);
-
     const { id_ditta: dittaId } = req.user;
     const oggi = new Date().toISOString().split('T')[0];
 
     try {
+        // NUOVO: La query è stata completamente riscritta per adattarsi alla nuova struttura del database PPA.
         const query = `
             SELECT 
-                i.id, 
-                i.titolo, 
-                i.data_scadenza, 
-                i.stato, 
+                i.ID as id, 
+                a.NomeAzione as titolo, 
+                i.DataScadenza as data_scadenza, 
+                i.ID_Stato as stato, 
                 u_assegnato.nome as assegnato_nome, 
                 u_assegnato.cognome as assegnato_cognome,
                 u_creatore.nome as creatore_nome,
                 u_creatore.cognome as creatore_cognome
-            FROM attivita i
-            JOIN utenti u_assegnato ON i.id_utente_assegnato = u_assegnato.id
-            JOIN utenti u_creatore ON i.id_utente_creatore = u_creatore.id
-            WHERE i.id_ditta = ? AND i.data_scadenza >= ?
-            ORDER BY i.data_scadenza ASC, u_assegnato.cognome ASC
+            FROM 
+                ppa_istanzeazioni i
+            JOIN 
+                utenti u_assegnato ON i.ID_UtenteAssegnato = u_assegnato.id
+            JOIN 
+                ppa_azioni a ON i.ID_Azione = a.ID
+            JOIN
+                ppa_istanzeprocedure ip ON i.ID_IstanzaProcedura = ip.ID
+            JOIN
+                utenti u_creatore ON ip.ID_UtenteCreatore = u_creatore.id
+            JOIN 
+                ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID -- NUOVO: Join per arrivare alla ditta
+            WHERE 
+                pd.id_ditta = ?  -- MODIFICATO: Il filtro della ditta ora è sulla tabella ppa_procedureditta
+                AND i.DataScadenza >= ?
+            ORDER BY 
+                i.DataScadenza ASC, u_assegnato.cognome ASC
         `;
         const [attivita] = await dbPool.query(query, [dittaId, oggi]);
         res.json({ success: true, data: attivita });
     } catch (error) {
+        console.error("Errore nella route /ditta/future:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
-
 
 // --- GET (Lista attivita per Mese) ---
 router.get('/', async (req, res) => {

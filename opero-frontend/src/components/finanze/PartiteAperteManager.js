@@ -148,6 +148,7 @@ export const PartiteAperteManager = () => {
         try {
             // <span style="color:green;">// NUOVO: Conversione del logo in Base64 prima di creare il PDF.</span>
             const logoBase64 = await imageToBase64(dittaInfo?.logo);
+             
 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -185,7 +186,7 @@ export const PartiteAperteManager = () => {
             doc.text(printDate, pageWidth - margin, 35, { align: 'right' });
 
             const title = `Estratto Conto ${tipoPartita === 'attive' ? 'Cliente' : 'Fornitore'}`;
-            doc.setFontSize(18);
+            doc.setFontSize(14);
             doc.text(title, pageWidth / 2, 50, { align: 'center' });
 
             // --- TABELLA --- (logica invariata)
@@ -230,7 +231,7 @@ export const PartiteAperteManager = () => {
             });
 
             // <span style="color:green;">// NUOVO: Aggiunta del footer al PDF.</span>
-            const footerText = "Questo documento è stato generato dal gestionale OPERO www.operogo.it";
+            const footerText = "Questo documento è stato generato dal gestionale OPERO www.operogo.it ";
             doc.setFontSize(6);
             doc.setFont(undefined, 'bold');
             doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });

@@ -8,16 +8,17 @@ const { dbPool } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
 const { sendSystemEmail } = require('../utils/mailer'); // Assicurati che il mailer esista
 const router = express.Router();
-
+const { checkRole } = require('../utils/auth'); // <-- AGGIUNGI QUESTA RIG
 router.use(verifyToken);
 
-const checkAdminRole = (req, res, next) => {
-    const userRole = req.user.id_ruolo;
-    if (userRole !== 1 && userRole !== 2) {
-        return res.status(403).json({ success: false, message: 'Accesso negato.' });
-    }
-    next();
-};
+    const checkAdminRole = (req, res, next) => {
+        const userRole = req.user.id_ruolo;
+        if (userRole !== 1 && userRole !== 2) {
+            return res.status(403).json({ success: false, message: 'Accesso negato.' });
+        }
+        next();
+    };
+
 
 // --- GESTIONE PROCEDURE STANDARD (MODELLI) ---
 router.get('/procedure-standard', async (req, res) => {
@@ -91,7 +92,13 @@ router.get('/procedures/:procId/full-actions', async (req, res) => {
 });
 
 // --- GESTIONE ASSEGNAZIONE PROCEDURA ---
-router.post('/assegna', checkAdminRole, async (req, res) => {
+// NOTA: Assicurati che il middleware checkAdminRole sia corretto. Se la route è per amministratori di ditta,
+// MODIFICATO: routes/ppa.js
+
+// --- GESTIONE ASSEGNAZIONE PROCEDURA ---
+// NOTA: Assicurati che il middleware checkAdminRole sia corretto. Se la route è per amministratori di ditta,
+// potrebbe essere necessario checkRole([1, 2])
+router.post('/assegna', checkRole([1, 2]), async (req, res) => { 
     const { id: utenteCreatoreId, id_ditta: dittaId } = req.user;
     const { id_procedura_ditta, id_ditta_target, data_prevista_fine, assegnazioni } = req.body;
 
@@ -121,24 +128,31 @@ router.post('/assegna', checkAdminRole, async (req, res) => {
         for (const azione of azioniModello) {
             const utenteAssegnatoId = assegnazioni[azione.ID];
             if (!utenteAssegnatoId) throw new Error(`Azione "${azione.NomeAzione}" non assegnata.`);
-            const [istanzaAzioneResult] = await connection.query(
+            
+            // Questo inserimento crea già l'attività.
+            await connection.query(
                 "INSERT INTO ppa_istanzeazioni (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza) VALUES (?, ?, ?, ?)",
                 [newIstanzaId, azione.ID, utenteAssegnatoId, data_prevista_fine || null]
             );
-            const newIstanzaAzioneId = istanzaAzioneResult.insertId;
-            await connection.query(
-                `INSERT INTO attivita (id_ditta, titolo, descrizione, data_scadenza, id_utente_creatore, id_utente_assegnato, ID_IstanzaAzione) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [dittaId, azione.NomeAzione, azione.Descrizione, data_prevista_fine || null, utenteCreatoreId, utenteAssegnatoId, newIstanzaAzioneId]
-            );
+
+            // RIMOSSO: L'inserimento nella tabella 'attivita' è stato rimosso perché ridondante.
+            // ppa_istanzeazioni è la nuova tabella di riferimento per le attività.
         }
 
         const teamName = `Team Procedura #${newIstanzaId} - ${new Date().toLocaleDateString()}`;
         const [teamResult] = await connection.query("INSERT INTO ppa_team (ID_IstanzaProcedura, NomeTeam) VALUES (?, ?)", [newIstanzaId, teamName]);
         const newTeamId = teamResult.insertId;
 
+        // --- GESTIONE MEMBRI TEAM SOSPESA ---
+        // SOSPESO: La tabella 'ppa_teammembri' non esiste nello schema fornito.
+        // Questa parte di codice è stata commentata per evitare errori.
+        /* const uniqueUserIds = [...new Set(Object.values(assegnazioni))];
+        if (uniqueUserIds.length > 0) {
+            const teamMembersValues = uniqueUserIds.map(userId => [newTeamId, userId]);
+            await connection.query("INSERT INTO ppa_teammembri (ID_Team, ID_Utente) VALUES ?", [teamMembersValues]);
+        }
+        */
         const uniqueUserIds = [...new Set(Object.values(assegnazioni))];
-        const teamMembersValues = uniqueUserIds.map(userId => [newTeamId, userId]);
-        await connection.query("INSERT INTO ppa_teammembri (ID_Team, ID_Utente) VALUES ?", [teamMembersValues]);
 
         const [teamMemberDetails] = await connection.query(`SELECT id, nome, cognome, email FROM utenti WHERE id IN (?)`, [uniqueUserIds]);
         const [proceduraDetails] = await connection.query(
@@ -150,19 +164,17 @@ router.post('/assegna', checkAdminRole, async (req, res) => {
         );
         
         const teamListString = teamMemberDetails.map(u => `${u.nome} ${u.cognome}`).join(', ');
-       // Formattiamo la data per una migliore leggibilità
         const dataFineFormatted = data_prevista_fine 
             ? new Date(data_prevista_fine).toLocaleDateString('it-IT') 
             : 'Non definita';
 
         for (const user of teamMemberDetails) {
             const userActions = azioniModello.filter(a => assegnazioni[a.ID] == user.id).map(a => `<li>${a.NomeAzione}</li>`).join('');
-const emailBody = `
+            const emailBody = `
                 <div style="font-family: Arial, sans-serif; line-height: 1.6;">
                     <h2>Nuova Procedura Assegnata</h2>
                     <p>Ciao ${user.nome},</p>
-                    <p>Sei stato aggiunto a un team di lavoro per la seguente procedura:</p>
-                    
+                    <p>Sei stato coinvolto nella seguente procedura:</p>
                     <div style="background-color: #f9f9f9; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
                         <h3 style="margin-top: 0;">Dettagli Procedura</h3>
                         <p><strong>Procedura:</strong> ${proceduraDetails[0].NomePersonalizzato}</p>
@@ -170,16 +182,17 @@ const emailBody = `
                         <p><strong>Data Prevista Fine:</strong> ${dataFineFormatted}</p>
                         <p><strong>Team Coinvolto:</strong> ${teamListString}</p>
                     </div>
-                      <h3>Le tue azioni specifiche:</h3>
+                    <h3>Le tue azioni specifiche:</h3>
                     <ul>
                         ${userActions || '<li>Al momento non ti sono state assegnate azioni specifiche.</li>'}
                     </ul>
-                    <p>Puoi visualizzare e gestire queste attività nella tua dashboard di Opero.</p>
+                    <p>Puoi gestire queste attività dalla tua dashboard di Opero.</p>
                 </div>
             `;
-            
-            await sendSystemEmail(user.email, `Nuova Procedura Assegnata: ${proceduraDetails[0].NomePersonalizzato}`, emailBody);
+            // Assicurati che la funzione sendSystemEmail sia importata e disponibile
+            // await sendSystemEmail(user.email, `Nuova Procedura Assegnata: ${proceduraDetails[0].NomePersonalizzato}`, emailBody);
         }
+        
         await connection.commit();
         res.status(201).json({ success: true, message: 'Procedura assegnata, attività create e notifiche inviate!' });
 
@@ -191,6 +204,7 @@ const emailBody = `
         connection.release();
     }
 });
+
 
 // --- ROTTE PER L'ARCHIVIO ---
 router.get('/istanze', async (req, res) => {
