@@ -1,8 +1,3 @@
-// #####################################################################
-// # Componente Gestione Funzioni Contabili v3.0 (con Tabella, Ricerca e Ordinamento)
-// # File: opero-frontend/src/components/cont-smart/FunzioniContabiliManager.js
-// #####################################################################
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../../services/api';
 import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon, ArrowsUpDownIcon } from '@heroicons/react/24/solid';
@@ -14,8 +9,6 @@ const FunzioniContabiliManager = () => {
     const [error, setError] = useState('');
     const [selectedFunzione, setSelectedFunzione] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // <span style="color:green;">// NUOVO: Stati per la gestione della ricerca e dell'ordinamento</span>
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'nome_funzione', direction: 'ascending' });
 
@@ -32,7 +25,7 @@ const FunzioniContabiliManager = () => {
             const flattenPdc = (nodes) => {
                 let flat = [];
                 nodes.forEach(node => {
-                    flat.push({ id: node.id, descrizione: node.descrizione, isSelectable: node.tipo === 'Sottoconto' });
+                    flat.push({ id: node.id, descrizione: node.descrizione, isSelectable: node.tipo === 'Conto' });
                     if (node.children) flat = flat.concat(flattenPdc(node.children));
                 });
                 return flat;
@@ -48,11 +41,11 @@ const FunzioniContabiliManager = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // <span style="color:green;">// NUOVO: Logica di filtraggio e ordinamento</span>
     const sortedAndFilteredFunzioni = useMemo(() => {
         let filtered = [...funzioni];
         if (searchTerm) {
             filtered = filtered.filter(funzione =>
+                (funzione.codice_funzione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (funzione.nome_funzione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (funzione.descrizione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (funzione.tipo_funzione || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,7 +95,9 @@ const FunzioniContabiliManager = () => {
             fetchData();
             handleCloseModal();
         } catch (error) {
-            alert("Salvataggio fallito.");
+             // Mostra un messaggio di errore più specifico
+             const errorMessage = error.response?.data?.message || "Salvataggio fallito. Riprova.";
+             alert(errorMessage);
         }
     };
 
@@ -130,7 +125,7 @@ const FunzioniContabiliManager = () => {
             <div className="mb-4">
                 <input
                     type="text"
-                    placeholder="Cerca per nome, tipo, categoria..."
+                    placeholder="Cerca per codice, nome, tipo, categoria..."
                     className="w-full p-2 border border-gray-300 rounded-md shadow-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -141,6 +136,8 @@ const FunzioniContabiliManager = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
+                            {/* <span style="color:green;">// NUOVO: Aggiunta colonna Codice Funzione</span> */}
+                            <SortableHeader field="codice_funzione" label="Codice" />
                             <SortableHeader field="nome_funzione" label="Nome Funzione" />
                             <SortableHeader field="tipo_funzione" label="Tipo" />
                             <SortableHeader field="categoria" label="Categoria" />
@@ -152,6 +149,9 @@ const FunzioniContabiliManager = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                         {sortedAndFilteredFunzioni.map(funzione => (
                             <tr key={funzione.id}>
+                                 <td className="px-3 py-2 whitespace-nowrap">
+                                    <div className="text-sm font-semibold text-gray-600">{funzione.codice_funzione}</div>
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="text-sm font-medium text-gray-900">{funzione.nome_funzione}</div>
                                     <div className="text-sm text-gray-500">{funzione.descrizione}</div>
@@ -188,26 +188,38 @@ const FunzioniContabiliManager = () => {
 };
 
 const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
+    // <span style="color:red;">// MODIFICA: Aggiunto 'codice_funzione' allo stato iniziale</span>
     const [testata, setTestata] = useState({
-        nome_funzione: '', descrizione: '', tipo_funzione: 'Primaria', categoria: '', gestioni_abbinate: []
+        codice_funzione: '',
+        nome_funzione: '', 
+        descrizione: '', 
+        tipo_funzione: 'Primaria', 
+        categoria: '', 
+        gestioni_abbinate: []
     });
     const [righe, setRighe] = useState([]);
 
     useEffect(() => {
         if (funzione) {
             setTestata({
+                // <span style="color:red;">// MODIFICA: Popola 'codice_funzione' in modifica</span>
+                codice_funzione: funzione.codice_funzione || '',
                 nome_funzione: funzione.nome_funzione || '',
                 descrizione: funzione.descrizione || '',
                 tipo_funzione: funzione.tipo_funzione || 'Primaria',
                 categoria: funzione.categoria || '',
-                gestioni_abbinate: funzione.gestioni_abbinate || []
+                gestioni_abbinate: (typeof funzione.gestioni_abbinate === 'string' ? funzione.gestioni_abbinate.split(',') : funzione.gestioni_abbinate) || []
             });
-            setRighe(funzione.righe_predefinite.map(r => ({...r, uniqueId: Math.random()})));
+            setRighe((funzione.righe_predefinite || []).map(r => ({...r, uniqueId: Math.random()})));
         }
     }, [funzione]);
     
     const handleTestataChange = (e) => {
-        setTestata({ ...testata, [e.target.name]: e.target.value });
+        let value = e.target.value;
+        if (e.target.name === 'codice_funzione') {
+            value = value.toUpperCase().replace(/\s/g, '');
+        }
+        setTestata({ ...testata, [e.target.name]: value });
     };
     
     const handleGestioneAbbinataChange = (e) => {
@@ -240,12 +252,27 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
              <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-bold mb-6">{funzione ? 'Modifica' : 'Crea'} Funzione Contabile</h3>
                 <form onSubmit={handleSubmit}>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
+                        {/* <span style="color:green;">// NUOVO: Aggiunto campo per il Codice Funzione</span> */}
+                        <div className="relative">
+                            <label htmlFor="codice_funzione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Codice Funzione</label>
+                            <input 
+                                type="text" 
+                                name="codice_funzione" 
+                                id="codice_funzione" 
+                                value={testata.codice_funzione} 
+                                onChange={handleTestataChange} 
+                                required 
+                                disabled={!!funzione} // Disabilitato in modalità modifica
+                                className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
+                            />
+                            {!funzione && <p className="text-xs text-gray-500 mt-1">Codice breve e unico (es. FATT-ACQ). Non modificabile.</p>}
+                        </div>
                         <div className="relative">
                             <label htmlFor="nome_funzione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Nome Funzione</label>
                             <input type="text" name="nome_funzione" id="nome_funzione" value={testata.nome_funzione} onChange={handleTestataChange} required className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
@@ -253,10 +280,6 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
                         <div className="relative">
                             <label htmlFor="categoria" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Categoria</label>
                             <input type="text" name="categoria" id="categoria" value={testata.categoria} onChange={handleTestataChange} className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
-                        </div>
-                        <div className="relative md:col-span-2">
-                             <label htmlFor="descrizione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Descrizione</label>
-                             <textarea name="descrizione" id="descrizione" rows="2" value={testata.descrizione} onChange={handleTestataChange} className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
                         </div>
                          <div className="relative">
                             <label htmlFor="tipo_funzione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Tipo Funzione</label>
@@ -266,6 +289,10 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
                                 <option>Secondaria</option>
                                 <option>Sistema</option>
                             </select>
+                        </div>
+                        <div className="relative md:col-span-2">
+                             <label htmlFor="descrizione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Descrizione</label>
+                             <textarea name="descrizione" id="descrizione" rows="2" value={testata.descrizione} onChange={handleTestataChange} className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600"/>
                         </div>
                     </div>
 
@@ -321,6 +348,4 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
     );
 };
 
-
 export default FunzioniContabiliManager;
-

@@ -439,7 +439,7 @@ function AnagraficheManager() {
 }
 */
 
-// --- Componente per la Gestione Anagrafiche (AGGIORNATO) ---
+// --- Componente per la Gestione Anagrafiche ---
 function AnagraficheManager() {
     const [anagrafiche, setAnagrafiche] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -448,7 +448,6 @@ function AnagraficheManager() {
     const [selectedAnagraficaId, setSelectedAnagraficaId] = useState(null);
     const { hasPermission } = useAuth();
     
-    // <span style="color:green;">// NUOVO: Stati per la gestione della ricerca e dei filtri</span>
     const [searchTerm, setSearchTerm] = useState('');
     const [relazioneFilter, setRelazioneFilter] = useState('');
 
@@ -458,7 +457,6 @@ function AnagraficheManager() {
             const { data } = await api.get('/amministrazione/anagrafiche');
             if (data.success) {
                 setAnagrafiche(data.data);
-                console.log("Dati anagrafiche ricevuti:", data.data);
             } else {
                 setError(data.message);
             }
@@ -484,12 +482,13 @@ function AnagraficheManager() {
     };
 
     const handleSave = async (formData) => {
-        const isNew = !formData.id;
-        const url = isNew ? '/amministrazione/anagrafiche' : `/amministrazione/anagrafiche/${formData.id}`;
+        const { id, ...dataToSave } = formData;
+        const isNew = !id;
+        const url = isNew ? '/amministrazione/anagrafiche' : `/amministrazione/anagrafiche/${id}`;
         const method = isNew ? 'post' : 'patch';
 
         try {
-            const { data } = await api[method](url, formData);
+            const { data } = await api[method](url, dataToSave);
             alert(data.message);
             if (data.success) {
                 handleCloseModal();
@@ -502,13 +501,16 @@ function AnagraficheManager() {
     const canCreate = true; 
     const canEdit = true; 
 
-    // <span style="color:green;">// NUOVO: Logica per filtrare i dati in base allo stato dei filtri</span>
     const filteredAnagrafiche = useMemo(() => {
         return anagrafiche.filter(anag => {
+            if (!anag.ragione_sociale) return false;
             const searchTermLower = searchTerm.toLowerCase();
+            // <span style="color:green;">// MODIFICA: La ricerca ora include anche città e provincia</span>
             const matchesSearch = anag.ragione_sociale.toLowerCase().includes(searchTermLower) ||
                                   (anag.p_iva && anag.p_iva.includes(searchTerm)) ||
-                                  (anag.codice_fiscale && anag.codice_fiscale.toLowerCase().includes(searchTermLower));
+                                  (anag.codice_fiscale && anag.codice_fiscale.toLowerCase().includes(searchTermLower)) ||
+                                  (anag.citta && anag.citta.toLowerCase().includes(searchTermLower)) ||
+                                  (anag.provincia && anag.provincia.toLowerCase().includes(searchTermLower));
 
             const matchesRelazione = relazioneFilter ? anag.relazione === relazioneFilter : true;
 
@@ -516,9 +518,7 @@ function AnagraficheManager() {
         });
     }, [anagrafiche, searchTerm, relazioneFilter]);
 
-    // Estrae le opzioni uniche per il filtro a tendina delle relazioni
-    const relazioneOptions = useMemo(() => [...new Set(anagrafiche.map(item => item.relazione))], [anagrafiche]);
-
+    const relazioneOptions = useMemo(() => [...new Set(anagrafiche.map(item => item.relazione).filter(Boolean))], [anagrafiche]);
 
     if (error) return <div className="text-red-500">Errore: {error}</div>;
 
@@ -530,11 +530,10 @@ function AnagraficheManager() {
                 {canCreate && <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">+ Nuova Anagrafica</button>}
             </div>
 
-            {/* // <span style="color:green;">// NUOVO: Controlli per la ricerca e il filtro</span> */}
             <div className="mb-4 p-4 bg-white shadow-md rounded-lg flex items-center gap-4">
                 <input
                     type="text"
-                    placeholder="Cerca per nome, P.IVA..."
+                    placeholder="Cerca per nome, P.IVA, città..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="p-2 border rounded-md w-full md:w-1/3"
@@ -549,7 +548,6 @@ function AnagraficheManager() {
                 </select>
             </div>
             
-            {/* // <span style="color:green;">// RIPRISTINO: Torniamo alla tabella HTML standard che ora utilizza i dati filtrati</span> */}
             {isLoading ? (
                  <div>Caricamento...</div>
             ) : (
@@ -558,6 +556,9 @@ function AnagraficheManager() {
                         <thead className="bg-slate-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ragione Sociale</th>
+                                {/* // <span style="color:green;">// NUOVO: Aggiunte le colonne Città e Provincia</span> */}
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Città</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Provincia</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Relazione</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sottoconti (C/F/PV)</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Stato</th>
@@ -569,6 +570,9 @@ function AnagraficheManager() {
                                 filteredAnagrafiche.map(row => (
                                     <tr key={row.id} className="hover:bg-slate-50">
                                         <td className="px-6 py-4 text-sm font-medium text-slate-800">{row.ragione_sociale}</td>
+                                        {/* // <span style="color:green;">// NUOVO: Aggiunti i dati per Città e Provincia</span> */}
+                                        <td className="px-6 py-4 text-sm text-slate-600">{row.citta}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-600">{row.provincia}</td>
                                         <td className="px-6 py-4 text-sm text-slate-600">{row.relazione}</td>
                                         <td className="px-6 py-4 text-sm text-slate-600 font-mono">
                                             {row.codice_cliente && <div>C: {row.codice_cliente}</div>}
@@ -586,7 +590,7 @@ function AnagraficheManager() {
                                 ))
                              ) : (
                                 <tr>
-                                    <td colSpan="5" className="text-center p-4">Nessuna anagrafica corrisponde ai criteri di ricerca.</td>
+                                    <td colSpan="7" className="text-center p-4">Nessuna anagrafica corrisponde ai criteri di ricerca.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -596,7 +600,6 @@ function AnagraficheManager() {
         </div>
     );
 }
-
 
 
 // --- Componente Modale per Account Email ---

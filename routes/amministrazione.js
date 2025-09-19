@@ -209,7 +209,7 @@ router.post('/anagrafiche', verifyToken, async (req, res) => {
                 const mastroCodice = (idPadre === 6) ? '20' : '40';
                 const contoCodice = '05';
                 const codiceBase = `${mastroCodice}.${contoCodice}`;
-
+                natura = (idPadre === 6) ? 'Attività' : 'Passività'; 
                 // <span style="color:green;">// FIX: La query ora calcola il MAX progressivo numerico per evitare errori di duplicazione.</span>
                 const [maxProgResult] = await connection.query(
                     `SELECT MAX(CAST(SUBSTRING_INDEX(codice, '.', -1) AS UNSIGNED)) as max_prog
@@ -238,9 +238,10 @@ router.post('/anagrafiche', verifyToken, async (req, res) => {
             }
 
             console.log(`Nuovo codice generato: ${nuovoCodice}`);
+            tipo="sottoconto"
             const [result] = await connection.query(
-                'INSERT INTO sc_piano_dei_conti (id_ditta, codice, id_padre, descrizione, natura) VALUES (?, ?, ?, ?, ?)',
-                [id_ditta, nuovoCodice, idPadre, descrizione, natura]
+                'INSERT INTO sc_piano_dei_conti (id_ditta, codice, id_padre, descrizione, natura, tipo) VALUES (?,?, ?, ?, ?, ?)',
+                [id_ditta, nuovoCodice, idPadre, descrizione, natura,tipo]
             );
             return result.insertId;
         };
@@ -827,7 +828,7 @@ router.get('/ditte', verifyToken, async (req, res) => {
 
     try {
         let query = `
-            SELECT d.id, d.ragione_sociale, d.citta, d.p_iva, d.codice_relazione,id_sottoconto_cliente,id_sottoconto_fornitore
+            SELECT d.id, d.ragione_sociale, d.citta, d.p_iva, d.codice_relazione,id_sottoconto_cliente,id_sottoconto_fornitore,id_sottoconto_puntovendita
             FROM ditte d 
             WHERE d.id_ditta_proprietaria = ? AND d.stato = 1
         `;

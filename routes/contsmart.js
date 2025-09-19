@@ -9,6 +9,7 @@ const { verifyToken } = require('../utils/auth');
 const { getNextProgressivo } = require('../utils/progressivi');
 const router = express.Router();
 const { knex } = require('../config/db');
+//const { db } = require('../config/db');
 
 //const { authenticate, authorize } = require('../utils/auth');
 // --- Middleware di Autorizzazione Specifici ---
@@ -226,175 +227,6 @@ router.post('/piano-dei-conti', [verifyToken, canEditPdc], async (req, res) => {
     }
 });
 
-// --- ROTTE PER LE REGISTRAZIONI CONTABILI (sc_registrazioni_*) ---
-
-/**
- * GET /registrazioni
- * Recupera un elenco delle ultime testate delle registrazioni contabili.
- */
-// --- ROTTE PER LE REGISTRAZIONI CONTABILI ---
-router.get('/registrazioni', verifyToken, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    try {
-        const query = `
-            SELECT t.id, t.data_registrazione, t.descrizione_testata, t.stato, u.nome, u.cognome
-            FROM sc_registrazioni_testata t
-            JOIN utenti u ON t.id_utente = u.id
-            WHERE t.id_ditta = ?
-            ORDER BY t.data_registrazione DESC, t.id DESC
-            LIMIT 200
-        `;
-        const [rows] = await dbPool.query(query, [dittaId]);
-        res.json({ success: true, data: rows });
-    } catch (error) {
-        console.error("Errore recupero registrazioni:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
-    }
-});
-
-
-// ---------------------------------------------------------------------
-// REGISTRAZIONI CONTABILI
-// ---------------------------------------------------------------------
-router.post('/registrazioni', verifyToken, async (req, res) => {
-    const { id_ditta, id: id_utente } = req.user;
-    const { datiDocumento, scrittura, iva } = req.body;
-      
-    if (!datiDocumento || !datiDocumento.id_funzione_contabile || !scrittura || !Array.isArray(scrittura) || scrittura.length === 0) {
-        return res.status(400).json({ message: "Dati di registrazione incompleti. La funzione contabile è obbligatoria." });
-    }
-
-    try {
-        let nextProtocollo; // Definiamo la variabile qui per renderla accessibile alla fine
-
-        await knex.transaction(async (trx) => {
-            const funzioneDettagli = await trx('sc_funzioni_contabili')
-                .where('id', datiDocumento.id_funzione_contabile)
-                .select('tipo_funzione', 'categoria')
-                .first();
-
-            if (!funzioneDettagli) {
-                throw new Error('Funzione contabile non trovata o non valida.');
-            }
-            
-            const isStorno = (funzioneDettagli.categoria || '').toLowerCase().includes('storno');
-
-            const lastProto = await trx('sc_registrazioni_testata')
-                .where('id_ditta', id_ditta)
-                .max('numero_protocollo as max_protocollo')
-                .first();
-
-            nextProtocollo = (lastProto.max_protocollo || 0) + 1;
-
-            const [idTestata] = await trx('sc_registrazioni_testata').insert({
-                id_ditta, id_utente, numero_protocollo: nextProtocollo,
-                data_registrazione: datiDocumento.data_registrazione,
-                data_documento: datiDocumento.data_documento || null,
-                numero_documento: datiDocumento.numero_documento || null,
-                id_ditte: datiDocumento.id_anagrafica || null,
-                totale_documento: datiDocumento.totale_documento || 0,
-                descrizione_testata: datiDocumento.descrizione
-            });
-            
-            const righeNonIva = scrittura.filter(r => !r.descrizione.toLowerCase().includes('iva'));
-            const righeIvaTemplate = scrittura.filter(r => r.descrizione.toLowerCase().includes('iva'));
-
-            const righeNonIvaDaInserire = righeNonIva.map(riga => ({
-                id_testata: idTestata,
-                id_conto: riga.id_conto,
-                descrizione_riga: riga.descrizione,
-                importo_dare: riga.importo_dare || 0,
-                importo_avere: riga.importo_avere || 0,
-            }));
-            await trx('sc_registrazioni_righe').insert(righeNonIvaDaInserire);
-
-            if (iva && Array.isArray(iva) && iva.length > 0) {
-                let tipoRegistroIva = null;
-                if (funzioneDettagli.categoria.includes('Acquisti')) {
-                    tipoRegistroIva = 'Acquisti';
-                } else if (funzioneDettagli.categoria.includes('Vendite')) {
-                    tipoRegistroIva = 'Vendite';
-                }
-
-                if (tipoRegistroIva) {
-                    for (const rigaIva of iva) {
-                        if (rigaIva.imposta > 0) {
-                            const templateRigaIva = righeIvaTemplate[0];
-                            
-                            const [idRigaIvaInserita] = await trx('sc_registrazioni_righe').insert({
-                                id_testata: idTestata,
-                                id_conto: templateRigaIva.id_conto,
-                                descrizione_riga: templateRigaIva.descrizione,
-                                importo_dare: templateRigaIva.importo_dare > 0 ? rigaIva.imposta : 0,
-                                importo_avere: templateRigaIva.importo_avere > 0 ? rigaIva.imposta : 0,
-                            }).returning('id');
-
-                            const codiceIva = await trx('iva_contabili').where('id', rigaIva.id_codice_iva).first();
-
-                            await trx('sc_registri_iva').insert({
-                                id_riga_registrazione: idRigaIvaInserita,
-                                tipo_registro: tipoRegistroIva,
-                                data_documento: datiDocumento.data_documento,
-                                numero_documento: datiDocumento.numero_documento,
-                                id_anagrafica: datiDocumento.id_anagrafica || null,
-                                imponibile: rigaIva.imponibile,
-                                aliquota_iva: codiceIva ? codiceIva.aliquota : 0,
-                                importo_iva: rigaIva.imposta
-                            });
-                        }
-                    }
-                }
-            }
-            
-            if ((funzioneDettagli.tipo_funzione === 'Finanziaria' || funzioneDettagli.tipo_funzione === 'Pagamento') && datiDocumento.id_anagrafica) {
-                let tipo_movimento = null;
-                const categoria = (funzioneDettagli.categoria || '');
-
-                if (categoria.includes('Acquisti')) {
-                    tipo_movimento = isStorno ? 'Apertura_Credito' : 'Apertura_Debito';
-                } else if (categoria.includes('Vendite')) {
-                    tipo_movimento = isStorno ? 'Apertura_Debito' : 'Apertura_Credito';
-                } else if (categoria.includes('Pagamenti')) {
-                     const rigaContropartitaPagamento = scrittura.find(r => r.id_conto === datiDocumento.id_anagrafica);
-                     const segnoPagamento = rigaContropartitaPagamento?.importo_avere > 0 ? 'A' : 'D';
-                     tipo_movimento = segnoPagamento === 'A' ? 'Chiusura_Credito' : 'Chiusura_Debito';
-                }
-                
-                if (tipo_movimento) {
-                    await trx('sc_partite_aperte').insert({
-                        id_ditta,
-                        id_registrazione_testata: idTestata,
-                        data_registrazione: datiDocumento.data_registrazione,
-                        id_anagrafica: datiDocumento.id_anagrafica,
-                        id_ditta_anagrafica: datiDocumento.id_anagrafica,
-                        id_sottoconto: datiDocumento.id_anagrafica,
-                        numero_documento: datiDocumento.numero_documento,
-                        data_documento: datiDocumento.data_documento,
-                        tipo_movimento: tipo_movimento,
-                        importo: datiDocumento.totale_documento,
-                        stato: 'APERTA',
-                        data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento,
-                    });
-                }
-            }
-            
-            await trx('log_azioni').insert({
-                id_utente, id_ditta, azione: 'Creazione Registrazione Contabile',
-                dettagli: `ID Testata: ${idTestata}, Funzione: ${datiDocumento.id_funzione_contabile}`
-            });
-
-        });
-
-        res.status(201).json({ 
-            message: `Registrazione salvata con protocollo N. ${nextProtocollo} del ${datiDocumento.data_registrazione}`,
-            numero_protocollo: nextProtocollo,
-            data_registrazione: datiDocumento.data_registrazione
-        });
-    } catch (error) {
-        console.error("Errore durante il salvataggio della registrazione:", error);
-        res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
-    }
-});
 
 /**
  * PATCH /piano-dei-conti/:id
@@ -480,40 +312,7 @@ router.get('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     }
 });
 
-/*
-// POST /api/contsmart/funzioni - Crea una nuova funzione contabile
-router.post('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
-    const { id_ditta } = req.user;
-    const { nome_funzione, descrizione, tipo_funzione, categoria, righe_predefinite } = req.body;
-    const connection = await dbPool.getConnection();
-    try {
-        await connection.beginTransaction();
-        const [result] = await connection.query(
-            'INSERT INTO sc_funzioni_contabili (id_ditta, nome_funzione, descrizione, tipo_funzione, categoria) VALUES (?, ?, ?, ?, ?)',
-            [id_ditta, nome_funzione, descrizione, tipo_funzione, categoria]
-        );
-        const idFunzione = result.insertId; 
-        if (righe_predefinite && righe_predefinite.length > 0) {
-            for (const riga of righe_predefinite) {
-                if (riga.id_conto) {
-                    await connection.query(
-                        'INSERT INTO sc_funzioni_contabili_righe (id_funzione_contabile, id_conto, tipo_movimento, descrizione_riga_predefinita) VALUES (?, ?, ?, ?)',
-                        [idFunzione, riga.id_conto, riga.tipo_movimento, riga.descrizione_riga_predefinita || '']
-                    );
-                }
-            }
-        }
-        await connection.commit();
-        res.status(201).json({ success: true, message: 'Funzione creata.' });
-    } catch (error) {
-        await connection.rollback();
-        console.error("Errore creazione funzione:", error);
-        res.status(500).json({ success: false, message: 'Errore creazione funzione.' });
-    } finally {
-        connection.release();
-    }
-});
-*/
+
 // POST /api/contsmart/funzioni - Crea una nuova funzione contabile con righe predefinite
 router.post('/funzioni', verifyToken, canManageFunzioni, async (req, res) => {
     const { id_ditta } = req.user;
@@ -965,7 +764,7 @@ router.get('/funzioni-contabili', verifyToken, async (req, res) => {
     try {
         const funzioni = await knex('sc_funzioni_contabili')
             .where({ id_ditta, attiva: 1 })
-            .select('id', 'nome_funzione', 'descrizione', 'tipo_funzione', 'categoria', 'gestioni_abbinate');
+            .select('id', 'nome_funzione', 'descrizione', 'tipo_funzione', 'categoria', 'gestioni_abbinate', 'codice_funzione');
 
         const tutteLeRighe = await knex('sc_funzioni_contabili_righe')
             .join('sc_funzioni_contabili', 'sc_funzioni_contabili_righe.id_funzione_contabile', 'sc_funzioni_contabili.id')
@@ -1117,19 +916,22 @@ router.get('/pdc-flat', verifyToken, canViewReports, async (req, res) => {
 // #####################################################################
 router.get('/reports/partite-aperte/:tipo', async (req, res) => {
     const { id_ditta } = req.user;
-    const { tipo } = req.params; // 'attive' o 'passive'
+    const { tipo } = req.params;
+    const { id_anagrafica } = req.query;
 
-    // Validazione del parametro 'tipo' per sicurezza
     if (tipo !== 'attive' && tipo !== 'passive') {
-        return res.status(400).json({ error: 'Tipo di partita non valido.' });
+        return res.status(400).json({ success: false, message: 'Tipo di partita non valido.' });
+    }
+
+    if (!id_anagrafica) {
+        return res.status(400).json({ success: false, message: "L'ID dell'anagrafica è obbligatorio." });
     }
 
     try {
-        // Query per recuperare le partite aperte
-        const partite = await db('sc_partite_aperte')
+        const partite = await knex('sc_partite_aperte') // <-- USARE 'knex'
             .join('ditte', 'sc_partite_aperte.id_anagrafica', 'ditte.id')
             .where('sc_partite_aperte.id_ditta', id_ditta)
-            .andWhere('sc_partite_aperte.tipo_partita', tipo)
+            .andWhere('sc_partite_aperte.id_anagrafica', id_anagrafica)
             .andWhere('sc_partite_aperte.stato', 'aperta')
             .select(
                 'sc_partite_aperte.id',
@@ -1138,20 +940,368 @@ router.get('/reports/partite-aperte/:tipo', async (req, res) => {
                 'sc_partite_aperte.numero_documento',
                 'ditte.ragione_sociale',
                 'sc_partite_aperte.importo',
-                'sc_partite_aperte.insoluto'
+                'sc_partite_aperte.stato',
+                'sc_partite_aperte.tipo_movimento', 
+                'sc_partite_aperte.id_sottoconto',
+                 // Usa 'knex.raw' per la selezione condizionale
+                knex.raw(`CASE WHEN ? = 'attive' THEN ditte.id_sottoconto_cliente ELSE ditte.id_sottoconto_fornitore END as id_sottoconto`, [tipo])
             )
             .orderBy('sc_partite_aperte.data_scadenza', 'asc');
-
-        res.json(partite);
+        
+        res.json({ success: true, data: partite });
 
     } catch (error) {
         console.error("Errore nel recupero delle partite aperte:", error);
-        res.status(500).json({ error: 'Si è verificato un errore nel recupero dei dati delle partite aperte.' });
+        res.status(500).json({ success: false, message: 'Si è verificato un errore nel recupero dei dati.' });
     }
 });
 
 
 module.exports = router;
 
+// --- ROTTE PER LE REGISTRAZIONI CONTABILI (sc_registrazioni_*) ---
 
-// 
+/**
+ * GET /registrazioni
+ * Recupera un elenco delle ultime testate delle registrazioni contabili.
+ */
+// --- ROTTE PER LE REGISTRAZIONI CONTABILI ---
+router.get('/registrazioni', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    try {
+        const query = `
+            SELECT t.id, t.data_registrazione, t.descrizione_testata, t.stato, u.nome, u.cognome
+            FROM sc_registrazioni_testata t
+            JOIN utenti u ON t.id_utente = u.id
+            WHERE t.id_ditta = ?
+            ORDER BY t.data_registrazione DESC, t.id DESC
+            LIMIT 200
+        `;
+        const [rows] = await dbPool.query(query, [dittaId]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore recupero registrazioni:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+// ---------------------------------------------------------------------
+// REGISTRAZIONI CONTABILI
+// ---------------------------------------------------------------------
+/* vecchia e funzionante logica di scrittura con errore di gestione chiusura partite scopere
+router.post('/registrazioni', verifyToken, async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { datiDocumento, scrittura, iva } = req.body;
+      
+    if (!datiDocumento || !datiDocumento.id_funzione_contabile || !scrittura || !Array.isArray(scrittura) || scrittura.length === 0) {
+        return res.status(400).json({ message: "Dati di registrazione incompleti. La funzione contabile è obbligatoria." });
+    }
+
+    try {
+        let nextProtocollo; // Definiamo la variabile qui per renderla accessibile alla fine
+
+        await knex.transaction(async (trx) => {
+            const funzioneDettagli = await trx('sc_funzioni_contabili')
+                .where('id', datiDocumento.id_funzione_contabile)
+                .select('tipo_funzione', 'categoria')
+                .first();
+
+            if (!funzioneDettagli) {
+                throw new Error('Funzione contabile non trovata o non valida.');
+            }
+            
+            const isStorno = (funzioneDettagli.categoria || '').toLowerCase().includes('storno');
+
+            const lastProto = await trx('sc_registrazioni_testata')
+                .where('id_ditta', id_ditta)
+                .max('numero_protocollo as max_protocollo')
+                .first();
+
+            nextProtocollo = (lastProto.max_protocollo || 0) + 1;
+
+            const [idTestata] = await trx('sc_registrazioni_testata').insert({
+                id_ditta, id_utente, numero_protocollo: nextProtocollo,
+                data_registrazione: datiDocumento.data_registrazione,
+                data_documento: datiDocumento.data_documento || null,
+                numero_documento: datiDocumento.numero_documento || null,
+                id_ditte: datiDocumento.id_anagrafica || null,
+                totale_documento: datiDocumento.totale_documento || 0,
+                descrizione_testata: datiDocumento.descrizione
+            });
+            
+            const righeNonIva = scrittura.filter(r => !r.descrizione.toLowerCase().includes('iva'));
+            const righeIvaTemplate = scrittura.filter(r => r.descrizione.toLowerCase().includes('iva'));
+
+            const righeNonIvaDaInserire = righeNonIva.map(riga => ({
+                id_testata: idTestata,
+                id_conto: riga.id_conto,
+                descrizione_riga: riga.descrizione,
+                importo_dare: riga.importo_dare || 0,
+                importo_avere: riga.importo_avere || 0,
+            }));
+            await trx('sc_registrazioni_righe').insert(righeNonIvaDaInserire);
+
+            if (iva && Array.isArray(iva) && iva.length > 0) {
+                let tipoRegistroIva = null;
+                if (funzioneDettagli.categoria.includes('Acquisti')) {
+                    tipoRegistroIva = 'Acquisti';
+                } else if (funzioneDettagli.categoria.includes('Vendite')) {
+                    tipoRegistroIva = 'Vendite';
+                }
+
+                if (tipoRegistroIva) {
+                    for (const rigaIva of iva) {
+                        if (rigaIva.imposta > 0) {
+                            const templateRigaIva = righeIvaTemplate[0];
+                            
+                            const [idRigaIvaInserita] = await trx('sc_registrazioni_righe').insert({
+                                id_testata: idTestata,
+                                id_conto: templateRigaIva.id_conto,
+                                descrizione_riga: templateRigaIva.descrizione,
+                                importo_dare: templateRigaIva.importo_dare > 0 ? rigaIva.imposta : 0,
+                                importo_avere: templateRigaIva.importo_avere > 0 ? rigaIva.imposta : 0,
+                            }).returning('id');
+
+                            const codiceIva = await trx('iva_contabili').where('id', rigaIva.id_codice_iva).first();
+
+                            await trx('sc_registri_iva').insert({
+                                id_riga_registrazione: idRigaIvaInserita,
+                                tipo_registro: tipoRegistroIva,
+                                data_documento: datiDocumento.data_documento,
+                                numero_documento: datiDocumento.numero_documento,
+                                id_anagrafica: datiDocumento.id_anagrafica || null,
+                                imponibile: rigaIva.imponibile,
+                                aliquota_iva: codiceIva ? codiceIva.aliquota : 0,
+                                importo_iva: rigaIva.imposta
+                            });
+                        }
+                    }
+                }
+            }
+            
+            if ((funzioneDettagli.tipo_funzione === 'Finanziaria' || funzioneDettagli.tipo_funzione === 'Pagamento') && datiDocumento.id_anagrafica) {
+                let tipo_movimento = null;
+                const categoria = (funzioneDettagli.categoria || '');
+
+                if (categoria.includes('Acquisti')) {
+                    tipo_movimento = isStorno ? 'Apertura_Credito' : 'Apertura_Debito';
+                } else if (categoria.includes('Vendite')) {
+                    tipo_movimento = isStorno ? 'Apertura_Debito' : 'Apertura_Credito';
+                } else if (categoria.includes('Pagamenti')) {
+                     const rigaContropartitaPagamento = scrittura.find(r => r.id_conto === datiDocumento.id_anagrafica);
+                     const segnoPagamento = rigaContropartitaPagamento?.importo_avere > 0 ? 'A' : 'D';
+                     tipo_movimento = segnoPagamento === 'A' ? 'Chiusura_Credito' : 'Chiusura_Debito';
+                }
+                
+                if (tipo_movimento) {
+                    await trx('sc_partite_aperte').insert({
+                        id_ditta,
+                        id_registrazione_testata: idTestata,
+                        data_registrazione: datiDocumento.data_registrazione,
+                        id_anagrafica: datiDocumento.id_anagrafica,
+                        id_ditta_anagrafica: datiDocumento.id_anagrafica,
+                        id_sottoconto: datiDocumento.id_anagrafica,
+                        numero_documento: datiDocumento.numero_documento,
+                        data_documento: datiDocumento.data_documento,
+                        tipo_movimento: tipo_movimento,
+                        importo: datiDocumento.totale_documento,
+                        stato: 'APERTA',
+                        data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento,
+                    });
+                }
+            }
+            
+            await trx('log_azioni').insert({
+                id_utente, id_ditta, azione: 'Creazione Registrazione Contabile',
+                dettagli: `ID Testata: ${idTestata}, Funzione: ${datiDocumento.id_funzione_contabile}`
+            });
+
+        });
+
+        res.status(201).json({ 
+            message: `Registrazione salvata con protocollo N. ${nextProtocollo} del ${datiDocumento.data_registrazione}`,
+            numero_protocollo: nextProtocollo,
+            data_registrazione: datiDocumento.data_registrazione
+        });
+    } catch (error) {
+        console.error("Errore durante il salvataggio della registrazione:", error);
+        res.status(500).json({ message: "Errore del server durante il salvataggio.", error: error.message });
+    }
+});
+*/
+router.post('/registrazioni', verifyToken, async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { datiDocumento, scrittura, iva, partiteDaChiudere } = req.body;
+
+    if (!datiDocumento || !datiDocumento.id_funzione_contabile || !scrittura || !Array.isArray(scrittura) || scrittura.length === 0) {
+        return res.status(400).json({ success: false, message: "Dati di registrazione incompleti. La funzione contabile è obbligatoria." });
+    }
+
+    try {
+        let nextProtocollo;
+
+        await knex.transaction(async (trx) => {
+            // --- 1. PREPARAZIONE DATI E PROTOCOLLO ---
+            const funzioneDettagli = await trx('sc_funzioni_contabili')
+                .where('id', datiDocumento.id_funzione_contabile)
+                .select('tipo_funzione', 'categoria', 'gestioni_abbinate')
+                .first();
+
+            if (!funzioneDettagli) {
+                throw new Error('Funzione contabile non trovata o non valida.');
+            }
+
+            const lastProto = await trx('sc_registrazioni_testata')
+                .where('id_ditta', id_ditta)
+                .max('numero_protocollo as max_protocollo')
+                .first();
+
+            nextProtocollo = (lastProto.max_protocollo || 0) + 1;
+
+            // --- 2. INSERIMENTO TESTATA E RIGHE CONTABILI ---
+            const [idTestata] = await trx('sc_registrazioni_testata').insert({
+                id_ditta,
+                id_utente,
+                numero_protocollo: nextProtocollo,
+                data_registrazione: datiDocumento.data_registrazione,
+                data_documento: datiDocumento.data_documento || null,
+                numero_documento: datiDocumento.numero_documento || null,
+                id_ditte: datiDocumento.id_anagrafica || null, // Nota: il nome colonna 'id_ditte' è corretto secondo lo schema fornito
+                totale_documento: datiDocumento.totale_documento || 0,
+                descrizione_testata: datiDocumento.descrizione
+            });
+            
+            const righeDaInserire = scrittura.map(riga => ({
+                id_testata: idTestata,
+                id_conto: riga.id_conto,
+                descrizione_riga: riga.descrizione,
+                importo_dare: riga.importo_dare || 0,
+                importo_avere: riga.importo_avere || 0,
+            }));
+            await trx('sc_registrazioni_righe').insert(righeDaInserire);
+
+            // --- 3. GESTIONE PARTITE APERTE ---
+
+            // CASO A: CHIUSURA DI PARTITE ESISTENTI
+            if (funzioneDettagli.tipo_funzione === 'Finanziaria' && (funzioneDettagli.gestioni_abbinate || '').includes('E') && partiteDaChiudere && partiteDaChiudere.length > 0) {
+                
+                await trx('sc_partite_aperte')
+                    .whereIn('id', partiteDaChiudere)
+                    .update({ stato: 'CHIUSA' });
+                
+                const anagraficaInfo = await trx('ditte').where('id', datiDocumento.id_anagrafica).first();
+                const tipoMovimentoChiusura = anagraficaInfo.id_sottoconto_cliente ? 'Chiusura_Credito' : 'Chiusura_Debito';
+                const rigaAnagrafica = scrittura.find(r => r.id_conto === anagraficaInfo.id_sottoconto_cliente || r.id_conto === anagraficaInfo.id_sottoconto_fornitore);
+
+                await trx('sc_partite_aperte').insert({
+                    id_ditta,
+                    // <span style="color:red;">// CORREZIONE: il nome colonna corretto è 'id_ditta_anagrafica'</span>
+                    id_ditta_anagrafica: datiDocumento.id_anagrafica,
+                    id_registrazione_testata: idTestata,
+                    data_registrazione: datiDocumento.data_registrazione,
+                    data_scadenza: datiDocumento.data_registrazione,
+                    importo: datiDocumento.totale_documento,
+                    stato: 'CHIUSA',
+                    data_documento: datiDocumento.data_documento,
+                    numero_documento: datiDocumento.numero_documento,
+                    id_sottoconto: rigaAnagrafica ? rigaAnagrafica.id_conto : null,
+                    tipo_movimento: tipoMovimentoChiusura
+                });
+
+            // CASO B: APERTURA DI UNA NUOVA PARTITA (es. Fattura)
+          //  } else if (funzioneDettagli.tipo_funzione === 'Finanziaria' && datiDocumento.id_anagrafica) {
+          } else if (funzioneDettagli.tipo_funzione === 'Finanziaria' && datiDocumento.id_anagrafica && !(funzioneDettagli.categoria || '').toLowerCase().includes('corrispettivi')) {
+  
+              const categoria = (funzioneDettagli.categoria || '').toLowerCase();
+                let tipo_movimento = null;
+                
+                if (categoria.includes('acquist')) tipo_movimento = 'Apertura_Debito';
+                else if (categoria.includes('vendit')) tipo_movimento = 'Apertura_Credito';
+                
+                if (tipo_movimento) {
+                    const anagraficaInfo = await trx('ditte').where('id', datiDocumento.id_anagrafica).first();
+                    const idSottocontoCorretto = tipo_movimento === 'Apertura_Credito' ? anagraficaInfo.id_sottoconto_cliente : anagraficaInfo.id_sottoconto_fornitore;
+                    
+                    await trx('sc_partite_aperte').insert({
+                        id_ditta,
+                        id_registrazione_testata: idTestata,
+                        data_registrazione: datiDocumento.data_registrazione,
+                        id_ditta_anagrafica: datiDocumento.id_anagrafica,
+                        id_anagrafica: datiDocumento.id_anagrafica,
+                        id_sottoconto: idSottocontoCorretto,
+                        numero_documento: datiDocumento.numero_documento,
+                        data_documento: datiDocumento.data_documento,
+                        tipo_movimento: tipo_movimento,
+                        importo: datiDocumento.totale_documento,
+                        stato: 'APERTA',
+                        data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento,
+                    });
+                }
+            }
+
+            // --- 4. GESTIONE IVA ---
+            let tipoRegistroIva = null;
+            const categoriaIVA = (funzioneDettagli.categoria || '').toLowerCase();
+            if (categoriaIVA.includes('acquist')) {
+                tipoRegistroIva = 'Acquisti';
+            } else if (categoriaIVA.includes('vendit')) {
+                tipoRegistroIva = 'Vendite';
+            }
+            
+            const righeIvaTemplate = scrittura.filter(r => r.descrizione.toLowerCase().includes('iva'));
+
+            if (iva && Array.isArray(iva) && iva.length > 0) {
+                if (tipoRegistroIva) {
+                    for (const rigaIva of iva) {
+                        if (rigaIva.imposta > 0) {
+                            const templateRigaIva = righeIvaTemplate[0];
+                            if (!templateRigaIva) {
+                                throw new Error("Logica IVA inconsistente: riga IVA presente nei totali ma non nel template della scrittura.");
+                            }
+                            
+                            // <span style="color:red;">// CORREZIONE: Rimosso .returning('id') per compatibilità con MySQL</span>
+                            const [idRigaIvaInserita] = await trx('sc_registrazioni_righe').insert({
+                                id_testata: idTestata,
+                                id_conto: templateRigaIva.id_conto,
+                                descrizione_riga: templateRigaIva.descrizione,
+                                importo_dare: templateRigaIva.importo_dare > 0 ? rigaIva.imposta : 0,
+                                importo_avere: templateRigaIva.importo_avere > 0 ? rigaIva.imposta : 0,
+                            });
+
+                            const codiceIva = await trx('iva_contabili').where('id', rigaIva.id_codice_iva).first();
+
+                            await trx('sc_registri_iva').insert({
+                                id_riga_registrazione: idRigaIvaInserita,
+                                tipo_registro: tipoRegistroIva,
+                                data_documento: datiDocumento.data_documento,
+                                numero_documento: datiDocumento.numero_documento,
+                                id_anagrafica: datiDocumento.id_anagrafica || null,
+                                imponibile: rigaIva.imponibile,
+                                aliquota_iva: codiceIva ? codiceIva.aliquota : 0,
+                                importo_iva: rigaIva.imposta
+                            });
+                        }
+                    }
+                }
+            }
+
+            // --- 5. LOG AZIONE ---
+            await trx('log_azioni').insert({
+                id_utente, id_ditta, azione: 'Creazione Registrazione Contabile',
+                dettagli: `ID Testata: ${idTestata}, Funzione: ${datiDocumento.id_funzione_contabile}`
+            });
+        });
+
+        res.status(201).json({ 
+            success: true,
+            message: `Registrazione salvata con protocollo N. ${nextProtocollo} del ${new Date(datiDocumento.data_registrazione).toLocaleDateString('it-IT')}`,
+            numero_protocollo: nextProtocollo,
+            data_registrazione: datiDocumento.data_registrazione
+        });
+
+    } catch (error) {
+        console.error("Errore durante il salvataggio della registrazione:", error);
+        res.status(500).json({ success: false, message: "Errore del server durante il salvataggio.", error: error.message });
+    }
+});
