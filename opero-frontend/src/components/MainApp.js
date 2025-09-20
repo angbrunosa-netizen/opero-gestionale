@@ -25,7 +25,7 @@ import ShortcutSettingsModal from './ShortcutSettingsModal';
 import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import AttivitaPPA from './AttivitaPPA';
 import FinanzeModule from './FinanzeModule';
-
+import BeniStrumentaliModule from './BeniStrumentaliModule';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 
@@ -499,6 +499,7 @@ const MainApp = () => {
             case 'MAIL': return <MailModule />;
             case 'RUBRICA': return <AddressBook />;
             case 'FIN_SMART': return <FinanzeModule />;
+            case 'BSSMART': return <BeniStrumentaliModule />;
             default: return <div className="p-6">Seleziona un modulo per iniziare.</div>;
         }
     };

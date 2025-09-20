@@ -11,6 +11,7 @@ import {
     UsersIcon, 
     ChartBarIcon, 
     EnvelopeIcon,
+    Eye,
     BanknotesIcon 
 } from '@heroicons/react/24/outline';
 
@@ -59,6 +60,12 @@ export const modules = [
         label: 'Admin Sistema',
         icon: CogIcon,
         permission: 'ADMIN_PANEL_VIEW'
+    },
+     {
+        key: 'BSSMART', // Chiave utilizzata nel tuo componentMap
+        label: 'Beni Strumentali',
+        icon: CogIcon,
+        permission: 'BSSMART'
     }
 ];
 
@@ -71,7 +78,7 @@ const FinanzeModule = React.lazy(() => import('../components/FinanzeModule'));
 const MailModule = React.lazy(() => import('../components/MailModule'));
 const AmministrazioneModule = React.lazy(() => import('../components/AmministrazioneModule'));
 const AdminPanel = React.lazy(() => import('../components/AdminPanel'));
-
+const BeniStrumentaliModule = React.lazy(() => import('../components/BeniStrumentaliModule'));
 // Questa mappa collega la 'key' definita sopra al componente React da caricare.
 export const componentMap = {
   DASHBOARD: Dashboard,
@@ -81,5 +88,6 @@ export const componentMap = {
   MAIL: MailModule,
   AMMINISTRAZIONE: AmministrazioneModule,
   ADMIN_PANEL: AdminPanel,
+  BSSMART : BeniStrumentaliModule,
 };
 

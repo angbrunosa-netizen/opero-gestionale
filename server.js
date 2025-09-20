@@ -25,6 +25,7 @@ const publicRoutes = require('./routes/public');
 const trackRoutes = require('./routes/track');
 
 const reportRoutes = require('./routes/reports');
+const beniStrumentaliRoutes = require('./routes/beniStrumentali');
 
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
@@ -81,6 +82,8 @@ app.use('/api/rubrica', verifyToken, rubricaRoutes);
 app.use('/api/attivita', verifyToken, attivitaRoutes);
 app.use('/api/ppa', verifyToken, ppaRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/beni-strumentali', verifyToken, beniStrumentaliRoutes);
+
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
 if (process.env.NODE_ENV === 'production') {
   // Serve i file statici della build di React

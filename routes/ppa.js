@@ -169,7 +169,10 @@ router.post('/assegna', checkRole([1, 2]), async (req, res) => {
             : 'Non definita';
 
         for (const user of teamMemberDetails) {
-            const userActions = azioniModello.filter(a => assegnazioni[a.ID] == user.id).map(a => `<li>${a.NomeAzione}</li>`).join('');
+           const userActions = azioniModello
+                .filter(a => assegnazioni[a.ID] == user.id)
+                .map(a => `<li><strong>${a.NomeAzione}</strong>: ${a.Descrizione || 'Nessuna descrizione.'}</li>`)
+                .join('');
             const emailBody = `
                 <div style="font-family: Arial, sans-serif; line-height: 1.6;">
                     <h2>Nuova Procedura Assegnata</h2>
@@ -190,7 +193,7 @@ router.post('/assegna', checkRole([1, 2]), async (req, res) => {
                 </div>
             `;
             // Assicurati che la funzione sendSystemEmail sia importata e disponibile
-            // await sendSystemEmail(user.email, `Nuova Procedura Assegnata: ${proceduraDetails[0].NomePersonalizzato}`, emailBody);
+            await sendSystemEmail(user.email, `Nuova Procedura Assegnata: ${proceduraDetails[0].NomePersonalizzato}`, emailBody);
         }
         
         await connection.commit();

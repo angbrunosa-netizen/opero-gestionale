@@ -1,0 +1,49 @@
+### Feat(ContSmart): Implementazione Registrazione Corrispettivi e Chiusura Partite
+
+Questa sessione ha introdotto la gestione completa dei corrispettivi e ha risolto un problema critico nel ciclo di vita delle partite aperte.
+
+**Nuove Funzionalità e Correzioni:**
+
+1.  **Gestione Corrispettivi**:
+    * Il componente `NuovaRegistrazione.js` è stato aggiornato per riconoscere le funzioni contabili di categoria "Corrispettivi".
+    * È stata implementata una logica di generazione della scrittura contabile specifica per i corrispettivi (DARE Cassa, AVERE Ricavo, AVERE IVA), che non interagisce con lo scadenziario.
+    * La route del backend `POST /registrazioni` è stata modificata per escludere la creazione di partite aperte per questa categoria di registrazioni.
+
+2.  **Correzione Chiusura Partite**:
+    * Risolto il bug per cui le registrazioni di incasso/pagamento non aggiornavano lo stato delle partite originali.
+    * Il frontend ora invia correttamente gli ID delle partite da chiudere (`partiteDaChiudere`).
+    * Il backend, all'interno di una transazione sicura, ora esegue l'aggiornamento dello stato delle partite a "CHIUSA" e crea il relativo movimento di chiusura.
+
+3.  **Miglioramenti e Stabilità**:
+    * Aggiunto il campo `codice_funzione` (obbligatorio) nel form di creazione delle funzioni contabili (`FunzioniContabiliManager.js`) per risolvere l'errore di duplicazione (`ER_DUP_ENTRY`).
+    * Risolti vari bug minori nel componente `NuovaRegistrazione.js` per migliorare la robustezza e la visualizzazione dei dati nella tabella delle partite aperte.
+    ### Feature: Modulo Gestione Beni Strumentali (Backend e Struttura Frontend)
+
+**Obiettivo:**
+È stato creato il nuovo modulo per la gestione dei beni strumentali, che permette di inventariare, monitorare e gestire i costi e le scadenze delle attrezzature aziendali.
+
+**Modifiche al Database:**
+- **Creazione Schema Dati:** È stata creata una nuova migrazione Knex (`20250920180000_crea_modulo_beni_strumentali.js`) per aggiungere 6 nuove tabelle al database:
+  - `bs_categorie`: Anagrafica delle categorie dei beni.
+  - `bs_beni`: Anagrafica principale di ogni bene strumentale.
+  - `bs_manutenzioni`: Storico degli interventi di manutenzione.
+  - `bs_attivita`: Log di utilizzo dei beni.
+  - `bs_costi`: Registro dei costi accessori.
+  - `bs_scadenze`: Gestione delle scadenze amministrative (es. assicurazioni, revisioni).
+- **Integrazione Contabile:** Le tabelle sono state dotate dei campi `id_sottoconto_...` necessari per il collegamento diretto con il modulo di contabilità.
+- **Debugging Migrazione:** Il processo ha incluso una fase di debugging per risolvere conflitti di tipo (`SIGNED`/`UNSIGNED`) sulle foreign key che collegano le nuove tabelle a `utenti` e `sc_piano_dei_conti`, garantendo la piena compatibilità con lo schema esistente.
+
+**Modifiche al Codice (Backend):**
+- **Nuove API (`routes/beniStrumentali.js`):**
+  - È stato creato un nuovo file di rotte per esporre gli endpoint API RESTful necessari alla gestione del modulo.
+  - Sono state implementate le operazioni CRUD per beni e categorie e le funzionalità di lettura/scrittura per manutenzioni e scadenze.
+  - **Sicurezza e Logging:** Tutte le rotte sono protette dal middleware `verifyToken` e ogni operazione di modifica dei dati implementa la scrittura su `log_azioni` all'interno di transazioni Knex per garantire integrità e tracciabilità.
+
+**Modifiche al Codice (Frontend):**
+- **Struttura Modulo (`BeniStrumentaliModule.js`):**
+  - È stato creato il componente contenitore principale, seguendo l'architettura di `AmministrazioneModule.js`.
+  - Il menu di navigazione interno al modulo è dinamico e basato sui permessi dell'utente letti da `AuthContext`.
+- **Gestore Elenco Beni (`beni-strumentali/BeniManager.js`):**
+  - È stato sviluppato il componente per la visualizzazione dell'elenco dei beni.
+  - Sfrutta il componente riutilizzabile `DynamicReportTable` per mostrare i dati, garantendo coerenza stilistica.
+  - Sono state implementate le funzioni di **esportazione in PDF e CSV** e i controlli sui permessi per le azioni di Aggiunta, Modifica ed Eliminazione.
