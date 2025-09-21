@@ -1,25 +1,36 @@
+// #####################################################################
+// # Modulo Beni Strumentali - v2.1 (con Gestione Scadenze Attiva)
+// # File: opero-frontend/src/components/BeniStrumentaliModule.js
+// #####################################################################
+
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ArchiveBoxIcon, TagIcon, CalendarDaysIcon } from '@heroicons/react/24/solid';
+import { ArchiveBoxIcon, TagIcon, CalendarDaysIcon, CogIcon,PencilSquareIcon } from '@heroicons/react/24/solid';
 import BeniManager from './beni-strumentali/BeniManager';
 import CategorieManager from './beni-strumentali/CategorieManager';
-// Placeholder per gli altri componenti
+import TipiScadenzeManager from './beni-strumentali/TipiScadenzeManager';
+// <span style="color:green;">// NUOVO: Importazione del componente ScadenzeView reale</span>
+import ScadenzeView from './beni-strumentali/ScadenzeView';
+import ScadenzaForm from './beni-strumentali/ScadenzaForm';
 
-//const CategorieManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Categorie</h2><p>Interfaccia per la gestione delle categorie dei beni strumentali.</p></div>;
-const ScadenzeView = () => <div className="p-6"><h2 className="text-2xl font-bold">Scadenze Beni</h2><p>Interfaccia per visualizzare le scadenze imminenti.</p></div>;
+
+// <span style="color:orange;">// RIMOSSO: Il componente placeholder non è più necessario</span>
+// const ScadenzeView = () => <div className="p-6">...</div>;
 
 const BeniStrumentaliModule = () => {
     const [activeMenu, setActiveMenu] = useState('elenco_beni');
     const auth = useAuth();
 
-    // Menu INTERNO al modulo
     const menuItems = [
         { key: 'elenco_beni', label: 'Elenco Beni', icon: ArchiveBoxIcon, requiredPermission: 'BS_VIEW_BENI' },
         { key: 'categorie', label: 'Categorie', icon: TagIcon, requiredPermission: 'BS_MANAGE_CATEGORIE' },
-        { key: 'scadenze', label: 'Scadenze', icon: CalendarDaysIcon, requiredPermission: 'BS_VIEW_SCADENZE' }
+       // { key: 'scadenze', label: 'Scadenze', icon: CalendarDaysIcon, requiredPermission: 'BS_VIEW_SCADENZE' },
+        { key: 'tipi_scadenze', label: 'Tipi Scadenze', icon: CogIcon, requiredPermission: 'BS_MANAGE_TIPI_SCADENZE' },
+        { key: 'elenco_scadenze', label: 'Elenco Scadenze', icon: CalendarDaysIcon, requiredPermission: 'BS_VIEW_SCADENZE' },
+        { key: 'gestione_scadenze', label: 'Gestione Scadenze', icon: PencilSquareIcon, requiredPermission: 'BS_MANAGE_SCADENZE' } // <span style="color:green;">// NUOVO: Voce di menu per la gestione delle scadenze</span>
     ];
+    
 
-    // Filtra il menu interno in base ai permessi dell'utente
     const accessibleMenuItems = useMemo(() => {
         return menuItems.filter(item => auth.hasPermission(item.requiredPermission));
     }, [auth]);
@@ -30,8 +41,13 @@ const BeniStrumentaliModule = () => {
                 return <BeniManager />;
             case 'categorie':
                 return <CategorieManager />;
-            case 'scadenze':
+            // <span style="color:orange;">// MODIFICATO: Ora viene renderizzato il componente ScadenzeView corretto</span>
+            case 'tipi_scadenze':
+                return <TipiScadenzeManager />;
+            case 'elenco_scadenze':
                 return <ScadenzeView />;
+            case 'gestione_scadenze': // <span style="color:green;">// NUOVO: Case per renderizzare il form delle scadenze</span>
+                return <ScadenzaForm onClose={() => setActiveMenu('elenco_scadenze')} />;
             default:
                  if (accessibleMenuItems.length > 0 && !accessibleMenuItems.find(i => i.key === activeMenu)) {
                     setActiveMenu(accessibleMenuItems[0].key);
@@ -40,10 +56,8 @@ const BeniStrumentaliModule = () => {
         }
     };
     
-    // <span style="color:orange;">// MODIFICATO: Rimossa la struttura flex con aside e main per una disposizione verticale.</span>
     return (
         <div className="p-6 bg-gray-50 h-full w-full">
-            {/* <span style="color:green;">// NUOVO: Barra del menu in stile "tabs" in alto</span> */}
             <div className="flex items-center border-b border-slate-200">
                 {accessibleMenuItems.map(item => {
                     const Icon = item.icon;
@@ -51,7 +65,6 @@ const BeniStrumentaliModule = () => {
                         <button 
                             key={item.key}
                             onClick={() => setActiveMenu(item.key)} 
-                            // <span style="color:orange;">// MODIFICATO: Classi per lo stile a schede verticali</span>
                             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                                 activeMenu === item.key 
                                 ? 'border-blue-600 text-blue-600' 
@@ -65,7 +78,6 @@ const BeniStrumentaliModule = () => {
                 })}
             </div>
             
-            {/* <span style="color:green;">// NUOVO: Contenitore per il componente attivo</span> */}
             <div className="mt-6">
                 {renderContent()}
             </div>

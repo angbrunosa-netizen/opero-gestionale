@@ -206,27 +206,200 @@ router.get('/piano-dei-conti', verifyToken, async (req, res) => {
  * POST /piano-dei-conti
  * Crea un nuovo conto nel piano dei conti. Protetto da livello.
  */
-router.post('/piano-dei-conti', [verifyToken, canEditPdc], async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    const { codice, descrizione, id_padre, tipo, natura } = req.body;
+   // <span style="color:orange;">// MODIFICATO: La rotta è stata potenziata per includere la creazione dei 'Conti'</span>
+    router.post('/piano-dei-conti', canEditPdc, async (req, res) => {
+        const { id_ditta, id: id_utente } = req.user;
+        const { descrizione, id_padre, tipo, natura } = req.body;
+        let { codice } = req.body;
 
-    if (!codice || !descrizione || !tipo || !natura) {
-        return res.status(400).json({ success: false, message: 'Dati mancanti.' });
-    }
+        try {
+            await knex.transaction(async (trx) => {
+                let nextCodice;
+                let finalCodice;
 
-    try {
-        const query = 'INSERT INTO sc_piano_dei_conti (id_ditta, codice, descrizione, id_padre, tipo, natura) VALUES (?, ?, ?, ?, ?, ?)';
-        const [result] = await dbPool.query(query, [dittaId, codice, descrizione, id_padre || null, tipo, natura]);
-        res.status(201).json({ success: true, message: 'Conto creato con successo.', insertId: result.insertId });
-    } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ success: false, message: 'Il codice conto esiste già.' });
+                if (tipo === 'Mastro') {
+                    const lastMastro = await trx('sc_piano_dei_conti')
+                        .where({ id_ditta, tipo: 'Mastro' })
+                        .orderBy('codice', 'desc')
+                        .first();
+                    nextCodice = lastMastro ? parseInt(lastMastro.codice, 10) + 1 : 101;
+                    finalCodice = nextCodice.toString();
+                } else if (tipo === 'Conto') {
+                    // <span style="color:green;">// NUOVO: Logica per la creazione di un Conto</span>
+                    if (!id_padre) {
+                        throw new Error("Un Conto deve avere un Mastro padre.");
+                    }
+                    const mastroPadre = await trx('sc_piano_dei_conti').where({ id: id_padre, id_ditta }).first();
+                    if (!mastroPadre || mastroPadre.tipo !== 'Mastro') {
+                        throw new Error("Il padre di un Conto deve essere un Mastro.");
+                    }
+                    
+                    const lastConto = await trx('sc_piano_dei_conti')
+                        .where({ id_ditta, id_padre })
+                        .orderBy('codice', 'desc')
+                        .first();
+
+                    if (lastConto) {
+                        const lastNum = parseInt(lastConto.codice.split('.')[1], 10);
+                        nextCodice = (lastNum + 1).toString().padStart(2, '0');
+                    } else {
+                        nextCodice = '01';
+                    }
+                    finalCodice = `${mastroPadre.codice}.${nextCodice}`;
+
+                } else if (tipo === 'Sottoconto') {
+                    if (!id_padre) {
+                        throw new Error("Un Sottoconto deve avere un Conto padre.");
+                    }
+                    const contoPadre = await trx('sc_piano_dei_conti').where({ id: id_padre, id_ditta }).first();
+                    if (!contoPadre || contoPadre.tipo !== 'Conto') {
+                        throw new Error("Il padre di un Sottoconto deve essere un Conto.");
+                    }
+                    
+                    const lastSottoconto = await trx('sc_piano_dei_conti')
+                        .where({ id_ditta, id_padre })
+                        .orderBy('codice', 'desc')
+                        .first();
+                    
+                    if (lastSottoconto) {
+                        const lastNum = parseInt(lastSottoconto.codice.split('.')[2], 10);
+                        nextCodice = (lastNum + 1).toString().padStart(3, '0');
+                    } else {
+                        nextCodice = '001';
+                    }
+                    finalCodice = `${contoPadre.codice}.${nextCodice}`;
+                } else {
+                    return res.status(400).json({ success: false, message: 'Tipo di elemento non valido.' });
+                }
+
+                const [newItemId] = await trx('sc_piano_dei_conti').insert({
+                    id_ditta,
+                    codice: finalCodice,
+                    descrizione,
+                    id_padre,
+                    tipo,
+                    natura: tipo === 'Mastro' ? null : natura
+                });
+
+                await trx('log_azioni').insert({
+                    id_utente, id_ditta, azione: 'Creazione Elemento PDC',
+                    dettagli: `Tipo: ${tipo}, Codice: ${finalCodice}, Desc: ${descrizione}`
+                });
+
+                const newItem = await trx('sc_piano_dei_conti').where('id', newItemId).first();
+                res.status(201).json({ success: true, data: newItem });
+            });
+        } catch (error) {
+            console.error("Errore creazione elemento PDC:", error);
+            res.status(500).json({ success: false, error: error.message || "Errore del server." });
         }
-        console.error("Errore creazione conto:", error);
-        res.status(500).json({ success: false, message: 'Errore durante la creazione del conto.' });
+    });
+
+
+// <span style="color:green;">// NUOVO: Aggiunta la rotta mancante per fornire il piano dei conti in formato "flat"</span>
+router.get('/piano-dei-conti-flat', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const pdcFlat = await knex('sc_piano_dei_conti')
+            .where({ id_ditta })
+            .orderBy('codice');
+        res.json({ success: true, data: pdcFlat });
+    } catch (error) {
+        console.error("Errore nel recupero del PDC (flat):", error);
+        res.status(500).json({ success: false, error: 'Errore nel recupero del Piano dei Conti (flat).' });
     }
 });
 
+
+
+       // <span style="color:orange;">// MODIFICATO: La rotta è stata potenziata per includere la creazione dei 'Conti'</span>
+    router.post('/pdc', canEditPdc, async (req, res) => {
+        const { id_ditta, id: id_utente } = req.user;
+        const { descrizione, id_padre, tipo, natura } = req.body;
+        let { codice } = req.body;
+
+        try {
+            await knex.transaction(async (trx) => {
+                let nextCodice;
+                let finalCodice;
+
+                if (tipo === 'Mastro') {
+                    const lastMastro = await trx('sc_piano_dei_conti')
+                        .where({ id_ditta, tipo: 'Mastro' })
+                        .orderBy('codice', 'desc')
+                        .first();
+                    nextCodice = lastMastro ? parseInt(lastMastro.codice, 10) + 1 : 101;
+                    finalCodice = nextCodice.toString();
+                } else if (tipo === 'Conto') {
+                    // <span style="color:green;">// NUOVO: Logica per la creazione di un Conto</span>
+                    if (!id_padre) {
+                        throw new Error("Un Conto deve avere un Mastro padre.");
+                    }
+                    const mastroPadre = await trx('sc_piano_dei_conti').where({ id: id_padre, id_ditta }).first();
+                    if (!mastroPadre || mastroPadre.tipo !== 'Mastro') {
+                        throw new Error("Il padre di un Conto deve essere un Mastro.");
+                    }
+                    
+                    const lastConto = await trx('sc_piano_dei_conti')
+                        .where({ id_ditta, id_padre })
+                        .orderBy('codice', 'desc')
+                        .first();
+
+                    if (lastConto) {
+                        const lastNum = parseInt(lastConto.codice.split('.')[1], 10);
+                        nextCodice = (lastNum + 1).toString().padStart(2, '0');
+                    } else {
+                        nextCodice = '01';
+                    }
+                    finalCodice = `${mastroPadre.codice}.${nextCodice}`;
+
+                } else if (tipo === 'Sottoconto') {
+                    if (!id_padre) {
+                        throw new Error("Un Sottoconto deve avere un Conto padre.");
+                    }
+                    const contoPadre = await trx('sc_piano_dei_conti').where({ id: id_padre, id_ditta }).first();
+                    if (!contoPadre || contoPadre.tipo !== 'Conto') {
+                        throw new Error("Il padre di un Sottoconto deve essere un Conto.");
+                    }
+                    
+                    const lastSottoconto = await trx('sc_piano_dei_conti')
+                        .where({ id_ditta, id_padre })
+                        .orderBy('codice', 'desc')
+                        .first();
+                    
+                    if (lastSottoconto) {
+                        const lastNum = parseInt(lastSottoconto.codice.split('.')[2], 10);
+                        nextCodice = (lastNum + 1).toString().padStart(3, '0');
+                    } else {
+                        nextCodice = '001';
+                    }
+                    finalCodice = `${contoPadre.codice}.${nextCodice}`;
+                } else {
+                    return res.status(400).json({ success: false, message: 'Tipo di elemento non valido.' });
+                }
+
+                const [newItemId] = await trx('sc_piano_dei_conti').insert({
+                    id_ditta,
+                    codice: finalCodice,
+                    descrizione,
+                    id_padre,
+                    tipo,
+                    natura: tipo === 'Mastro' ? null : natura
+                });
+
+                await trx('log_azioni').insert({
+                    id_utente, id_ditta, azione: 'Creazione Elemento PDC',
+                    dettagli: `Tipo: ${tipo}, Codice: ${finalCodice}, Desc: ${descrizione}`
+                });
+
+                const newItem = await trx('sc_piano_dei_conti').where('id', newItemId).first();
+                res.status(201).json({ success: true, data: newItem });
+            });
+        } catch (error) {
+            console.error("Errore creazione elemento PDC:", error);
+            res.status(500).json({ success: false, error: error.message || "Errore del server." });
+        }
+    });
 
 /**
  * PATCH /piano-dei-conti/:id

@@ -242,5 +242,181 @@ router.post('/:idBene/manutenzioni', async (req, res) => {
         res.status(500).json({ error: "Errore nella registrazione della manutenzione." });
     }
 });
+// <span style="color:green;">// NUOVO: --- ⚙️ GESTIONE TIPI SCADENZE ---</span>
+
+router.get('/tipi-scadenze', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const tipi = await knex('bs_tipi_scadenze').where({ id_ditta }).orderBy('descrizione', 'asc');
+        res.json({ success: true, data: tipi });
+    } catch (error) { res.status(500).json({ success: false, error: "Errore nel recupero dei tipi di scadenze." }); }
+});
+
+
+// <span style="color:green;">// NUOVO: --- 📅 GESTIONE SCADENZE SPECIFICHE ---</span>
+
+// <span style="color:orange;">// CORREZIONE: Implementazione della rotta mancante che causava l'errore 404.</span>
+// GET: Vista aggregata di tutte le scadenze
+router.get('/scadenze/prossime', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const prossimeScadenze = await knex('bs_scadenze')
+            .join('bs_beni', 'bs_scadenze.id_bene', 'bs_beni.id')
+            .join('bs_tipi_scadenze', 'bs_scadenze.id_tipo_scadenza', 'bs_tipi_scadenze.id')
+            .where('bs_beni.id_ditta', id_ditta)
+            .select(
+                'bs_scadenze.id',
+                'bs_beni.descrizione as bene_descrizione',
+                'bs_tipi_scadenze.descrizione as tipo_scadenza_descrizione',
+                'bs_scadenze.data_scadenza',
+                'bs_scadenze.importo_previsto',
+                'bs_scadenze.stato'
+            )
+            .orderBy('bs_scadenze.data_scadenza', 'asc');
+        res.json({ success: true, data: prossimeScadenze });
+    } catch (error) {
+        console.error("Errore API /scadenze/prossime:", error);
+        res.status(500).json({ success: false, error: "Errore nel recupero delle scadenze." });
+    }
+});
+
+// POST: Crea una nuova scadenza per un bene
+router.post('/scadenze', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const scadenzaData = req.body;
+    try {
+        const [id_scadenza] = await knex('bs_scadenze').insert(scadenzaData);
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Creazione Scadenza Bene',
+            dettagli: `ID Scadenza: ${id_scadenza}, per bene ID: ${scadenzaData.id_bene}`
+        });
+        res.status(201).json({ success: true, id: id_scadenza, message: 'Scadenza creata.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Errore nella creazione della scadenza.' });
+    }
+});
+
+// PATCH: Aggiorna una scadenza
+router.patch('/scadenze/:id', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { id } = req.params;
+    const fieldsToUpdate = req.body;
+    try {
+        const scadenza = await knex('bs_scadenze')
+            .join('bs_beni', 'bs_scadenze.id_bene', 'bs_beni.id')
+            .where('bs_beni.id_ditta', id_ditta)
+            .andWhere('bs_scadenze.id', id)
+            .first('bs_scadenze.id');
+        
+        if (!scadenza) {
+            return res.status(404).json({ success: false, error: 'Scadenza non trovata.' });
+        }
+
+        await knex('bs_scadenze').where({ id }).update(fieldsToUpdate);
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Aggiornamento Scadenza Bene',
+            dettagli: `ID Scadenza: ${id}, Dati: ${JSON.stringify(fieldsToUpdate)}`
+        });
+        res.json({ success: true, message: 'Scadenza aggiornata.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Errore nell\'aggiornamento della scadenza.' });
+    }
+});
+
+// DELETE: Elimina una scadenza
+router.delete('/scadenze/:id', async (req, res) => {
+     const { id_ditta, id: id_utente } = req.user;
+     const { id } = req.params;
+     try {
+        const rowsDeleted = await knex('bs_scadenze')
+            .whereIn('id_bene', function() {
+                this.select('id').from('bs_beni').where('id_ditta', id_ditta);
+            })
+            .andWhere({ id })
+            .del();
+
+        if (rowsDeleted === 0) {
+            return res.status(404).json({ success: false, error: "Scadenza non trovata." });
+        }
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Eliminazione Scadenza Bene',
+            dettagli: `ID Scadenza: ${id}`
+        });
+        res.json({ success: true, message: "Scadenza eliminata." });
+    } catch (error) {
+        res.status(500).json({ success: false, error: "Errore nell'eliminazione della scadenza." });
+    }
+});
+
+
+// --- ⚙️ GESTIONE TIPI SCADENZE ---
+router.get('/tipi-scadenze', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const tipi = await knex('bs_tipi_scadenze').where({ id_ditta }).orderBy('descrizione');
+        res.json({ success: true, data: tipi });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Errore nel recupero dei tipi di scadenze.' });
+    }
+});
+
+// <span style="color:green;">// NUOVO: Aggiunta la rotta POST mancante</span>
+router.post('/tipi-scadenze', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { descrizione } = req.body;
+    if (!descrizione) {
+        return res.status(400).json({ success: false, error: 'La descrizione è obbligatoria.' });
+    }
+    try {
+        const [id] = await knex('bs_tipi_scadenze').insert({
+            id_ditta,
+            descrizione
+        });
+        await knex('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Creazione Tipo Scadenza Bene',
+            dettagli: `ID: ${id}, Descrizione: ${descrizione}`
+        });
+        res.status(201).json({ success: true, data: { id, id_ditta, descrizione } });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: 'Errore nella creazione del tipo di scadenza.' });
+    }
+});
+
+
+router.put('/tipi-scadenza/:id', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { id } = req.params;
+    const { descrizione } = req.body;
+    try {
+        await knex('bs_tipi_scadenze').where({ id, id_ditta }).update({ descrizione });
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Aggiornamento Tipo Scadenza',
+            dettagli: `ID: ${id}`
+        });
+        res.json({ success: true, message: 'Tipo scadenza aggiornato.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Errore nell\'aggiornamento del tipo scadenza.' });
+    }
+});
+
+router.delete('/tipi-scadenze/:id', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { id } = req.params;
+    try {
+        await knex('bs_tipi_scadenze').where({ id, id_ditta }).del();
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Eliminazione Tipo Scadenza',
+            dettagli: `ID: ${id}`
+        });
+        res.json({ success: true, message: 'Tipo scadenza eliminato.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Errore nell\'eliminazione del tipo scadenza.' });
+    }
+});
+
 
 module.exports = router;
+
