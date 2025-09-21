@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente Gestione Beni Strumentali - v1.7 (Fix Rendering Tabella)
+// # Componente Gestione Beni Strumentali - v1.9 (Fix Colonne Tabella)
 // # File: opero-frontend/src/components/beni-strumentali/BeniManager.js
 // #####################################################################
 
@@ -9,6 +9,17 @@ import { useAuth } from '../../context/AuthContext';
 import DynamicReportTable from '../../shared/DynamicReportTable';
 import BeneForm from './BeneForm'; 
 import { PlusIcon, ArrowPathIcon, DocumentArrowDownIcon, PrinterIcon } from '@heroicons/react/24/outline';
+
+// <span style="color:red; font-weight:bold;">// CORREZIONE DECISIVA: Le proprietà sono state rinominate in 'label' e 'key'
+// // per corrispondere all'API del componente DynamicReportTable, come negli esempi funzionanti.</span>
+const columns = [
+    { label: 'Codice', key: 'codice_bene', sortable: true },
+    { label: 'Descrizione', key: 'descrizione', sortable: true },
+    { label: 'Categoria', key: 'categoria_descrizione', sortable: true },
+    { label: 'Stato', key: 'stato', sortable: true },
+    { label: 'Data Acquisto', key: 'data_acquisto', sortable: true, format: 'date' },
+    { label: 'Valore Acquisto', key: 'valore_acquisto', sortable: true, format: 'currency' },
+];
 
 const loadScript = (src) => {
     return new Promise((resolve, reject) => {
@@ -48,18 +59,6 @@ const BeniManager = () => {
         fetchBeni();
     }, [fetchBeni]);
 
-    // <span style="color:red; font-weight:bold;">// CORREZIONE DECISIVA: La dipendenza da `beni` forza la rigenerazione
-    // // dell'oggetto `columns` quando i dati arrivano, innescando il corretto rendering
-    // // del componente DynamicReportTable, come avviene nel modulo funzionante PartiteAperteManager.</span>
-    const columns = useMemo(() => [
-        { Header: 'Codice', accessor: 'codice_bene' },
-        { Header: 'Descrizione', accessor: 'descrizione' },
-        { Header: 'Categoria', accessor: 'categoria_descrizione' },
-        { Header: 'Stato', accessor: 'stato' },
-        { Header: 'Data Acquisto', accessor: 'data_acquisto', format: 'date' },
-        { Header: 'Valore Acquisto', accessor: 'valore_acquisto', format: 'currency' },
-    ], [beni]); // <-- L'array di dipendenza non è più vuoto
-
     const processedData = useMemo(() => {
         if (!beni) return [];
         return beni.map(b => ({ ...b }));
@@ -67,9 +66,10 @@ const BeniManager = () => {
 
 
     const handleExportCSV = () => {
-        const headers = columns.map(c => c.Header).join(';');
+        // <span style="color:orange;">// MODIFICATO: Utilizza 'label' e 'key' per coerenza</span>
+        const headers = columns.map(c => c.label).join(';');
         const rows = processedData.map(bene => 
-            columns.map(c => bene[c.accessor] || '').join(';')
+            columns.map(c => bene[c.key] || '').join(';')
         ).join('\n');
         const csvContent = `${headers}\n${rows}`;
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -93,9 +93,10 @@ const BeniManager = () => {
             const doc = new jsPDF();
             doc.text(`Elenco Beni Strumentali - ${auth.ditta?.ragione_sociale || ''}`, 14, 20);
             doc.autoTable({
-                head: [columns.map(c => c.Header)],
+                // <span style="color:orange;">// MODIFICATO: Utilizza 'label' e 'key' per coerenza</span>
+                head: [columns.map(c => c.label)],
                 body: processedData.map(bene => columns.map(c => {
-                    const value = bene[c.accessor];
+                    const value = bene[c.key];
                     if (c.format === 'date' && value) return new Date(value).toLocaleDateString('it-IT');
                     if (c.format === 'currency' && value) return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
                     return value || '';

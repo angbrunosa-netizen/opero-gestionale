@@ -7,50 +7,91 @@ router.use(verifyToken);
 
 // --- 🏛️ GESTIONE CATEGORIE ---
 
-// GET: Lista di tutte le categorie per la ditta
+// --- 🏛️ GESTIONE CATEGORIE (CRUD COMPLETO) ---
+
 router.get('/categorie', async (req, res) => {
   const { id_ditta } = req.user;
   try {
-    const categorie = await knex('bs_categorie').where({ id_ditta });
-    res.json(categorie);
+    const categorie = await knex('bs_categorie').where({ id_ditta }).orderBy('codice');
+    res.json({ success: true, data: categorie });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Errore nel recupero delle categorie." });
+    res.status(500).json({ success: false, error: "Errore nel recupero delle categorie." });
   }
 });
 
-// POST: Crea una nuova categoria
 router.post('/categorie', async (req, res) => {
   const { id_ditta, id: id_utente } = req.user;
   const { codice, descrizione } = req.body;
-
   try {
-    const result = await knex.transaction(async (trx) => {
-        const [id_categoria] = await trx('bs_categorie').insert({
-          id_ditta,
-          codice,
-          descrizione,
-        });
-
-        await trx('log_azioni').insert({
-            id_utente, 
-            id_ditta, 
-            azione: 'Creazione Categoria Bene Strumentale',
-            dettagli: `ID Categoria: ${id_categoria}, Descrizione: ${descrizione}`
-        });
-
-        return id_categoria;
+    const [id_categoria] = await knex('bs_categorie').insert({ id_ditta, codice, descrizione });
+    await knex('log_azioni').insert({
+        id_utente, 
+        id_ditta, 
+        azione: 'Creazione Categoria Bene',
+        dettagli: `ID: ${id_categoria}, Codice: ${codice}`
     });
-
-    res.status(201).json({ id: result, message: "Categoria creata con successo." });
+    res.status(201).json({ success: true, id: id_categoria, message: "Categoria creata." });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Errore nella creazione della categoria." });
+    res.status(500).json({ success: false, error: "Errore nella creazione della categoria." });
   }
 });
 
+// <span style="color:green;">// NUOVO: Rotta PATCH per aggiornare una categoria</span>
+router.patch('/categorie/:id', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { id } = req.params;
+    const { codice, descrizione } = req.body;
+    try {
+        const affectedRows = await knex('bs_categorie')
+            .where({ id, id_ditta })
+            .update({ codice, descrizione });
 
-// --- 📦 GESTIONE BENI STRUMENTALI (CRUD COMPLETO) ---
+        if (affectedRows > 0) {
+            await knex('log_azioni').insert({
+                id_utente,
+                id_ditta,
+                azione: 'Modifica Categoria Bene',
+                dettagli: `ID: ${id}, Codice: ${codice}`
+            });
+            res.json({ success: true, message: 'Categoria aggiornata.' });
+        } else {
+            res.status(404).json({ success: false, error: 'Categoria non trovata.' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: "Errore nell'aggiornamento della categoria." });
+    }
+});
+
+// <span style="color:green;">// NUOVO: Rotta DELETE per eliminare una categoria</span>
+router.delete('/categorie/:id', async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const { id } = req.params;
+    try {
+        const affectedRows = await knex('bs_categorie').where({ id, id_ditta }).del();
+        if (affectedRows > 0) {
+            await knex('log_azioni').insert({
+                id_utente,
+                id_ditta,
+                azione: 'Eliminazione Categoria Bene',
+                dettagli: `ID Categoria eliminata: ${id}`
+            });
+            res.json({ success: true, message: 'Categoria eliminata.' });
+        } else {
+            res.status(404).json({ success: false, error: 'Categoria non trovata.' });
+        }
+    } catch (error) {
+        // Gestisce l'errore di violazione del vincolo di foreign key
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+            return res.status(400).json({ success: false, error: 'Impossibile eliminare la categoria perché è associata a uno o più beni.' });
+        }
+        console.error(error);
+        res.status(500).json({ success: false, error: "Errore nell'eliminazione della categoria." });
+    }
+});
+
 
 router.get('/', async (req, res) => {
     const { id_ditta } = req.user;
@@ -59,15 +100,14 @@ router.get('/', async (req, res) => {
             .leftJoin('bs_categorie', 'bs_beni.id_categoria', 'bs_categorie.id')
             .where('bs_beni.id_ditta', id_ditta)
             .select('bs_beni.*', 'bs_categorie.descrizione as categoria_descrizione');
-        
-        // <span style="color:red; font-weight:bold;">// CORREZIONE: La risposta ora segue lo standard { success, data }</span>
         res.json({ success: true, data: beni });
-
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, error: "Errore nel recupero dei beni." });
     }
 });
+
+
 
 // POST: Crea un nuovo bene
 router.post('/', async (req, res) => {

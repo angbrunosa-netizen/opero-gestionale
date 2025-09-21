@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ArchiveBoxIcon, TagIcon, CalendarDaysIcon } from '@heroicons/react/24/solid';
 import BeniManager from './beni-strumentali/BeniManager';
-
+import CategorieManager from './beni-strumentali/CategorieManager';
 // Placeholder per gli altri componenti
-const CategorieManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Categorie</h2><p>Interfaccia per la gestione delle categorie dei beni strumentali.</p></div>;
+
+//const CategorieManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Categorie</h2><p>Interfaccia per la gestione delle categorie dei beni strumentali.</p></div>;
 const ScadenzeView = () => <div className="p-6"><h2 className="text-2xl font-bold">Scadenze Beni</h2><p>Interfaccia per visualizzare le scadenze imminenti.</p></div>;
 
 const BeniStrumentaliModule = () => {
