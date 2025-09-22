@@ -130,5 +130,53 @@ router.get('/partite-aperte/sintesi/:tipo', async (req, res) => {
     }
 });
 
+// --- Endpoint per Partite Aperte (Clienti/Fornitori) ---
+// --- Endpoint per Partite Aperte (Clienti/Fornitori) ---// --- Endpoint per Partite Aperte (Clienti/Fornitori) ---
+router.get('/partite-aperte/:tipoVista/:tipoPartita', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    const { tipoVista, tipoPartita } = req.params;
+
+    const naturaConto = tipoPartita === 'attive' ? 'CLIENTI' : 'FORNITORI';
+
+    try {
+        let query = dbPool('sc_partite_aperte as pa')
+            .join('ditte as d', 'pa.id_anagrafica', 'd.id')
+            .where('pa.id_ditta', dittaId)
+            .andWhere('pa.natura_conto', naturaConto)
+            .andWhere('pa.stato', 'APERTA');
+
+        if (tipoVista === 'sintesi') {
+            // <span style="color:green;">// MODIFICA: Assicura che l'ID sia coerente e l'email sia sempre inclusa.</span>
+            query.select(
+                'pa.id_anagrafica as id', 
+                'd.ragione_sociale',
+                'd.email',
+                dbPool.raw('MIN(pa.data_scadenza) as data_scadenza'),
+                dbPool.raw('SUM(pa.importo) as importo')
+            ).groupBy('pa.id_anagrafica', 'd.ragione_sociale', 'd.email');
+        } else { // tipoVista === 'dettaglio'
+            query.select(
+                'pa.id',
+                'd.ragione_sociale',
+                'd.email',
+                'pa.numero_documento',
+                'pa.data_documento',
+                'pa.data_scadenza',
+                'pa.importo',
+                'pa.stato',
+                'pa.tipo_movimento'
+            );
+        }
+
+        const data = await query;
+        res.json(data);
+
+    } catch (error)
+     {
+        console.error("Errore nel report partite aperte:", error);
+        res.status(500).json({ message: 'Errore del server' });
+    }
+});
+
 module.exports = router;
 

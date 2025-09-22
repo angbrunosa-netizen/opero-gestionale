@@ -263,4 +263,191 @@ router.delete('/emails/:uid', async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore durante l\'eliminazione dell\'email.', error: error.message });
     }
 });
+
+
+// =====================================================================
+// ========================= NUOVA ROUTE ===============================
+// =====================================================================
+// <span style="color:green;">// NUOVO: Route per inviare email di sollecito e salvarle nella posta inviata</span>
+router.post('/send-reminder', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId, id: userId } = req.user;
+    const { accountId, recipientEmail, recipientName, partite, totalAmount } = req.body;
+
+    if (!accountId || !recipientEmail || !partite || partite.length === 0) {
+        return res.status(400).json({ success: false, message: "Dati mancanti per l'invio del sollecito." });
+    }
+
+    try {
+        // 1. Recupera la configurazione dell'account email e i dati della ditta
+        const [mailConfig, [dittaRows]] = await Promise.all([
+            getMailConfig(dittaId, accountId),
+            dbPool.query('SELECT ragione_sociale, p_iva FROM ditte WHERE id = ?', [dittaId])
+        ]);
+
+        if (dittaRows.length === 0) {
+            throw new Error('Dati della ditta non trovati.');
+        }
+        const dittaInfo = dittaRows[0];
+
+        // 2. Costruisci il corpo HTML dell'email
+        const subject = `Sollecito di Pagamento / Payment Reminder - ${dittaInfo.ragione_sociale}`;
+        const formattedTotal = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount);
+        
+        const partiteHtml = `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Nr. Documento</th>
+                        <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Data Documento</th>
+                        <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Data Scadenza</th>
+                        <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Importo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${partite.map(p => `
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${p.numero_documento}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${new Date(p.data_documento).toLocaleDateString('it-IT')}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${new Date(p.data_scadenza).toLocaleDateString('it-IT')}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(p.importo)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">TOTALE DOVUTO</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${formattedTotal}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        `;
+
+        const bodyHtml = `
+            <p>Spett.le ${recipientName},</p>
+            <p>con la presente Le ricordiamo che alla data odierna risultano non ancora saldate le seguenti partite:</p>
+            ${partiteHtml}
+            <p>La preghiamo di voler provvedere al saldo quanto prima.</p>
+            <p>In caso il pagamento sia già stato da Lei effettuato, La preghiamo di non tenere conto della presente comunicazione.</p>
+            <p>Distinti saluti,</p>
+            <p><strong>${dittaInfo.ragione_sociale}</strong><br>P.IVA: ${dittaInfo.p_iva}</p>
+        `;
+
+        // 3. Invia l'email
+        const transporter = nodemailer.createTransport(mailConfig.smtp);
+        const mailOptions = {
+            from: `"${dittaInfo.ragione_sociale}" <${mailConfig.user}>`,
+            to: recipientEmail,
+            subject: subject,
+            html: bodyHtml
+        };
+        const info = await transporter.sendMail(mailOptions);
+        
+        // 4. Salva l'email nella tabella della posta inviata per coerenza con il MailModule
+        await dbPool.query(
+            'INSERT INTO ditta_mail_inviate (id_ditta, id_utente, id_mail_account, message_id, destinatari, oggetto, corpo) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [dittaId, userId, accountId, info.messageId, recipientEmail, subject, bodyHtml]
+        );
+
+        res.json({ success: true, message: 'Sollecito inviato con successo e salvato nella posta inviata.' });
+
+    } catch (error) {
+        console.error("Errore nell'invio del sollecito:", error);
+        res.status(500).json({ success: false, message: error.message || 'Errore del server durante l\'invio del sollecito.' });
+    }
+});
+
+// --- POST (Invia email di sollecito) ---
+router.post('/send-reminder', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId, id: userId } = req.user;
+    const { accountId, recipientEmail, recipientName, partite, totalAmount } = req.body;
+
+    if (!accountId || !recipientEmail || !partite || partite.length === 0) {
+        return res.status(400).json({ success: false, message: "Dati mancanti per l'invio del sollecito." });
+    }
+
+    try {
+        const [mailConfig, [dittaRows]] = await Promise.all([
+            getMailConfig(dittaId, accountId),
+            dbPool.query('SELECT ragione_sociale, p_iva FROM ditte WHERE id = ?', [dittaId])
+        ]);
+        if (dittaRows.length === 0) throw new Error('Dati della ditta non trovati.');
+        
+        const dittaInfo = dittaRows[0];
+        const subject = `Sollecito di Pagamento / Payment Reminder - ${dittaInfo.ragione_sociale}`;
+        const formattedTotal = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount);
+        
+        const partiteHtml = `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead><tr style="background-color: #f2f2f2;">
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Nr. Documento</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Data Documento</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Data Scadenza</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Importo</th>
+                </tr></thead>
+                <tbody>${partite.map(p => `
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${p.numero_documento}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${new Date(p.data_documento).toLocaleDateString('it-IT')}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${new Date(p.data_scadenza).toLocaleDateString('it-IT')}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(p.importo)}</td>
+                    </tr>`).join('')}
+                </tbody>
+                <tfoot><tr>
+                    <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">TOTALE DOVUTO</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${formattedTotal}</td>
+                </tr></tfoot>
+            </table>`;
+
+        const bodyHtml = `<p>Spett.le ${recipientName},</p><p>con la presente Le ricordiamo che alla data odierna risultano non ancora saldate le seguenti partite:</p>${partiteHtml}<p>La preghiamo di voler provvedere al saldo quanto prima.</p><p>In caso il pagamento sia già stato da Lei effettuato, La preghiamo di non tenere conto della presente comunicazione.</p><p>Distinti saluti,</p><p><strong>${dittaInfo.ragione_sociale}</strong><br>P.IVA: ${dittaInfo.p_iva}</p>`;
+        
+        const transporter = nodemailer.createTransport(mailConfig.smtp);
+        const mailOptions = {
+            from: `"${dittaInfo.ragione_sociale}" <${mailConfig.user}>`,
+            to: recipientEmail,
+            subject: subject,
+            html: bodyHtml
+        };
+        const info = await transporter.sendMail(mailOptions);
+        
+        await dbPool.query(
+            'INSERT INTO ditta_mail_inviate (id_ditta, id_utente, id_mail_account, message_id, destinatari, oggetto, corpo) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [dittaId, userId, accountId, info.messageId, recipientEmail, subject, bodyHtml]
+        );
+
+        res.json({ success: true, message: 'Sollecito inviato con successo e salvato nella posta inviata.' });
+
+    } catch (error) {
+        console.error("Errore nell'invio del sollecito:", error);
+        res.status(500).json({ success: false, message: error.message || 'Errore del server durante l\'invio del sollecito.' });
+    }
+});
+
+// --- GET (Recupera la posta inviata dal database) ---
+router.get('/sent-emails', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
+    try {
+        const [emails] = await dbPool.query('SELECT * FROM ditta_mail_inviate WHERE id_ditta = ? ORDER BY data_invio DESC', [dittaId]);
+        res.json({ success: true, sentEmails: emails });
+    } catch (error) {
+        console.error("Errore nel recupero della posta inviata:", error);
+        res.status(500).json({ success: false, message: 'Errore del server.' });
+    }
+});
+
+
+
+// --- GET (Recupera gli account email configurati) ---
+router.get('/mail-accounts', verifyToken, async (req, res) => {
+    try {
+        const { id_ditta: dittaId } = req.user;
+        const [accounts] = await dbPool.query('SELECT id, email_address FROM ditta_mail_accounts WHERE id_ditta = ?', [dittaId]);
+        res.json({ success: true, accounts });
+    } catch (error) {
+        // <span style="color:green;">// NUOVO: Aggiunto log dell'errore per il debug nel terminale del server.</span>
+        console.error("ERRORE DETTAGLIATO nel recupero degli account email:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero degli account. Controllare i log del server.' });
+    }
+});
+
+
 module.exports = router;

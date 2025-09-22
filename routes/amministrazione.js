@@ -866,7 +866,7 @@ router.get('/ditta-info', verifyToken, async (req, res) => {
     const { id_ditta } = req.user;
     try {
         const [rows] = await dbPool.query(
-            'SELECT ragione_sociale, indirizzo, citta, provincia, cap, p_iva, codice_fiscale FROM ditte WHERE id = ?',
+            'SELECT ragione_sociale, indirizzo, citta, mail_1, provincia, cap, p_iva, codice_fiscale FROM ditte WHERE id = ?',
             [id_ditta]
         );
         if (rows.length === 0) {
