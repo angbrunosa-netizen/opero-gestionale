@@ -1,141 +1,98 @@
+/**
+ * File: opero-frontend/src/components/AttivitaPPA.js
+ * Descrizione: Componente per visualizzare e gestire le attività PPA in corso.
+ * Fase: 4.3 (Integrazione Finale) - Integrazione della vista di dettaglio.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import IstanzaDetailView from './ppa/IstanzaDetailView'; // Importiamo la nuova vista
+import { EyeIcon } from '@heroicons/react/24/outline';
 
-// Componente per una singola card di attività
-const AttivitaCard = ({ task, statiDisponibili, onStatusChange }) => {
-    const [teamStatus, setTeamStatus] = useState([]);
-    const [isLoadingTeam, setIsLoadingTeam] = useState(false);
-    const [note, setNote] = useState(task.note || '');
-
-    const fetchTeamStatus = useCallback(async () => {
-        setIsLoadingTeam(true);
-        try {
-            const { data } = await api.get(`/ppa/istanze/${task.istanza_procedura_id}/team-status`);
-            if (data.success) {
-                setTeamStatus(data.data);
-            }
-        } catch (error) {
-            console.error("Errore fetch stato team:", error);
-        } finally {
-            setIsLoadingTeam(false);
-        }
-    }, [task.istanza_procedura_id]);
-
-    useEffect(() => {
-        fetchTeamStatus();
-    }, [fetchTeamStatus]);
-
-    const handleUpdate = () => {
-        onStatusChange(task.istanza_azione_id, document.getElementById(`stato-${task.istanza_azione_id}`).value, note);
-    };
-
-    return (
-        <div className="bg-white p-4 rounded-lg shadow-md border mb-4">
-            <div className="md:flex justify-between">
-                <div>
-                    <p className="text-sm text-gray-500">{task.ditta_target} / {task.nome_processo}</p>
-                    <h3 className="text-lg font-bold text-gray-800">{task.nome_azione}</h3>
-                </div>
-                <div className="flex items-center gap-2 mt-2 md:mt-0">
-                    <select 
-                        id={`stato-${task.istanza_azione_id}`}
-                        defaultValue={task.id_stato_attuale}
-                        className="p-2 border rounded-md"
-                    >
-                        {statiDisponibili.map(stato => (
-                            <option key={stato.ID} value={stato.ID}>{stato.NomeStato}</option>
-                        ))}
-                    </select>
-                    <button onClick={handleUpdate} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Aggiorna</button>
-                </div>
-            </div>
-
-            <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700">Note di Svolgimento:</label>
-                <textarea 
-                    value={note} 
-                    onChange={(e) => setNote(e.target.value)}
-                    rows="2" 
-                    className="w-full mt-1 p-2 border rounded-md"
-                ></textarea>
-            </div>
-
-            <div className="mt-4 border-t pt-4">
-                <h4 className="text-sm font-semibold">Stato del Team:</h4>
-                {isLoadingTeam ? <p className="text-xs">Caricamento...</p> : (
-                    <ul className="text-xs space-y-1 mt-2">
-                        {teamStatus.map((member, index) => (
-                            <li key={index} className="flex justify-between">
-                                <span>{member.nome} {member.cognome} - "{member.nome_azione}"</span>
-                                <span style={{ backgroundColor: member.colore_stato, color: 'white' }} className="px-2 py-0.5 rounded-full">{member.stato}</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-             {/* Qui potremmo aggiungere un modale per inviare email */}
-        </div>
-    );
-};
-
-
-// Componente principale che mostra la lista delle attività
-const AttivitaPPA = () => {
-    const { user } = useAuth();
-    const [myTasks, setMyTasks] = useState([]);
-    const [stati, setStati] = useState([]);
+const AttivitaPPA = ({ refreshKey }) => {
+    const [istanze, setIstanze] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    const fetchTasks = useCallback(async () => {
+    // NUOVO: Stato per gestire la navigazione alla vista di dettaglio
+    const [selectedIstanzaId, setSelectedIstanzaId] = useState(null);
+
+    const fetchIstanze = useCallback(async () => {
         setIsLoading(true);
+        setError(null);
         try {
-            const [tasksRes, statiRes] = await Promise.all([
-                api.get('/ppa/my-tasks'),
-                api.get('/ppa/stati-azione')
-            ]);
-            if (tasksRes.data.success) setMyTasks(tasksRes.data.data);
-            if (statiRes.data.success) setStati(statiRes.data.data);
-        } catch (error) {
-            console.error("Errore nel caricamento delle attività PPA", error);
+            const response = await api.get('/ppa/istanze');
+            setIstanze(response.data);
+        } catch (err) {
+            console.error("Errore nel caricamento delle istanze:", err);
+            setError("Impossibile caricare le procedure in corso.");
         } finally {
             setIsLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchTasks();
-    }, [fetchTasks]);
+        fetchIstanze();
+    }, [fetchIstanze, refreshKey]);
 
-    const handleStatusChange = async (istanzaAzioneId, nuovoStatoId, note) => {
-        try {
-            const { data } = await api.patch(`/ppa/istanze-azioni/${istanzaAzioneId}/status`, {
-                id_stato: nuovoStatoId,
-                note: note
-            });
-            if (data.success) {
-                alert(data.message);
-                fetchTasks(); // Ricarica la lista per mostrare l'aggiornamento
-            } else {
-                alert(`Errore: ${data.message}`);
-            }
-        } catch (error) {
-            alert(error.response?.data?.message || 'Errore di connessione.');
-        }
+    const handleViewDetails = (id) => {
+        setSelectedIstanzaId(id);
     };
-    
-    if (isLoading) return <div className="p-6">Caricamento attività...</div>;
+
+    const handleBackToList = () => {
+        setSelectedIstanzaId(null);
+    };
+
+    // NUOVO: Logica di rendering condizionale
+    if (selectedIstanzaId) {
+        return <IstanzaDetailView istanzaId={selectedIstanzaId} onBack={handleBackToList} />;
+    }
+
+    if (isLoading) {
+        return <div className="p-4 text-center">Caricamento attività...</div>;
+    }
+
+    if (error) {
+        return <div className="p-4 bg-red-100 text-red-700 rounded-md">{error}</div>;
+    }
 
     return (
-        <div className="p-6 bg-gray-50 h-full">
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Le Mie PPAction</h1>
-            {myTasks.length > 0 ? (
-                myTasks.map(task => (
-                    <AttivitaCard key={task.istanza_azione_id} task={task} statiDisponibili={stati} onStatusChange={handleStatusChange} />
-                ))
-            ) : (
-                <p>Non hai PPAction assegnate al momento.</p>
-            )}
+        <div className="bg-white p-4 rounded-lg shadow-md">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Procedure in Corso</h3>
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Procedura</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicata a</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scadenza</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {istanze.length === 0 ? (
+                            <tr>
+                                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">Nessuna procedura in corso.</td>
+                            </tr>
+                        ) : (
+                            istanze.map((istanza) => (
+                                <tr key={istanza.ID} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{istanza.NomeProcedura}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{istanza.TargetEntityName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{istanza.Stato}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(istanza.DataPrevistaFine).toLocaleDateString('it-IT')}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button onClick={() => handleViewDetails(istanza.ID)} className="text-blue-600 hover:text-blue-900 flex items-center gap-1">
+                                            <EyeIcon className="h-4 w-4" />
+                                            Dettagli
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

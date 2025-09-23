@@ -1,4 +1,4 @@
-// #####################################################################
+    // #####################################################################
 // # Rotte per la Gestione del Sistema ppa - v1.7 (Versione Stabile)
 // # File: opero/routes/ppa.js
 // #####################################################################
@@ -98,24 +98,29 @@ router.get('/procedures/:procId/full-actions', async (req, res) => {
 // --- GESTIONE ASSEGNAZIONE PROCEDURA ---
 // NOTA: Assicurati che il middleware checkAdminRole sia corretto. Se la route è per amministratori di ditta,
 // potrebbe essere necessario checkRole([1, 2])
-router.post('/assegna', checkRole([1, 2]), async (req, res) => { 
-    const { id: utenteCreatoreId, id_ditta: dittaId } = req.user;
-    const { id_procedura_ditta, id_ditta_target, data_prevista_fine, assegnazioni } = req.body;
+// POST /assegna - Rielaborazione completa per target polimorfico e dettagli azione
+router.post('/assegna', verifyToken, async (req, res) => {
+    const { id: utenteCreatoreId } = req.user;
+    // NUOVO INPUT: Gestisce target polimorfico e struttura assegnazioni complessa
+    const { id_procedura_ditta, targetEntityType, targetEntityId, data_prevista_fine, assegnazioni } = req.body;
 
-    if (!id_procedura_ditta || !id_ditta_target || !assegnazioni) {
-        return res.status(400).json({ success: false, message: 'Dati incompleti.' });
+    const allowedEntityTypes = ['DITTA', 'UTENTE', 'BENE'];
+    if (!id_procedura_ditta || !targetEntityType || !targetEntityId || !assegnazioni || !allowedEntityTypes.includes(targetEntityType.toUpperCase())) {
+        return res.status(400).json({ success: false, message: 'Dati incompleti o tipo di entità non valido.' });
     }
 
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
 
+        // 1. CREAZIONE ISTANZA PROCEDURA (CON CAMPI POLIMORFICI)
         const [istanzaResult] = await connection.query(
-            "INSERT INTO ppa_istanzeprocedure (ID_ProceduraDitta, ID_DittaTarget, ID_UtenteCreatore, DataPrevistaFine) VALUES (?, ?, ?, ?)",
-            [id_procedura_ditta, id_ditta_target, utenteCreatoreId, data_prevista_fine || null]
+            "INSERT INTO ppa_istanzeprocedure (ID_ProceduraDitta, TargetEntityType, TargetEntityID, ID_UtenteCreatore, DataPrevistaFine) VALUES (?, ?, ?, ?, ?)",
+            [id_procedura_ditta, targetEntityType.toUpperCase(), targetEntityId, utenteCreatoreId, data_prevista_fine || null]
         );
         const newIstanzaId = istanzaResult.insertId;
 
+        // 2. RECUPERO AZIONI MODELLO
         const [azioniModello] = await connection.query(
             `SELECT a.ID, a.NomeAzione, a.Descrizione FROM ppa_azioni a
              JOIN ppa_processi p ON a.ID_Processo = p.ID
@@ -125,54 +130,62 @@ router.post('/assegna', checkRole([1, 2]), async (req, res) => {
 
         if (azioniModello.length === 0) throw new Error("Nessuna azione trovata per questa procedura.");
 
+        const uniqueUserIds = new Set();
+
+        // 3. CREAZIONE ISTANZE AZIONI (CON SCADENZE E NOTE)
         for (const azione of azioniModello) {
-            const utenteAssegnatoId = assegnazioni[azione.ID];
-            if (!utenteAssegnatoId) throw new Error(`Azione "${azione.NomeAzione}" non assegnata.`);
+            const assegnazioneDettagli = assegnazioni[azione.ID];
+            if (!assegnazioneDettagli || !assegnazioneDettagli.utenteId) {
+                throw new Error(`Dettagli di assegnazione mancanti per l'azione "${azione.NomeAzione}".`);
+            }
             
-            // Questo inserimento crea già l'attività.
+            const { utenteId, scadenza, note } = assegnazioneDettagli;
+            uniqueUserIds.add(utenteId);
+
             await connection.query(
-                "INSERT INTO ppa_istanzeazioni (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza) VALUES (?, ?, ?, ?)",
-                [newIstanzaId, azione.ID, utenteAssegnatoId, data_prevista_fine || null]
+                "INSERT INTO ppa_istanzeazioni (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza, NoteParticolari) VALUES (?, ?, ?, ?, ?)",
+                [newIstanzaId, azione.ID, utenteId, scadenza || data_prevista_fine || null, note || null]
             );
-
-            // RIMOSSO: L'inserimento nella tabella 'attivita' è stato rimosso perché ridondante.
-            // ppa_istanzeazioni è la nuova tabella di riferimento per le attività.
         }
 
-        const teamName = `Team Procedura #${newIstanzaId} - ${new Date().toLocaleDateString()}`;
-        const [teamResult] = await connection.query("INSERT INTO ppa_team (ID_IstanzaProcedura, NomeTeam) VALUES (?, ?)", [newIstanzaId, teamName]);
-        const newTeamId = teamResult.insertId;
-
-        // --- GESTIONE MEMBRI TEAM SOSPESA ---
-        // SOSPESO: La tabella 'ppa_teammembri' non esiste nello schema fornito.
-        // Questa parte di codice è stata commentata per evitare errori.
-        /* const uniqueUserIds = [...new Set(Object.values(assegnazioni))];
-        if (uniqueUserIds.length > 0) {
-            const teamMembersValues = uniqueUserIds.map(userId => [newTeamId, userId]);
-            await connection.query("INSERT INTO ppa_teammembri (ID_Team, ID_Utente) VALUES ?", [teamMembersValues]);
+        // 4. LOGICA PER TEAM E NOTIFICHE
+        const [teamMemberDetails] = await connection.query(`SELECT id, nome, cognome, email FROM utenti WHERE id IN (?)`, [[...uniqueUserIds]]);
+        
+        // Recupero dinamico del nome dell'entità target per l'email
+        let targetEntityName = '';
+        switch (targetEntityType.toUpperCase()) {
+            case 'DITTA':
+                const [ditta] = await connection.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [targetEntityId]);
+                targetEntityName = ditta[0]?.ragione_sociale || 'N/D';
+                break;
+            case 'UTENTE':
+                const [utente] = await connection.query("SELECT CONCAT(nome, ' ', cognome) as nome_completo FROM utenti WHERE id = ?", [targetEntityId]);
+                targetEntityName = utente[0]?.nome_completo || 'N/D';
+                break;
+            case 'BENE':
+                const [bene] = await connection.query('SELECT descrizione FROM bs_beni WHERE id = ?', [targetEntityId]);
+                targetEntityName = bene[0]?.descrizione || 'N/D';
+                break;
         }
-        */
-        const uniqueUserIds = [...new Set(Object.values(assegnazioni))];
 
-        const [teamMemberDetails] = await connection.query(`SELECT id, nome, cognome, email FROM utenti WHERE id IN (?)`, [uniqueUserIds]);
-        const [proceduraDetails] = await connection.query(
-            `SELECT pd.NomePersonalizzato, d.ragione_sociale as DittaTarget 
-             FROM ppa_istanzeprocedure ip
-             JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
-             JOIN ditte d ON ip.ID_DittaTarget = d.id 
-             WHERE ip.ID = ?`, [newIstanzaId]
-        );
+        const [proceduraDetails] = await connection.query('SELECT NomePersonalizzato FROM ppa_procedureditta WHERE ID = ?', [id_procedura_ditta]);
+        const nomeProcedura = proceduraDetails[0]?.NomePersonalizzato || 'Procedura non specificata';
         
         const teamListString = teamMemberDetails.map(u => `${u.nome} ${u.cognome}`).join(', ');
-        const dataFineFormatted = data_prevista_fine 
-            ? new Date(data_prevista_fine).toLocaleDateString('it-IT') 
-            : 'Non definita';
+        const dataFineFormatted = data_prevista_fine ? new Date(data_prevista_fine).toLocaleDateString('it-IT') : 'Non definita';
 
+        // 5. INVIO EMAIL PERSONALIZZATE
         for (const user of teamMemberDetails) {
-           const userActions = azioniModello
-                .filter(a => assegnazioni[a.ID] == user.id)
-                .map(a => `<li><strong>${a.NomeAzione}</strong>: ${a.Descrizione || 'Nessuna descrizione.'}</li>`)
+            const userActions = azioniModello
+                .filter(a => assegnazioni[a.ID]?.utenteId == user.id)
+                .map(a => {
+                    const dettagli = assegnazioni[a.ID];
+                    const scadenzaSpecifica = dettagli.scadenza ? ` (Scadenza: ${new Date(dettagli.scadenza).toLocaleDateString('it-IT')})` : '';
+                    const notaSpecifica = dettagli.note ? `<br/><small style="color:#555;"><i>Nota: ${dettagli.note}</i></small>` : '';
+                    return `<li><strong>${a.NomeAzione}</strong>${scadenzaSpecifica}: ${a.Descrizione || 'Nessuna descrizione.'}${notaSpecifica}</li>`;
+                })
                 .join('');
+
             const emailBody = `
                 <div style="font-family: Arial, sans-serif; line-height: 1.6;">
                     <h2>Nuova Procedura Assegnata</h2>
@@ -180,66 +193,167 @@ router.post('/assegna', checkRole([1, 2]), async (req, res) => {
                     <p>Sei stato coinvolto nella seguente procedura:</p>
                     <div style="background-color: #f9f9f9; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
                         <h3 style="margin-top: 0;">Dettagli Procedura</h3>
-                        <p><strong>Procedura:</strong> ${proceduraDetails[0].NomePersonalizzato}</p>
-                        <p><strong>Applicata a:</strong> ${proceduraDetails[0].DittaTarget}</p>
-                        <p><strong>Data Prevista Fine:</strong> ${dataFineFormatted}</p>
+                        <p><strong>Procedura:</strong> ${nomeProcedura}</p>
+                        <p><strong>Applicata a (${targetEntityType}):</strong> ${targetEntityName}</p>
+                        <p><strong>Data Prevista Fine Generale:</strong> ${dataFineFormatted}</p>
                         <p><strong>Team Coinvolto:</strong> ${teamListString}</p>
                     </div>
                     <h3>Le tue azioni specifiche:</h3>
-                    <ul>
-                        ${userActions || '<li>Al momento non ti sono state assegnate azioni specifiche.</li>'}
-                    </ul>
+                    <ul>${userActions || '<li>Nessuna azione specifica assegnata.</li>'}</ul>
                     <p>Puoi gestire queste attività dalla tua dashboard di Opero.</p>
-                </div>
-            `;
-            // Assicurati che la funzione sendSystemEmail sia importata e disponibile
-            await sendSystemEmail(user.email, `Nuova Procedura Assegnata: ${proceduraDetails[0].NomePersonalizzato}`, emailBody);
+                </div>`;
+            
+            await sendSystemEmail(user.email, `Nuova Procedura Assegnata: ${nomeProcedura}`, emailBody);
         }
         
         await connection.commit();
         res.status(201).json({ success: true, message: 'Procedura assegnata, attività create e notifiche inviate!' });
 
     } catch (error) {
-        await connection.rollback();
+        if (connection) await connection.rollback();
         console.error("Errore in POST /assegna:", error);
         res.status(500).json({ success: false, message: error.message || 'Errore interno del server.' });
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 });
 
 
 // --- ROTTE PER L'ARCHIVIO ---
-router.get('/istanze', async (req, res) => {
-    const { id_ditta } = req.user;
+// GET /istanze - CORRETTA PER AMBIGUITA' COLONNA 'Stato'
+router.get('/istanze', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
     try {
         const query = `
-            SELECT ip.ID as id, pd.NomePersonalizzato as nome_procedura, d.ragione_sociale as ditta_target, ip.DataInizio as data_inizio, ip.Stato as stato
-            FROM ppa_istanzeprocedure ip
-            JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
-            JOIN ditte d ON ip.ID_DittaTarget = d.id
-            WHERE pd.ID_Ditta = ? ORDER BY ip.DataInizio DESC`;
-        const [rows] = await dbPool.query(query, [id_ditta]);
-        res.json({ success: true, data: rows });
+            SELECT
+                ip.ID,
+                ip.DataInizio,
+                ip.DataPrevistaFine,
+                ip.Stato,
+                pd.NomePersonalizzato AS NomeProcedura,
+                ip.TargetEntityType,
+                ip.TargetEntityID,
+                CASE
+                    WHEN ip.TargetEntityType = 'DITTA' THEN d.ragione_sociale
+                    WHEN ip.TargetEntityType = 'UTENTE' THEN CONCAT(u.nome, ' ', u.cognome)
+                    WHEN ip.TargetEntityType = 'BENE' THEN b.descrizione
+                    ELSE 'Non Definito'
+                END AS TargetEntityName
+            FROM ppa_istanzeprocedure AS ip
+            JOIN ppa_procedureditta AS pd ON ip.ID_ProceduraDitta = pd.ID
+            LEFT JOIN ditte AS d ON ip.TargetEntityID = d.id AND ip.TargetEntityType = 'DITTA'
+            LEFT JOIN utenti AS u ON ip.TargetEntityID = u.id AND ip.TargetEntityType = 'UTENTE'
+            LEFT JOIN bs_beni AS b ON ip.TargetEntityID = b.id AND ip.TargetEntityType = 'BENE'
+            WHERE pd.id_ditta = ?
+            ORDER BY ip.DataInizio DESC;
+        `;
+        const [istanze] = await dbPool.query(query, [dittaId]);
+        res.status(200).json(istanze);
     } catch (error) {
-        console.error("Errore in GET /istanze:", error);
+        console.error("Errore nel recupero delle istanze:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
-router.get('/istanze/:id/team', async (req, res) => {
-    const { id: istanzaId } = req.params;
+// GET /istanze/:id - NUOVA ROTTA PER IL DETTAGLIO DELLA SINGOLA ISTANZA
+// GET /istanze/:id - CORRETTA E MIGLIORATA
+// GET /istanze - CORRETTA
+router.get('/istanze', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId } = req.user;
     try {
         const query = `
-            SELECT u.nome, u.cognome, u.email 
-            FROM ppa_teammembri tm
-            JOIN utenti u ON tm.ID_Utente = u.id
-            JOIN ppa_team t ON tm.ID_Team = t.ID
-            WHERE t.ID_IstanzaProcedura = ?`;
-        const [rows] = await dbPool.query(query, [istanzaId]);
-        res.json({ success: true, data: rows });
+            SELECT
+                ip.ID,
+                ip.DataAvvio,
+                ip.DataPrevistaFine,
+                ip.Stato,
+                pd.NomePersonalizzato AS NomeProcedura,
+                ip.TargetEntityType,
+                ip.TargetEntityID,
+                CASE
+                    WHEN ip.TargetEntityType = 'DITTA' THEN d.ragione_sociale
+                    WHEN ip.TargetEntityType = 'UTENTE' THEN CONCAT(u.nome, ' ', u.cognome)
+                    WHEN ip.TargetEntityType = 'BENE' THEN b.descrizione
+                    ELSE 'Non Definito'
+                END AS TargetEntityName
+            FROM ppa_istanzeprocedure AS ip
+            JOIN ppa_procedureditta AS pd ON ip.ID_ProceduraDitta = pd.ID
+            LEFT JOIN ditte AS d ON ip.TargetEntityID = d.id AND ip.TargetEntityType = 'DITTA'
+            LEFT JOIN utenti AS u ON ip.TargetEntityID = u.id AND ip.TargetEntityType = 'UTENTE'
+            LEFT JOIN bs_beni AS b ON ip.TargetEntityID = b.id AND ip.TargetEntityType = 'BENE'
+            WHERE pd.id_ditta = ?
+            ORDER BY ip.DataAvvio DESC;
+        `;
+        const [istanze] = await dbPool.query(query, [dittaId]);
+        res.status(200).json(istanze);
     } catch (error) {
-        console.error("Errore in GET /istanze/:id/team:", error);
+        console.error("Errore nel recupero delle istanze:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+// GET /istanze/:id - CORRETTA
+router.get('/istanze/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta: dittaId } = req.user;
+    try {
+        const instanceQuery = `
+            SELECT
+                ip.ID,
+                ip.DataInizio,
+                ip.DataPrevistaFine,
+                ip.Stato,
+                pd.NomePersonalizzato AS NomeProcedura,
+                ip.TargetEntityType,
+                ip.TargetEntityID,
+                CASE
+                    WHEN ip.TargetEntityType = 'DITTA' THEN d.ragione_sociale
+                    WHEN ip.TargetEntityType = 'UTENTE' THEN CONCAT(u.nome, ' ', u.cognome)
+                    WHEN ip.TargetEntityType = 'BENE' THEN b.descrizione
+                    ELSE 'Non Definito'
+                END AS TargetEntityName,
+                uc.nome AS NomeCreatore,
+                uc.cognome AS CognomeCreatore
+            FROM ppa_istanzeprocedure AS ip
+            JOIN ppa_procedureditta AS pd ON ip.ID_ProceduraDitta = pd.ID
+            JOIN utenti AS uc ON ip.ID_UtenteCreatore = uc.id
+            LEFT JOIN ditte AS d ON ip.TargetEntityID = d.id AND ip.TargetEntityType = 'DITTA'
+            LEFT JOIN utenti AS u ON ip.TargetEntityID = u.id AND ip.TargetEntityType = 'UTENTE'
+            LEFT JOIN bs_beni AS b ON ip.TargetEntityID = b.id AND ip.TargetEntityType = 'BENE'
+            WHERE ip.ID = ? AND pd.id_ditta = ?;
+        `;
+        const [instanceDetails] = await dbPool.query(instanceQuery, [id, dittaId]);
+
+        if (instanceDetails.length === 0) {
+            return res.status(404).json({ success: false, message: 'Istanza non trovata.' });
+        }
+
+        const actionsQuery = `
+            SELECT
+                ia.ID,
+                s.NomeStato AS Stato,
+                ia.DataScadenza,
+                ia.NoteParticolari,
+                a.NomeAzione,
+                a.Descrizione AS DescrizioneAzione,
+                u.nome AS NomeAssegnato,
+                u.cognome AS CognomeAssegnato
+            FROM ppa_istanzeazioni AS ia
+            JOIN ppa_azioni AS a ON ia.ID_Azione = a.ID
+            JOIN utenti AS u ON ia.ID_UtenteAssegnato = u.id
+            LEFT JOIN ppa_stati_azione AS s ON ia.ID_Stato = s.ID
+            WHERE ia.ID_IstanzaProcedura = ?;
+        `;
+        const [actions] = await dbPool.query(actionsQuery, [id]);
+
+        res.status(200).json({
+            details: instanceDetails[0],
+            actions: actions
+        });
+
+    } catch (error) {
+        console.error(`Errore nel recupero dell'istanza ${id}:`, error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
@@ -458,4 +572,183 @@ router.patch('/istanze-azioni/:id/status', async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento.' });
     }
 });
+
+
+//PROCEDURE PER LA GESTIONE DI ASSEGNAZIONE PROCEDURE A DIVERSE ENTITA'
+// GET /procedureditta - Ottiene tutte le procedure modello per la ditta
+router.get('/procedureditta', verifyToken, async (req, res) => {
+    try {
+        const [procedure] = await dbPool.query("SELECT * FROM ppa_procedureditta WHERE id_ditta = ?", [req.user.id_ditta]);
+        res.json(procedure);
+    } catch (error) {
+        console.error("Errore nel recupero delle procedure ditta:", error);
+        res.status(500).json({ message: 'Errore nel recupero delle procedure' });
+    }
+});
+
+
+// PATCH: Aggiorna una procedura personalizzata
+router.patch('/procedureditta/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+    const { NomePersonalizzato, ID_ProceduraStandard, TargetEntityTypeAllowed } = req.body;
+    if (TargetEntityTypeAllowed) {
+        const allowedTypes = ['DITTA', 'UTENTE', 'BENE'];
+        if (!allowedTypes.includes(TargetEntityTypeAllowed)) {
+            return res.status(400).json({ message: 'Tipo di entità non valido.' });
+        }
+    }
+    try {
+        const [result] = await dbPool.query(
+            "UPDATE ppa_procedureditta SET NomePersonalizzato = ?, ID_ProceduraStandard = ?, TargetEntityTypeAllowed = ? WHERE id = ? AND id_ditta = ?",
+            [NomePersonalizzato, ID_ProceduraStandard, TargetEntityTypeAllowed, id, id_ditta]
+        );
+        if (result.affectedRows > 0) {
+            res.json({ message: 'Procedura aggiornata con successo.' });
+        } else {
+            res.status(404).json({ message: 'Procedura non trovata.' });
+        }
+    } catch (error) {
+        console.error("Errore nell'aggiornamento della procedura ditta:", error);
+        res.status(500).json({ message: 'Errore interno del server.' });
+    }
+});
+
+
+
+// NUOVO: Rotta di supporto per ottenere l'elenco delle entità target selezionabili
+router.get('/target-entities/:entityType', verifyToken, async (req, res) => {
+    const { entityType } = req.params;
+    const { id_ditta } = req.user;
+    let query;
+
+    try {
+        switch (entityType.toUpperCase()) {
+            case 'DITTA':
+                query = knex('ditte')
+                    .select('id as value', 'ragione_sociale as label')
+                    .where('id_ditta_principale', id_ditta); // O logica equivalente per anagrafiche
+                break;
+            
+            case 'UTENTE':
+                query = knex('utenti')
+                    .select('id as value', knex.raw("CONCAT(nome, ' ', cognome) as label"))
+                    .where({ id_ditta, Codice_Tipo_Utente: 'ESTERNO' });
+                break;
+
+            case 'BENE':
+                query = knex('bs_beni')
+                    .select('id as value', 'descrizione as label')
+                    .where({ id_ditta });
+                break;
+
+            default:
+                return res.status(400).json({ message: 'Tipo di entità non valido.' });
+        }
+
+        const data = await query;
+        res.json(data);
+
+    } catch (error) {
+        console.error(`Errore nel recupero delle entità target [${entityType}]:`, error);
+        res.status(500).json({ message: 'Errore interno del server.' });
+    }
+});
+
+/*
+Spiegazione della Nuova Rotta: router.get('/target-entities/:
+
+Parametro Dinamico: La rotta accetta un parametro :entityType nell'URL (es. /api/ppa/target-entities/DITTA).
+
+Logica switch: In base al valore del parametro, viene costruita una query Knex specifica.
+
+DITTA: Seleziona id e ragione_sociale dalla tabella ditte.
+
+UTENTE: Seleziona id e concatena nome e cognome dalla tabella utenti, filtrando solo per gli utenti di tipo ESTERNO appartenenti alla ditta corrente.
+
+BENE: Seleziona id e descrizione dalla tabella bs_beni.
+
+Formato Standard: L'output viene sempre formattato come un array di oggetti { value: ..., label: ... }, un formato standard facilmente utilizzabile 
+dai componenti di select nel frontend (es. React-Select).
+*/
+
+// POST /istanze/:id/comunica-team - Invia email al team di una procedura
+router.post('/istanze/:id/comunica-team', verifyToken, async (req, res) => {
+    const { id: istanzaId } = req.params;
+    const { id: senderId, nome: senderNome, cognome: senderCognome } = req.user;
+    const { messaggio } = req.body;
+
+    if (!messaggio) {
+        return res.status(400).json({ success: false, message: "Il messaggio non può essere vuoto." });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        // Verifica che il mittente faccia parte del team
+        const [teamMembers] = await connection.query(
+            `SELECT DISTINCT u.id, u.email, u.nome FROM utenti u 
+             JOIN ppa_istanzeazioni ia ON u.id = ia.ID_UtenteAssegnato
+             WHERE ia.ID_IstanzaProcedura = ?`,
+            [istanzaId]
+        );
+
+        const isSenderInTeam = teamMembers.some(member => member.id === senderId);
+        if (!isSenderInTeam) {
+            return res.status(403).json({ success: false, message: "Non autorizzato a comunicare con questo team." });
+        }
+        
+        const [proceduraDetails] = await connection.query(
+            `SELECT pd.NomePersonalizzato FROM ppa_istanzeprocedure ip
+             JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
+             WHERE ip.ID = ?`,
+            [istanzaId]
+        );
+        const nomeProcedura = proceduraDetails[0]?.NomePersonalizzato || `Procedura #${istanzaId}`;
+
+        const senderFullName = `${senderNome} ${senderCognome}`;
+        const emailSubject = `Nuovo messaggio per la procedura: ${nomeProcedura}`;
+        const emailBody = `
+            <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+                <h3>Comunicazione di Team per la procedura "${nomeProcedura}"</h3>
+                <p><strong>${senderFullName}</strong> ha inviato un messaggio:</p>
+                <div style="background-color: #f2f2f2; border-left: 3px solid #007bff; padding: 15px; margin: 15px 0;">
+                    <p style="margin: 0;">${messaggio}</p>
+                </div>
+                <p><em>Puoi rispondere agli altri membri del team tramite la piattaforma Opero.</em></p>
+            </div>`;
+
+        // Invia l'email a tutti i membri del team, escluso il mittente
+        for (const member of teamMembers) {
+            if (member.id !== senderId) {
+                await sendSystemEmail(member.email, emailSubject, emailBody);
+            }
+        }
+
+        res.status(200).json({ success: true, message: "Messaggio inviato al team." });
+
+    } catch (error) {
+        console.error(`Errore nell'invio comunicazione per istanza ${istanzaId}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    } finally {
+        connection.release();
+    }
+});
+
+
+// NUOVA ROTTA: GET /utenti/interni - Fornisce l'elenco degli utenti interni per i menu di assegnazione
+router.get('/utenti/interni', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const [utenti] = await dbPool.query(
+            "SELECT id, nome, cognome FROM utenti WHERE id_ditta = ? AND Codice_Tipo_Utente = 'INTERNO' ORDER BY cognome, nome",
+            [id_ditta]
+        );
+        res.json(utenti);
+    } catch (error) {
+        console.error("Errore nel recupero degli utenti interni:", error);
+        res.status(500).json({ message: 'Errore nel recupero degli utenti' });
+    }
+});
+
+
 module.exports = router;
