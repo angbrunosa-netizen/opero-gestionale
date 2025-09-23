@@ -163,7 +163,7 @@ router.post('/assegna', verifyToken, async (req, res) => {
                 targetEntityName = utente[0]?.nome_completo || 'N/D';
                 break;
             case 'BENE':
-                const [bene] = await connection.query('SELECT descrizione FROM bs_beni WHERE id = ?', [targetEntityId]);
+                const [bene] = await connection.query('SELECT descrizione FROM bs_beni WHERE id_ditta = ?', [targetEntityId]);
                 targetEntityName = bene[0]?.descrizione || 'N/D';
                 break;
         }
@@ -355,6 +355,71 @@ router.get('/istanze/:id', verifyToken, async (req, res) => {
     } catch (error) {
         console.error(`Errore nel recupero dell'istanza ${id}:`, error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+// ##################################################################################
+// ## ROTTA CORRETTA: POST /istanze - Crea una nuova istanza di procedura          ##
+// ## Corretto l'inserimento dello stato azione da stringa a ID numerico.        ##
+// ##################################################################################
+router.post('/istanze', async (req, res) => {
+    const { id: id_utente_creatore } = req.user;
+    const {
+        proceduraId,
+        targetType,
+        targetEntityId,
+        dataFine,
+        assegnazioni
+    } = req.body;
+
+    if (!proceduraId || !targetType || !targetEntityId || !assegnazioni) {
+        return res.status(400).json({ success: false, message: 'Dati mancanti per la creazione della procedura.' });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Inserisci la testata nella tabella ppa_istanzeprocedure
+        const [resultIstanza] = await connection.query(
+            `INSERT INTO ppa_istanzeprocedure 
+             (ID_ProceduraDitta, ID_UtenteCreatore, DataInizio, DataPrevistaFine, Stato, TargetEntityType, TargetEntityID) 
+             VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
+            [proceduraId, id_utente_creatore, dataFine || null, 'In Corso', targetType, targetEntityId]
+        );
+
+        const newIstanzaId = resultIstanza.insertId;
+
+        // 2. Prepara e inserisci le righe delle azioni
+        const azioniDaInserire = Object.entries(assegnazioni).map(([azioneId, dettagli]) => {
+            return [
+                newIstanzaId,
+                azioneId,
+                dettagli.utenteId,
+                dettagli.dataScadenza || null,
+                // CORREZIONE: Sostituita la stringa 'Da Svolgere' con l'ID numerico 1.
+                1, 
+                dettagli.note || null
+            ];
+        });
+
+        if (azioniDaInserire.length > 0) {
+            await connection.query(
+                `INSERT INTO ppa_istanzeazioni 
+                 (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza, ID_Stato, NoteParticolari) 
+                 VALUES ?`,
+                [azioniDaInserire]
+            );
+        }
+
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Procedura assegnata con successo!', id: newIstanzaId });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore durante la creazione dell'istanza PPA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante il salvataggio.', details: error.sqlMessage });
+    } finally {
+        connection.release();
     }
 });
 
@@ -735,18 +800,262 @@ router.post('/istanze/:id/comunica-team', verifyToken, async (req, res) => {
 });
 
 
-// NUOVA ROTTA: GET /utenti/interni - Fornisce l'elenco degli utenti interni per i menu di assegnazione
-router.get('/utenti/interni', verifyToken, async (req, res) => {
+// NUOVO: Rotta per ottenere i modelli di procedura per la ditta corrente
+// Questa rotta era mancante e causava l'errore "Cannot GET".
+// Ora il frontend ProgettazionePPA.js potrà caricare i dati correttamente.
+// CORRETTO: Rotta per ottenere i modelli di procedura per la ditta corrente
+// La query è stata modificata per usare il nome corretto della colonna 'Nome'
+// e un alias 'AS NomeProcedura' per mantenere la compatibilità con il frontend.
+// CORRETTO: Rotta per ottenere i modelli di procedura per la ditta corrente
+// La query è stata modificata per usare il nome corretto della colonna 'Nome'
+// e un alias 'AS NomeProcedura' per mantenere la compatibilità con il frontend.
+// --- GESTIONE PROCEDURE PERSONALIZZATE PER DITTA ---
+
+// CORREZIONE: Utilizzo del nome di colonna 'NomePersonalizzato' come da tue indicazioni,
+// con un alias 'AS NomeProcedura' per mantenere la compatibilità con il frontend.
+router.get('/procedure-ditta', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const [rows] = await dbPool.query(
+            "SELECT ID, NomePersonalizzato AS NomeProcedura FROM ppa_procedureditta WHERE id_ditta = ? ORDER BY NomePersonalizzato",
+            [id_ditta]
+        );
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Errore in GET /procedure-ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.', details: error.sqlMessage });
+    }
+});
+
+
+// Rotta per ottenere i dettagli di una singola procedura, incluse le sue azioni
+// Rotta per ottenere i dettagli di una singola procedura, incluse le sue azioni
+router.get('/procedure-ditta/:id', async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+    try {
+        // CORREZIONE: Utilizzo di SELECT esplicita con alias per i campi disallineati.
+        const [procedureRows] = await dbPool.query(
+            `SELECT 
+                ID, 
+                NomePersonalizzato, 
+                TargetEntityTypeAllowed AS ApplicabileA 
+             FROM ppa_procedureditta 
+             WHERE ID = ? AND id_ditta = ?`,
+            [id, id_ditta]
+        );
+        
+        if (procedureRows.length === 0) {
+            return res.status(404).json({ success: false, message: "Procedura non trovata." });
+        }
+        const procedure = procedureRows[0];
+
+        // Recupera i processi associati (logica invariata)
+        const [processi] = await dbPool.query(
+            "SELECT * FROM ppa_processi WHERE ID_ProceduraDitta = ?",
+            [id]
+        );
+        
+        // Recupera le azioni per ogni processo (logica invariata)
+        const azioniPerProcesso = {};
+        for (const processo of processi) {
+            const [azioni] = await dbPool.query(
+                "SELECT * FROM ppa_azioni WHERE ID_Processo = ?",
+                [processo.ID]
+            );
+            azioniPerProcesso[processo.ID] = azioni;
+        }
+
+        // Costruisce l'oggetto di risposta finale, ora coerente con il frontend
+        res.json({ 
+            success: true, 
+            data: {
+                ...procedure,
+                processi: processi.map(p => ({...p, azioni: azioniPerProcesso[p.ID] || []}))
+            }
+        });
+
+    } catch (error) {
+        console.error(`Errore in GET /procedure-ditta/${id}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// ##################################################################################
+// ## PASSO 1.2: NUOVA ROTTA - Fornisce l'elenco degli utenti per un ruolo specifico ##
+// ##################################################################################
+router.get('/utenti/by-ruolo/:id_ruolo', async (req, res) => {
+    const { id_ditta } = req.user;
+    const { id_ruolo } = req.params;
+
+    if (!id_ruolo || isNaN(id_ruolo)) {
+        return res.status(400).json({ success: false, message: 'ID Ruolo non valido.' });
+    }
+
+    try {
+        const [utenti] = await dbPool.query(
+            `SELECT id, nome, cognome FROM utenti 
+             WHERE id_ditta = ? AND id_ruolo = ? 
+             ORDER BY cognome, nome`,
+            [id_ditta, id_ruolo]
+        );
+        res.json({ success: true, data: utenti });
+    } catch (error) {
+        console.error(`Errore nel recupero utenti per ruolo ${id_ruolo}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// ##################################################################################
+// ## ROTTA CORRETTA: POST /procedure-ditta - Salva un nuovo modello di procedura  ##
+// ## Corretta la query di INSERT per gestire la FOREIGN KEY e il nome colonna.   ##
+// ##################################################################################
+router.post('/procedure-ditta', async (req, res) => {
+    const { id_ditta } = req.user;
+    const { NomePersonalizzato, Descrizione, ApplicabileA, processi } = req.body;
+
+    if (!NomePersonalizzato || !processi || processi.length === 0) {
+        return res.status(400).json({ success: false, message: 'Nome procedura e almeno un processo sono obbligatori.' });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Inserisce la testata della procedura
+        // CORREZIONE DEFINITIVA: Inseriamo il valore '0' come default per la Foreign Key NOT NULL.
+        const [resultProcedura] = await connection.query(
+            `INSERT INTO ppa_procedureditta (id_ditta, NomePersonalizzato, ID_ProceduraStandard, TargetEntityTypeAllowed) VALUES (?, ?, 4, ?)`,
+            [id_ditta, NomePersonalizzato, ApplicabileA || 'DITTA']
+        );
+        const newProceduraId = resultProcedura.insertId;
+
+        // 2. Itera sui processi e le loro azioni per l'inserimento
+        for (const processo of processi) {
+            if (!processo.NomeProcesso) continue;
+
+            const [resultProcesso] = await connection.query(
+                `INSERT INTO ppa_processi (ID_ProceduraDitta, NomeProcesso) VALUES (?, ?)`,
+                [newProceduraId, processo.NomeProcesso]
+            );
+            const newProcessoId = resultProcesso.insertId;
+
+            if (processo.azioni && processo.azioni.length > 0) {
+                const azioniDaInserire = processo.azioni.map(azione => {
+                    if (!azione.NomeAzione) return null;
+                    return [
+                        newProcessoId,
+                        azione.NomeAzione,
+                        azione.Descrizione || null,
+                        azione.ID_RuoloDefault || null
+                    ];
+                }).filter(Boolean);
+
+                if (azioniDaInserire.length > 0) {
+                    await connection.query(
+                        `INSERT INTO ppa_azioni (ID_Processo, NomeAzione, Descrizione, ID_RuoloDefault) VALUES ?`,
+                        [azioniDaInserire]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        res.status(201).json({ success: true, message: 'Modello di procedura creato con successo!', id: newProceduraId });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore durante la creazione del modello di procedura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante il salvataggio.' });
+    } finally {
+        connection.release();
+    }
+});
+
+// --- NUOVA ROTTA: Helper per ottenere dati per i form ---
+// Questa rotta fornisce l'elenco degli utenti interni per i menu a tendina
+// del form di assegnazione. Centralizza la logica all'interno del modulo PPA.
+router.get('/utenti/interni', async (req, res) => {
     const { id_ditta } = req.user;
     try {
         const [utenti] = await dbPool.query(
-            "SELECT id, nome, cognome FROM utenti WHERE id_ditta = ? AND Codice_Tipo_Utente = 'INTERNO' ORDER BY cognome, nome",
+            "SELECT id, nome, cognome FROM utenti WHERE id_ditta = ? AND id_ruolo = '4' ORDER BY cognome, nome",
             [id_ditta]
         );
-        res.json(utenti);
+        // NOTA: il frontend si aspetta un oggetto con una chiave 'data'
+        res.json({ success: true, data: utenti });
     } catch (error) {
-        console.error("Errore nel recupero degli utenti interni:", error);
-        res.status(500).json({ message: 'Errore nel recupero degli utenti' });
+        console.error("Errore nel recupero utenti interni per PPA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+// ##################################################################################
+// ## NUOVA ROTTA: PUT /procedure-ditta/:id - Aggiorna un modello di procedura     ##
+// ## Utilizza una transazione per garantire l'integrità dei dati.               ##
+// ##################################################################################
+router.put('/procedure-ditta/:id', async (req, res) => {
+    const { id_ditta } = req.user;
+    const { id } = req.params;
+    const { NomePersonalizzato, ApplicabileA, processi } = req.body;
+
+    if (!NomePersonalizzato || !processi) {
+        return res.status(400).json({ success: false, message: 'Dati mancanti per l\'aggiornamento.' });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Aggiorna la testata della procedura
+        await connection.query(
+            `UPDATE ppa_procedureditta SET NomePersonalizzato = ?, TargetEntityTypeAllowed = ? WHERE ID = ? AND id_ditta = ?`,
+            [NomePersonalizzato, ApplicabileA || 'DITTA', id, id_ditta]
+        );
+
+        // 2. Strategia "Elimina e Ricrea" per processi e azioni
+        const [oldProcessi] = await connection.query(`SELECT ID FROM ppa_processi WHERE ID_ProceduraDitta = ?`, [id]);
+        if (oldProcessi.length > 0) {
+            const oldProcessiIds = oldProcessi.map(p => p.ID);
+            await connection.query(`DELETE FROM ppa_azioni WHERE ID_Processo IN (?)`, [oldProcessiIds]);
+            await connection.query(`DELETE FROM ppa_processi WHERE ID_ProceduraDitta = ?`, [id]);
+        }
+
+        // 3. Reinserisce la nuova struttura (logica identica alla POST)
+        for (const processo of processi) {
+            if (!processo.NomeProcesso) continue;
+
+            const [resultProcesso] = await connection.query(
+                `INSERT INTO ppa_processi (ID_ProceduraDitta, NomeProcesso) VALUES (?, ?)`,
+                [id, processo.NomeProcesso]
+            );
+            const newProcessoId = resultProcesso.insertId;
+
+            if (processo.azioni && processo.azioni.length > 0) {
+                const azioniDaInserire = processo.azioni.map(azione => {
+                    if (!azione.NomeAzione) return null;
+                    return [newProcessoId, azione.NomeAzione, azione.Descrizione || null, azione.ID_RuoloDefault || null];
+                }).filter(Boolean);
+
+                if (azioniDaInserire.length > 0) {
+                    await connection.query(
+                        `INSERT INTO ppa_azioni (ID_Processo, NomeAzione, Descrizione, ID_RuoloDefault) VALUES ?`,
+                        [azioniDaInserire]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        res.status(200).json({ success: true, message: 'Modello di procedura aggiornato con successo!' });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore durante l'aggiornamento del modello di procedura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante l\'aggiornamento.' });
+    } finally {
+        connection.release();
     }
 });
 

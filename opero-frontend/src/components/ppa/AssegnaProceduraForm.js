@@ -1,235 +1,219 @@
 /**
- * File: opero-frontend/src/components/ppa/AssegnaProceduraForm.js
- * Descrizione: Componente React per il form di assegnazione di una nuova procedura PPA.
- * Fase: 3.1.3 & 3.1.4 - Render delle Azioni e Controlli di Input
+ * #####################################################################
+ * # Form Assegnazione Procedura PPA - v3.1 (UI Completa)
+ * # File: opero-frontend/src/components/ppa/AssegnaProceduraForm.js
+ * #####################################################################
+ *
+ * @description
+ * Componente aggiornato per integrare correttamente il componente figlio
+ * AzioneAssegnazioneCard, che gestisce l'input dei dati per ogni
+ * singola azione nella Fase 2 del form.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
+import AzioneAssegnazioneCard from './AzioneAssegnazioneCard'; // Import del componente figlio
+import { ArrowRightIcon } from '@heroicons/react/24/solid';
 
-const AssegnaProceduraForm = ({ onClose }) => {
-    // == STATO DEL COMPONENTE ==
-    const [procedureDisponibili, setProcedureDisponibili] = useState([]);
-    const [utentiInterni, setUtentiInterni] = useState([]);
-    const [targetEntities, setTargetEntities] = useState([]);
-    const [azioni, setAzioni] = useState([]);
-    const [selectedProceduraDetails, setSelectedProceduraDetails] = useState(null);
-
-    const [proceduraSelezionata, setProceduraSelezionata] = useState('');
-    const [targetEntitySelezionato, setTargetEntitySelezionato] = useState('');
-    const [dataFineProcedura, setDataFineProcedura] = useState('');
-    
-    const [datiAssegnazione, setDatiAssegnazione] = useState({});
-
-    const [isLoading, setIsLoading] = useState(false);
+const AssegnaProceduraForm = ({ onClose, onSaveSuccess }) => {
+    // --- STATI DI CONTROLLO FLUSSO ---
+    const [step, setStep] = useState(1);
+    const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
 
-    // == CARICAMENTO DATI ==
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                // NOTA: Queste rotte devono esistere nel backend
-                const [procedureRes, utentiRes] = await Promise.all([
-                    api.get('/ppa/procedureditta'),
-                    api.get('/utenti/interni') 
-                ]);
-                setProcedureDisponibili(procedureRes.data);
-                setUtentiInterni(utentiRes.data);
-            } catch (err) {
-                console.error("Errore nel caricamento dei dati iniziali:", err);
-                setError("Impossibile caricare i dati necessari per l'assegnazione.");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchInitialData();
+    // --- STATI PER DATI DI SUPPORTO (Fase 1) ---
+    const [procedureDisponibili, setProcedureDisponibili] = useState([]);
+    const [ditteDisponibili, setDitteDisponibili] = useState([]);
+    const [utentiEsterni, setUtentiEsterni] = useState([]);
+    const [beniDisponibili, setBeniDisponibili] = useState([]);
+
+    // --- STATI PER LA SELEZIONE (Fase 1) ---
+    const [proceduraSelezionata, setProceduraSelezionata] = useState('');
+    const [targetType, setTargetType] = useState('DITTA');
+    const [targetEntitySelezionato, setTargetEntitySelezionato] = useState('');
+    const [dataFineProcedura, setDataFineProcedura] = useState('');
+
+    // --- STATI PER L'ASSEGNAZIONE (Fase 2) ---
+    const [dettagliProcedura, setDettagliProcedura] = useState(null);
+    const [datiAssegnazione, setDatiAssegnazione] = useState({});
+
+    // Carica tutti i dati necessari per i menu a tendina della prima fase
+    const fetchInitialData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [procRes, ditteRes, utentiRes, beniRes] = await Promise.all([
+                api.get('/ppa/procedure-ditta'),
+                api.get('/amministrazione/anagrafiche'),
+                api.get('/ppa/utenti/interni'),
+                api.get('/benistrumentali')
+            ]);
+            setProcedureDisponibili(procRes.data.data || []);
+            setDitteDisponibili(ditteRes.data.data || []);
+            setUtentiEsterni(utentiRes.data.data || []);
+            setBeniDisponibili(beniRes.data.data || []);
+        } catch (err) {
+            setError("Errore nel caricamento dei dati iniziali.");
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     useEffect(() => {
-        if (!proceduraSelezionata) {
-            setAzioni([]);
-            setTargetEntities([]);
-            setSelectedProceduraDetails(null);
+        fetchInitialData();
+    }, [fetchInitialData]);
+
+    // Passa alla fase 2: carica i dettagli della procedura selezionata
+    const handleProceedToAssignment = async () => {
+        if (!proceduraSelezionata || !targetEntitySelezionato) {
+            alert("Selezionare una procedura e un target prima di procedere.");
             return;
         }
+        setIsLoading(true);
+        try {
+            const response = await api.get(`/ppa/procedure-ditta/${proceduraSelezionata}`);
+            setDettagliProcedura(response.data.data);
+            setStep(2);
+        } catch (err) {
+            setError("Impossibile caricare i dettagli della procedura selezionata.");
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        const fetchProceduraDetails = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const procedura = procedureDisponibili.find(p => p.ID === parseInt(proceduraSelezionata));
-                if (!procedura) throw new Error("Procedura non trovata.");
-                setSelectedProceduraDetails(procedura);
-                
-                // NOTA: Queste rotte devono esistere nel backend
-                const [azioniRes, targetRes] = await Promise.all([
-                    api.get(`/ppa/azioni/procedura/${proceduraSelezionata}`),
-                    api.get(`/ppa/target-entities/${procedura.TargetEntityTypeAllowed}`)
-                ]);
-
-                setAzioni(azioniRes.data);
-                setTargetEntities(targetRes.data);
-                
-                setTargetEntitySelezionato('');
-                // Inizializza datiAssegnazione con valori di default
-                const initialAssegnazioni = {};
-                azioniRes.data.forEach(azione => {
-                    initialAssegnazioni[azione.ID] = {
-                        utenteId: '',
-                        scadenza: '',
-                        note: ''
-                    };
-                });
-                setDatiAssegnazione(initialAssegnazioni);
-
-            } catch (err) {
-                console.error("Errore nel caricamento dei dettagli della procedura:", err);
-                setError("Impossibile caricare i dettagli per la procedura selezionata.");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchProceduraDetails();
-    }, [proceduraSelezionata, procedureDisponibili]);
-
-    // == GESTIONE INPUT ==
-    const handleAssegnazioneChange = (azioneId, field, value) => {
+    // Gestisce l'aggiornamento dei dati per una singola azione dal componente figlio
+    const handleAzioneUpdate = (azioneId, data) => {
         setDatiAssegnazione(prev => ({
             ...prev,
-            [azioneId]: {
-                ...prev[azioneId],
-                [field]: value
-            }
+            [azioneId]: data,
         }));
     };
     
+    // Invia i dati finali al backend per il salvataggio
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         setError(null);
+
+        const payload = {
+            proceduraId: proceduraSelezionata,
+            targetType,
+            targetEntityId: targetEntitySelezionato,
+            dataFine: dataFineProcedura,
+            assegnazioni: datiAssegnazione
+        };
+
         try {
-            const payload = {
-                id_procedura_ditta: proceduraSelezionata,
-                targetEntityType: selectedProceduraDetails.TargetEntityTypeAllowed,
-                targetEntityId: targetEntitySelezionato,
-                data_prevista_fine: dataFineProcedura,
-                assegnazioni: datiAssegnazione
-            };
-            await api.post('/ppa/assegna', payload);
+            await api.post('/ppa/istanze', payload);
             alert('Procedura assegnata con successo!');
+            if (onSaveSuccess) onSaveSuccess();
             onClose();
         } catch (err) {
-            console.error("Errore durante l'invio del form:", err);
-            setError(err.response?.data?.message || "Si è verificato un errore. Riprova.");
+            setError(err.response?.data?.message || "Errore durante il salvataggio.");
+            console.error(err);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // == RENDER DEL COMPONENTE ==
-    if (isLoading && !procedureDisponibili.length) {
-        return <div className="p-6">Caricamento...</div>;
-    }
+    const renderTargetSelect = () => {
+        let options = [];
+        switch (targetType) {
+            case 'DITTA':
+                options = ditteDisponibili.map(d => ({ value: d.id, label: d.ragione_sociale }));
+                break;
+            case 'UTENTE':
+                options = utentiEsterni.map(u => ({ value: u.id, label: `${u.cognome} ${u.nome}` }));
+                break;
+            case 'BENE':
+                options = beniDisponibili.map(b => ({ value: b.id, label: b.nome_bene }));
+                break;
+            default:
+                return null;
+        }
+        return (
+            <select value={targetEntitySelezionato} onChange={(e) => setTargetEntitySelezionato(e.target.value)} className="w-full p-2 border rounded-md">
+                <option value="">Seleziona un {targetType.toLowerCase()}...</option>
+                {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+        );
+    };
+
+    if (isLoading) return <p>Caricamento in corso...</p>;
+    if (error) return <p className="text-red-500">{error}</p>;
 
     return (
-        <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6 border-b pb-4">Assegna Nuova Procedura</h2>
-            
-            {error && <div className="bg-red-100 text-red-700 p-3 rounded-md mb-4">{error}</div>}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-                {/* SEZIONE 1: Dati Principali */}
-                <fieldset className="border p-4 rounded-md">
-                    <legend className="text-lg font-semibold px-2">Dati Principali</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-6">
+            {step === 1 && (
+                <div id="fase-1-selezione">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Fase 1: Selezione Procedura e Target</h2>
+                    <fieldset className="border p-4 rounded-md space-y-4">
                         <div>
-                            <label htmlFor="procedura" className="block text-sm font-medium text-gray-700 mb-1">Scegli Procedura Modello</label>
-                            <select id="procedura" value={proceduraSelezionata} onChange={(e) => setProceduraSelezionata(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
-                                <option value="">-- Seleziona --</option>
-                                {procedureDisponibili.map(p => <option key={p.ID} value={p.ID}>{p.NomePersonalizzato}</option>)}
+                            <label className="block text-sm font-medium text-gray-700">Procedura</label>
+                            <select value={proceduraSelezionata} onChange={e => setProceduraSelezionata(e.target.value)} className="w-full p-2 border rounded-md">
+                                <option value="">Seleziona una procedura...</option>
+                                {procedureDisponibili.map(p => <option key={p.ID} value={p.ID}>{p.NomeProcedura}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="dataFine" className="block text-sm font-medium text-gray-700 mb-1">Data Prevista Fine</label>
-                            <input type="date" id="dataFine" value={dataFineProcedura} onChange={(e) => setDataFineProcedura(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
-                        </div>
-                        {selectedProceduraDetails && (
-                            <div className="md:col-span-2">
-                                <label htmlFor="targetEntity" className="block text-sm font-medium text-gray-700 mb-1">Applica a {selectedProceduraDetails.TargetEntityTypeAllowed.toLowerCase()}</label>
-                                <select id="targetEntity" value={targetEntitySelezionato} onChange={(e) => setTargetEntitySelezionato(e.target.value)} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" required disabled={!targetEntities.length}>
-                                    <option value="">-- Seleziona un target --</option>
-                                    {targetEntities.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                </select>
+                            <label className="block text-sm font-medium text-gray-700">Target di rifermento </label>
+                            <div className="flex rounded-md shadow-sm">
+                                <button type="button" onClick={() => setTargetType('DITTA')} className={`px-4 py-2 text-sm font-medium ${targetType === 'DITTA' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border rounded-l-md`}>Ditta</button>
+                                <button type="button" onClick={() => setTargetType('UTENTE')} className={`px-4 py-2 text-sm font-medium ${targetType === 'UTENTE' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-t border-b`}>Utente</button>
+                                <button type="button" onClick={() => setTargetType('BENE')} className={`px-4 py-2 text-sm font-medium ${targetType === 'BENE' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border rounded-r-md`}>Bene</button>
                             </div>
-                        )}
-                    </div>
-                </fieldset>
-                
-                {/* SEZIONE 2: Dettaglio Azioni */}
-                {azioni.length > 0 && (
-                    <fieldset className="border p-4 rounded-md">
-                        <legend className="text-lg font-semibold px-2">Dettaglio Azioni</legend>
-                        <div className="space-y-8 mt-4">
-                           {azioni.map((azione, index) => (
-                               <div key={azione.ID} className="p-4 bg-gray-50 rounded-lg border">
-                                   <p className="font-bold text-gray-800">{index + 1}. {azione.NomeAzione}</p>
-                                   <p className="text-sm text-gray-600 ml-5 mb-4">{azione.Descrizione}</p>
-                                   
-                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                       {/* Assegna a */}
-                                       <div>
-                                           <label htmlFor={`utente-${azione.ID}`} className="block text-xs font-medium text-gray-600 mb-1">Assegna a</label>
-                                           <select 
-                                               id={`utente-${azione.ID}`}
-                                               value={datiAssegnazione[azione.ID]?.utenteId || ''}
-                                               onChange={(e) => handleAssegnazioneChange(azione.ID, 'utenteId', e.target.value)}
-                                               className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm"
-                                               required
-                                           >
-                                               <option value="">-- Seleziona utente --</option>
-                                               {utentiInterni.map(u => <option key={u.id} value={u.id}>{u.nome} {u.cognome}</option>)}
-                                           </select>
-                                       </div>
-                                       {/* Data Scadenza Azione */}
-                                       <div>
-                                           <label htmlFor={`scadenza-${azione.ID}`} className="block text-xs font-medium text-gray-600 mb-1">Scadenza (opzionale)</label>
-                                           <input 
-                                               type="date"
-                                               id={`scadenza-${azione.ID}`}
-                                               value={datiAssegnazione[azione.ID]?.scadenza || ''}
-                                               onChange={(e) => handleAssegnazioneChange(azione.ID, 'scadenza', e.target.value)}
-                                               className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm"
-                                           />
-                                       </div>
-                                       {/* Note Particolari */}
-                                       <div className="md:col-span-2">
-                                           <label htmlFor={`note-${azione.ID}`} className="block text-xs font-medium text-gray-600 mb-1">Note Particolari (opzionale)</label>
-                                           <textarea
-                                               id={`note-${azione.ID}`}
-                                               rows="2"
-                                               value={datiAssegnazione[azione.ID]?.note || ''}
-                                               onChange={(e) => handleAssegnazioneChange(azione.ID, 'note', e.target.value)}
-                                               className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm"
-                                           ></textarea>
-                                       </div>
-                                   </div>
-                               </div>
-                           ))}
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Target Specifico</label>
+                            {renderTargetSelect()}
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700">Data Chiusura Prevista</label>
+                            <input type="date" value={dataFineProcedura} onChange={e => setDataFineProcedura(e.target.value)} className="w-full p-2 border rounded-md"/>
                         </div>
                     </fieldset>
-                )}
-
-                {/* SEZIONE 3: Pulsanti di Azione */}
-                <div className="mt-8 flex justify-end gap-4">
-                    <button type="button" onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Annulla</button>
-                    <button type="submit" disabled={isSubmitting || !azioni.length} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300">
-                        {isSubmitting ? 'Salvataggio...' : 'Assegna Procedura'}
-                    </button>
+                    <div className="mt-6 flex justify-end">
+                        <button type="button" onClick={handleProceedToAssignment} className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            Prosegui con l'Assegnazione <ArrowRightIcon className="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
-            </form>
-        </div>
+            )}
+
+            {step === 2 && dettagliProcedura && (
+                <div id="fase-2-assegnazione">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Fase 2: Assegnazione Azioni</h2>
+                    <div className="space-y-6">
+                        {dettagliProcedura.processi.map(processo => (
+                            <fieldset key={processo.ID} className="border p-4 rounded-md">
+                                <legend className="text-lg font-medium text-gray-700 px-2">{processo.NomeProcesso}</legend>
+                                <div className="space-y-4 pt-2">
+                                    {processo.azioni.map(azione => (
+                                        <AzioneAssegnazioneCard
+                                            key={azione.ID}
+                                            azione={azione}
+                                            onUpdate={handleAzioneUpdate}
+                                        />
+                                    ))}
+                                </div>
+                            </fieldset>
+                        ))}
+                    </div>
+                </div>
+            )}
+            
+            <div className="mt-8 flex justify-end gap-4 border-t pt-4">
+                <button type="button" onClick={step === 2 ? () => setStep(1) : onClose} className="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                    {step === 2 ? 'Indietro' : 'Annulla'}
+                </button>
+                {step === 2 && (
+                    <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300">
+                        {isSubmitting ? 'Salvataggio...' : 'Salva Assegnazione'}
+                    </button>
+                )}
+            </div>
+        </form>
     );
 };
 

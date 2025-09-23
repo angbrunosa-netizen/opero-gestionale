@@ -83,6 +83,7 @@ app.use('/api/attivita', verifyToken, attivitaRoutes);
 app.use('/api/ppa', verifyToken, ppaRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/beni-strumentali', verifyToken, beniStrumentaliRoutes);
+app.use('/api/benistrumentali', verifyToken, beniStrumentaliRoutes);
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
 if (process.env.NODE_ENV === 'production') {
