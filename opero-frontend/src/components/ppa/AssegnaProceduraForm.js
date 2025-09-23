@@ -20,13 +20,16 @@ const AssegnaProceduraForm = ({ onClose, onSaveSuccess }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
-
+ const [proceduraSelezionataId, setProceduraSelezionataId] = useState('');
     // --- STATI PER DATI DI SUPPORTO (Fase 1) ---
     const [procedureDisponibili, setProcedureDisponibili] = useState([]);
     const [ditteDisponibili, setDitteDisponibili] = useState([]);
     const [utentiEsterni, setUtentiEsterni] = useState([]);
     const [beniDisponibili, setBeniDisponibili] = useState([]);
-
+const [targetEntityId, setTargetEntityId] = useState('');
+ const [utentiDisponibili, setUtentiDisponibili] = useState([]);
+  const [dataFine, setDataFine] = useState('');
+    const [assegnazioni, setAssegnazioni] = useState({});
     // --- STATI PER LA SELEZIONE (Fase 1) ---
     const [proceduraSelezionata, setProceduraSelezionata] = useState('');
     const [targetType, setTargetType] = useState('DITTA');
@@ -90,28 +93,49 @@ const AssegnaProceduraForm = ({ onClose, onSaveSuccess }) => {
         }));
     };
     
-    // Invia i dati finali al backend per il salvataggio
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
-        setError(null);
+
+        // ##################################################################
+        // ## VERIFICA E COSTRUZIONE PAYLOAD COMPLETO                    ##
+        // ##################################################################
+        
+        // 1. Trova il nome della procedura selezionata
+        const procedura = procedureDisponibili.find(p => p.ID == proceduraSelezionataId);
+        
+        // 2. Trova il nome del target selezionato
+        let targetName = '';
+        if (targetType === 'DITTA') {
+            const ditta = ditteDisponibili.find(d => d.id == targetEntityId);
+            targetName = ditta ? ditta.ragione_sociale : '';
+        } else if (targetType === 'UTENTE') {
+            const utente = utentiDisponibili.find(u => u.id == targetEntityId);
+            targetName = utente ? `${utente.cognome} ${utente.nome}` : '';
+        } else if (targetType === 'BENE') {
+            const bene = beniDisponibili.find(b => b.id == targetEntityId);
+            targetName = bene ? bene.nome_bene : '';
+        }
 
         const payload = {
-            proceduraId: proceduraSelezionata,
-            targetType,
-            targetEntityId: targetEntitySelezionato,
-            dataFine: dataFineProcedura,
-            assegnazioni: datiAssegnazione
+            proceduraId: proceduraSelezionataId,
+            targetType: targetType,
+            targetEntityId: targetEntityId,
+            dataFine: dataFine,
+            assegnazioni: assegnazioni,
+            nomeProcedura: procedura ? procedura.NomeProcedura : 'N/D', // Aggiunto
+            nomeTarget: targetName // Aggiunto
         };
 
         try {
-            await api.post('/ppa/istanze', payload);
-            alert('Procedura assegnata con successo!');
-            if (onSaveSuccess) onSaveSuccess();
-            onClose();
+            const response = await api.post('/ppa/istanze', payload);
+            if (response.data.success) {
+                alert(response.data.message);
+                if (onClose) onClose();
+            }
         } catch (err) {
-            setError(err.response?.data?.message || "Errore durante il salvataggio.");
-            console.error(err);
+            console.error("Errore durante il salvataggio:", err);
+            alert(err.response?.data?.message || "Errore imprevisto durante il salvataggio.");
         } finally {
             setIsSubmitting(false);
         }

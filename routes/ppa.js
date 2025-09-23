@@ -357,18 +357,15 @@ router.get('/istanze/:id', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
-// ##################################################################################
-// ## ROTTA CORRETTA: POST /istanze - Crea una nuova istanza di procedura          ##
-// ## Corretto l'inserimento dello stato azione da stringa a ID numerico.        ##
-// ##################################################################################
 router.post('/istanze', async (req, res) => {
-    const { id: id_utente_creatore } = req.user;
+    const { id_ditta, id: id_utente_creatore } = req.user;
     const {
         proceduraId,
         targetType,
         targetEntityId,
         dataFine,
-        assegnazioni
+        assegnazioni,
+        nomeProcedura // Campo aggiuntivo dal frontend
     } = req.body;
 
     if (!proceduraId || !targetType || !targetEntityId || !assegnazioni) {
@@ -379,40 +376,44 @@ router.post('/istanze', async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Inserisci la testata nella tabella ppa_istanzeprocedure
+        // 1. Inserisci la testata della procedura (logica invariata)
         const [resultIstanza] = await connection.query(
-            `INSERT INTO ppa_istanzeprocedure 
-             (ID_ProceduraDitta, ID_UtenteCreatore, DataInizio, DataPrevistaFine, Stato, TargetEntityType, TargetEntityID) 
-             VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
+            `INSERT INTO ppa_istanzeprocedure (ID_ProceduraDitta, ID_UtenteCreatore, DataInizio, DataPrevistaFine, Stato, TargetEntityType, TargetEntityID) VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
             [proceduraId, id_utente_creatore, dataFine || null, 'In Corso', targetType, targetEntityId]
         );
-
         const newIstanzaId = resultIstanza.insertId;
 
-        // 2. Prepara e inserisci le righe delle azioni
-        const azioniDaInserire = Object.entries(assegnazioni).map(([azioneId, dettagli]) => {
-            return [
-                newIstanzaId,
-                azioneId,
-                dettagli.utenteId,
-                dettagli.dataScadenza || null,
-                // CORREZIONE: Sostituita la stringa 'Da Svolgere' con l'ID numerico 1.
-                1, 
-                dettagli.note || null
-            ];
-        });
-
+        // 2. Inserisci le azioni (logica invariata)
+        const azioniDaInserire = Object.entries(assegnazioni).map(([azioneId, dettagli]) => [newIstanzaId, azioneId, dettagli.utenteId, dettagli.dataScadenza || null, 1, dettagli.note || null]);
         if (azioniDaInserire.length > 0) {
+            await connection.query(`INSERT INTO ppa_istanzeazioni (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza, ID_Stato, NoteParticolari) VALUES ?`, [azioniDaInserire]);
+        }
+        
+        // --- NUOVA LOGICA: CREAZIONE TEAM ---
+
+        // 3. Crea il record nella tabella ppa_team
+        const nomeDelTeam = `Team per ${nomeProcedura || 'procedura ' + newIstanzaId}`;
+        const [teamResult] = await connection.query(
+            `INSERT INTO ppa_team (ID_IstanzaProcedura, NomeTeam) VALUES (?, ?)`, 
+            [newIstanzaId, nomeDelTeam]
+        );
+        const newTeamId = teamResult.insertId;
+
+        // 4. Aggiungi i membri al team, assicurandoti che siano unici
+        const teamMemberIds = [...new Set(Object.values(assegnazioni).map(a => a.utenteId))];
+        const teamMembersToInsert = teamMemberIds.map(userId => [newTeamId, userId]);
+
+        if (teamMembersToInsert.length > 0) {
             await connection.query(
-                `INSERT INTO ppa_istanzeazioni 
-                 (ID_IstanzaProcedura, ID_Azione, ID_UtenteAssegnato, DataScadenza, ID_Stato, NoteParticolari) 
-                 VALUES ?`,
-                [azioniDaInserire]
+                `INSERT INTO ppa_teammembri (ID_Team, ID_Utente) VALUES ?`, 
+                [teamMembersToInsert]
             );
         }
+        
+        // QUI, in futuro, verrà inserita la logica per l'invio delle notifiche email
 
         await connection.commit();
-        res.status(201).json({ success: true, message: 'Procedura assegnata con successo!', id: newIstanzaId });
+        res.status(201).json({ success: true, message: 'Procedura assegnata e team creato con successo!', id: newIstanzaId });
 
     } catch (error) {
         await connection.rollback();
@@ -422,6 +423,7 @@ router.post('/istanze', async (req, res) => {
         connection.release();
     }
 });
+
 
 // --- POST (Crea un nuovo Processo per una Procedura) ---
 router.post('/procedures/:procId/processes', checkAdminRole, async (req, res) => {
