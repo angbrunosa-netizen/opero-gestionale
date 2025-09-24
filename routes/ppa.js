@@ -9,6 +9,7 @@ const { verifyToken } = require('../utils/auth');
 const { sendSystemEmail } = require('../utils/mailer'); // Assicurati che il mailer esista
 const router = express.Router();
 const { checkRole } = require('../utils/auth'); // <-- AGGIUNGI QUESTA RIG
+
 router.use(verifyToken);
 
     const checkAdminRole = (req, res, next) => {
@@ -800,7 +801,113 @@ router.post('/istanze/:id/comunica-team', verifyToken, async (req, res) => {
         connection.release();
     }
 });
+// ##################################################################################
+// ## NUOVA ROTTA: POST /istanze/:id/invia-report-target                           ##
+// ## Invia un'email di riepilogo sullo stato della procedura al target designato. ##
+// ##################################################################################
+// Rotta per inviare il report di stato al target
+router.post('/istanze/:id/invia-report-target', async (req, res) => {
+    const { id_ditta, id: id_utente_richiedente, id_ruolo } = req.user;
+    const { id: istanzaId } = req.params;
+    const { selectedAzioni, selectedMessaggi } = req.body;
 
+    const connection = await dbPool.getConnection();
+    try {
+        // 1. Recupero dati e permessi (invariato)
+        const [istanze] = await connection.query(
+            `SELECT i.*, pd.NomePersonalizzato AS NomeProcedura 
+             FROM ppa_istanzeprocedure i
+             JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
+             WHERE i.ID = ?`,
+            [istanzaId]
+        );
+
+        if (istanze.length === 0) {
+            return res.status(404).json({ success: false, message: 'Procedura non trovata.' });
+        }
+        const istanza = istanze[0];
+        if (istanza.ID_UtenteCreatore !== id_utente_richiedente && id_ruolo > 2) {
+            return res.status(403).json({ success: false, message: 'Non autorizzato a inviare questo report.' });
+        }
+
+        // 2. Recupero email del target (invariato)
+        let targetEmail = null, targetName = 'N/D';
+        if (istanza.TargetEntityType === 'DITTA') {
+            const [ditte] = await connection.query('SELECT ragione_sociale, mail_1 FROM ditte WHERE id = ?', [istanza.TargetEntityID]);
+            if (ditte.length > 0) { targetEmail = ditte[0].mail_1; targetName = ditte[0].ragione_sociale; }
+        } else if (istanza.TargetEntityType === 'UTENTE') {
+            const [utenti] = await connection.query('SELECT nome, cognome, email FROM utenti WHERE id = ?', [istanza.TargetEntityID]);
+            if (utenti.length > 0) { targetEmail = utenti[0].email; targetName = `${utenti[0].nome} ${utenti[0].cognome}`; }
+        }
+        if (typeof targetEmail !== 'string' || !targetEmail.includes('@')) {
+            return res.status(400).json({ success: false, message: `Indirizzo email del target non valido.` });
+        }
+
+        // 3. Costruzione dinamica del corpo dell'email (invariato)
+        let reportContent = '';
+        if (selectedAzioni && selectedAzioni.length > 0) {
+            const [azioniDetails] = await connection.query(
+                `SELECT a.NomeAzione, sa.Descrizione AS Stato, u.nome, u.cognome, ia.NoteParticolari 
+                 FROM ppa_istanzeazioni ia
+                 JOIN ppa_azioni a ON ia.ID_Azione = a.ID
+                 JOIN ppa_stati_azione sa ON ia.ID_Stato = sa.ID
+                 JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
+                 WHERE ia.ID IN (?)`, [selectedAzioni]
+            );
+            reportContent += '<h3>Dettaglio Attività Selezionate</h3><ul>';
+            azioniDetails.forEach(a => {
+                reportContent += `<li><strong>${a.NomeAzione}</strong>: Assegnata a ${a.nome} ${a.cognome}, stato attuale: <em>${a.Stato}</em>. Note: ${a.NoteParticolari || 'N/A'}</li>`;
+            });
+            reportContent += '</ul>';
+        }
+
+        if (selectedMessaggi && selectedMessaggi.length > 0) {
+            const [messaggiDetails] = await connection.query(
+                `SELECT tc.messaggio, u.nome, u.cognome
+                 FROM ppa_team_comunicazioni tc
+                 JOIN utenti u ON tc.id_utente_mittente = u.id
+                 WHERE tc.id IN (?)`, [selectedMessaggi]
+            );
+             reportContent += '<h3>Comunicazioni Rilevanti del Team</h3><ul>';
+            messaggiDetails.forEach(m => {
+                reportContent += `<li><strong>${m.nome} ${m.cognome} ha scritto:</strong> "${m.messaggio}"</li>`;
+            });
+            reportContent += '</ul>';
+        }
+
+        const emailSubject = `Aggiornamento sullo stato della procedura: ${istanza.NomeProcedura}`;
+        
+        // ##################################################################
+        // ## CORREZIONE: Costruito il corpo dell'email con i dati reali.  ##
+        // ##################################################################
+        const emailBody = `
+            <p>Gentile ${targetName},</p>
+            <p>La presente per aggiornarLa sullo stato della seguente procedura aziendale:</p>
+            <ul>
+                <li><strong>Procedura:</strong> ${istanza.NomeProcedura}</li>
+                <li><strong>Data di Avvio:</strong> ${new Date(istanza.DataInizio).toLocaleDateString('it-IT')}</li>
+                <li><strong>Data di Chiusura Prevista:</strong> ${new Date(istanza.DataPrevistaFine).toLocaleDateString('it-IT')}</li>
+            </ul>
+            <hr>
+            ${reportContent || '<p>Nessun dettaglio specifico selezionato per questo report.</p>'}
+            <p>Cordiali saluti,<br>Il team Opero</p>
+        `;
+
+        // 4. Invio email (parametri corretti)
+        const emailSent = await sendSystemEmail(targetEmail, emailSubject, emailBody);
+        if (!emailSent) {
+            throw new Error("Il servizio di posta ha restituito un errore.");
+        }
+
+        res.status(200).json({ success: true, message: 'Rapporto di stato personalizzato inviato con successo!' });
+
+    } catch (error) {
+        console.error("Errore durante l'invio del report:", error);
+        res.status(500).json({ success: false, message: error.message || 'Errore interno del server.' });
+    } finally {
+        connection.release();
+    }
+});
 
 // NUOVO: Rotta per ottenere i modelli di procedura per la ditta corrente
 // Questa rotta era mancante e causava l'errore "Cannot GET".
@@ -1060,6 +1167,156 @@ router.put('/procedure-ditta/:id', async (req, res) => {
         connection.release();
     }
 });
+// ##################################################################################
+// ## NUOVA ROTTA: GET /my-istanze                                                 ##
+// ## Recupera l'elenco di tutte le procedure a cui l'utente è assegnato.         ##
+// ##################################################################################
+router.get('/my-istanze', async (req, res) => {
+    const { id: id_utente } = req.user;
+    try {
+        const [istanze] = await dbPool.query(
+            `SELECT 
+                i.ID, i.Stato, i.DataPrevistaFine,
+                pd.NomePersonalizzato AS NomeProcedura,
+                CASE
+                    WHEN i.TargetEntityType = 'DITTA' THEN d.ragione_sociale
+                    WHEN i.TargetEntityType = 'UTENTE' THEN CONCAT(u.cognome, ' ', u.nome)
+                    WHEN i.TargetEntityType = 'BENE' THEN b.descrizione
+                    ELSE 'N/D'
+                END AS TargetEntityName
+             FROM ppa_istanzeprocedure i
+             JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
+             JOIN ppa_team t ON i.ID = t.ID_IstanzaProcedura
+             JOIN ppa_teammembri tm ON t.ID = tm.ID_Team
+             LEFT JOIN ditte d ON i.TargetEntityID = d.id AND i.TargetEntityType = 'DITTA'
+             LEFT JOIN utenti u ON i.TargetEntityID = u.id AND i.TargetEntityType = 'UTENTE'
+             LEFT JOIN bs_beni b ON i.TargetEntityID = b.id AND i.TargetEntityType = 'BENE'
+             WHERE tm.ID_Utente = ?
+             GROUP BY i.ID
+             ORDER BY i.DataPrevistaFine ASC`,
+            [id_utente]
+        );
+        res.json({ success: true, data: istanze });
+    } catch (error) {
+        console.error("Errore nel recupero delle istanze personali:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// ##################################################################################
+// ## NUOVA ROTTA: GET /istanze/:id/details                                        ##
+// ## Fornisce tutti i dati necessari per la vista di dettaglio collaborativa.     ##
+// ##################################################################################
+router.get('/istanze/:id/details', async (req, res) => {
+    const { id: istanzaId } = req.params;
+
+    try {
+        // Query per i dettagli principali dell'istanza
+        const [istanze] = await dbPool.query(
+            `SELECT 
+                i.*, 
+                pd.NomePersonalizzato AS NomeProcedura,
+                u.nome AS NomeCreatore, 
+                u.cognome AS CognomeCreatore,
+                t.ID as TeamID
+             FROM ppa_istanzeprocedure i
+             JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
+             JOIN utenti u ON i.ID_UtenteCreatore = u.id
+             LEFT JOIN ppa_team t ON i.ID = t.ID_IstanzaProcedura
+             WHERE i.ID = ?`,
+            [istanzaId]
+        );
+        if (istanze.length === 0) {
+            return res.status(404).json({ success: false, message: 'Procedura non trovata.' });
+        }
+        
+        const istanzaDetails = istanze[0];
+
+        // Aggiungi il nome del target in base al tipo
+        if (istanzaDetails.TargetEntityType === 'DITTA') {
+            const [ditte] = await dbPool.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [istanzaDetails.TargetEntityID]);
+            istanzaDetails.TargetEntityName = ditte.length > 0 ? ditte[0].ragione_sociale : 'N/A';
+        } else if (istanzaDetails.TargetEntityType === 'UTENTE') {
+            const [utenti] = await dbPool.query('SELECT nome, cognome FROM utenti WHERE id = ?', [istanzaDetails.TargetEntityID]);
+            istanzaDetails.TargetEntityName = utenti.length > 0 ? `${utenti[0].nome} ${utenti[0].cognome}` : 'N/A';
+        } else if (istanzaDetails.TargetEntityType === 'BENE') {
+            const [beni] = await dbPool.query('SELECT descrizione FROM bs_beni WHERE id = ?', [istanzaDetails.TargetEntityID]);
+            istanzaDetails.TargetEntityName = beni.length > 0 ? beni[0].descrizione : 'N/A';
+        }
+
+        // Query per le azioni associate all'istanza
+        const [azioni] = await dbPool.query(
+            `SELECT 
+                ia.*, 
+                a.NomeAzione, 
+                u.nome AS NomeAssegnatario, 
+                u.cognome AS CognomeAssegnatario, 
+                sa.Descrizione AS StatoDescrizione
+             FROM ppa_istanzeazioni ia
+             JOIN ppa_azioni a ON ia.ID_Azione = a.ID
+             JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
+             JOIN ppa_stati_azione sa ON ia.ID_Stato = sa.ID
+             WHERE ia.ID_IstanzaProcedura = ?`,
+            [istanzaId]
+        );
+        
+        res.json({ success: true, data: { ...istanzaDetails, azioni } });
+
+    } catch (error) {
+        console.error("Errore nel recupero dettagli istanza:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+// ##################################################################################
+// ## NUOVE ROTTE: Gestione Bacheca di Comunicazione del Team                      ##
+// ##################################################################################
+
+// Recupera tutti i messaggi per un team specifico
+router.get('/team/:teamId/comunicazioni', async (req, res) => {
+    const { teamId } = req.params;
+    try {
+        const [messaggi] = await dbPool.query(
+            `SELECT 
+                tc.*,
+                u.nome AS nome_mittente,
+                u.cognome AS cognome_mittente
+             FROM ppa_team_comunicazioni tc
+             JOIN utenti u ON tc.id_utente_mittente = u.id
+             WHERE tc.id_team = ? ORDER BY tc.created_at ASC`,
+            [teamId]
+        );
+        res.json({ success: true, data: messaggi });
+    } catch (error) {
+        console.error("Errore nel recupero messaggi team:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// Invia un nuovo messaggio alla bacheca di un team
+router.post('/team/:teamId/comunicazioni', async (req, res) => {
+    const { teamId } = req.params;
+    const { id: id_utente_mittente } = req.user;
+    const { messaggio } = req.body;
+
+    if (!messaggio || !messaggio.trim()) {
+        return res.status(400).json({ success: false, message: 'Il messaggio non può essere vuoto.' });
+    }
+
+    try {
+        await dbPool.query(
+            'INSERT INTO ppa_team_comunicazioni (id_team, id_utente_mittente, messaggio) VALUES (?, ?, ?)',
+            [teamId, id_utente_mittente, messaggio]
+        );
+        // Qui in futuro si potrà agganciare la logica di notifica email per i nuovi messaggi
+        res.status(201).json({ success: true, message: 'Messaggio inviato.' });
+    } catch (error) {
+        console.error("Errore nell'invio del messaggio:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 
 
 module.exports = router;

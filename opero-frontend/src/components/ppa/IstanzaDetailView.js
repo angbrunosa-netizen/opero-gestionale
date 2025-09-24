@@ -1,142 +1,171 @@
 /**
- * File: opero-frontend/src/components/ppa/IstanzaDetailView.js
- * Descrizione: Componente per la visualizzazione dettagliata di una singola istanza di procedura PPA.
- * Fase: 4.3 - Creazione Vista di Dettaglio e Integrazione Modale
+ * #####################################################################
+ * # Vista Dettaglio Istanza PPA - v1.1 (con Safeguard ID)
+ * # File: opero-frontend/src/components/ppa/IstanzaDetailView.js
+ * #####################################################################
+ *
+ * @description
+ * AGGIORNATO: Aggiunto un controllo di sicurezza per impedire il caricamento
+ * dei dati se l'ID dell'istanza non è presente nell'URL, risolvendo
+ * l'errore "Cannot GET /api/ppa/istanze/undefined/details".
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
-import TeamCommunicationModal from './TeamCommunicationModal'; // Importiamo la modale
-import { ArrowLeftIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../../context/AuthContext';
+import TeamBacheca from './TeamBacheca';
+import ReportComposerModal from './ReportComposerModal'; // NUOVO IMPORT
 
-const IstanzaDetailView = ({ istanzaId, onBack }) => {
-    const [details, setDetails] = useState(null);
-    const [actions, setActions] = useState([]);
+import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
+
+const IstanzaDetailView = () => {
+    const { istanzaId } = useParams();
+    const { user } = useAuth();
+
+    const [istanza, setIstanza] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Stato per la modale di comunicazione
-    const [isCommModalOpen, setIsCommModalOpen] = useState(false);
+    // NUOVO: Stato per il modale del report
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-    const fetchData = useCallback(async () => {
+    const fetchIstanzaDetails = useCallback(async () => {
+        // ###############################################################
+        // ## NUOVO SAFEGUARD: Esegui la chiamata solo se l'ID è valido ##
+        // ###############################################################
+        if (!istanzaId) {
+            setError("ID della procedura non valido o mancante.");
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
-        setError(null);
         try {
-            const response = await api.get(`/ppa/istanze/${istanzaId}`);
-            setDetails(response.data.details);
-            setActions(response.data.actions);
+            const response = await api.get(`/ppa/istanze/${istanzaId}/details`);
+            setIstanza(response.data.data);
         } catch (err) {
-            console.error(`Errore nel caricamento dei dettagli per l'istanza ${istanzaId}:`, err);
             setError("Impossibile caricare i dettagli della procedura.");
+            console.error(err);
         } finally {
             setIsLoading(false);
         }
     }, [istanzaId]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        fetchIstanzaDetails();
+    }, [fetchIstanzaDetails]);
 
-    const getStatusColor = (status) => {
-        switch (status) {
+    const handleOpenReportModal = () => {
+        setIsReportModalOpen(true);
+    };
+
+    
+    // Funzione per inviare il report al target
+    const handleSendReport = async () => {
+        if (!window.confirm("Sei sicuro di voler inviare il report di stato al target?")) {
+            return;
+        }
+        try {
+            const response = await api.post(`/ppa/istanze/${istanzaId}/invia-report-target`);
+            alert(response.data.message);
+        } catch (err) {
+            alert(err.response?.data?.message || "Errore durante l'invio del report.");
+        }
+    };
+    
+    const getStatusColor = (stato) => {
+        switch (stato) {
             case 'Completata': return 'bg-green-100 text-green-800';
-            case 'In Corso': return 'bg-yellow-100 text-yellow-800';
-            case 'Non Avviata': return 'bg-gray-100 text-gray-800';
-            default: return 'bg-red-100 text-red-800';
+            case 'Annullata': return 'bg-red-100 text-red-800';
+            default: return 'bg-yellow-100 text-yellow-800';
         }
     };
 
-    if (isLoading) {
-        return <div className="p-6 text-center">Caricamento dettagli procedura...</div>;
-    }
+    if (isLoading) return <div className="p-6 text-center">Caricamento in corso...</div>;
+    if (error) return <div className="bg-red-100 text-red-700 p-4 rounded-md">{error}</div>;
+    if (!istanza) return <div className="p-6 text-center">Nessun dato trovato per questa procedura.</div>;
 
-    if (error) {
-        return <div className="p-6 bg-red-100 text-red-700 rounded-md">{error}</div>;
-    }
+    const isCreator = user.id === istanza.ID_UtenteCreatore;
 
-    return (
-        <div className="p-6 bg-slate-50">
-            {/* Header con pulsante Indietro e Azioni */}
-            <div className="flex justify-between items-center mb-6">
-                <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900">
-                    <ArrowLeftIcon className="h-5 w-5" />
-                    <span>Torna all'elenco</span>
-                </button>
-                <button 
-                    onClick={() => setIsCommModalOpen(true)}
-                    className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                    <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                    <span>Comunica con il Team</span>
-                </button>
-            </div>
-
-            {/* Dettagli Principali Istanza */}
-            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                <h2 className="text-2xl font-bold text-gray-800">{details.NomeProcedura}</h2>
-                <p className="text-md text-gray-500 mt-1">
-                    Applicata a: <span className="font-semibold text-gray-700">{details.TargetEntityName}</span>
-                </p>
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                        <span className="block text-gray-500">Stato</span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(details.Stato)}`}>{details.Stato}</span>
-                    </div>
-                    <div>
-                        <span className="block text-gray-500">Creata il</span>
-                        <span className="font-semibold">{new Date(details.DataCreazione).toLocaleDateString('it-IT')}</span>
-                    </div>
-                    <div>
-                        <span className="block text-gray-500">Scadenza</span>
-                        <span className="font-semibold">{new Date(details.DataPrevistaFine).toLocaleDateString('it-IT')}</span>
-                    </div>
-                    <div>
-                        <span className="block text-gray-500">Creata da</span>
-                        <span className="font-semibold">{details.NomeCreatore} {details.CognomeCreatore}</span>
-                    </div>
+     return (
+        <div className="p-4 md:p-6 max-w-6xl mx-auto bg-gray-50">
+            <header className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold">{istanza.NomeProcedura}</h1>
+                    <p>Target: {istanza.TargetEntityName}</p>
                 </div>
-            </div>
-
-            {/* Lista Azioni */}
-            <div>
-                <h3 className="text-xl font-bold text-gray-700 mb-4">Dettaglio Attività</h3>
-                <div className="space-y-4">
-                    {actions.map(action => (
-                        <div key={action.ID} className="bg-white p-4 rounded-lg border">
-                            <p className="font-bold">{action.NomeAzione}</p>
-                            <p className="text-sm text-gray-600 mt-1">{action.DescrizioneAzione}</p>
-                            {action.NoteParticolari && (
-                                <p className="text-sm mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-400">
-                                    <strong>Note:</strong> {action.NoteParticolari}
-                                </p>
-                            )}
-                            <div className="mt-3 text-xs grid grid-cols-3 gap-2">
-                                <div>
-                                    <span className="block text-gray-500">Assegnata a</span>
-                                    <span className="font-semibold">{action.NomeAssegnato} {action.CognomeAssegnato}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-gray-500">Stato</span>
-                                    <span className={`px-2 py-1 rounded-full ${getStatusColor(action.ID_Stato)}`}>{action.ID_Stato}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-gray-500">Scadenza Azione</span>
-                                    <span className="font-semibold">{new Date(action.DataScadenza).toLocaleDateString('it-IT')}</span>
+                {isCreator && (
+                    <button onClick={handleOpenReportModal} className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600">
+                        <PaperAirplaneIcon className="h-5 w-5" />
+                        Componi e Invia Report
+                    </button>
+                )}
+            </header>
+                        <main className="space-y-8">
+                {/* ##################################################################
+                  ## NUOVO: Diagramma Orizzontale della Procedura               ##
+                  ################################################################## */}
+                <section className="bg-white p-4 rounded-lg shadow">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-700">Flusso Operativo</h2>
+                    <div className="space-y-6">
+                        {istanza.processi && istanza.processi.map(processo => (
+                            <div key={processo.ID}>
+                                <h3 className="text-lg font-bold text-blue-700 border-l-4 border-blue-500 pl-3">{processo.NomeProcesso}</h3>
+                                <div className="mt-3 pl-4 space-y-4">
+                                    {processo.azioni.map(azione => (
+                                        <div key={azione.ID} className="p-4 bg-gray-50 rounded-md border">
+                                            <p className="font-semibold text-gray-900">{azione.NomeAzione}</p>
+                                            <p className="text-sm text-gray-600 mt-1 mb-3">{azione.Descrizione}</p>
+                                            <div className="border-t pt-3 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                                <div>
+                                                    <span className="block text-gray-500">Assegnata a</span>
+                                                    <span className="font-medium">{azione.NomeAssegnatario} {azione.CognomeAssegnatario}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="block text-gray-500">Stato</span>
+                                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(azione.StatoDescrizione)}`}>
+                                                        {azione.StatoDescrizione}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="block text-gray-500">Note</span>
+                                                    <span className="font-medium italic">{azione.NoteParticolari || 'Nessuna'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+                        ))}
+                    </div>
+                </section>
 
-            {/* Modale di Comunicazione */}
-            <TeamCommunicationModal
-                isOpen={isCommModalOpen}
-                onClose={() => setIsCommModalOpen(false)}
-                istanzaId={istanzaId}
-                nomeProcedura={details.NomeProcedura}
+                {/* ##################################################################
+                  ## Bacheca di Comunicazione (posizionata sotto)               ##
+                  ################################################################## */}
+                <section className="bg-white p-4 rounded-lg shadow">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-700">Bacheca del Team</h2>
+               <TeamBacheca teamId={istanza.TeamID} />
+                </section>
+            </main>
+
+            <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* ... (Sezione dettagli e avanzamento) ... */}
+                <aside className="bg-white p-4 rounded-lg shadow">
+                    <h2 className="text-lg font-semibold mb-3">Bacheca del Team</h2>
+                    <TeamBacheca teamId={istanza.TeamID} />
+                </aside>
+            </main>
+
+            {/* Inclusione del nuovo modale */}
+            <ReportComposerModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                istanza={istanza}
             />
         </div>
     );
 };
 
 export default IstanzaDetailView;
+

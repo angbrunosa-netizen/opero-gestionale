@@ -13,20 +13,28 @@ const { dbPool } = require('../config/db');
 
 
 // API per tracciare l'apertura di un'email
+// Rotta per tracciare l'apertura di un'email
 router.get('/open/:trackingId', async (req, res) => {
     const { trackingId } = req.params;
+    
     try {
-        await dbPool.promise().query(
-            'UPDATE email_inviate SET aperta = 1, data_prima_apertura = NOW() WHERE tracking_id = ? AND aperta = 0',
-            [trackingId]
+        // ##################################################################
+        // ## CORREZIONE: Rimossa la sintassi obsoleta '.promise()' e      ##
+        // ## implementato l'uso corretto di 'await' con 'dbPool.query'.   ##
+        // ##################################################################
+        await dbPool.query(
+            'UPDATE mail_tracking SET opened_at = NOW(), status = ? WHERE tracking_id = ? AND status = ?',
+            ['aperta', trackingId, 'inviata']
         );
+        
     } catch (error) {
         console.error("Errore nel tracciamento dell'apertura email:", error);
-    } finally {
-        const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-        res.set({ 'Content-Type': 'image/gif', 'Content-Length': pixel.length }).end(pixel);
     }
-})
+    
+    // Invia un'immagine trasparente 1x1 pixel per non "rompere" il client di posta
+    const transparentPixel = path.join(__dirname, '..', 'public', 'pixel.gif');
+    res.sendFile(transparentPixel);
+});
 
 
 // API per tracciare e gestire il download degli allegati

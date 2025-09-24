@@ -1,70 +1,72 @@
-// #####################################################################
-// # Componente App Principale - v2.2 (con Architettura a Context)
-// # File: opero-frontend/src/App.js
-// #####################################################################
-
+/**
+ * #####################################################################
+ * # Componente App Principale - v2.4 (con Struttura a Layout)
+ * # File: opero-frontend/src/App.js
+ * #####################################################################
+ *
+ * @description
+ * AGGIORNATO: La struttura del router è stata modificata per usare MainApp
+ * come un layout persistente per tutte le rotte interne. Questo risolve
+ * il problema della navigazione che "usciva" dall'interfaccia principale.
+ */
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-
-// Percorsi corretti assumendo che App.js si trovi nella cartella 'src'
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './components/LoginPage';
 import MainApp from './components/MainApp';
-import RegistrationPage from './components/RegistrationPage'; // Aggiunto per completezza
-import StandaloneModule from './components/StandaloneModule'; // <-- NUOVO IMPORT
+import RegistrationPage from './components/RegistrationPage';
+import StandaloneModule from './components/StandaloneModule';
+// Importiamo il componente che vogliamo visualizzare all'interno del layout
+import IstanzaDetailView from './components/ppa/IstanzaDetailView';
 
-
-/**
- * Componente "Wrapper" per proteggere le rotte.
- * Controlla se l'utente è autenticato. Se non lo è, lo reindirizza al login.
- */
+// Componente "Guardiano" per proteggere le rotte (invariato)
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
-
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Caricamento...</div>;
   }
-
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-
   return children;
 }
 
 function App() {
   return (
-    // 1. AuthProvider è il componente più esterno. Fornisce il "cervello" a tutta l'app.
     <AuthProvider>
-      {/* 2. BrowserRouter gestisce la navigazione. */}
       <BrowserRouter>
         <Routes>
-          {/* Rotte pubbliche */}
+          {/* --- Rotte Pubbliche (accessibili senza login) --- */}
           <Route path="/login" element={<LoginPage />} />
-           <Route path="/register/:token" element={<RegistrationPage />} />
-           
-           {/* NUOVA ROTTA per i moduli standalone */}
+          <Route path="/register/:token" element={<RegistrationPage />} />
           <Route 
             path="/module/:moduleKey" 
-            element={
-              <ProtectedRoute>
-                <StandaloneModule />
-              </ProtectedRoute>
-            } />
+            element={<ProtectedRoute><StandaloneModule /></ProtectedRoute>} 
+          />
 
-          {/* Rotta principale protetta */}
-          
+          {/* ###############################################################
+            ## CORREZIONE: MainApp ora funge da layout per TUTTE le rotte  ##
+            ## interne, grazie all'uso del path="/*".                    ##
+            ############################################################### */}
           <Route 
-            path="/" 
+            path="/*" 
             element={
               <ProtectedRoute>
-                <MainApp />
+                <MainApp>
+                  {/* React Router renderizzerà qui la rotta figlia che corrisponde all'URL */}
+                  <Routes>
+                    {/* La rotta di default '/' non fa nulla, MainApp mostrerà il suo stato di default (es. Dashboard) */}
+                    <Route path="/" element={<div />} /> 
+                    
+                    {/* La nostra nuova rotta per lo spazio collaborativo, ora all'interno del layout */}
+                    <Route path="/ppa/task/:istanzaId" element={<IstanzaDetailView />} />
+                    
+                    {/* Aggiungi qui altre rotte future che devono apparire DENTRO MainApp */}
+                  </Routes>
+                </MainApp>
               </ProtectedRoute>
             } 
           />
-          
-          {/* Qualsiasi altra rotta non definita reindirizza alla pagina principale */}
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
@@ -72,3 +74,4 @@ function App() {
 }
 
 export default App;
+

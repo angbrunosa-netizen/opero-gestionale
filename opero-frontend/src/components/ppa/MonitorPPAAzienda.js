@@ -1,97 +1,138 @@
 /**
  * #####################################################################
- * # Componente Monitoraggio PPA Azienda (v1.1 - con Comunicazione Team)
+ * # Componente Monitoraggio PPA - v2.1 (API Corretta)
  * # File: opero-frontend/src/components/ppa/MonitorPPAAzienda.js
  * #####################################################################
  *
  * @description
- * Dashboard di monitoraggio di tutte le istanze di procedura PPA.
- * Integra la possibilità di avviare una comunicazione con il team direttamente
- * dalla lista delle istanze.
+ * AGGIORNATO: La chiamata API è stata corretta per utilizzare l'endpoint
+ * stabile `/ppa/istanze` invece di `/ppa/istanze/all-by-ditta`,
+ * risolvendo il problema del caricamento dati.
  */
-import React, { useState } from 'react';
-import IstanzaDetailView from './IstanzaDetailView'; // Importa la vista dettaglio esistente
-import TeamCommunicationModal from './TeamCommunicationModal'; // NUOVO: Importa il modale di comunicazione
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'; // NUOVO: Importa l'icona
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../../services/api';
+import { EyeIcon, ChatBubbleBottomCenterTextIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
+
+// Importiamo i componenti modali che verranno utilizzati
+import TeamBacheca from './TeamBacheca'; 
+import ReportComposerModal from './ReportComposerModal';
+
+// Componente Modale per la Bacheca (wrapper)
+const BachecaModal = ({ isOpen, onClose, istanza }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[80vh]">
+                <header className="p-4 border-b flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-gray-800">Bacheca Team: {istanza.NomeProcedura}</h2>
+                    <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200">&times;</button>
+                </header>
+                <main className="p-4 overflow-y-auto">
+                    {/* Assicuriamoci che istanza.TeamID esista prima di renderizzare */}
+                    {istanza.TeamID && <TeamBacheca teamId={istanza.TeamID} />}
+                </main>
+            </div>
+        </div>
+    );
+};
+
 
 const MonitorPPAAzienda = () => {
-    // --- STATO DEL COMPONENTE ---
-    const [selectedIstanzaId, setSelectedIstanzaId] = useState(null);
-    
-    // NUOVO: Stati per gestire il modale di comunicazione
-    const [isCommModalOpen, setIsCommModalOpen] = useState(false);
-    const [selectedIstanzaForComm, setSelectedIstanzaForComm] = useState(null);
+    const [istanze, setIstanze] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // Dati mock in attesa dell'endpoint API
-    const istanzeMock = [
-        { ID: 1, NomeProcedura: 'Onboarding Nuovo Cliente', TargetEntity: 'Ditta Prova S.r.l.', Stato: 'In Corso' },
-        { ID: 2, NomeProcedura: 'Chiusura Mensile Contabilità', TargetEntity: 'Ufficio Amministrazione', Stato: 'Completata' },
-    ];
+    // Stati per gestire i modali e l'istanza selezionata
+    const [selectedIstanza, setSelectedIstanza] = useState(null);
+    const [isBachecaOpen, setIsBachecaOpen] = useState(false);
+    const [isReportComposerOpen, setIsReportComposerOpen] = useState(false);
 
-    // --- HANDLERS ---
-    const handleNavigateToDetail = (id) => {
-        setSelectedIstanzaId(id);
+    const fetchAllIstanze = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            // ##################################################################
+            // ## CORREZIONE: Utilizzo della rotta API corretta '/ppa/istanze' ##
+            // ##################################################################
+            const response = await api.get('/ppa/istanze');
+            // La rotta /istanze restituisce direttamente l'array, quindi accediamo a response.data
+            setIstanze(response.data || []);
+        } catch (err) {
+            setError("Impossibile caricare i dati di monitoraggio.");
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchAllIstanze();
+    }, [fetchAllIstanze]);
+
+    // Handler per aprire i modali
+    const handleOpenBacheca = (istanza) => {
+        setSelectedIstanza(istanza);
+        setIsBachecaOpen(true);
     };
 
-    // NUOVO: Funzione per aprire il modale di comunicazione
-    const handleOpenCommModal = (istanza, e) => {
-        e.stopPropagation(); // Impedisce al click di propagarsi all'elemento <li> e di attivare la navigazione
-        setSelectedIstanzaForComm(istanza);
-        setIsCommModalOpen(true);
-    };
-
-    // NUOVO: Funzione per chiudere il modale
-    const handleCloseCommModal = () => {
-        setIsCommModalOpen(false);
-        setSelectedIstanzaForComm(null);
+    const handleOpenReportComposer = (istanza) => {
+        setSelectedIstanza(istanza);
+        setIsReportComposerOpen(true);
     };
 
 
-    // --- RENDER ---
-    // Se è stata selezionata un'istanza, mostra la vista di dettaglio
-    if (selectedIstanzaId) {
-        return <IstanzaDetailView istanzaId={selectedIstanzaId} onBack={() => setSelectedIstanzaId(null)} />;
-    }
+    if (isLoading) return <div className="text-center p-4">Caricamento dati...</div>;
+    if (error) return <div className="bg-red-100 text-red-700 p-4 rounded-md">{error}</div>;
 
-    // Altrimenti, mostra la lista di monitoraggio
     return (
         <div>
             <h2 className="text-xl font-semibold text-gray-700 mb-4">Monitoraggio Procedure Aziendali</h2>
-            <div className="bg-white shadow rounded-lg">
-                <ul className="divide-y divide-gray-200">
-                    {istanzeMock.map(istanza => (
-                        <li 
-                            key={istanza.ID} 
-                            className="p-4 flex justify-between items-center hover:bg-gray-50 cursor-pointer"
-                            onClick={() => handleNavigateToDetail(istanza.ID)}
-                        >
-                            {/* Dettagli dell'istanza */}
-                            <div className="flex-grow">
-                                <p className="font-semibold">{istanza.NomeProcedura}</p>
-                                <p className="text-sm text-gray-600">Assegnata a: {istanza.TargetEntity}</p>
-                                <span className="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">{istanza.Stato}</span>
-                            </div>
-                            
-                            {/* NUOVO: Pulsante per avviare la comunicazione */}
-                            <button
-                                onClick={(e) => handleOpenCommModal(istanza, e)}
-                                className="ml-4 p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700"
-                                title="Comunica con il team"
-                            >
-                                <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                            </button>
-                        </li>
-                    ))}
-                </ul>
+            <div className="bg-white shadow rounded-lg overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Procedura</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scadenza</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {istanze.map(istanza => (
+                            <tr key={istanza.ID}>
+                                <td className="px-4 py-4 text-sm font-medium text-gray-900">{istanza.NomeProcedura}</td>
+                                <td className="px-4 py-4 text-sm text-gray-600">{istanza.TargetEntityName}</td>
+                                <td className="px-4 py-4 text-sm text-gray-500">{new Date(istanza.DataPrevistaFine).toLocaleDateString('it-IT')}</td>
+                                <td className="px-4 py-4 text-sm font-medium text-center">
+                                    <div className="flex justify-center items-center gap-2">
+                                        <Link to={`/ppa/task/${istanza.ID}`} title="Visualizza Dettagli" className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100">
+                                            <EyeIcon className="h-5 w-5" />
+                                        </Link>
+                                        <button onClick={() => handleOpenBacheca(istanza)} title="Apri Bacheca Team" className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100">
+                                            <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
+                                        </button>
+                                        <button onClick={() => handleOpenReportComposer(istanza)} title="Invia Report al Target" className="p-2 text-gray-500 hover:text-teal-600 rounded-full hover:bg-gray-100">
+                                            <PaperAirplaneIcon className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
 
-            {/* NUOVO: Render del modale di comunicazione */}
-            {selectedIstanzaForComm && (
-                <TeamCommunicationModal
-                    isOpen={isCommModalOpen}
-                    onClose={handleCloseCommModal}
-                    istanzaId={selectedIstanzaForComm.ID}
-                    nomeProcedura={selectedIstanzaForComm.NomeProcedura}
+            {/* Inclusione dei modali (vengono renderizzati solo se aperti) */}
+            <BachecaModal 
+                isOpen={isBachecaOpen}
+                onClose={() => setIsBachecaOpen(false)}
+                istanza={selectedIstanza}
+            />
+            {selectedIstanza && (
+                <ReportComposerModal
+                    isOpen={isReportComposerOpen}
+                    onClose={() => setIsReportComposerOpen(false)}
+                    istanza={selectedIstanza}
                 />
             )}
         </div>
