@@ -1,83 +1,106 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { useAuth } from '../context/AuthContext';
+// RIMOSSO: Non usiamo più il registro statico per le opzioni
+// import { modules } from '../lib/moduleRegistry'; 
 
-const ShortcutSettingsModal = ({ currentShortcuts, onClose, onSave }) => {
-    const [allFunctions, setAllFunctions] = useState([]);
-    const [selectedIds, setSelectedIds] = useState(new Set());
+const ShortcutSettingsModal = ({ isOpen, onClose }) => {
+    //const { user } = useAuth();
+    const [shortcuts, setShortcuts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+     const { user, hasPermission } = useAuth();
+
+    // NUOVO: Stato per contenere le funzioni disponibili caricate dal backend
+    const [availableFunctions, setAvailableFunctions] = useState([]);
 
     useEffect(() => {
-        // Inizializza i checkbox con le scorciatoie attuali
-        setSelectedIds(new Set(currentShortcuts.map(s => s.id)));
+        const fetchData = async () => {
+            if (isOpen && user) {
+                setIsLoading(true);
+                try {
+                    // Eseguiamo due chiamate in parallelo per velocità
+                    const [shortcutsRes, availableFuncsRes] = await Promise.all([
+                        api.get(`/user/shortcuts`),
+                        api.get(`/user/available-shortcuts`) // Chiamiamo il nostro nuovo endpoint
+                    ]);
 
-        // Carica tutte le funzioni a cui l'utente ha accesso
-        const fetchFunctions = async () => {
-            setIsLoading(true);
-            try {
-                const { data } = await api.get('/user/all-pinnable-functions');
-                if (data.success) {
-                    setAllFunctions(data.data);
+                    // Gestiamo le scorciatoie dell'utente (come prima)
+                    if (shortcutsRes.data && Array.isArray(shortcutsRes.data.data)) {
+                        const userShortcuts = shortcutsRes.data.data.map(sc => sc.codice);
+                        setShortcuts(userShortcuts);
+                    }
+
+                    // Gestiamo la lista delle opzioni disponibili
+                    if (availableFuncsRes.data && Array.isArray(availableFuncsRes.data.data)) {
+                        setAvailableFunctions(availableFuncsRes.data.data);
+                    }
+
+                } catch (error) {
+                    console.error("Errore nel caricamento dei dati per il modale scorciatoie:", error);
+                    setAvailableFunctions([]); // In caso di errore, la lista sarà vuota
+                } finally {
+                    setIsLoading(false);
                 }
-            } catch (error) {
-                console.error("Errore nel caricare le funzioni disponibili", error);
-            } finally {
-                setIsLoading(false);
             }
         };
-        fetchFunctions();
-    }, [currentShortcuts]);
+        fetchData();
+    }, [isOpen, user]);
 
-    const handleToggle = (functionId) => {
-        const newSelection = new Set(selectedIds);
-        if (newSelection.has(functionId)) {
-            newSelection.delete(functionId);
-        } else {
-            newSelection.add(functionId);
-        }
-        setSelectedIds(newSelection);
+    const handleCheckboxChange = (moduleKey) => {
+        setShortcuts(prev => 
+            prev.includes(moduleKey) 
+                ? prev.filter(sc => sc !== moduleKey)
+                : [...prev, moduleKey]
+        );
     };
 
-    const handleSaveClick = async () => {
+    const handleSave = async () => {
         try {
-            await api.post('/user/shortcuts', { funzioniIds: Array.from(selectedIds) });
-            onSave(); // Questa funzione ricaricherà le scorciatoie nel MainApp
+            // La logica di salvataggio non cambia, invia sempre i codici
+            await api.post('/user/shortcuts', { shortcuts });
+            onClose(true); 
         } catch (error) {
-            alert("Errore durante il salvataggio delle preferenze.");
+            console.error("Errore nel salvataggio delle scorciatoie:", error);
         }
     };
+
+    if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center p-4 border-b">
-                    <h3 className="text-lg font-bold">Personalizza Scorciatoie</h3>
-                    <button onClick={onClose}><XMarkIcon className="h-6 w-6" /></button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-4 border-b">
+                    <h2 className="text-xl font-bold">Personalizza Scorciatoie</h2>
                 </div>
-                <div className="p-6 flex-grow overflow-y-auto">
-                    <p className="text-sm text-gray-600 mb-4">Seleziona le funzioni che vuoi visualizzare nella barra in alto per un accesso rapido.</p>
-                    {isLoading ? <p>Caricamento...</p> : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {allFunctions.map(func => (
-                                <div key={func.id} className="flex items-center p-2 rounded-md hover:bg-gray-100">
+                <div className="p-6">
+                    {isLoading ? (
+                        <p>Caricamento...</p>
+                    ) : (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-600">Seleziona le funzioni da mostrare come scorciatoie.</p>
+                            {/* Mappiamo la nuova lista dinamica */}
+                            {availableFunctions.map(func => (
+                                <label key={func.id} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-100">
                                     <input
                                         type="checkbox"
-                                        id={`func-${func.id}`}
-                                        checked={selectedIds.has(func.id)}
-                                        onChange={() => handleToggle(func.id)}
-                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        checked={shortcuts.includes(func.codice)}
+                                        onChange={() => handleCheckboxChange(func.codice)}
+                                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
-                                    <label htmlFor={`func-${func.id}`} className="ml-3 text-sm font-medium text-gray-800">
-                                        {func.descrizione}
-                                    </label>
-                                </div>
+                                    {/* Usiamo la descrizione dal DB */}
+                                    <span className="font-medium">{func.descrizione}</span>
+                                </label>
                             ))}
                         </div>
                     )}
                 </div>
-                <div className="flex justify-end p-4 bg-gray-50 border-t">
-                    <button onClick={onClose} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md mr-2">Annulla</button>
-                    <button onClick={handleSaveClick} className="bg-blue-600 text-white px-4 py-2 rounded-md">Salva Preferenze</button>
+                <div className="p-4 bg-gray-50 border-t flex justify-end space-x-3">
+                    <button onClick={() => onClose(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                        Annulla
+                    </button>
+                    <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        Salva
+                    </button>
                 </div>
             </div>
         </div>
@@ -85,3 +108,4 @@ const ShortcutSettingsModal = ({ currentShortcuts, onClose, onSave }) => {
 };
 
 export default ShortcutSettingsModal;
+

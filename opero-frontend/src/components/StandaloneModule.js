@@ -1,28 +1,65 @@
-/*
+/**
  * ======================================================================
- * File: src/components/StandaloneModule.js (NUOVO FILE)
+ * File: src/components/StandaloneModule.js (Versione Allineata al DB)
  * ======================================================================
- * Descrizione: Questo componente renderizza un modulo a schermo intero.
- * Verrà usato per le nuove finestre aperte dalle scorciatoie.
+ * @description
+ * La logica di rendering (switch) è stata aggiornata per utilizzare le
+ * esatte 'chiave_componente_modulo' provenienti dal database,
+ * risolvendo il problema dei moduli non visualizzati.
  */
 import React from 'react';
-import { useParams } from 'react-router-dom';
-import ModuleLoader from './ModuleLoader';
+import { useParams ,useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+// Importiamo tutti i componenti modulo necessari
+import AmministrazioneModule from './AmministrazioneModule';
+import ContSmartModule from './ContSmartModule';
+import MailModule from './MailModule';
+import FinanzeModule from './FinanzeModule';
+import BeniStrumentaliModule from './BeniStrumentaliModule';
+import PPAModule from './PPAModule';
+    
 const StandaloneModule = () => {
     const { moduleKey } = useParams();
-    const { loading } = useAuth();
+    const [searchParams] = useSearchParams();
+    // Leggiamo il codice della funzione dall'URL
+    const initialView = searchParams.get('view') || '';
 
-    if (loading) {
-        return <div className="flex items-center justify-center h-screen">Caricamento...</div>;
-    }
+    const { ditta } = useAuth();
+// ++ ISTRUZIONE DI DEBUGGING ++
+    // Questo ti mostrerà nella console del browser (F12) la chiave esatta ricevuta.
+    console.log('[StandaloneModule] Chiave modulo ricevuta dall\'URL:', moduleKey);
 
-    return (
-        <div className="h-screen w-screen bg-gray-100">
-            <ModuleLoader moduleKey={moduleKey} />
+   const renderModule = () => {
+        // Passiamo 'initialView' (che ora è un codice, es. 'SC_PIANO_CONTI_VIEW') come prop
+        switch (moduleKey) {
+            case 'AMMINISTRAZIONE':
+                return <AmministrazioneModule initialView={initialView} />;
+            case 'CONT_SMART':
+                return <ContSmartModule initialView={initialView} />;
+            case 'FIN_SMART':
+                return <FinanzeModule initialView={initialView} />;
+            case 'BSSMART': 
+                return <BeniStrumentaliModule initialView={initialView} />;
+            case 'PPA SIS':
+                return <PPAModule initialView={initialView} />;
+            default:
+                return (<div className="text-center"><h1 className="text-2xl font-bold">Modulo non trovato</h1></div>);
+        }
+    };
+
+     return (
+        <div className="h-screen bg-gray-100 flex flex-col">
+            <header className="bg-white shadow-md p-4">
+                <h1 className="text-xl font-bold text-gray-800">Opero - {ditta ? ditta.ragione_sociale : '...'}</h1>
+            </header>
+            <main className="flex-1 p-6 overflow-y-auto">
+                {renderModule()}
+            </main>
         </div>
     );
+    
 };
 
 export default StandaloneModule;
+

@@ -26,7 +26,10 @@ import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIco
 import AttivitaPPA from './AttivitaPPA';
 import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
+import PPASisModule from './PPASisModule';
+
 ModuleRegistry.registerModules([AllCommunityModule]);
+
 
 
 // --- Componente Modale per Nuova Attività ---
@@ -478,12 +481,22 @@ const MainApp = () => {
         );
     }
     
-    const handleShortcutClick = (shortcut) => {
-        if (shortcut.chiave_componente_modulo) {
-            const url = `/module/${shortcut.chiave_componente_modulo}`;
+  
+     const handleShortcutClick = (event, shortcut) => {
+        event.preventDefault();
+
+        if (shortcut && shortcut.chiave_componente_modulo) {
+            let url = `/module/${shortcut.chiave_componente_modulo}`;
+            
+            // ## NUOVA LOGICA: Usiamo il CODICE come chiave della vista ##
+            // Questo è il modo più robusto e programmatico per identificare la vista.
+            if (shortcut.codice) {
+                url += `?view=${shortcut.codice}`;
+            }
+
             window.open(url, '_blank', 'noopener,noreferrer');
         } else {
-            alert(`La funzione '${shortcut.descrizione}' non è collegata a un modulo apribile.`);
+            console.warn("Scorciatoia cliccata ma senza una chiave modulo valida:", shortcut);
         }
     };
     
@@ -491,8 +504,8 @@ const MainApp = () => {
         switch (activeModule) {
             case 'DASHBOARD':
                 return <Dashboard user={user} ditta={ditta} />;
-            case 'MY_PPA_TASKS': 
-                return <AttivitaPPA />;
+            //case 'MY_PPA_TASKS': 
+              //  return <AttivitaPPA />;
             case 'ADMIN_PANEL': return <AdminPanel />;
             case 'AMMINISTRAZIONE': return <AmministrazioneModule />;
             case 'CONT_SMART': return <ContSmartModule />;
@@ -500,6 +513,7 @@ const MainApp = () => {
             case 'RUBRICA': return <AddressBook />;
             case 'FIN_SMART': return <FinanzeModule />;
             case 'BSSMART': return <BeniStrumentaliModule />;
+            case 'PPA SIS': return <PPASisModule />;
             default: return <div className="p-6">Seleziona un modulo per iniziare.</div>;
         }
     };
@@ -509,6 +523,7 @@ const MainApp = () => {
             {isShortcutModalOpen && 
                 <ShortcutSettingsModal 
                     currentShortcuts={shortcuts}
+                     isOpen={isShortcutModalOpen}
                     onClose={() => setIsShortcutModalOpen(false)}
                     onSave={() => {
                         fetchShortcuts(); 
@@ -563,12 +578,15 @@ const MainApp = () => {
             </aside>
             <div className="flex-1 flex flex-col">
                 <header className="bg-white border-b flex items-center justify-between p-4">
-                    <div className="flex items-center gap-2">
-                        {shortcuts.map(sc => (
+                   <div className="flex items-center gap-2">
+                        {(shortcuts || []).map(sc => (
                             <button 
                                 key={sc.id}
-                                onClick={() => handleShortcutClick(sc)}
-                                title={sc.descrizione} // Questo crea il tooltip al passaggio del mouse
+                                // ###############################################################
+                                // ## SOLUZIONE: Passiamo 'event' alla funzione onClick         ##
+                                // ###############################################################
+                                onClick={(event) => handleShortcutClick(event, sc)}
+                                title={sc.descrizione}
                                 className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
                                 {getIconForFunction(sc.codice)}

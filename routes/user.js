@@ -82,19 +82,31 @@ router.get('/all-pinnable-functions', async (req, res) => {
 // --- POST (Salva le scorciatoie scelte dall'utente) ---
 router.post('/shortcuts', async (req, res) => {
     const { id: userId } = req.user;
-    const { funzioniIds } = req.body;
+    // ## CORREZIONE 1: Leggiamo 'shortcuts' (array di codici stringa) ##
+    const { shortcuts } = req.body; 
 
     const connection = await dbPool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // 1. Cancella le vecchie scorciatoie
+        // Step 1: Cancella le vecchie scorciatoie (invariato)
         await connection.query('DELETE FROM utente_scorciatoie WHERE id_utente = ?', [userId]);
 
-        // 2. Inserisce le nuove
-        if (funzioniIds && funzioniIds.length > 0) {
-            const values = funzioniIds.map(funzioneId => [userId, funzioneId]);
-            await connection.query('INSERT INTO utente_scorciatoie (id_utente, id_funzione) VALUES ?', [values]);
+        // Step 2: Se ci sono nuove scorciatoie da salvare...
+        if (shortcuts && shortcuts.length > 0) {
+            // ## CORREZIONE 2: Convertiamo i codici stringa in ID numerici ##
+            // Creiamo una query per trovare gli ID di tutte le funzioni inviate in un colpo solo.
+            const placeholders = shortcuts.map(() => '?').join(','); // -> '?,?'
+            const findIdsQuery = `SELECT id FROM funzioni WHERE codice IN (${placeholders})`;
+            
+            const [funzioni] = await connection.query(findIdsQuery, shortcuts);
+
+            // Se abbiamo trovato degli ID validi...
+            if (funzioni && funzioni.length > 0) {
+                const funzioniIds = funzioni.map(f => f.id);
+                const values = funzioniIds.map(funzioneId => [userId, funzioneId]);
+                await connection.query('INSERT INTO utente_scorciatoie (id_utente, id_funzione) VALUES ?', [values]);
+            }
         }
 
         await connection.commit();
@@ -107,5 +119,30 @@ router.post('/shortcuts', async (req, res) => {
         connection.release();
     }
 });
+
+
+// #####################################################################
+// ## NUOVO ENDPOINT: Fornisce al frontend l'elenco delle funzioni     ##
+// ## che possono essere usate come scorciatoie.                      ##
+// #####################################################################
+router.get('/shortcuts', async (req, res) => {
+    const { id: userId } = req.user;
+    try {
+        // ## CORREZIONE: Aggiungiamo 'chiave_componente_modulo' alla SELECT ##
+        // Questo campo è essenziale per il frontend per sapere quale modulo attivare.
+        const query = `
+            SELECT f.id, f.codice, f.descrizione, f.chiave_componente_modulo 
+            FROM funzioni f 
+            JOIN utente_scorciatoie us ON f.id = us.id_funzione 
+            WHERE us.id_utente = ?
+        `;
+        const [shortcuts] = await dbPool.query(query, [userId]);
+        res.json({ success: true, data: shortcuts });
+    } catch (error) {
+        console.error("Errore nel recupero delle scorciatoie:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero delle scorciatoie.' });
+    }
+});
+
 
 module.exports = router;

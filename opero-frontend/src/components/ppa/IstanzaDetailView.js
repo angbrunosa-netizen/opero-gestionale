@@ -29,7 +29,7 @@ const IstanzaDetailView = () => {
     // NUOVO: Stato per il modale del report
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-    const fetchIstanzaDetails = useCallback(async () => {
+        const fetchIstanzaDetails = useCallback(async () => {
         // ###############################################################
         // ## NUOVO SAFEGUARD: Esegui la chiamata solo se l'ID è valido ##
         // ###############################################################
