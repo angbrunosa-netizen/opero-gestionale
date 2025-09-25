@@ -440,7 +440,7 @@ const getIconForFunction = (codice) => {
         case 'ANAGRAFICHE_CREATE': return <PlusCircleIcon className="h-5 w-5" />;
         case 'ANAGRAFICHE_VIEW': return <UserGroupIcon className="h-5 w-5" />;
         case 'UTENTI_VIEW': return <UserGroupIcon className="h-5 w-5" />;
-        case 'PPA_MODULE': return <ClipboardDocumentListIcon className="h-5 w-5" />;
+        case 'PPA_SIS': return <ClipboardDocumentListIcon className="h-5 w-5" />;
         case 'RUBRICA_MANAGE': return <BookOpenIcon className="h-5 w-5" />;
         case 'AddressBookManager': return <EnvelopeIcon className="h-5 w-5" />;
         // Aggiungi altri 'case' per le funzioni che vuoi mappare a un'icona

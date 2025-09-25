@@ -18,7 +18,9 @@ import MailModule from './MailModule';
 import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
 import PPAModule from './PPAModule';
-    
+import PPASisModule from './PPASisModule';    
+import { viewRegistry } from '../lib/viewRegistry'; 
+
 const StandaloneModule = () => {
     const { moduleKey } = useParams();
     const [searchParams] = useSearchParams();
@@ -26,6 +28,9 @@ const StandaloneModule = () => {
     const initialView = searchParams.get('view') || '';
 
     const { ditta } = useAuth();
+     const viewKey = searchParams.get('view'); // Es: 'SC_PIANO_CONTI_VIEW'
+     const ComponentToRender = viewRegistry[viewKey];   
+
 // ++ ISTRUZIONE DI DEBUGGING ++
     // Questo ti mostrerà nella console del browser (F12) la chiave esatta ricevuta.
     console.log('[StandaloneModule] Chiave modulo ricevuta dall\'URL:', moduleKey);
@@ -51,10 +56,20 @@ const StandaloneModule = () => {
      return (
         <div className="h-screen bg-gray-100 flex flex-col">
             <header className="bg-white shadow-md p-4">
-                <h1 className="text-xl font-bold text-gray-800">Opero - {ditta ? ditta.ragione_sociale : '...'}</h1>
+                <h1 className="text-xl font-bold text-gray-800">Opero - {ditta ? ditta.ragione_sociale : 'Caricamento...'}</h1>
             </header>
             <main className="flex-1 p-6 overflow-y-auto">
-                {renderModule()}
+                {ComponentToRender ? (
+                    ComponentToRender // Se trovato, lo renderizza
+                ) : (
+                    <div className="text-center">
+                        <h1 className="text-2xl font-bold">Errore di Configurazione</h1>
+                        <p className="text-gray-600">
+                            La funzione richiesta (<code>{viewKey || 'Nessuna'}</code>) non è stata trovata nel dizionario <code>viewRegistry.js</code>.
+                        </p>
+                        <p className="text-sm text-gray-500 mt-2">Verificare che il codice della funzione sia stato aggiunto al registro.</p>
+                    </div>
+                )}
             </main>
         </div>
     );
