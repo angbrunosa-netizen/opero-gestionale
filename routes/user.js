@@ -144,5 +144,21 @@ router.get('/shortcuts', async (req, res) => {
     }
 });
 
+router.get('/available-shortcuts', async (req, res) => {
+    try {
+        const query = `
+            SELECT id, codice, descrizione 
+            FROM funzioni 
+            WHERE scorciatoia = 1
+            ORDER BY descrizione
+        `;
+        const [availableShortcuts] = await dbPool.query(query);
+        res.json({ success: true, data: availableShortcuts });
+    } catch (error) {
+        console.error("Errore nel recupero delle funzioni per scorciatoie:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero delle funzioni disponibili.' });
+    }
+});
+
 
 module.exports = router;
