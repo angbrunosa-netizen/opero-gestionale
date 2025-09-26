@@ -27,7 +27,7 @@ import AttivitaPPA from './AttivitaPPA';
 import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
 import PPASisModule from './PPASisModule';
-
+import { Outlet, useLocation } from 'react-router-dom'; // NUOVI IMPORT
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 
@@ -455,7 +455,8 @@ const MainApp = () => {
     const [activeModule, setActiveModule] = useState('DASHBOARD');
     const [shortcuts, setShortcuts] = useState([]);
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
-    
+    const location = useLocation();
+
     console.log('STATO CORRENTE AUTH CONTEXT:', authData);
     const fetchShortcuts = useCallback(async () => {
         if (!user) return; // Non fare nulla se l'utente non è ancora caricato
@@ -500,6 +501,17 @@ const MainApp = () => {
         }
     };
     
+    const renderContent = () => {
+        // ## NUOVA LOGICA: Se siamo su una rotta figlia (non la root), l'Outlet ha la priorità ##
+        // Questo garantisce che la vista di dettaglio venga sempre mostrata quando l'URL corrisponde.
+        if (location.pathname !== '/') {
+            return <Outlet />;
+        }
+        
+        // Altrimenti, usa la logica interna per mostrare il modulo attivo dalla sidebar
+        return renderActiveModule();
+    };
+
     const renderActiveModule = () => {
         switch (activeModule) {
             case 'DASHBOARD':
@@ -603,7 +615,7 @@ const MainApp = () => {
                     </div>
                 </header>
                 <main className="flex-1 overflow-y-auto">
-                    {renderActiveModule()}
+                    {renderContent()}
                 </main>
             </div>
         </div>

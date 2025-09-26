@@ -1,22 +1,22 @@
 /**
- * #####################################################################
- * # Componente App Principale - v2.4 (con Struttura a Layout)
- * # File: opero-frontend/src/App.js
- * #####################################################################
- *
+ * ======================================================================
+ * File: src/App.js (v2.5 - con Struttura a Layout Robusta)
+ * ======================================================================
  * @description
- * AGGIORNATO: La struttura del router è stata modificata per usare MainApp
- * come un layout persistente per tutte le rotte interne. Questo risolve
- * il problema della navigazione che "usciva" dall'interfaccia principale.
+ * AGGIORNATO: La struttura del router ora definisce MainApp come un
+ * layout esplicito per le rotte interne. Questo risolve i conflitti
+ * di navigazione e garantisce che le viste come IstanzaDetailView
+ * vengano renderizzate correttamente all'interno dell'interfaccia.
  */
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+
+// Import dei componenti principali
 import LoginPage from './components/LoginPage';
 import MainApp from './components/MainApp';
 import RegistrationPage from './components/RegistrationPage';
 import StandaloneModule from './components/StandaloneModule';
-// Importiamo il componente che vogliamo visualizzare all'interno del layout
 import IstanzaDetailView from './components/ppa/IstanzaDetailView';
 
 // Componente "Guardiano" per proteggere le rotte (invariato)
@@ -31,42 +31,37 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Componente Layout per le rotte protette
+const AppLayout = () => (
+  <ProtectedRoute>
+    <MainApp>
+      <Outlet /> {/* Outlet è il segnaposto dove React Router inserirà le rotte figlie */}
+    </MainApp>
+  </ProtectedRoute>
+);
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* --- Rotte Pubbliche (accessibili senza login) --- */}
+          {/* Rotte pubbliche */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register/:token" element={<RegistrationPage />} />
+
+          {/* Rotta per i moduli standalone (scorciatoie) */}
           <Route 
             path="/module/:moduleKey" 
             element={<ProtectedRoute><StandaloneModule /></ProtectedRoute>} 
           />
 
-          {/* ###############################################################
-            ## CORREZIONE: MainApp ora funge da layout per TUTTE le rotte  ##
-            ## interne, grazie all'uso del path="/*".                    ##
-            ############################################################### */}
-          <Route 
-            path="/*" 
-            element={
-              <ProtectedRoute>
-                <MainApp>
-                  {/* React Router renderizzerà qui la rotta figlia che corrisponde all'URL */}
-                  <Routes>
-                    {/* La rotta di default '/' non fa nulla, MainApp mostrerà il suo stato di default (es. Dashboard) */}
-                    <Route path="/" element={<div />} /> 
-                    
-                    {/* La nostra nuova rotta per lo spazio collaborativo, ora all'interno del layout */}
-                    <Route path="/ppa/task/:istanzaId" element={<IstanzaDetailView />} />
-                    
-                    {/* Aggiungi qui altre rotte future che devono apparire DENTRO MainApp */}
-                  </Routes>
-                </MainApp>
-              </ProtectedRoute>
-            } 
-          />
+          {/* Rotte interne che usano MainApp come layout */}
+          <Route element={<AppLayout />}>
+            <Route path="/" element={null} /> {/* La root è gestita dal default di MainApp */}
+            <Route path="/ppa/task/:istanzaId" element={<IstanzaDetailView />} />
+            {/* Aggiungi qui altre rotte che devono apparire DENTRO MainApp */}
+          </Route>
+
         </Routes>
       </BrowserRouter>
     </AuthProvider>
@@ -74,4 +69,3 @@ function App() {
 }
 
 export default App;
-

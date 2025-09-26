@@ -1171,37 +1171,41 @@ router.put('/procedure-ditta/:id', async (req, res) => {
 // ## NUOVA ROTTA: GET /my-istanze                                                 ##
 // ## Recupera l'elenco di tutte le procedure a cui l'utente è assegnato.         ##
 // ##################################################################################
+// GET /api/ppa/my-istanze
 router.get('/my-istanze', async (req, res) => {
-    const { id: id_utente } = req.user;
+    const { id: userId } = req.user;
     try {
-        const [istanze] = await dbPool.query(
-            `SELECT 
-                i.ID, i.Stato, i.DataPrevistaFine,
+        // Questa query seleziona le istanze in cui l'utente è o il creatore
+        // o l'assegnatario di almeno un'azione.
+        // FONDAMENTALE: Selezioniamo ip.ID e lo rinominiamo 'id_istanza'
+        // per corrispondere a ciò che il frontend si aspetta.
+        const query = `
+            SELECT DISTINCT
+                ip.ID AS id_istanza,
                 pd.NomePersonalizzato AS NomeProcedura,
+                ip.DataPrevistaFine,
                 CASE
-                    WHEN i.TargetEntityType = 'DITTA' THEN d.ragione_sociale
-                    WHEN i.TargetEntityType = 'UTENTE' THEN CONCAT(u.cognome, ' ', u.nome)
-                    WHEN i.TargetEntityType = 'BENE' THEN b.descrizione
+                    WHEN ip.TargetEntityType = 'DITTA' THEN (SELECT ragione_sociale FROM ditte WHERE id = ip.TargetEntityID)
+                    WHEN ip.TargetEntityType = 'UTENTE' THEN (SELECT CONCAT(nome, ' ', cognome) FROM utenti WHERE id = ip.TargetEntityID)
+                    WHEN ip.TargetEntityType = 'BENE' THEN (SELECT descrizione FROM bs_beni WHERE id = ip.TargetEntityID)
                     ELSE 'N/D'
                 END AS TargetEntityName
-             FROM ppa_istanzeprocedure i
-             JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
-             JOIN ppa_team t ON i.ID = t.ID_IstanzaProcedura
-             JOIN ppa_teammembri tm ON t.ID = tm.ID_Team
-             LEFT JOIN ditte d ON i.TargetEntityID = d.id AND i.TargetEntityType = 'DITTA'
-             LEFT JOIN utenti u ON i.TargetEntityID = u.id AND i.TargetEntityType = 'UTENTE'
-             LEFT JOIN bs_beni b ON i.TargetEntityID = b.id AND i.TargetEntityType = 'BENE'
-             WHERE tm.ID_Utente = ?
-             GROUP BY i.ID
-             ORDER BY i.DataPrevistaFine ASC`,
-            [id_utente]
-        );
+            FROM ppa_istanzeprocedure ip
+            JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
+            LEFT JOIN ppa_istanzeazioni ia ON ip.ID = ia.ID_IstanzaProcedura
+            WHERE ip.ID_UtenteCreatore = ? OR ia.ID_UtenteAssegnato = ?
+            ORDER BY ip.DataPrevistaFine ASC
+        `;
+
+        const [istanze] = await dbPool.query(query, [userId, userId]);
         res.json({ success: true, data: istanze });
+
     } catch (error) {
-        console.error("Errore nel recupero delle istanze personali:", error);
+        console.error("Errore nel recupero delle istanze utente:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
 
 // ##################################################################################
 // ## NUOVA ROTTA: GET /istanze/:id/details                                        ##
@@ -1211,7 +1215,7 @@ router.get('/istanze/:id/details', async (req, res) => {
     const { id: istanzaId } = req.params;
 
     try {
-        // Query per i dettagli principali dell'istanza
+        // Query per i dettagli principali (invariata)
         const [istanze] = await dbPool.query(
             `SELECT 
                 i.*, 
@@ -1232,7 +1236,7 @@ router.get('/istanze/:id/details', async (req, res) => {
         
         const istanzaDetails = istanze[0];
 
-        // Aggiungi il nome del target in base al tipo
+        // Logica per il nome del target (invariata)
         if (istanzaDetails.TargetEntityType === 'DITTA') {
             const [ditte] = await dbPool.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [istanzaDetails.TargetEntityID]);
             istanzaDetails.TargetEntityName = ditte.length > 0 ? ditte[0].ragione_sociale : 'N/A';
@@ -1244,17 +1248,18 @@ router.get('/istanze/:id/details', async (req, res) => {
             istanzaDetails.TargetEntityName = beni.length > 0 ? beni[0].descrizione : 'N/A';
         }
 
-        // Query per le azioni associate all'istanza
+        // ## CORREZIONE: Query per le azioni aggiornata ##
+        // Aggiunta la JOIN con ppa_stati_azione per recuperare la descrizione dello stato.
         const [azioni] = await dbPool.query(
             `SELECT 
                 ia.*, 
                 a.NomeAzione, 
                 u.nome AS NomeAssegnatario, 
                 u.cognome AS CognomeAssegnatario, 
-                sa.Descrizione AS StatoDescrizione
+                sa.NomeStato AS StatoDescrizione
              FROM ppa_istanzeazioni ia
              JOIN ppa_azioni a ON ia.ID_Azione = a.ID
-             JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
+             LEFT JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
              JOIN ppa_stati_azione sa ON ia.ID_Stato = sa.ID
              WHERE ia.ID_IstanzaProcedura = ?`,
             [istanzaId]
@@ -1267,7 +1272,6 @@ router.get('/istanze/:id/details', async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
-
 
 // ##################################################################################
 // ## NUOVE ROTTE: Gestione Bacheca di Comunicazione del Team                      ##
@@ -1316,6 +1320,59 @@ router.post('/team/:teamId/comunicazioni', async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+router.get('/stati-azione', async (req, res) => {
+    try {
+        const [stati] = await dbPool.query('SELECT ID, Descrizione FROM ppa_stati_azione ORDER BY Ordine');
+        res.json({ success: true, data: stati });
+    } catch (error) {
+        console.error("Errore nel recupero degli stati azione:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// #####################################################################
+// ## NUOVO ENDPOINT: Aggiorna lo stato di una singola istanza azione  ##
+// #####################################################################
+// #####################################################################
+// ## NUOVO ENDPOINT: Aggiorna lo stato di una singola istanza azione  ##
+// #####################################################################
+router.patch('/azioni/:idIstanzaAzione/stato', async (req, res) => {
+    const { idIstanzaAzione } = req.params;
+    const { idNuovoStato } = req.body;
+    const { id: userId } = req.user;
+
+    if (!idNuovoStato) {
+        return res.status(400).json({ success: false, message: 'ID del nuovo stato non fornito.' });
+    }
+
+    try {
+        // Verifica che l'utente che fa la richiesta sia l'assegnatario dell'azione
+        const [rows] = await dbPool.query(
+            'SELECT ID_UtenteAssegnato FROM ppa_istanzeazioni WHERE ID = ?',
+            [idIstanzaAzione]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Azione non trovata.' });
+        }
+        if (rows[0].ID_UtenteAssegnato !== userId) {
+            return res.status(403).json({ success: false, message: 'Non sei autorizzato a modificare questa azione.' });
+        }
+
+        // Se l'utente è autorizzato, aggiorna lo stato
+        await dbPool.query(
+            'UPDATE ppa_istanzeazioni SET ID_Stato = ? WHERE ID = ?',
+            [idNuovoStato, idIstanzaAzione]
+        );
+        
+        res.json({ success: true, message: 'Stato azione aggiornato con successo.' });
+
+    } catch (error) {
+        console.error(`Errore nell'aggiornamento dell'azione ${idIstanzaAzione}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 
 
 

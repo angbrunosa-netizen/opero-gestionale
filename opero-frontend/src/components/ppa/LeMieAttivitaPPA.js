@@ -1,9 +1,7 @@
 /**
- * #####################################################################
- * # Portale Le Mie Attività PPA - v2.0
- * # File: opero-frontend/src/components/ppa/LeMieAttivitaPPA.js
- * #####################################################################
- *
+ * ======================================================================
+ * File: src/components/ppa/LeMieAttivitaPPA.js (v2.0 - Navigazione Interattiva)
+ * ======================================================================
  * @description
  * AGGIORNATO: Trasformato in un portale che visualizza un elenco di
  * procedure. Ogni procedura è un link cliccabile che naviga allo
@@ -35,19 +33,22 @@ const LeMieAttivitaPPA = () => {
         fetchMyIstanze();
     }, [fetchMyIstanze]);
 
-    if (isLoading) return <div className="text-center p-4">Caricamento procedure...</div>;
-    if (error) return <div className="bg-red-100 text-red-700 p-4 rounded-md">{error}</div>;
+    if (isLoading) return <div className="text-center p-8">Caricamento delle tue attività...</div>;
+    if (error) return <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">{error}</div>;
 
     return (
-        <div>
-            <h2 className="text-xl font-semibold text-gray-700 mb-4">Le Mie Procedure</h2>
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b">
+                <h2 className="text-xl font-semibold text-gray-800">Le Mie Procedure Attive</h2>
+            </div>
+            <div>
                 <ul className="divide-y divide-gray-200">
                     {istanze.length > 0 ? (
-                        istanze.map((istanza) => (
-                            <li key={istanza.ID}>
+                        istanze.map(istanza => (
+                            <li key={istanza.id_istanza}>
+                                {/* ## MODIFICA: L'intera riga ora è un link ## */}
                                 <Link 
-                                    to={`/ppa/task/${istanza.ID}`} 
+                                    to={`/ppa/task/${istanza.id_istanza}`} 
                                     className="block p-4 hover:bg-gray-50 transition-colors"
                                 >
                                     <div className="flex items-center justify-between">
@@ -78,4 +79,3 @@ const LeMieAttivitaPPA = () => {
 };
 
 export default LeMieAttivitaPPA;
-
