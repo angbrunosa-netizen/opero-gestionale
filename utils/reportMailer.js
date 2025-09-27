@@ -158,9 +158,10 @@ async function sendPpaReport(req, body) {
         throw new Error('Dettagli dell\'account email non trovati.');
     }
     const mailAccount = accountRows[0];
-    const decryptedPassword = decrypt(mailAccount.smtp_password_encrypted);
+    
+    // ## CORREZIONE: Utilizzo del nome colonna corretto 'smtp_password' ##
+    const decryptedPassword = decrypt(mailAccount.smtp_password);
 
-    // ## CONTROLLO DI SICUREZZA POTENZIATO ##
     if (!mailAccount.smtp_user || !decryptedPassword) {
         console.error(`[ERRORE CREDENZIALI] Utente SMTP: ${mailAccount.smtp_user}, Password Decifrata: ${decryptedPassword ? '***' : 'FALLITA (null)'}`);
         throw new Error('Credenziali SMTP mancanti o non valide. Causa probabile: 1) Campo "smtp_user" vuoto nel database. 2) La "ENCRYPTION_SECRET" nel file .env non è corretta e la decrittazione fallisce.');
