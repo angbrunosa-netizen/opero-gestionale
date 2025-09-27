@@ -1,16 +1,16 @@
 /**
  * ======================================================================
- * File: src/components/ppa/AzioneCard.js (v1.1 - Dati Allineati)
+ * File: src/components/ppa/AzioneCard.js (v2.0 - Interattiva e Completa)
  * ======================================================================
  * @description
- * CORRETTO: La logica di rendering del menu a tendina ora utilizza il
- * campo 'NomeStato' invece di 'Descrizione', allineandosi alla
- * struttura dei dati inviata dall'API e risolvendo il problema
- * del menu vuoto.
+ * AGGIORNATO: La card ora è uno strumento di lavoro completo.
+ * - Mostra la descrizione dettagliata dell'azione.
+ * - Permette all'utente assegnatario di aggiungere e salvare note.
  */
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { CalendarDaysIcon ,CheckCircleIcon} from '@heroicons/react/24/outline'; // NUOVO IMPORT
 
 const AzioneCard = ({ azione, onAzioneUpdate }) => {
     const { user } = useAuth();
@@ -18,7 +18,10 @@ const AzioneCard = ({ azione, onAzioneUpdate }) => {
     const [statoCorrenteId, setStatoCorrenteId] = useState(azione.ID_Stato);
     const [isUpdating, setIsUpdating] = useState(false);
 
-    // Carica gli stati disponibili al primo render
+    // Nuovi stati per la gestione delle note
+    const [noteText, setNoteText] = useState(azione.Note || '');
+    const [isSavingNote, setIsSavingNote] = useState(false);
+
     useEffect(() => {
         const fetchStati = async () => {
             try {
@@ -37,25 +40,91 @@ const AzioneCard = ({ azione, onAzioneUpdate }) => {
         try {
             await api.patch(`/ppa/azioni/${azione.ID}/stato`, { idNuovoStato });
             setStatoCorrenteId(idNuovoStato);
-            onAzioneUpdate(); // Notifica il genitore di ricaricare i dati
+            onAzioneUpdate();
         } catch (error) {
             console.error("Errore nell'aggiornamento dello stato:", error);
-            alert('Non è stato possibile aggiornare lo stato. Assicurati di essere l\'assegnatario corretto.');
+            alert('Non è stato possibile aggiornare lo stato.');
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleSaveNote = async () => {
+        setIsSavingNote(true);
+        try {
+            await api.patch(`/ppa/azioni/${azione.ID}/note`, { note: noteText });
+            onAzioneUpdate(); // Ricarica i dati per mostrare le note salvate
+        } catch (error) {
+            console.error("Errore nel salvataggio delle note:", error);
+            alert('Non è stato possibile salvare le note.');
+        } finally {
+            setIsSavingNote(false);
         }
     };
 
     const isAssegnatario = user.id === azione.ID_UtenteAssegnato;
 
     return (
-        <div className="p-4 bg-gray-50 rounded-md border transition-all hover:shadow-sm">
-            <p className="font-semibold text-gray-800">{azione.NomeAzione}</p>
-            <p className="text-sm text-gray-500 mt-1">
+        <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm transition-all hover:shadow-md">
+            {/* Nome e Descrizione Azione */}
+            <p className="font-semibold text-lg text-gray-800">{azione.NomeAzione}</p>
+            {azione.DescrizioneAzione && (
+                 <p className="text-sm text-gray-600 mt-1">{azione.DescrizioneAzione}</p>
+            )}
+            {/* ## NUOVA SEZIONE: Visualizzazione delle date ## */}
+            <div className="mt-2 flex items-center text-xs text-gray-500">
+                <CalendarDaysIcon className="h-4 w-4 mr-1.5 text-gray-400" />
+                <span>
+                    Inizio: {azione.DataInizio ? new Date(azione.DataInizio).toLocaleDateString('it-IT') : 'N/D'}
+                </span>
+                <span className="mx-2">|</span>
+                <span>
+                    Fine Prevista: {azione.DataPrevistaFine ? new Date(azione.DataPrevistaFine).toLocaleDateString('it-IT') : 'N/D'}
+                </span>
+            </div>
+           {/* ## LOGICA DI VISUALIZZAZIONE CORRETTA ## */}
+                {/* Verrà mostrata solo se il campo 'DataCompletamento' non è nullo. */}
+                {azione.DataCompletamento && (
+                    <div className="flex items-center text-green-600 font-semibold">
+                        <CheckCircleIcon className="h-4 w-4 mr-1.5" />
+                        <span>Completata il: {new Date(azione.DataCompletamento).toLocaleDateString('it-IT')}</span>
+                    </div>
+                )}
+            {/* Assegnatario */}
+            <p className="text-sm text-gray-500 mt-2">
                 Assegnato a: <span className="font-medium text-gray-700">{azione.NomeAssegnatario} {azione.CognomeAssegnatario}</span>
             </p>
-            <div className="mt-3 flex items-center gap-4">
-                <label htmlFor={`stato-${azione.ID}`} className="text-sm font-medium text-gray-600">Stato:</label>
+
+            {/* Gestione Note */}
+            <div className="mt-4">
+                <label className="text-sm font-medium text-gray-700">Note di Lavorazione</label>
+                {isAssegnatario ? (
+                    <>
+                        <textarea
+                            value={noteText}
+                            onChange={(e) => setNoteText(e.target.value)}
+                            placeholder="Aggiungi le tue note qui..."
+                            rows="3"
+                            className="mt-1 w-full p-2 border rounded-md text-sm shadow-inner"
+                        ></textarea>
+                        <button 
+                            onClick={handleSaveNote}
+                            disabled={isSavingNote}
+                            className="mt-2 px-3 py-1 bg-gray-200 text-gray-800 text-xs font-semibold rounded-md hover:bg-gray-300 disabled:bg-gray-100"
+                        >
+                            {isSavingNote ? 'Salvataggio...' : 'Salva Note'}
+                        </button>
+                    </>
+                ) : (
+                    <div className="mt-1 p-2 border-l-4 border-gray-200 bg-gray-50 rounded-r-md">
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{azione.Note || 'Nessuna nota presente.'}</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Gestione Stato */}
+            <div className="mt-4 pt-4 border-t flex items-center gap-4">
+                <label htmlFor={`stato-${azione.ID}`} className="text-sm font-medium text-gray-700">Stato:</label>
                 {isAssegnatario ? (
                     <select
                         id={`stato-${azione.ID}`}
@@ -66,7 +135,6 @@ const AzioneCard = ({ azione, onAzioneUpdate }) => {
                     >
                         {statiDisponibili.map(stato => (
                             <option key={stato.ID} value={stato.ID}>
-                                {/* ## CORREZIONE: Usiamo 'NomeStato' ## */}
                                 {stato.NomeStato}
                             </option>
                         ))}
@@ -82,4 +150,3 @@ const AzioneCard = ({ azione, onAzioneUpdate }) => {
 };
 
 export default AzioneCard;
-

@@ -48,7 +48,7 @@ const IstanzaDetailView = () => {
 
     // Calcolo dell'avanzamento basato sui dati reali
     const azioniTotali = istanza.azioni ? istanza.azioni.length : 0;
-    const azioniCompletate = istanza.azioni ? istanza.azioni.filter(a => a.StatoDescrizione === 'Completata').length : 0;
+    const azioniCompletate = istanza.azioni ? istanza.azioni.filter(a => a.StatoDescrizione === 'Evaso').length : 0;
     const avanzamento = azioniTotali > 0 ? (azioniCompletate / azioniTotali) * 100 : 0;
 
     return (

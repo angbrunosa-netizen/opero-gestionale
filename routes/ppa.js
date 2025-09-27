@@ -5,12 +5,23 @@
 
 const express = require('express');
 const { dbPool } = require('../config/db');
-const { verifyToken } = require('../utils/auth');
+const { verifyToken, checkPermission } = require('../utils/auth');
 const { sendSystemEmail } = require('../utils/mailer'); // Assicurati che il mailer esista
 const router = express.Router();
 const { checkRole } = require('../utils/auth'); // <-- AGGIUNGI QUESTA RIG
+const { decrypt } = require('../utils/crypto');
+const nodemailer = require('nodemailer'); // <-- AGGIUNGI QUESTA RIGA
+const axios = require('axios')
+const { knex } = require('../config/db');; // Connessione KNEX corretta e pronta
+const PDFDocument = require('pdfkit');
+const fs = require('fs-extra');
+const authUtils = require('../utils/auth');
+router.use(authUtils.verifyToken);
+const puppeteer = require('puppeteer');
+const path = require('path');
+const { sendPpaReport, generatePdfBuffer } = require('../utils/reportMailer');
 
-router.use(verifyToken);
+router.use(authUtils.verifyToken);
 
     const checkAdminRole = (req, res, next) => {
         const userRole = req.user.id_ruolo;
@@ -220,75 +231,81 @@ router.post('/assegna', verifyToken, async (req, res) => {
 });
 
 
-// --- ROTTE PER L'ARCHIVIO ---
-// GET /istanze - CORRETTA PER AMBIGUITA' COLONNA 'Stato'
-router.get('/istanze', verifyToken, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    try {
-        const query = `
-            SELECT
-                ip.ID,
-                ip.DataInizio,
-                ip.DataPrevistaFine,
-                ip.Stato,
-                pd.NomePersonalizzato AS NomeProcedura,
-                ip.TargetEntityType,
-                ip.TargetEntityID,
-                CASE
-                    WHEN ip.TargetEntityType = 'DITTA' THEN d.ragione_sociale
-                    WHEN ip.TargetEntityType = 'UTENTE' THEN CONCAT(u.nome, ' ', u.cognome)
-                    WHEN ip.TargetEntityType = 'BENE' THEN b.descrizione
-                    ELSE 'Non Definito'
-                END AS TargetEntityName
-            FROM ppa_istanzeprocedure AS ip
-            JOIN ppa_procedureditta AS pd ON ip.ID_ProceduraDitta = pd.ID
-            LEFT JOIN ditte AS d ON ip.TargetEntityID = d.id AND ip.TargetEntityType = 'DITTA'
-            LEFT JOIN utenti AS u ON ip.TargetEntityID = u.id AND ip.TargetEntityType = 'UTENTE'
-            LEFT JOIN bs_beni AS b ON ip.TargetEntityID = b.id AND ip.TargetEntityType = 'BENE'
-            WHERE pd.id_ditta = ?
-            ORDER BY ip.DataInizio DESC;
-        `;
-        const [istanze] = await dbPool.query(query, [dittaId]);
-        res.status(200).json(istanze);
-    } catch (error) {
-        console.error("Errore nel recupero delle istanze:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
-    }
-});
 
-// GET /istanze/:id - NUOVA ROTTA PER IL DETTAGLIO DELLA SINGOLA ISTANZA
-// GET /istanze/:id - CORRETTA E MIGLIORATA
-// GET /istanze - CORRETTA
-router.get('/istanze', verifyToken, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
+
+// #####################################################################
+// ## ROTTA POTENZIATA: Ora include i dettagli delle azioni           ##
+// #####################################################################
+// GET /api/ppa/istanze (usata dal Monitoraggio Azienda)
+router.get('/istanze', async (req, res) => {
+    const { id_ditta } = req.user;
     try {
-        const query = `
-            SELECT
-                ip.ID,
-                ip.DataAvvio,
-                ip.DataPrevistaFine,
-                ip.Stato,
+        // Step 1: Recupera i dati di base di tutte le istanze per la ditta
+        const queryIstanze = `
+            SELECT 
+                i.ID as id_istanza,
+                i.DataInizio,
+                i.DataPrevistaFine,
+                i.DataConclusioneEffettiva,
+                i.Stato,
                 pd.NomePersonalizzato AS NomeProcedura,
-                ip.TargetEntityType,
-                ip.TargetEntityID,
+                t.ID AS TeamID,
+                i.TargetEntityType,
+                i.TargetEntityID,
                 CASE
-                    WHEN ip.TargetEntityType = 'DITTA' THEN d.ragione_sociale
-                    WHEN ip.TargetEntityType = 'UTENTE' THEN CONCAT(u.nome, ' ', u.cognome)
-                    WHEN ip.TargetEntityType = 'BENE' THEN b.descrizione
-                    ELSE 'Non Definito'
+                    WHEN i.TargetEntityType = 'DITTA' THEN (SELECT ragione_sociale FROM ditte WHERE id = i.TargetEntityID)
+                    WHEN i.TargetEntityType = 'UTENTE' THEN (SELECT CONCAT(nome, ' ', cognome) FROM utenti WHERE id = i.TargetEntityID)
+                    WHEN i.TargetEntityType = 'BENE' THEN (SELECT descrizione FROM bs_beni WHERE id = i.TargetEntityID)
+                    ELSE 'N/D'
                 END AS TargetEntityName
-            FROM ppa_istanzeprocedure AS ip
-            JOIN ppa_procedureditta AS pd ON ip.ID_ProceduraDitta = pd.ID
-            LEFT JOIN ditte AS d ON ip.TargetEntityID = d.id AND ip.TargetEntityType = 'DITTA'
-            LEFT JOIN utenti AS u ON ip.TargetEntityID = u.id AND ip.TargetEntityType = 'UTENTE'
-            LEFT JOIN bs_beni AS b ON ip.TargetEntityID = b.id AND ip.TargetEntityType = 'BENE'
+            FROM ppa_istanzeprocedure i
+            JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
+            LEFT JOIN ppa_team t ON i.ID = t.ID_IstanzaProcedura
             WHERE pd.id_ditta = ?
-            ORDER BY ip.DataAvvio DESC;
+            ORDER BY i.DataPrevistaFine ASC
         `;
-        const [istanze] = await dbPool.query(query, [dittaId]);
-        res.status(200).json(istanze);
+        const [istanze] = await dbPool.query(queryIstanze, [id_ditta]);
+
+        if (istanze.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // Step 2: Recupera tutte le azioni per le istanze trovate in un'unica query
+        const istanzaIds = istanze.map(i => i.id_istanza);
+        const queryAzioni = `
+            SELECT 
+                ia.*,
+                ia.DataScadenza AS DataPrevistaFine,
+                ia.DataCompletamento,
+                a.NomeAzione,
+                a.Descrizione AS DescrizioneAzione,
+                u.nome AS NomeAssegnatario,
+                u.cognome AS CognomeAssegnatario,
+                sa.NomeStato AS StatoDescrizione
+            FROM ppa_istanzeazioni ia
+            JOIN ppa_azioni a ON ia.ID_Azione = a.ID
+            LEFT JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
+            JOIN ppa_stati_azione sa ON ia.ID_Stato = sa.ID
+            WHERE ia.ID_IstanzaProcedura IN (?)
+        `;
+        const [azioni] = await dbPool.query(queryAzioni, [istanzaIds]);
+
+        // Step 3: "Inietta" le azioni e la DataInizio della procedura in ogni istanza
+        const dataToSend = istanze.map(istanza => {
+            const azioniCorrispondenti = azioni
+                .filter(azione => azione.ID_IstanzaProcedura === istanza.id_istanza)
+                .map(azione => ({ ...azione, DataInizio: istanza.DataInizio })); // Aggiunge DataInizio a ogni azione
+
+            return {
+                ...istanza,
+                azioni: azioniCorrispondenti
+            };
+        });
+
+        res.json({ success: true, data: dataToSend });
+
     } catch (error) {
-        console.error("Errore nel recupero delle istanze:", error);
+        console.error("Errore nel recupero delle istanze per la ditta:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
@@ -920,21 +937,6 @@ router.post('/istanze/:id/invia-report-target', async (req, res) => {
 // e un alias 'AS NomeProcedura' per mantenere la compatibilità con il frontend.
 // --- GESTIONE PROCEDURE PERSONALIZZATE PER DITTA ---
 
-// CORREZIONE: Utilizzo del nome di colonna 'NomePersonalizzato' come da tue indicazioni,
-// con un alias 'AS NomeProcedura' per mantenere la compatibilità con il frontend.
-router.get('/procedure-ditta', async (req, res) => {
-    const { id_ditta } = req.user;
-    try {
-        const [rows] = await dbPool.query(
-            "SELECT ID, NomePersonalizzato AS NomeProcedura FROM ppa_procedureditta WHERE id_ditta = ? ORDER BY NomePersonalizzato",
-            [id_ditta]
-        );
-        res.json({ success: true, data: rows });
-    } catch (error) {
-        console.error("Errore in GET /procedure-ditta:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.', details: error.sqlMessage });
-    }
-});
 
 
 // Rotta per ottenere i dettagli di una singola procedura, incluse le sue azioni
@@ -1081,6 +1083,23 @@ router.post('/procedure-ditta', async (req, res) => {
     }
 });
 
+// #####################################################################
+// ## NUOVO ENDPOINT: Fornisce i tipi di procedura per i filtri       ##
+// #####################################################################
+router.get('/procedure-ditta', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const [procedure] = await dbPool.query(
+            `SELECT ID, NomePersonalizzato FROM ppa_procedureditta WHERE id_ditta = ? ORDER BY NomePersonalizzato`,
+            [id_ditta]
+        );
+        res.json({ success: true, data: procedure });
+    } catch (error) {
+        console.error("Errore nel recupero dei tipi di procedura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 // --- NUOVA ROTTA: Helper per ottenere dati per i form ---
 // Questa rotta fornisce l'elenco degli utenti interni per i menu a tendina
 // del form di assegnazione. Centralizza la logica all'interno del modulo PPA.
@@ -1167,19 +1186,16 @@ router.put('/procedure-ditta/:id', async (req, res) => {
         connection.release();
     }
 });
-// ##################################################################################
-// ## NUOVA ROTTA: GET /my-istanze                                                 ##
-// ## Recupera l'elenco di tutte le procedure a cui l'utente è assegnato.         ##
-// ##################################################################################
-// GET /api/ppa/my-istanze
+// #####################################################################
+// ## ROTTA POTENZIATA: Ora accetta parametri per la ricerca/filtro   ##
+// #####################################################################
 router.get('/my-istanze', async (req, res) => {
     const { id: userId } = req.user;
+    const { targetSearch, dateFrom, dateTo, proceduraId } = req.query;
+
     try {
-        // Questa query seleziona le istanze in cui l'utente è o il creatore
-        // o l'assegnatario di almeno un'azione.
-        // FONDAMENTALE: Selezioniamo ip.ID e lo rinominiamo 'id_istanza'
-        // per corrispondere a ciò che il frontend si aspetta.
-        const query = `
+        let queryParams = [userId, userId];
+        let baseQuery = `
             SELECT DISTINCT
                 ip.ID AS id_istanza,
                 pd.NomePersonalizzato AS NomeProcedura,
@@ -1193,11 +1209,34 @@ router.get('/my-istanze', async (req, res) => {
             FROM ppa_istanzeprocedure ip
             JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
             LEFT JOIN ppa_istanzeazioni ia ON ip.ID = ia.ID_IstanzaProcedura
-            WHERE ip.ID_UtenteCreatore = ? OR ia.ID_UtenteAssegnato = ?
-            ORDER BY ip.DataPrevistaFine ASC
+            WHERE (ip.ID_UtenteCreatore = ? OR ia.ID_UtenteAssegnato = ?)
         `;
+        
+        let conditions = [];
 
-        const [istanze] = await dbPool.query(query, [userId, userId]);
+        if (proceduraId) {
+            conditions.push('ip.ID_ProceduraDitta = ?');
+            queryParams.push(proceduraId);
+        }
+
+        if (dateFrom && dateTo) {
+            conditions.push('ip.DataPrevistaFine BETWEEN ? AND ?');
+            queryParams.push(dateFrom, dateTo);
+        }
+        
+        if (conditions.length > 0) {
+            baseQuery += ' AND ' + conditions.join(' AND ');
+        }
+
+        let havingClause = '';
+        if (targetSearch) {
+            havingClause = ' HAVING TargetEntityName LIKE ?';
+            queryParams.push(`%${targetSearch}%`);
+        }
+        
+        const finalQuery = baseQuery + havingClause + ' ORDER BY ip.DataPrevistaFine ASC';
+
+        const [istanze] = await dbPool.query(finalQuery, queryParams);
         res.json({ success: true, data: istanze });
 
     } catch (error) {
@@ -1206,72 +1245,6 @@ router.get('/my-istanze', async (req, res) => {
     }
 });
 
-
-// ##################################################################################
-// ## NUOVA ROTTA: GET /istanze/:id/details                                        ##
-// ## Fornisce tutti i dati necessari per la vista di dettaglio collaborativa.     ##
-// ##################################################################################
-router.get('/istanze/:id/details', async (req, res) => {
-    const { id: istanzaId } = req.params;
-
-    try {
-        // Query per i dettagli principali (invariata)
-        const [istanze] = await dbPool.query(
-            `SELECT 
-                i.*, 
-                pd.NomePersonalizzato AS NomeProcedura,
-                u.nome AS NomeCreatore, 
-                u.cognome AS CognomeCreatore,
-                t.ID as TeamID
-             FROM ppa_istanzeprocedure i
-             JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
-             JOIN utenti u ON i.ID_UtenteCreatore = u.id
-             LEFT JOIN ppa_team t ON i.ID = t.ID_IstanzaProcedura
-             WHERE i.ID = ?`,
-            [istanzaId]
-        );
-        if (istanze.length === 0) {
-            return res.status(404).json({ success: false, message: 'Procedura non trovata.' });
-        }
-        
-        const istanzaDetails = istanze[0];
-
-        // Logica per il nome del target (invariata)
-        if (istanzaDetails.TargetEntityType === 'DITTA') {
-            const [ditte] = await dbPool.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [istanzaDetails.TargetEntityID]);
-            istanzaDetails.TargetEntityName = ditte.length > 0 ? ditte[0].ragione_sociale : 'N/A';
-        } else if (istanzaDetails.TargetEntityType === 'UTENTE') {
-            const [utenti] = await dbPool.query('SELECT nome, cognome FROM utenti WHERE id = ?', [istanzaDetails.TargetEntityID]);
-            istanzaDetails.TargetEntityName = utenti.length > 0 ? `${utenti[0].nome} ${utenti[0].cognome}` : 'N/A';
-        } else if (istanzaDetails.TargetEntityType === 'BENE') {
-            const [beni] = await dbPool.query('SELECT descrizione FROM bs_beni WHERE id = ?', [istanzaDetails.TargetEntityID]);
-            istanzaDetails.TargetEntityName = beni.length > 0 ? beni[0].descrizione : 'N/A';
-        }
-
-        // ## CORREZIONE: Query per le azioni aggiornata ##
-        // Aggiunta la JOIN con ppa_stati_azione per recuperare la descrizione dello stato.
-        const [azioni] = await dbPool.query(
-            `SELECT 
-                ia.*, 
-                a.NomeAzione, 
-                u.nome AS NomeAssegnatario, 
-                u.cognome AS CognomeAssegnatario, 
-                sa.NomeStato AS StatoDescrizione
-             FROM ppa_istanzeazioni ia
-             JOIN ppa_azioni a ON ia.ID_Azione = a.ID
-             LEFT JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
-             JOIN ppa_stati_azione sa ON ia.ID_Stato = sa.ID
-             WHERE ia.ID_IstanzaProcedura = ?`,
-            [istanzaId]
-        );
-        
-        res.json({ success: true, data: { ...istanzaDetails, azioni } });
-
-    } catch (error) {
-        console.error("Errore nel recupero dettagli istanza:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
-    }
-});
 
 // ##################################################################################
 // ## NUOVE ROTTE: Gestione Bacheca di Comunicazione del Team                      ##
@@ -1331,22 +1304,167 @@ router.get('/stati-azione', async (req, res) => {
 });
 
 // #####################################################################
-// ## NUOVO ENDPOINT: Aggiorna lo stato di una singola istanza azione  ##
-// #####################################################################
-// #####################################################################
-// ## NUOVO ENDPOINT: Aggiorna lo stato di una singola istanza azione  ##
+// ## ENDPOINT POTENZIATO: Aggiorna lo stato e l'avanzamento          ##
 // #####################################################################
 router.patch('/azioni/:idIstanzaAzione/stato', async (req, res) => {
     const { idIstanzaAzione } = req.params;
     const { idNuovoStato } = req.body;
     const { id: userId } = req.user;
+    const STATO_EVASO_ID = 3; // ID dello stato "Evaso"
 
-    if (!idNuovoStato) {
-        return res.status(400).json({ success: false, message: 'ID del nuovo stato non fornito.' });
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Verifica permessi
+        const [rows] = await connection.query(
+            'SELECT ID_UtenteAssegnato, ID_IstanzaProcedura FROM ppa_istanzeazioni WHERE ID = ?',
+            [idIstanzaAzione]
+        );
+        if (rows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Azione non trovata.' });
+        }
+        if (rows[0].ID_UtenteAssegnato !== userId) {
+            await connection.rollback();
+            return res.status(403).json({ success: false, message: 'Non sei autorizzato a modificare questa azione.' });
+        }
+        
+        const idIstanzaProcedura = rows[0].ID_IstanzaProcedura;
+
+        // 2. Aggiorna l'azione
+        let updateQuery = 'UPDATE ppa_istanzeazioni SET ID_Stato = ?';
+        const queryParams = [idNuovoStato];
+        
+        // Se lo stato è "Evaso", aggiorna anche la data di completamento
+        if (idNuovoStato === STATO_EVASO_ID) {
+            updateQuery += ', DataCompletamento = NOW()';
+        }
+        
+        updateQuery += ' WHERE ID = ?';
+        queryParams.push(idIstanzaAzione);
+        
+        await connection.query(updateQuery, queryParams);
+
+        // 3. Controlla se l'intera procedura è completata
+        if (idNuovoStato === STATO_EVASO_ID) {
+            const [countRows] = await connection.query(
+                `SELECT 
+                    COUNT(*) as total, 
+                    SUM(CASE WHEN ID_Stato = ? THEN 1 ELSE 0 END) as completed 
+                 FROM ppa_istanzeazioni 
+                 WHERE ID_IstanzaProcedura = ?`,
+                [STATO_EVASO_ID, idIstanzaProcedura]
+            );
+
+            const { total, completed } = countRows[0];
+            if (total > 0 && total === completed) {
+                // Se tutte le azioni sono completate, aggiorna la procedura principale
+                await connection.query(
+                    `UPDATE ppa_istanzeprocedure 
+                     SET Stato = 'Completata', DataConclusioneEffettiva = NOW() 
+                     WHERE ID = ?`,
+                    [idIstanzaProcedura]
+                );
+            }
+        }
+
+        await connection.commit();
+        res.json({ success: true, message: 'Stato azione aggiornato con successo.' });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error(`Errore nell'aggiornamento dell'azione ${idIstanzaAzione}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    } finally {
+        if (connection) connection.release();
     }
+});
+
+
+
+// #####################################################################
+// ## ROTTA POTENZIATA: Ora include i dettagli completi delle azioni  ##
+// #####################################################################
+// GET /api/ppa/istanze/:id/details (usata dalla Vista Dettaglio)
+router.get('/istanze/:id/details', async (req, res) => {
+    const { id: istanzaId } = req.params;
 
     try {
-        // Verifica che l'utente che fa la richiesta sia l'assegnatario dell'azione
+        // Step 1: Recupera i dati principali dell'istanza (inclusa la data di conclusione)
+        const [istanze] = await dbPool.query(
+            `SELECT 
+                i.*,
+                i.DataConclusioneEffettiva,
+                pd.NomePersonalizzato AS NomeProcedura,
+                u.nome AS NomeCreatore, 
+                u.cognome AS CognomeCreatore,
+                t.ID as TeamID
+             FROM ppa_istanzeprocedure i
+             JOIN ppa_procedureditta pd ON i.ID_ProceduraDitta = pd.ID
+             JOIN utenti u ON i.ID_UtenteCreatore = u.id
+             LEFT JOIN ppa_team t ON i.ID = t.ID_IstanzaProcedura
+             WHERE i.ID = ?`,
+            [istanzaId]
+        );
+        if (istanze.length === 0) {
+            return res.status(404).json({ success: false, message: 'Procedura non trovata.' });
+        }
+        
+        const istanzaDetails = istanze[0];
+
+        // Step 2: Logica per il nome del target (invariata)
+        if (istanzaDetails.TargetEntityType === 'DITTA') {
+            const [ditte] = await dbPool.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [istanzaDetails.TargetEntityID]);
+            istanzaDetails.TargetEntityName = ditte.length > 0 ? ditte[0].ragione_sociale : 'N/A';
+        } else if (istanzaDetails.TargetEntityType === 'UTENTE') {
+            const [utenti] = await dbPool.query('SELECT nome, cognome FROM utenti WHERE id = ?', [istanzaDetails.TargetEntityID]);
+            istanzaDetails.TargetEntityName = utenti.length > 0 ? `${utenti[0].nome} ${utenti[0].cognome}` : 'N/A';
+        } else if (istanzaDetails.TargetEntityType === 'BENE') {
+            const [beni] = await dbPool.query('SELECT descrizione FROM bs_beni WHERE id = ?', [istanzaDetails.TargetEntityID]);
+            istanzaDetails.TargetEntityName = beni.length > 0 ? beni[0].descrizione : 'N/A';
+        }
+
+        // ## CORREZIONE: Query per le azioni aggiornata per includere TUTTE le date ##
+        const [azioni] = await dbPool.query(
+            `SELECT 
+                ia.ID, ia.ID_Azione, ia.ID_UtenteAssegnato, ia.ID_Stato, ia.Note,
+                ia.DataScadenza AS DataPrevistaFine, 
+                ia.DataCompletamento,
+                a.NomeAzione, a.Descrizione AS DescrizioneAzione,
+                u.nome AS NomeAssegnatario, u.cognome AS CognomeAssegnatario, 
+                sa.NomeStato AS StatoDescrizione
+             FROM ppa_istanzeazioni ia
+             JOIN ppa_azioni a ON ia.ID_Azione = a.ID
+             LEFT JOIN utenti u ON ia.ID_UtenteAssegnato = u.id
+             JOIN ppa_stati_azione sa ON ia.ID_Stato = sa.ID
+             WHERE ia.ID_IstanzaProcedura = ?`,
+            [istanzaId]
+        );
+        
+        const azioniArricchite = azioni.map(azione => ({
+            ...azione,
+            DataInizio: istanzaDetails.DataInizio 
+        }));
+
+        res.json({ success: true, data: { ...istanzaDetails, azioni: azioniArricchite } });
+
+    } catch (error) {
+        console.error("Errore nel recupero dettagli istanza:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// #####################################################################
+// ## NUOVO ENDPOINT: Aggiorna le note di una singola istanza azione   ##
+// #####################################################################
+router.patch('/azioni/:idIstanzaAzione/note', async (req, res) => {
+    const { idIstanzaAzione } = req.params;
+    const { note } = req.body;
+    const { id: userId } = req.user;
+
+    try {
+        // Verifica che l'utente che fa la richiesta sia l'assegnatario
         const [rows] = await dbPool.query(
             'SELECT ID_UtenteAssegnato FROM ppa_istanzeazioni WHERE ID = ?',
             [idIstanzaAzione]
@@ -1356,23 +1474,71 @@ router.patch('/azioni/:idIstanzaAzione/stato', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Azione non trovata.' });
         }
         if (rows[0].ID_UtenteAssegnato !== userId) {
-            return res.status(403).json({ success: false, message: 'Non sei autorizzato a modificare questa azione.' });
+            return res.status(403).json({ success: false, message: 'Non sei autorizzato a modificare le note di questa azione.' });
         }
 
-        // Se l'utente è autorizzato, aggiorna lo stato
+        // Se autorizzato, aggiorna le note
         await dbPool.query(
-            'UPDATE ppa_istanzeazioni SET ID_Stato = ? WHERE ID = ?',
-            [idNuovoStato, idIstanzaAzione]
+            'UPDATE ppa_istanzeazioni SET Note = ? WHERE ID = ?',
+            [note, idIstanzaAzione]
         );
         
-        res.json({ success: true, message: 'Stato azione aggiornato con successo.' });
+        res.json({ success: true, message: 'Note aggiornate con successo.' });
 
     } catch (error) {
-        console.error(`Errore nell'aggiornamento dell'azione ${idIstanzaAzione}:`, error);
+        console.error(`Errore nell'aggiornamento delle note per l'azione ${idIstanzaAzione}:`, error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
+// #####################################################################
+// ## NUOVO ENDPOINT: Genera un report PDF dello stato della procedura ##
+// #####################################################################
+// --- ENDPOINT: Genera un report PDF dello stato della procedura (POTENZIATO v2) ---
+// --- ENDPOINT: Genera un report PDF dello stato della procedura (POTENZIATO v3.0) ---
+// --- ENDPOINT: Genera un'anteprima PDF (SEMPLIFICATO) ---
+router.post('/generate-report-pdf', async (req, res) => {
+    try {
+        const pdfBuffer = await generatePdfBuffer(req.body.istanza, req.body.selectedAzioni, req.body.selectedMessaggi, req.body.reportNotes, req);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename=report.pdf`);
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error("Errore nella generazione del PDF:", error);
+        res.status(500).send('Errore durante la creazione del report PDF.');
+    }
+});
+
+
+// --- FUNZIONE INTERNA PER GENERARE PDF ---
+async function generatePdf(htmlContent) {
+    let browser = null;
+    try {
+        browser = await puppeteer.launch({ 
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+        return pdfBuffer;
+    } finally {
+        if (browser) {
+            await browser.close();
+        }
+    }
+}
+
+// --- ENDPOINT: Invia il report via email (SEMPLIFICATO) ---
+router.post('/send-report-email', async (req, res) => {
+    try {
+        await sendPpaReport(req, req.body);
+        res.json({ success: true, message: 'Report inviato con successo via email.' });
+    } catch (error) {
+        console.error("Errore nell'invio del report via email:", error);
+        res.status(500).json({ success: false, message: error.message || 'Errore durante l\'invio dell\'email.' });
+    }
+});
 
 
 
