@@ -140,6 +140,7 @@ async function generatePdfBuffer(istanza, selectedAzioni, selectedMessaggi, repo
 }
 
 
+
 async function sendPpaReport(req, body) {
     const { istanza, selectedAzioni, selectedMessaggi, reportNotes } = body;
     const { id_ditta: idDitta, id: idUtenteMittente } = req.user;
@@ -159,12 +160,12 @@ async function sendPpaReport(req, body) {
     }
     const mailAccount = accountRows[0];
     
-    // ## CORREZIONE: Utilizzo del nome colonna corretto 'smtp_password' ##
     const decryptedPassword = decrypt(mailAccount.smtp_password);
+    const smtpUser = mailAccount.email_address;
 
-    if (!mailAccount.smtp_user || !decryptedPassword) {
-        console.error(`[ERRORE CREDENZIALI] Utente SMTP: ${mailAccount.smtp_user}, Password Decifrata: ${decryptedPassword ? '***' : 'FALLITA (null)'}`);
-        throw new Error('Credenziali SMTP mancanti o non valide. Causa probabile: 1) Campo "smtp_user" vuoto nel database. 2) La "ENCRYPTION_SECRET" nel file .env non è corretta e la decrittazione fallisce.');
+    if (!smtpUser || !decryptedPassword) {
+        console.error(`[ERRORE CREDENZIALI] Utente SMTP: ${smtpUser}, Password Decifrata: ${decryptedPassword ? '***' : 'FALLITA (null)'}`);
+        throw new Error('Credenziali SMTP mancanti o non valide. Causa probabile: 1) Campo "email_address" vuoto. 2) La "ENCRYPTION_SECRET" nel .env non è corretta (deve essere di 32 caratteri).');
     }
 
     let toEmail = '';
@@ -172,8 +173,9 @@ async function sendPpaReport(req, body) {
         const [rows] = await dbPool.query('SELECT mail_1 FROM ditte WHERE id = ?', [istanza.TargetEntityID]);
         if (rows.length > 0) toEmail = rows[0].mail_1;
     } else if (istanza.TargetEntityType === 'UTENTE') {
-        const [rows] = await dbPool.query('SELECT email FROM utenti WHERE id = ?', [istanza.TargetEntityID]);
-        if (rows.length > 0) toEmail = rows[0].email;
+        // ## CORREZIONE: Utilizzo del campo corretto 'email_contatto' ##
+        const [rows] = await dbPool.query('SELECT email_contatto FROM utenti WHERE id = ?', [istanza.TargetEntityID]);
+        if (rows.length > 0) toEmail = rows[0].email_contatto;
     }
     if (!toEmail) {
         throw new Error('Indirizzo email del destinatario non trovato.');
@@ -186,7 +188,7 @@ async function sendPpaReport(req, body) {
         port: mailAccount.smtp_port,
         secure: mailAccount.smtp_port === 465,
         auth: {
-            user: mailAccount.smtp_user,
+            user: smtpUser,
             pass: decryptedPassword
         },
         tls: {
@@ -217,5 +219,6 @@ async function sendPpaReport(req, body) {
 
     return info;
 }
+
 module.exports = { sendPpaReport, generatePdfBuffer };
 

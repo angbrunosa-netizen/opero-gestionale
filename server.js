@@ -5,6 +5,7 @@
 require('dotenv').config(); // Carica le variabili d'ambiente dal file .env
 
 const express = require('express');
+const ppaRoutes = require('./routes/ppa');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -15,7 +16,6 @@ const { verifyToken } = require('./utils/auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/user');
-const ppaRoutes = require('./routes/ppa');
 const attivitaRoutes = require('./routes/attivita');
 const amministrazioneRoutes = require('./routes/amministrazione');
 const contsmartRoutes = require('./routes/contsmart');

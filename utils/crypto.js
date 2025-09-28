@@ -18,6 +18,7 @@ const algorithm = 'aes-256-cbc';
  * @param {string} text Il testo crittografato.
  * @returns {string|null} Il testo decrittato o null se l'input non è valido.
  */
+console.log(`[Crypto] Chiave di crittografia caricata (primi 5 caratteri): ${secret.substring(0, 5)}...`);
 function decrypt(text) {
     if (!text || typeof text !== 'string') return null;
     
