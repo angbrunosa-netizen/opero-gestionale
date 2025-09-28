@@ -11,7 +11,8 @@ const { dbPool } = require('../config/db');
 const PDFDocument = require('pdfkit');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
-const { decrypt } = require('./crypto');
+const crypto = require('crypto');
+const { randomUUID } = require('crypto'); // <-- CORREZIONE: Aggiunta questa riga
 
 async function generatePdfBuffer(istanza, selectedAzioni, selectedMessaggi, reportNotes, req) {
     const { id_ditta: idDitta } = req.user;
@@ -139,7 +140,23 @@ async function generatePdfBuffer(istanza, selectedAzioni, selectedMessaggi, repo
     });
 }
 
-
+const secret = process.env.ENCRYPTION_SECRET || 'default_secret_key_32_chars_!!';
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(String(secret)).digest('base64').substr(0, 32);
+const IV_LENGTH = 16;
+function decrypt(text) {
+    try {
+        const textParts = text.split(':');
+        const iv = Buffer.from(textParts.shift(), 'hex');
+        const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+        let decrypted = decipher.update(encryptedText);
+        decrypted = Buffer.concat([decrypted, decipher.final()]);
+        return decrypted.toString();
+    } catch (error) {
+        console.error("Decryption failed:", error.message);
+        throw new Error("Impossibile decifrare la password.");
+    }
+}
 
 async function sendPpaReport(req, body) {
     const { istanza, selectedAzioni, selectedMessaggi, reportNotes } = body;
@@ -160,9 +177,9 @@ async function sendPpaReport(req, body) {
     }
     const mailAccount = accountRows[0];
     
-    const decryptedPassword = decrypt(mailAccount.smtp_password);
-    const smtpUser = mailAccount.email_address;
-
+    const decryptedPassword = decrypt(mailAccount.auth_pass);
+    const smtpUser = mailAccount.auth_user;
+    console.log(decryptedPassword,smtpUser)
     if (!smtpUser || !decryptedPassword) {
         console.error(`[ERRORE CREDENZIALI] Utente SMTP: ${smtpUser}, Password Decifrata: ${decryptedPassword ? '***' : 'FALLITA (null)'}`);
         throw new Error('Credenziali SMTP mancanti o non valide. Causa probabile: 1) Campo "email_address" vuoto. 2) La "ENCRYPTION_SECRET" nel .env non è corretta (deve essere di 32 caratteri).');
@@ -174,8 +191,8 @@ async function sendPpaReport(req, body) {
         if (rows.length > 0) toEmail = rows[0].mail_1;
     } else if (istanza.TargetEntityType === 'UTENTE') {
         // ## CORREZIONE: Utilizzo del campo corretto 'email_contatto' ##
-        const [rows] = await dbPool.query('SELECT email_contatto FROM utenti WHERE id = ?', [istanza.TargetEntityID]);
-        if (rows.length > 0) toEmail = rows[0].email_contatto;
+        const [rows] = await dbPool.query('SELECT mail_contatto FROM utenti WHERE id = ?', [istanza.TargetEntityID]);
+        if (rows.length > 0) toEmail = rows[0].mail_contatto;
     }
     if (!toEmail) {
         throw new Error('Indirizzo email del destinatario non trovato.');
@@ -195,10 +212,15 @@ async function sendPpaReport(req, body) {
             rejectUnauthorized: false
         }
     });
+    const DataPrevistaFine = istanza.DataPrevistaFine ? new Date(istanza.DataPrevistaFine).toLocaleDateString('it-IT') : 'N/D';
+    
 
     const subject = `Aggiornamento di Stato: Procedura "${istanza.NomeProcedura}"`;
-    const htmlBody = `<p>Gentile Cliente,</p><p>In allegato trova il report di stato aggiornato.</p>`;
-    const mailOptions = {
+            const htmlBody = `<p>Gentile Cliente,</p>
+            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura "${istanza.NomeProcedura}".</p>
+            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è "${DataPrevistaFine}".</p>
+            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>
+            <p>Cordiali Saluti,<br/>${mailAccount.nome_account}</p>`;const mailOptions = {
         from: `"${mailAccount.nome_account}" <${mailAccount.email_address}>`,
         to: toEmail,
         subject: subject,
@@ -211,11 +233,33 @@ async function sendPpaReport(req, body) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-
+   // const trackingId = info.messageId || `local-${Date.now()}`;
+    const trackingId = randomUUID();
     await dbPool.query(
-        `INSERT INTO email_inviate (id_ditta, id_utente_mittente, id_mail_account, destinatari, oggetto, corpo, message_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [idDitta, idUtenteMittente, mailAccountId, toEmail, subject, htmlBody, info.messageId]
+        `INSERT INTO email_inviate (id_ditta, id_utente_mittente, destinatari, oggetto, corpo, tracking_id) VALUES (?, ?, ?, ?, ?, ?)`,
+        [idDitta, idUtenteMittente, toEmail, subject, htmlBody, info.messageId]
     );
+
+     const [emailInviataResult] = await dbPool.query(
+            `INSERT INTO email_inviate (id_ditta, id_utente_mittente, destinatari, oggetto, corpo,tracking_id) VALUES (?, ?, ?, ?, ?, ?)`,
+            [idDitta, idUtenteMittente, toEmail, subject, htmlBody, trackingId]
+        );
+
+    const idEmailInviata = emailInviataResult.insertId;
+        if (mailOptions.attachments && mailOptions.attachments.length > 0) {
+            for (const attachment of mailOptions.attachments) {
+                const allegatoData = {
+                    id_email_inviata: idEmailInviata,
+                    nome_file_originale: attachment.filename,
+                    // Poiché il PDF è generato in memoria, non ha un percorso fisico sul server
+                    percorso_file_salvato: 'Generato in memoria per invio email',
+                    download_id: randomUUID(), // Genera un ID univoco per un eventuale futuro download
+                    scaricato: 0
+                };
+                await dbPool.query('INSERT INTO allegati_tracciati SET ?', allegatoData);
+                console.log(`[Report Mailer] Allegato registrato per email ID ${idEmailInviata}: ${attachment.filename}`);
+            }
+        }
 
     return info;
 }

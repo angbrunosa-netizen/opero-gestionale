@@ -36,12 +36,38 @@ const AssegnaProceduraForm = ({ onClose }) => {
     const fetchInitialData = useCallback(async () => {
         setIsLoading(true);
         try {
+            
             const [procRes, ditteRes, utentiRes, beniRes] = await Promise.all([
                 api.get('/ppa/procedure-ditta'),
                 api.get('/amministrazione/anagrafiche'),
                 api.get('/ppa/utenti/interni'), // Utilizza la rotta corretta per gli utenti esterni/assegnabili
                 api.get('/benistrumentali')
             ]);
+
+         // ###############################################################
+                // ##                  INIZIO BLOCCO DI DEBUG                   ##
+                // ###############################################################
+                console.groupCollapsed("--- DEBUG: Caricamento Dati Assegnazione ---");
+                console.log("Risposta COMPLETA da /ppa/procedures:", procRes);
+
+
+                             if (procRes && procRes.data) {
+                    console.log("Contenuto di procRes.data:", procRes.data);
+                    
+                    if (procRes.data.data) {
+                        console.log("%cOK: Trovato procRes.data.data. Numero procedure:", "color: green; font-weight: bold;", procRes.data.data.length);
+                        console.log("Procedure ricevute:", procRes.data.data);
+                    } else {
+                        console.error("%cERRORE: procRes.data.data NON ESISTE!", "color: red; font-weight: bold;");
+                    }
+                } else {
+                     console.error("%cERRORE: La risposta dall'API procedure è vuota o malformata.", "color: red; font-weight: bold;");
+                }
+                console.groupEnd();
+                // ###############################################################
+                // ##                    FINE BLOCCO DI DEBUG                   ##
+                // ###############################################################
+
             setProcedureDisponibili(procRes.data.data || []);
             setDitteDisponibili(ditteRes.data.data || []);
             setUtentiDisponibili(utentiRes.data.data || []);
@@ -150,7 +176,7 @@ const AssegnaProceduraForm = ({ onClose }) => {
                 options = utentiDisponibili.map(u => ({ value: u.id, label: `${u.cognome} ${u.nome}` }));
                 break;
             case 'BENE':
-                options = beniDisponibili.map(b => ({ value: b.id, label: b.nome_bene }));
+                options = beniDisponibili.map(b => ({ value: b.id, label: b.descrizione }));
                 break;
             default: return null;
         }
@@ -175,7 +201,7 @@ const AssegnaProceduraForm = ({ onClose }) => {
                             <label className="block text-sm font-medium text-gray-700">Procedura</label>
                             <select value={proceduraSelezionataId} onChange={e => setProceduraSelezionataId(e.target.value)} className="w-full p-2 border rounded-md">
                                 <option value="">Seleziona una procedura...</option>
-                                {procedureDisponibili.map(p => <option key={p.ID} value={p.ID}>{p.NomeProcedura}</option>)}
+                                {procedureDisponibili.map(p => <option key={p.ID} value={p.ID}>{p.NomePersonalizzato}</option>)}
                             </select>
                         </div>
                         <div>

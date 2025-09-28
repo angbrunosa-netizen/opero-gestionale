@@ -1083,6 +1083,69 @@ router.post('/procedure-ditta', async (req, res) => {
     }
 });
 
+// NUOVA ROTTA: Invia una notifica automatica al team quando una procedura viene assegnata
+router.post('/istanze/:id/notifica-assegnazione', verifyToken, async (req, res) => {
+    const { id: istanzaId } = req.params;
+    const { nome: senderNome, cognome: senderCognome } = req.user; // Chi ha eseguito l'azione
+
+    const connection = await dbPool.getConnection();
+    try {
+        // 1. Recupera i dettagli della procedura per il corpo dell'email
+        const [proceduraDetails] = await connection.query(
+            `SELECT pd.NomePersonalizzato FROM ppa_istanzeprocedure ip
+             JOIN ppa_procedureditta pd ON ip.ID_ProceduraDitta = pd.ID
+             WHERE ip.ID = ?`,
+            [istanzaId]
+        );
+        if (proceduraDetails.length === 0) {
+            // Sebbene improbabile, gestiamo il caso in cui l'istanza non esista
+            return res.status(404).json({ success: false, message: "Istanza non trovata." });
+        }
+        const nomeProcedura = proceduraDetails[0].NomePersonalizzato || `Procedura #${istanzaId}`;
+
+        // 2. Recupera tutti gli utenti assegnati alle azioni di questa istanza
+        const [teamMembers] = await connection.query(
+            `SELECT DISTINCT u.email, u.nome FROM utenti u 
+             JOIN ppa_istanzeazioni ia ON u.id = ia.ID_UtenteAssegnato
+             WHERE ia.ID_IstanzaProcedura = ?`,
+            [istanzaId]
+        );
+
+        if (teamMembers.length === 0) {
+            // Nessun membro nel team, quindi non c'è nessuno da notificare.
+            return res.status(200).json({ success: true, message: "Nessun membro del team da notificare." });
+        }
+
+        // 3. Prepara e invia le email
+        const assignerFullName = `${senderNome} ${senderCognome}`;
+        const emailSubject = `Nuova Assegnazione: Procedura "${nomeProcedura}"`;
+        
+        for (const member of teamMembers) {
+            const emailBody = `
+                <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+                    <h3>Ciao ${member.nome},</h3>
+                    <p>Sei stato aggiunto al team di lavoro per la procedura <strong>"${nomeProcedura}"</strong>.</p>
+                    <p>L'assegnazione è stata effettuata da: <strong>${assignerFullName}</strong>.</p>
+                    <p>Puoi visualizzare i dettagli e le tue attività accedendo alla piattaforma Opero.</p>
+                    <br/>
+                    <p><em>Questa è una notifica automatica.</em></p>
+                </div>`;
+            
+            // Usiamo la nostra utility mailer per le email di sistema
+            await sendSystemEmail(member.email, emailSubject, emailBody);
+        }
+
+        res.status(200).json({ success: true, message: "Notifiche di assegnazione inviate al team." });
+
+    } catch (error) {
+        console.error(`Errore nell'invio delle notifiche di assegnazione per l'istanza ${istanzaId}:`, error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante l\'invio delle notifiche.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+
 // #####################################################################
 // ## NUOVO ENDPOINT: Fornisce i tipi di procedura per i filtri       ##
 // #####################################################################

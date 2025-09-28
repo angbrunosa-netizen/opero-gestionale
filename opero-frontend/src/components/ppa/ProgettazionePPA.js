@@ -97,7 +97,7 @@ const ProgettazionePPA = () => {
                  <ul className="divide-y divide-gray-200">
                     {procedure.length > 0 ? procedure.map(proc => (
                         <li key={proc.ID} className="p-4 flex justify-between items-center hover:bg-gray-50">
-                            <p className="font-semibold text-gray-800">{proc.NomeProcedura}</p>
+                            <p className="font-semibold text-gray-800">{proc.NomePersonalizzato}</p>
                             <button onClick={() => handleOpenModalForEdit(proc)} className="p-2 rounded-full hover:bg-gray-200">
                                 <PencilIcon className="h-5 w-5 text-gray-500" />
                             </button>
