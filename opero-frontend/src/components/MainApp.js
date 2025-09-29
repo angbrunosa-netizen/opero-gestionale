@@ -28,6 +28,7 @@ import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
 import PPASisModule from './PPASisModule';
 import { Outlet, useLocation } from 'react-router-dom'; // NUOVI IMPORT
+import CatalogoModule from './CatalogoModule';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 
@@ -526,6 +527,7 @@ const MainApp = () => {
             case 'FIN_SMART': return <FinanzeModule />;
             case 'BSSMART': return <BeniStrumentaliModule />;
             case 'PPA SIS': return <PPASisModule />;
+            case 'CT_VIEW': return <CatalogoModule />;
             default: return <div className="p-6">Seleziona un modulo per iniziare.</div>;
         }
     };

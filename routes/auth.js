@@ -1,16 +1,21 @@
-// #####################################################################
-// # Rotte di Autenticazione - v5.3 (Logica Ambienti Ripristinata)
-// # File: opero/routes/auth.js
-// #####################################################################
+/**
+ * @file opero/routes/auth.js
+ * @description file di rotte per l'autenticazione. VERSIONE STABILE E COMPLETA.
+ * - Esegue la query corretta per recuperare il nome del ruolo.
+ * - Include l'elenco dei permessi nel payload del token JWT.
+ * - Risolve sia l'errore 500 nel modulo Posta sia l'errore 403 nel modulo Catalogo.
+ * @date 2025-09-29
+ * @version 8.0 (stabile)
+ */
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { dbPool, dbType } = require('../config/db'); // Importiamo anche dbType
+const { dbPool } = require('../config/db');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'backup_secret_key_molto_sicura';
-const { verifyToken } = require('../utils/auth'); // Assicurati che questo import sia presente all'inizio del file
+const { verifyToken } = require('../utils/auth');
 
 // --- ROTTA DI LOGIN ---
 router.post('/login', async (req, res) => {
@@ -22,82 +27,100 @@ router.post('/login', async (req, res) => {
     let connection;
     try {
         connection = await dbPool.getConnection();
-        // ## FIX: Aggiunto d.logo_url alla query ##
+        
+        // ## QUERY UNIFICATA E CORRETTA ##
         const userQuery = `
-            SELECT u.*, r.tipo AS tipo_ruolo, d.ragione_sociale, d.logo_url, td.tipo as tipo_ditta 
+            SELECT 
+                u.id, u.id_ditta, u.nome, u.cognome, u.email, u.password, u.id_ruolo, u.livello,
+                r.tipo AS nome_ruolo 
             FROM utenti u 
             LEFT JOIN ruoli r ON u.id_ruolo = r.id 
-            LEFT JOIN ditte d ON u.id_ditta = d.id 
-            LEFT JOIN tipo_ditta td ON d.id_tipo_ditta = td.id 
-            WHERE u.email = ?`;
-        
+            WHERE u.email = ? AND u.attivo = 1`;
         const [userRows] = await connection.query(userQuery, [email]);
 
         if (userRows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Utente non trovato.' });
+            return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
         }
 
         const user = userRows[0];
-        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        const isMatch = await bcrypt.compare(password, user.password);
 
-        if (!isPasswordCorrect) {
-            return res.status(401).json({ success: false, message: 'Password non corretta.' });
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
         }
 
         const permissionsQuery = `SELECT f.codice FROM funzioni f JOIN ruoli_funzioni rf ON f.id = rf.id_funzione WHERE rf.id_ruolo = ?`;
         const [permissionRows] = await connection.query(permissionsQuery, [user.id_ruolo]);
         const permissions = permissionRows.map(p => p.codice);
 
-        const modulesQuery = `
-            SELECT m.codice, m.descrizione, m.chiave_componente 
-            FROM ditte_moduli dm 
-            JOIN moduli m ON dm.codice_modulo = m.codice 
-            WHERE dm.id_ditta = ?`;
+        const modulesQuery = `SELECT m.codice, m.descrizione, m.chiave_componente FROM ditte_moduli dm JOIN moduli m ON dm.codice_modulo = m.codice WHERE dm.id_ditta = ?`;
         const [moduleRows] = await connection.query(modulesQuery, [user.id_ditta]);
-        
-        const tokenPayload = { 
-            id: user.id, 
-            id_ditta: user.id_ditta, 
-            id_ruolo: user.id_ruolo, 
-            livello: user.livello 
-        };
-        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '8h' });
-        
-        res.json({ 
-            success: true, 
-            token, 
-            user: { id: user.id, nome: user.nome, cognome: user.cognome, email: user.email, ruolo: user.tipo_ruolo, livello: user.livello },
-            // ## FIX: Aggiunto logo_url all'oggetto ditta ##
-            ditta: { id: user.id_ditta, ragione_sociale: user.ragione_sociale, logo_url: user.logo_url, tipo_ditta: user.tipo_ditta },
+
+        const dittaQuery = `
+            SELECT d.id, d.ragione_sociale, d.logo_url, td.tipo AS tipo_ditta 
+            FROM ditte d
+            LEFT JOIN tipo_ditta td ON d.id_tipo_ditta = td.id
+            WHERE d.id = ?`;
+        const [dittaRows] = await connection.query(dittaQuery, [user.id_ditta]);
+
+        // ## TOKEN "ARRICCHITO" CON I PERMESSI ##
+        const token = jwt.sign(
+            { 
+                id: user.id, 
+                id_ditta: user.id_ditta, 
+                id_ruolo: user.id_ruolo, 
+                livello: user.livello,
+                permissions: permissions 
+            },
+            JWT_SECRET,
+            { expiresIn: '8h' }
+        );
+
+        delete user.password;
+
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                nome: user.nome,
+                cognome: user.cognome,
+                email: user.email,
+                ruolo: user.nome_ruolo,
+                livello: user.livello
+            },
+            ditta: dittaRows[0] || null,
             permissions,
-            modules: moduleRows
+            modules: moduleRows,
         });
 
     } catch (error) {
-        console.error("Errore durante l'autenticazione:", error);
+        console.error("Errore durante il login:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     } finally {
         if (connection) connection.release();
     }
 });
 
-// --- ROTTA: GET (Recupera dati utente dal token) ---
+
+// --- ROTTA /ME (COERENTE CON IL LOGIN) ---
 router.get('/me', verifyToken, async (req, res) => {
-    const { id: userId, id_ditta: dittaId, id_ruolo: ruoloId } = req.user;
+    const { id: userId, id_ditta: dittaId, id_ruolo: ruoloId, permissions } = req.user;
 
     let connection;
     try {
         connection = await dbPool.getConnection();
-        
-        const userQuery = `
-            SELECT u.id, u.nome, u.cognome, u.email, u.livello, r.tipo AS tipo_ruolo 
-            FROM utenti u
-            LEFT JOIN ruoli r ON u.id_ruolo = r.id
-            WHERE u.id = ?`;
+
+        const userQuery = 'SELECT id, nome, cognome, email, id_ruolo, livello FROM utenti WHERE id = ?';
         const [userRows] = await connection.query(userQuery, [userId]);
         if (userRows.length === 0) throw new Error("Utente non trovato dal token.");
-
-        // ## FIX: Aggiunto d.logo_url alla query ##
+        const user = userRows[0];
+        
+        // Ripristinato il recupero del nome del ruolo
+        const ruoloQuery = 'SELECT tipo AS nome_ruolo FROM ruoli WHERE id = ?';
+        const [ruoloRows] = await connection.query(ruoloQuery, [user.id_ruolo]);
+        user.ruolo = ruoloRows.length > 0 ? ruoloRows[0].nome_ruolo : 'N/D';
+        
         const dittaQuery = `
             SELECT d.id, d.ragione_sociale, d.logo_url, td.tipo AS tipo_ditta 
             FROM ditte d
@@ -105,32 +128,25 @@ router.get('/me', verifyToken, async (req, res) => {
             WHERE d.id = ?`;
         const [dittaRows] = await connection.query(dittaQuery, [dittaId]);
 
-        const permissionsQuery = `SELECT f.codice FROM funzioni f JOIN ruoli_funzioni rf ON f.id = rf.id_funzione WHERE rf.id_ruolo = ?`;
-        const [permissionRows] = await connection.query(permissionsQuery, [ruoloId]);
-        const permissions = permissionRows.map(p => p.codice);
-
         const modulesQuery = `SELECT m.codice, m.descrizione, m.chiave_componente FROM ditte_moduli dm JOIN moduli m ON dm.codice_modulo = m.codice WHERE dm.id_ditta = ?`;
         const [moduleRows] = await connection.query(modulesQuery, [dittaId]);
 
         res.json({
             success: true,
-            user: userRows[0],
+            user,
             ditta: dittaRows[0] || null,
             permissions,
             modules: moduleRows,
         });
 
     } catch (error) {
-        console.error("Errore in /auth/me:", error);
-        res.status(500).json({ success: false, message: "Errore nel recuperare i dati della sessione." });
+        console.error("Errore nel recupero dati utente (/me):", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     } finally {
         if (connection) connection.release();
     }
 });
 
 
-
-
-
-
 module.exports = router;
+
