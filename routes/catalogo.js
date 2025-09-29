@@ -1,411 +1,326 @@
 /**
- * @file opero-frontend/src/components/catalogo/CategorieManager.js
- * @description componente react per la gestione gerarchica delle categorie del catalogo.
- * - v2.7: aggiunto il campo 'codice_categoria' all'export csv.
+ * @file opero/routes/catalogo.js
+ * @description file di rotte per il modulo catalogo.
+ * - SICUREZZA v7.0: implementa il controllo duale (permessi + livello)
+ * ora funzionante grazie al token JWT arricchito.
  * @date 2025-09-29
- * @version 2.7 (export csv completo)
+ * @version 7.0 (definitiva e sicura)
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
+const express = require('express');
+const router = express.Router();
+const { knex } = require('../config/db'); 
+const { verifyToken } = require('../utils/auth');
 
-// --- LIBRERIE INTERNE PER ESPORTAZIONE E STAMPA ---
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { useReactToPrint } from 'react-to-print';
+// #################################################
+// #                API CATEGORIE                  #
+// #################################################
 
-// --- ICONE ---
-import { 
-    FolderIcon, FolderOpenIcon, ChevronRightIcon, PlusIcon, ArrowPathIcon, 
-    PencilIcon, TrashIcon, MagnifyingGlassIcon, ArrowDownTrayIcon, PrinterIcon,
-    ArrowsPointingOutIcon, ArrowsPointingInIcon
-} from '@heroicons/react/24/solid';
+/**
+ * @function buildtree
+ * @description funzione helper per convertire una lista piatta di categorie in una struttura ad albero.
+ * @param {array} list - la lista di categorie dal database.
+ * @returns {array} - un array di nodi radice con i figli annidati.
+ */
+const buildTree = (list) => {
+    const map = {};
+    const roots = [];
 
-
-// --- Componente Modale per Creazione/Modifica (invariato) ---
-const CategoriaFormModal = ({ item, onSave, onCancel, allCategories }) => {
-    const [formData, setFormData] = useState({ nome_categoria: '', descrizione: '', id_padre: null });
-
-    useEffect(() => {
-        if (item && item.id) {
-            setFormData({
-                nome_categoria: item.nome_categoria || '',
-                descrizione: item.descrizione || '',
-                id_padre: item.id_padre || null,
-            });
-        } else if (item && item.id_padre) { // Caso "Aggiungi Sottocategoria"
-            setFormData({ nome_categoria: '', descrizione: '', id_padre: item.id_padre });
-        } else { // Caso "Nuova Categoria Principale"
-             setFormData({ nome_categoria: '', descrizione: '', id_padre: null });
-        }
-    }, [item]);
-
-    // Funzione per trovare un nodo e tutti i suoi figli (per escluderli dal dropdown)
-    const getDescendantIds = useMemo(() => {
-        const collectedIds = new Set();
-        const findAndCollect = (nodes, targetId) => {
-            for (const node of nodes) {
-                if (node.id === targetId) {
-                    collectAllChildren(node, collectedIds);
-                    return true;
-                }
-                if (node.children && findAndCollect(node.children, targetId)) {
-                    return true;
-                }
-            }
-            return false;
-        };
-        const collectAllChildren = (node, ids) => {
-            ids.add(node.id);
-            if (node.children) {
-                node.children.forEach(child => collectAllChildren(child, ids));
-            }
-        };
-        
-        if (item && item.id) {
-            findAndCollect(allCategories, item.id);
-        }
-        return collectedIds;
-    }, [item, allCategories]);
-
-    const renderCategoryOptions = (nodes, depth = 0) => {
-        let options = [];
-        nodes.forEach(node => {
-            if (getDescendantIds.has(node.id)) {
-                 return;
-            }
-            options.push(
-                <option key={node.id} value={node.id}>
-                    {'\u00A0'.repeat(depth * 4)}
-                    {node.codice_categoria} - {node.nome_categoria}
-                </option>
-            );
-            if (node.children && node.children.length > 0) {
-                options = options.concat(renderCategoryOptions(node.children, depth + 1));
-            }
-        });
-        return options;
-    };
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value === '' ? null : value }));
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave(formData, item ? item.id : null);
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
-                <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Categoria' : 'Nuova Categoria'}</h2>
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-4">
-                        <label htmlFor="nome_categoria" className="block text-sm font-medium text-gray-700">Nome Categoria</label>
-                        <input type="text" name="nome_categoria" id="nome_categoria" value={formData.nome_categoria} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
-                    </div>
-                    <div className="mb-4">
-                        <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
-                        <textarea name="descrizione" id="descrizione" value={formData.descrizione} onChange={handleChange} rows="3" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"></textarea>
-                    </div>
-                    <div className="mb-4">
-                        <label htmlFor="id_padre" className="block text-sm font-medium text-gray-700">Categoria Genitore</label>
-                        <select name="id_padre" id="id_padre" value={formData.id_padre || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                            <option value="">-- Nessuna (Categoria Principale) --</option>
-                            {renderCategoryOptions(allCategories)}
-                        </select>
-                    </div>
-                    <div className="flex justify-end gap-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Salva</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-
-// --- Componente Ricorsivo per renderizzare l'albero ---
-const TreeNode = ({ node, level, onAdd, onEdit, onDelete, onToggle, allExpandedNodes }) => {
-    const { hasPermission } = useAuth();
-    const isNodeExpanded = allExpandedNodes[node.id];
-
-    return (
-        <div className="border-l border-gray-200" style={{ marginLeft: `${level === 0 ? 0 : 20}px` }}>
-            <div className="flex items-center justify-between py-2 px-3 hover:bg-gray-100 rounded-md group">
-                <div className="flex items-center cursor-pointer flex-grow" onClick={() => onToggle(node.id)}>
-                    <ChevronRightIcon 
-                        className={`h-5 w-5 text-gray-500 mr-2 transform transition-transform ${isNodeExpanded ? 'rotate-90' : 'rotate-0'} ${!node.children || node.children.length === 0 ? 'opacity-0' : ''}`} 
-                    />
-                    {isNodeExpanded ? <FolderOpenIcon className="h-6 w-6 text-yellow-500 mr-2"/> : <FolderIcon className="h-6 w-6 text-yellow-500 mr-2"/>}
-                    <span className="font-mono text-sm text-gray-600 mr-2">{node.codice_categoria}</span>
-                    <span className="font-medium">{node.nome_categoria}</span>
-                </div>
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {hasPermission('CT_MANAGE') && (
-                        <>
-                            <button onClick={(e) => {e.stopPropagation(); onAdd(node.id);}} title="Aggiungi Sottocategoria" className="p-1 text-gray-500 hover:text-green-600"><PlusIcon className="h-5 w-5"/></button>
-                            <button onClick={(e) => {e.stopPropagation(); onEdit(node);}} title="Modifica Categoria" className="p-1 text-gray-500 hover:text-blue-600"><PencilIcon className="h-5 w-5"/></button>
-                            <button onClick={(e) => {e.stopPropagation(); onDelete(node);}} title="Elimina Categoria" className="p-1 text-gray-500 hover:text-red-600"><TrashIcon className="h-5 w-5"/></button>
-                        </>
-                    )}
-                </div>
-            </div>
-            {isNodeExpanded && node.children && node.children.map(child => (
-                <TreeNode key={child.id} node={child} level={level + 1} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} onToggle={onToggle} allExpandedNodes={allExpandedNodes}/>
-            ))}
-        </div>
-    );
-};
-
-
-// --- Componente Principale ---
-const CategorieManager = () => {
-    const { hasPermission, user, ditta } = useAuth();
-    const [categorieTree, setCategorieTree] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState(null);
-    const [expandedNodes, setExpandedNodes] = useState({});
-    
-    const printRef = useRef();
-
-    const fetchCategorieTree = useCallback(async () => {
-        setLoading(true);
-        try {
-            const response = await api.get('/catalogo/categorie');
-            setCategorieTree(response.data);
-            setError(null);
-        } catch (err) {
-            setError('Errore nel caricamento delle categorie.');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchCategorieTree();
-    }, [fetchCategorieTree]);
-    
-    const getAllIds = useCallback((nodes) => {
-        let ids = {};
-        nodes.forEach(node => {
-            if (node.children && node.children.length > 0) {
-                ids[node.id] = true;
-                Object.assign(ids, getAllIds(node.children));
-            }
-        });
-        return ids;
-    }, []);
-
-    const handleExpandAll = () => setExpandedNodes(getAllIds(categorieTree));
-    const handleCollapseAll = () => setExpandedNodes({});
-    const handleToggleNode = (nodeId) => {
-        setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
-    };
-
-    const handleAdd = (parentId = null) => {
-        setEditingItem({ id_padre: parentId }); 
-        setIsModalOpen(true);
-    };
-    
-    const handleEdit = (item) => {
-        setEditingItem(item);
-        setIsModalOpen(true);
-    };
-
-    const handleDelete = async (item) => {
-        if (window.confirm(`Sei sicuro di voler eliminare la categoria "${item.nome_categoria}"?`)) {
-            try {
-                await api.delete(`/catalogo/categorie/${item.id}`);
-                fetchCategorieTree();
-            } catch (err) {
-                alert('Errore durante l\'eliminazione: ' + (err.response?.data?.message || err.message));
-            }
-        }
-    };
-
-    const handleSave = async (data, itemId) => {
-        const itemToSave = { ...data };
-        try {
-            if (itemId) {
-                await api.patch(`/catalogo/categorie/${itemId}`, itemToSave);
-            } else {
-                await api.post('/catalogo/categorie', itemToSave);
-            }
-            fetchCategorieTree();
-            setIsModalOpen(false);
-            setEditingItem(null);
-        } catch (err) {
-            alert('Errore durante il salvataggio: ' + (err.response?.data?.message || err.message));
-        }
-    };
-
-    const handleCancel = () => {
-        setIsModalOpen(false);
-        setEditingItem(null);
-    };
-
-    const filteredTree = useMemo(() => {
-        if (!searchTerm) return categorieTree;
-        const lowerCaseSearchTerm = searchTerm.toLowerCase();
-        const filterNodes = (nodes) => {
-            return nodes.reduce((acc, node) => {
-                const children = filterNodes(node.children || []);
-                const match = node.nome_categoria.toLowerCase().includes(lowerCaseSearchTerm) || 
-                              (node.codice_categoria && node.codice_categoria.toLowerCase().includes(lowerCaseSearchTerm));
-                if (match || children.length > 0) {
-                    acc.push({ ...node, children });
-                }
-                return acc;
-            }, []);
-        };
-        const results = filterNodes(categorieTree);
-        if(results.length > 0 && searchTerm) {
-            setTimeout(() => setExpandedNodes(getAllIds(results)), 0);
-        }
-        return results;
-    }, [searchTerm, categorieTree, getAllIds]);
-
-    const flattenTreeForExport = useCallback((nodes) => {
-        let flatList = [];
-        nodes.forEach(node => {
-            flatList.push({ 
-                codice: node.codice_categoria || '',
-                nome: node.nome_categoria, 
-                descrizione: node.descrizione || '' 
-            });
-            if (node.children && node.children.length > 0) {
-                flatList = flatList.concat(flattenTreeForExport(node.children));
-            }
-        });
-        return flatList;
-    }, []);
-
-    const handleExportCSV = () => {
-        const flatData = flattenTreeForExport(categorieTree);
-        const header = "Codice;Nome Categoria;Descrizione\n";
-        const csvContent = flatData.map(row => `"${row.codice}";"${row.nome}";"${row.descrizione}"`).join("\n");
-        const blob = new Blob([`\uFEFF${header}${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", "categorie_catalogo.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-    
-    const handleExportPDF = () => {
-        const doc = new jsPDF();
-        const flatData = flattenTreeForExport(categorieTree);
-
-        const pageContent = (data) => {
-            doc.setFontSize(14);
-            doc.setTextColor(40);
-            doc.setFont('helvetica', 'bold');
-            doc.text(ditta?.ragione_sociale || 'Opero Gestionale', data.settings.margin.left, 22);
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            const userInfo = `Stampato da: ${user?.nome || ''} ${user?.cognome || ''}`;
-            const dateInfo = `Data: ${new Date().toLocaleDateString('it-IT')}`;
-            doc.text(userInfo, data.settings.margin.left, 28);
-            const dateWidth = doc.getStringUnitWidth(dateInfo) * doc.getFontSize() / doc.internal.scaleFactor;
-            doc.text(dateInfo, doc.internal.pageSize.getWidth() - data.settings.margin.right - dateWidth, 28);
-            const str = "Documento generato da Opero il gestionale full prompt www.operogo.it";
-            doc.setFontSize(8);
-            const pageWidth = doc.internal.pageSize.getWidth();
-            doc.text(str, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-        };
-
-        autoTable(doc, {
-            startY: 35,
-            head: [['Codice', 'Nome Categoria', 'Descrizione']],
-            body: flatData.map(row => [row.codice, row.nome, row.descrizione]),
-            theme: 'grid',
-            headStyles: { fillColor: [41, 128, 185] },
-            didDrawPage: pageContent,
-        });
-
-        doc.save('categorie_catalogo.pdf');
-    };
-
-    const handlePrint = useReactToPrint({
-        content: () => printRef.current,
-        documentTitle: 'Struttura Categorie Catalogo',
+    // prima passata: crea una mappa di tutti i nodi per un accesso rapido.
+    list.forEach(node => {
+        map[node.id] = { ...node, children: [] };
     });
 
-    if (loading) return <div>Caricamento in corso...</div>;
-    if (error) return <div className="text-red-500">{error}</div>;
+    // seconda passata: costruisce la gerarchia.
+    list.forEach(node => {
+        if (node.id_padre !== null && map[node.id_padre]) {
+            // se è un figlio, lo aggiunge all'array 'children' del suo genitore.
+            map[node.id_padre].children.push(map[node.id]);
+        } else {
+            // se è un nodo radice (non ha padre), lo aggiunge all'array principale.
+            roots.push(map[node.id]);
+        }
+    });
 
-    return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-4 no-print">
-                <h1 className="text-xl font-bold">Gestione Categorie Catalogo</h1>
-                <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input type="text" placeholder="Cerca..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border rounded-md"/>
-                    </div>
-                    <button onClick={handleExpandAll} className="p-2 text-gray-500 hover:text-gray-800" title="Espandi tutto"><ArrowsPointingOutIcon className="h-5 w-5"/></button>
-                    <button onClick={handleCollapseAll} className="p-2 text-gray-500 hover:text-gray-800" title="Comprimi tutto"><ArrowsPointingInIcon className="h-5 w-5"/></button>
-                    <button onClick={handleExportCSV} className="flex items-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"><ArrowDownTrayIcon className="h-5 w-5 mr-1"/> CSV</button>
-                    <button onClick={handleExportPDF} className="flex items-center px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"><ArrowDownTrayIcon className="h-5 w-5 mr-1"/> PDF</button>
-                    <button onClick={handlePrint} className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"><PrinterIcon className="h-5 w-5 mr-1"/> Stampa</button>
-                    {hasPermission('CT_MANAGE') && (
-                        <button onClick={() => handleAdd(null)} className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"><PlusIcon className="h-5 w-5 mr-1"/> Nuova</button>
-                    )}
-                    <button onClick={fetchCategorieTree} title="Ricarica dati" className="p-2 text-gray-500 hover:text-gray-800"><ArrowPathIcon className="h-5 w-5"/></button>
-                 </div>
-            </div>
-            
-            <div ref={printRef} className="bg-white p-4 rounded-lg shadow print-container">
-                 <h1 className="print-only-title" style={{display: 'none'}}>Categorie del Catalogo</h1>
-                 <style type="text/css" media="print">
-                  {`
-                    @page { size: auto; margin: 20mm; }
-                    body { -webkit-print-color-adjust: exact; }
-                    .no-print { display: none !important; }
-                    .print-only-title { display: block !important; text-align: center; font-size: 1.5rem; margin-bottom: 1rem; }
-                    .print-container { box-shadow: none !important; border: none !important; }
-                  `}
-                </style>
-                {filteredTree.length > 0 ? (
-                    filteredTree.map(rootNode => (
-                        <TreeNode 
-                            key={rootNode.id} 
-                            node={rootNode} 
-                            level={0} 
-                            onAdd={handleAdd} 
-                            onEdit={handleEdit} 
-                            onDelete={handleDelete}
-                            onToggle={handleToggleNode}
-                            allExpandedNodes={expandedNodes}
-                         />
-                    ))
-                ) : (
-                    <div className="text-center text-gray-500 py-8">Nessuna categoria trovata.</div>
-                )}
-            </div>
-
-            {isModalOpen && (
-                <CategoriaFormModal 
-                    item={editingItem} 
-                    onSave={handleSave} 
-                    onCancel={handleCancel}
-                    allCategories={categorieTree} 
-                />
-            )}
-        </div>
-    );
+    return roots;
 };
 
-export default CategorieManager;
+
+// #################################################
+// #           FUNZIONI HELPER PER CODIFICA        #
+// #################################################
+
+/**
+ * formatta un numero in una stringa di 3 cifre con zeri iniziali.
+ * es: 5 -> "005", 12 -> "012", 123 -> "123"
+ * @param {number} num - il numero da formattare.
+ * @returns {string} la stringa formattata.
+ */
+const formatProgressivo = (num) => num.toString().padStart(3, '0');
+
+/**
+ * calcola il percorso gerarchico di una categoria.
+ * @param {object} trx - la transazione knex.
+ * @param {number} parentId - l'id della categoria genitore.
+ * @param {number} id_ditta - l'id della ditta.
+ * @returns {Promise<Array<object>>} - un array di oggetti rappresentanti gli antenati.
+ */
+const getParentPath = async (trx, parentId, id_ditta) => {
+    let path = [];
+    let currentId = parentId;
+    let depth = 0;
+    while (currentId !== null && depth < 5) {
+        const parent = await trx('ct_categorie').where({ id: currentId, id_ditta }).first('id', 'id_padre', 'progressivo');
+        if (!parent) break;
+        path.unshift(parent);
+        currentId = parent.id_padre;
+        depth++;
+    }
+    return path;
+};
+
+/**
+ * aggiorna ricorsivamente i codici di tutte le sottocategorie di un genitore.
+ * @param {object} trx - la transazione knex.
+ * @param {number} parentId - l'id del genitore di cui aggiornare i figli.
+ * @param {string} parentCode - il nuovo codice del genitore.
+ * @param {number} id_ditta - l'id della ditta.
+ */
+const updateChildrenCodes = async (trx, parentId, parentCode, id_ditta) => {
+    const children = await trx('ct_categorie').where({ id_padre: parentId, id_ditta });
+
+    for (const child of children) {
+        const newChildCode = `${parentCode}.${formatProgressivo(child.progressivo)}`;
+        await trx('ct_categorie').where({ id: child.id }).update({ codice_categoria: newChildCode });
+        await updateChildrenCodes(trx, child.id, newChildCode, id_ditta);
+    }
+};
+
+// --- GET /api/catalogo/categorie (restituisce albero gerarchico) ---
+
+// --- GET /categorie (ordinato per codice) ---
+router.get('/categorie', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_VIEW')) {
+        return res.status(403).json({ success: false, message: 'azione non autorizzata. permessi insufficienti.' });
+    }
+    try {
+        const { id_ditta } = req.user;
+        const flatCategories = await knex('ct_categorie')
+            .where({ id_ditta })
+            .orderBy('codice_categoria', 'asc'); // ## MODIFICA: ordinamento per codice
+
+        const buildTree = (list) => {
+            const map = {};
+            const roots = [];
+            list.forEach(node => {
+                map[node.id] = { ...node, children: [] };
+            });
+            list.forEach(node => {
+                if (node.id_padre !== null && map[node.id_padre]) {
+                    map[node.id_padre].children.push(map[node.id]);
+                } else {
+                    roots.push(map[node.id]);
+                }
+            });
+            return roots;
+        };
+
+        const categoryTree = buildTree(flatCategories);
+        res.json(categoryTree);
+    } catch (error) {
+        console.error("errore nel recupero delle categorie:", error);
+        res.status(500).json({ success: false, message: 'errore interno del server.' });
+    }
+});
+
+// --- POST /api/catalogo/categorie (gestisce id_padre) ---
+// --- POST /categorie (con logica di codifica) ---
+router.post('/categorie', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'azione non autorizzata. permessi insufficienti.' });
+    }
+
+    const { nome_categoria, descrizione, id_padre } = req.body;
+    const { id_ditta, id: id_utente } = req.user;
+
+    if (!nome_categoria) {
+        return res.status(400).json({ message: "il nome della categoria è obbligatorio." });
+    }
+    
+    const trx = await knex.transaction();
+    try {
+        // 1. calcolo del nuovo codice
+        let parentPath = [];
+        if (id_padre) {
+            parentPath = await getParentPath(trx, id_padre, id_ditta);
+            if (parentPath.length >= 5) {
+                await trx.rollback();
+                return res.status(400).json({ message: 'raggiunto il limite massimo di 5 livelli di nidificazione.' });
+            }
+        }
+
+        const lastSibling = await trx('ct_categorie')
+            .where({ id_ditta, id_padre: id_padre || null })
+            .orderBy('progressivo', 'desc')
+            .first('progressivo');
+        
+        const nextProgressivo = (lastSibling ? lastSibling.progressivo : 0) + 1;
+
+        if (nextProgressivo > 999) {
+            await trx.rollback();
+            return res.status(400).json({ message: 'raggiunto il limite di 999 elementi per questo livello.' });
+        }
+
+        const parentCode = parentPath.map(p => formatProgressivo(p.progressivo)).join('.');
+        const newCode = parentCode ? `${parentCode}.${formatProgressivo(nextProgressivo)}` : formatProgressivo(nextProgressivo);
+
+        // 2. inserimento nel db
+        const [newId] = await trx('ct_categorie').insert({
+            id_ditta,
+            nome_categoria,
+            descrizione,
+            id_padre: id_padre || null,
+            progressivo: nextProgressivo,
+            codice_categoria: newCode
+        });
+
+        // 3. logging nella tabella 'log_azioni'
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Creazione Categoria Catalogo',
+            dettagli: `Creata categoria: ${newCode} - ${nome_categoria} (ID: ${newId})`
+        });
+
+        await trx.commit();
+        res.status(201).json({ success: true, message: 'categoria creata con successo.', id: newId });
+    } catch (error) {
+        await trx.rollback();
+        console.error("errore nella creazione della categoria:", error);
+        res.status(500).json({ message: "errore interno del server." });
+    }
+});
+
+// --- PATCH /api/catalogo/categorie/:id (gestisce id_padre) ---
+// --- PATCH /categorie/:id (con logica di ricalcolo ricorsivo) ---
+router.patch('/categorie/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'azione non autorizzata. permessi insufficienti.' });
+    }
+    
+    const { id } = req.params;
+    const { nome_categoria, descrizione, id_padre } = req.body;
+    const { id_ditta, id: id_utente } = req.user;
+
+    if (Number(id) === Number(id_padre)) {
+        return res.status(400).json({ message: "una categoria non può essere figlia di se stessa." });
+    }
+
+    const trx = await knex.transaction();
+    try {
+        const currentCategory = await trx('ct_categorie').where({ id, id_ditta }).first();
+        if (!currentCategory) {
+            await trx.rollback();
+            return res.status(404).json({ message: "categoria non trovata." });
+        }
+
+        const parentChanged = id_padre !== undefined && currentCategory.id_padre !== (id_padre || null);
+
+        let updateData = { nome_categoria, descrizione };
+
+        if (parentChanged) {
+            // se il genitore cambia, dobbiamo ricalcolare il codice
+            let newParentPath = [];
+            if (id_padre) {
+                newParentPath = await getParentPath(trx, id_padre, id_ditta);
+                // controllo anti-ciclo e profondità
+                const descendantIds = (await trx.raw('WITH RECURSIVE a AS (SELECT id FROM ct_categorie WHERE id = ? UNION ALL SELECT c.id FROM a JOIN ct_categorie c ON c.id_padre = a.id) SELECT id FROM a', [id])).rows.map(r => r.id);
+                if (descendantIds.includes(id_padre)) {
+                     await trx.rollback();
+                     return res.status(400).json({ message: "impossibile spostare una categoria sotto uno dei suoi discendenti." });
+                }
+                if (newParentPath.length + descendantIds.length > 5) {
+                    await trx.rollback();
+                    return res.status(400).json({ message: 'lo spostamento supera il limite di 5 livelli di nidificazione.' });
+                }
+            }
+            
+            // calcolo il nuovo progressivo nella nuova "famiglia"
+            const lastSibling = await trx('ct_categorie').where({ id_ditta, id_padre: id_padre || null }).orderBy('progressivo', 'desc').first('progressivo');
+            const newProgressivo = (lastSibling ? lastSibling.progressivo : 0) + 1;
+
+            const newParentCode = newParentPath.map(p => formatProgressivo(p.progressivo)).join('.');
+            const newCode = newParentCode ? `${newParentCode}.${formatProgressivo(newProgressivo)}` : formatProgressivo(newProgressivo);
+
+            updateData.id_padre = id_padre || null;
+            updateData.progressivo = newProgressivo;
+            updateData.codice_categoria = newCode;
+            
+            // aggiornamento ricorsivo dei figli
+            await trx('ct_categorie').where({ id, id_ditta }).update(updateData);
+            await updateChildrenCodes(trx, id, newCode, id_ditta);
+
+        } else {
+            // aggiornamento semplice senza cambio di gerarchia
+            await trx('ct_categorie').where({ id, id_ditta }).update(updateData);
+        }
+
+        // logging
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Aggiornamento Categoria Catalogo',
+            dettagli: `Aggiornata categoria: ${updateData.codice_categoria || currentCategory.codice_categoria} - ${nome_categoria} (id: ${id})`
+        });
+
+        await trx.commit();
+        res.status(200).json({ success: true, message: 'categoria aggiornata con successo.' });
+    } catch (error) {
+        await trx.rollback();
+        console.error("errore nell'aggiornamento della categoria:", error);
+        res.status(500).json({ message: "errore interno del server." });
+    }
+});
+
+
+
+// --- DELETE /categorie/:id (logging aggiornato) ---
+router.delete('/categorie/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'azione non autorizzata. permessi insufficienti.' });
+    }
+
+    const { id } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    
+    const trx = await knex.transaction();
+    try {
+        const categoria = await trx('ct_categorie').where({ id, id_ditta }).first();
+        if (!categoria) {
+            await trx.rollback();
+            return res.status(404).json({ message: "categoria non trovata o non appartenente alla ditta." });
+        }
+
+        await trx('ct_categorie').where({ id, id_ditta }).del();
+        
+        // logging
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Eliminazione Categoria Catalogo',
+            dettagli: `Eliminata categoria: ${categoria.codice_categoria} - ${categoria.nome_categoria} (id: ${id})`
+        });
+
+        await trx.commit();
+        res.status(200).json({ success: true, message: 'categoria eliminata con successo.' });
+    } catch (error) {
+        await trx.rollback();
+        console.error("errore nell'eliminazione della categoria:", error);
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+             return res.status(400).json({ message: "impossibile eliminare: la categoria è utilizzata in altre parti del catalogo." });
+        }
+        res.status(500).json({ message: "errore interno del server." });
+    }
+});
+module.exports = router;
 

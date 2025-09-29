@@ -1,9 +1,13 @@
 /**
  * @file opero-frontend/src/components/catalogo/CategorieManager.js
  * @description componente react per la gestione gerarchica delle categorie del catalogo.
- * - v2.6: aggiunta intestazione specifica per la stampa diretta da browser.
+ * - v3.0: versione stabile e completa con export/stampa personalizzati e fix di stabilità.
+ * - utilizza librerie interne (npm) per la generazione di pdf e per la stampa.
+ * - include intestazione e piè di pagina personalizzati per i pdf.
+ * - include il codice categoria nell'export csv.
+ * - logica del form modale corretta per evitare crash.
  * @date 2025-09-29
- * @version 2.6 (intestazione stampa)
+ * @version 3.0 (stabile)
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -23,12 +27,12 @@ import {
 } from '@heroicons/react/24/solid';
 
 
-// --- Componente Modale per Creazione/Modifica (invariato) ---
+// --- Componente Modale per Creazione/Modifica ---
 const CategoriaFormModal = ({ item, onSave, onCancel, allCategories }) => {
     const [formData, setFormData] = useState({ nome_categoria: '', descrizione: '', id_padre: null });
 
     useEffect(() => {
-        if (item && item.id) {
+        if (item && item.id) { // Caso Modifica
             setFormData({
                 nome_categoria: item.nome_categoria || '',
                 descrizione: item.descrizione || '',
@@ -78,7 +82,7 @@ const CategoriaFormModal = ({ item, onSave, onCancel, allCategories }) => {
             options.push(
                 <option key={node.id} value={node.id}>
                     {'\u00A0'.repeat(depth * 4)}
-                    {node.nome_categoria}
+                    {node.codice_categoria} - {node.nome_categoria}
                 </option>
             );
             if (node.children && node.children.length > 0) {
@@ -129,7 +133,7 @@ const CategoriaFormModal = ({ item, onSave, onCancel, allCategories }) => {
 };
 
 
-// --- Componente Ricorsivo per renderizzare l'albero (invariato) ---
+// --- Componente Ricorsivo per renderizzare l'albero ---
 const TreeNode = ({ node, level, onAdd, onEdit, onDelete, onToggle, allExpandedNodes }) => {
     const { hasPermission } = useAuth();
     const isNodeExpanded = allExpandedNodes[node.id];
@@ -142,6 +146,7 @@ const TreeNode = ({ node, level, onAdd, onEdit, onDelete, onToggle, allExpandedN
                         className={`h-5 w-5 text-gray-500 mr-2 transform transition-transform ${isNodeExpanded ? 'rotate-90' : 'rotate-0'} ${!node.children || node.children.length === 0 ? 'opacity-0' : ''}`} 
                     />
                     {isNodeExpanded ? <FolderOpenIcon className="h-6 w-6 text-yellow-500 mr-2"/> : <FolderIcon className="h-6 w-6 text-yellow-500 mr-2"/>}
+                    <span className="font-mono text-sm text-gray-600 mr-2">{node.codice_categoria}</span>
                     <span className="font-medium">{node.nome_categoria}</span>
                 </div>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -160,6 +165,7 @@ const TreeNode = ({ node, level, onAdd, onEdit, onDelete, onToggle, allExpandedN
         </div>
     );
 };
+
 
 // --- Componente Principale ---
 const CategorieManager = () => {
@@ -257,7 +263,9 @@ const CategorieManager = () => {
         const filterNodes = (nodes) => {
             return nodes.reduce((acc, node) => {
                 const children = filterNodes(node.children || []);
-                if (node.nome_categoria.toLowerCase().includes(lowerCaseSearchTerm) || children.length > 0) {
+                const match = node.nome_categoria.toLowerCase().includes(lowerCaseSearchTerm) || 
+                              (node.codice_categoria && node.codice_categoria.toLowerCase().includes(lowerCaseSearchTerm));
+                if (match || children.length > 0) {
                     acc.push({ ...node, children });
                 }
                 return acc;
@@ -270,15 +278,16 @@ const CategorieManager = () => {
         return results;
     }, [searchTerm, categorieTree, getAllIds]);
 
-    const flattenTreeForExport = useCallback((nodes, level = 0) => {
+    const flattenTreeForExport = useCallback((nodes) => {
         let flatList = [];
         nodes.forEach(node => {
             flatList.push({ 
-                nome: ' '.repeat(level * 4) + node.nome_categoria, 
+                codice: node.codice_categoria || '',
+                nome: node.nome_categoria, 
                 descrizione: node.descrizione || '' 
             });
             if (node.children && node.children.length > 0) {
-                flatList = flatList.concat(flattenTreeForExport(node.children, level + 1));
+                flatList = flatList.concat(flattenTreeForExport(node.children));
             }
         });
         return flatList;
@@ -286,8 +295,8 @@ const CategorieManager = () => {
 
     const handleExportCSV = () => {
         const flatData = flattenTreeForExport(categorieTree);
-        const header = "Nome Categoria;Descrizione\n";
-        const csvContent = flatData.map(row => `"${row.nome}";"${row.descrizione}"`).join("\n");
+        const header = "Codice;Nome Categoria;Descrizione\n";
+        const csvContent = flatData.map(row => `"${row.codice}";"${row.nome}";"${row.descrizione}"`).join("\n");
         const blob = new Blob([`\uFEFF${header}${csvContent}`], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
@@ -303,22 +312,20 @@ const CategorieManager = () => {
         const flatData = flattenTreeForExport(categorieTree);
 
         const pageContent = (data) => {
-            // --- INTESTAZIONE ---
+            // Intestazione
             doc.setFontSize(14);
             doc.setTextColor(40);
             doc.setFont('helvetica', 'bold');
             doc.text(ditta?.ragione_sociale || 'Opero Gestionale', data.settings.margin.left, 22);
-
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             const userInfo = `Stampato da: ${user?.nome || ''} ${user?.cognome || ''}`;
             const dateInfo = `Data: ${new Date().toLocaleDateString('it-IT')}`;
             doc.text(userInfo, data.settings.margin.left, 28);
-            
             const dateWidth = doc.getStringUnitWidth(dateInfo) * doc.getFontSize() / doc.internal.scaleFactor;
             doc.text(dateInfo, doc.internal.pageSize.getWidth() - data.settings.margin.right - dateWidth, 28);
-
-            // --- PIE' DI PAGINA ---
+            
+            // Piè di pagina
             const str = "Documento generato da Opero il gestionale full prompt www.operogo.it";
             doc.setFontSize(8);
             const pageWidth = doc.internal.pageSize.getWidth();
@@ -327,8 +334,8 @@ const CategorieManager = () => {
 
         autoTable(doc, {
             startY: 35,
-            head: [['Nome Categoria', 'Descrizione']],
-            body: flatData.map(row => [row.nome, row.descrizione]),
+            head: [['Codice', 'Nome Categoria', 'Descrizione']],
+            body: flatData.map(row => [row.codice, row.nome, row.descrizione]),
             theme: 'grid',
             headStyles: { fillColor: [41, 128, 185] },
             didDrawPage: pageContent,
@@ -367,7 +374,6 @@ const CategorieManager = () => {
             </div>
             
             <div ref={printRef} className="bg-white p-4 rounded-lg shadow print-container">
-                 {/* ## MODIFICA: Aggiornata intestazione per la stampa diretta ## */}
                  <h1 className="print-only-title" style={{display: 'none'}}>Categorie del Catalogo</h1>
                  <style type="text/css" media="print">
                   {`
