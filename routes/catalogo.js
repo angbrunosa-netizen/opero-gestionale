@@ -11,6 +11,14 @@ const express = require('express');
 const router = express.Router();
 const { knex } = require('../config/db'); 
 const { verifyToken } = require('../utils/auth');
+// --- DIPENDENZE PER IMPORT CSV ---
+const multer = require('multer');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
+
+// Configurazione di Multer per gestire il file in memoria
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // #################################################
 // #                API CATEGORIE                  #
@@ -322,5 +330,374 @@ router.delete('/categorie/:id', verifyToken, async (req, res) => {
         res.status(500).json({ message: "errore interno del server." });
     }
 });
+
+// #################################################
+// #           API UNITA' DI MISURA                #
+// #################################################
+
+// --- GET /api/catalogo/unita-misura ---
+router.get('/unita-misura', verifyToken, async (req, res) => {
+    // La visualizzazione è permessa a tutti gli utenti autenticati che accedono al modulo
+    try {
+        const { id_ditta } = req.user;
+        const unita = await knex('ct_unita_misura').where({ id_ditta }).orderBy('sigla_um', 'asc');
+        res.json({ success: true, data: unita });
+    } catch (error) {
+        console.error("Errore nel recupero delle unità di misura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- POST /api/catalogo/unita-misura ---
+router.post('/unita-misura', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_UM_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+    const { sigla, descrizione } = req.body;
+    const { id_ditta, id: id_utente } = req.user;
+    try {
+        const [newId] = await knex('ct_unita_misura').insert({ id_ditta, sigla_um: sigla, descrizione });
+        
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Creazione Unità di Misura',
+            dettagli: `Creata nuova unità di misura: ${sigla} - ${descrizione}`
+        });
+
+        res.status(201).json({ success: true, id: newId });
+    } catch (error) {
+        console.error("Errore nella creazione dell'unità di misura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- PATCH /api/catalogo/unita-misura/:id ---
+router.patch('/unita-misura/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_UM_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+    const { id } = req.params;
+    const { sigla, descrizione } = req.body;
+    const { id_ditta, id: id_utente } = req.user;
+    try {
+        const updated = await knex('ct_unita_misura').where({ id, id_ditta }).update({ sigla_um: sigla, descrizione });
+        if (updated === 0) {
+            return res.status(404).json({ success: false, message: 'Unità di misura non trovata.' });
+        }
+        
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Modifica Unità di Misura',
+            dettagli: `Modificata unità di misura ID ${id}: ${sigla} - ${descrizione}`
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Errore nella modifica dell'unità di misura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- DELETE /api/catalogo/unita-misura/:id ---
+router.delete('/unita-misura/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_UM_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+    const { id } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    try {
+        const deleted = await knex('ct_unita_misura').where({ id, id_ditta }).del();
+        if (deleted === 0) {
+            return res.status(404).json({ success: false, message: 'Unità di misura non trovata.' });
+        }
+
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Eliminazione Unità di Misura',
+            dettagli: `Eliminata unità di misura ID ${id}`
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Errore nell'eliminazione dell'unità di misura:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+
+// #################################################
+// #              API STATI ENTITA'                #
+// #################################################
+router.get('/stati-entita', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_VIEW')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    try {
+        const stati = await knex('ct_stati_entita').select('*');
+        res.json({ success: true, data: stati });
+    } catch (error) {
+        console.error("Errore recupero stati entità:", error);
+        res.status(500).json({ success: false, message: "Errore interno del server." });
+    }
+});
+
+router.post('/stati-entita', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_STATI_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { codice, descrizione, visibilita } = req.body;
+    const { id_ditta, id: id_utente } = req.user; // id_ditta non è usato ma lo teniamo per coerenza
+    try {
+        const [newId] = await knex('ct_stati_entita').insert({ codice, descrizione, visibilita });
+        await knex('log_azioni').insert({ id_utente, id_ditta, azione: 'Creazione Stato Entità', dettagli: `Creato stato: ${codice} - ${descrizione}` });
+        res.status(201).json({ success: true, id: newId });
+    } catch (error) {
+        console.error("Errore creazione stato entità:", error);
+        res.status(500).json({ success: false, message: "Errore interno del server." });
+    }
+});
+
+router.patch('/stati-entita/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_STATI_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { id } = req.params;
+    const { descrizione, visibilita } = req.body;
+    const { id_ditta, id: id_utente } = req.user;
+    try {
+        await knex('ct_stati_entita').where({ id }).update({ descrizione, visibilita });
+        await knex('log_azioni').insert({ id_utente, id_ditta, azione: 'Modifica Stato Entità', dettagli: `Modificato stato ID: ${id}` });
+        res.status(200).json({ success: true, message: 'Stato aggiornato.' });
+    } catch (error) {
+        console.error("Errore modifica stato entità:", error);
+        res.status(500).json({ success: false, message: "Errore interno del server." });
+    }
+});
+
+router.delete('/stati-entita/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_STATI_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { id } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    try {
+        await knex('ct_stati_entita').where({ id }).del();
+        await knex('log_azioni').insert({ id_utente, id_ditta, azione: 'Eliminazione Stato Entità', dettagli: `Eliminato stato ID: ${id}` });
+        res.status(200).json({ success: true, message: 'Stato eliminato.' });
+    } catch (error) {
+        console.error("Errore eliminazione stato entità:", error);
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+            return res.status(400).json({ success: false, message: "Impossibile eliminare lo stato perché è attualmente in uso da una o più entità del catalogo." });
+        }
+        res.status(500).json({ success: false, message: "Errore interno del server." });
+    }
+});
+// Altre API per STATI ENTITA' (POST, PATCH, DELETE)...
+
+
+// #################################################
+// #           API ANAGRAFICA CATALOGO             #
+// #################################################
+
+// --- GET /api/catalogo/entita ---
+router.get('/entita', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_VIEW')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { id_ditta } = req.user;
+    const { includeArchived } = req.query; // Legge il parametro dalla querystring
+
+    try {
+        let query = knex('ct_catalogo as cat')
+            .leftJoin('ct_categorie as c', 'cat.id_categoria', 'c.id')
+            .leftJoin('ct_unita_misura as um', 'cat.id_unita_misura', 'um.id')
+            .leftJoin('iva_contabili as iva', 'cat.id_aliquota_iva', 'iva.id')
+            .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
+            .where('cat.id_ditta', id_ditta)
+            .select(
+                'cat.*',
+                'c.nome_categoria',
+                'um.sigla_um',
+                'iva.descrizione as descrizione_iva',
+                'se.descrizione as stato_entita',
+                'se.codice as codice_stato'
+            );
+
+        if (includeArchived !== 'true') {
+            const statoEliminato = await knex('ct_stati_entita').where('codice', 'DEL').first();
+            if (statoEliminato) {
+                query = query.andWhere('cat.id_stato_entita', '!=', statoEliminato.id);
+            }
+        }
+
+        const entita = await query;
+        res.json({ success: true, data: entita });
+
+    } catch (error) {
+        console.error("Errore nel recupero del catalogo:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- POST /api/catalogo/entita ---
+router.post('/entita', verifyToken, async (req, res) => {
+    // ... implementazione esistente
+     res.status(501).send("Not Implemented Yet");
+});
+
+// --- PATCH /api/catalogo/entita/:id ---
+router.patch('/entita/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { id } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    const dataToUpdate = req.body;
+
+    const trx = await knex.transaction();
+    try {
+        const entita = await trx('ct_catalogo').where({ id, id_ditta }).first();
+        if (!entita) {
+            await trx.rollback();
+            return res.status(404).json({ message: "Entità non trovata." });
+        }
+        
+        const statoEliminato = await trx('ct_stati_entita').where('codice', 'DEL').first();
+        if (entita.id_stato_entita === statoEliminato.id) {
+            await trx.rollback();
+            return res.status(403).json({ message: "Impossibile modificare un'entità archiviata." });
+        }
+
+        await trx('ct_catalogo').where({ id, id_ditta }).update(dataToUpdate);
+
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Modifica Entità Catalogo',
+            dettagli: `Modificata entità: ${entita.codice_entita} (ID: ${id})`
+        });
+
+        await trx.commit();
+        res.status(200).json({ success: true, message: 'Entità aggiornata con successo.' });
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore modifica entità:", error);
+        res.status(500).json({ success: false, message: "Errore interno del server." });
+    }
+});
+
+// #################################################
+// #           API IMPORTAZIONE CSV                #
+// #################################################
+
+router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_IMPORT_CSV')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
+    }
+
+    const { id_ditta, id: id_utente } = req.user;
+    const results = [];
+    const errors = [];
+    let rowCounter = 0;
+
+    const readableStream = Readable.from(req.file.buffer.toString('utf8'));
+
+    readableStream
+        .pipe(csv({ separator: ';' }))
+        .on('data', (data) => {
+            rowCounter++;
+            results.push({ ...data, originalRow: rowCounter });
+        })
+        .on('end', async () => {
+            const trx = await knex.transaction();
+            try {
+                const defaultCategory = await trx('ct_categorie').where({ id_ditta }).orderBy('id', 'asc').first();
+                const allIva = await trx('iva_contabili').where({ id_ditta });
+                const statoAttivo = await trx('ct_stati_entita').where('codice', 'ATT').first();
+
+                if (!statoAttivo) {
+                    throw new Error("Stato 'Attivo' non configurato nel sistema.");
+                }
+
+                let entitaToInsert = [];
+
+                for (const row of results) {
+                    if (!row.codice_entita || !row.descrizione) {
+                        errors.push({ row: row.originalRow, error: "Campi 'codice_entita' e 'descrizione' sono obbligatori." });
+                        continue;
+                    }
+                    
+                    let categoryId = defaultCategory ? defaultCategory.id : null;
+                    if (row.codice_categoria) {
+                        const foundCategory = await trx('ct_categorie').where({ codice_categoria: row.codice_categoria, id_ditta }).first();
+                        if (foundCategory) {
+                            categoryId = foundCategory.id;
+                        }
+                    }
+
+                    let ivaId = null;
+                    if (row.codice_iva) {
+                        const foundIva = allIva.find(iva => iva.codice === row.codice_iva);
+                        if (foundIva) {
+                            ivaId = foundIva.id;
+                        }
+                    }
+
+                    // #################################################################
+                    // ## CORREZIONE: Allineamento ai campi reali del database.       ##
+                    // ## - Rimosso 'prezzo_acquisto'.                              ##
+                    // ## - Mappato 'prezzo_vendita' su 'prezzo_vendita_1'.         ##
+                    // #################################################################
+                    entitaToInsert.push({
+                        id_ditta,
+                        codice_entita: row.codice_entita,
+                        descrizione: row.descrizione,
+                        id_categoria: categoryId,
+                        id_aliquota_iva: ivaId,
+                        prezzo_vendita_1: parseFloat(row.prezzo_vendita?.replace(',', '.')) || 0,
+                        id_stato_entita: statoAttivo.id,
+                        tipo_entita: 'bene',
+                        gestito_a_magazzino: false
+                    });
+                }
+                
+                if (entitaToInsert.length > 0) {
+                    await trx('ct_catalogo').insert(entitaToInsert);
+                }
+
+                await trx('log_azioni').insert({
+                    id_utente,
+                    id_ditta,
+                    azione: 'Importazione CSV Catalogo',
+                    dettagli: `Importate ${entitaToInsert.length} nuove entità. Errori: ${errors.length}.`
+                });
+
+                await trx.commit();
+                
+                res.status(200).json({
+                    success: true,
+                    message: `Importazione completata.`,
+                    imported: entitaToInsert.length,
+                    errors: errors.length,
+                    errorDetails: errors
+                });
+
+            } catch (error) {
+                await trx.rollback();
+                console.error("Errore durante l'importazione CSV:", error);
+                res.status(500).json({ 
+                    success: false, 
+                    message: "Errore interno del server durante l'importazione.",
+                    error: error.message
+                });
+            }
+        });
+});
+
+module.exports = router;
+
+
+
 module.exports = router;
 

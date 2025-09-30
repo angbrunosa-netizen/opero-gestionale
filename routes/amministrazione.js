@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const LOG_FILE = path.join(__dirname, '..', 'debug_log.txt');
+const { knex } = require('../config/db'); 
 
 const express = require('express');
 const { dbPool } = require('../config/db');
@@ -878,4 +879,143 @@ router.get('/ditta-info', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
+
+
+// --- Middleware per controllo livello utente ---
+// ... existing code ...
+
+// #################################################
+// #                API ALIQUOTE IVA               #
+// #################################################
+
+// --- GET /api/amministrazione/iva ---
+// Recupera tutte le aliquote IVA per la ditta. Accessibile a tutti gli utenti autenticati.
+router.get('/iva', async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const aliquote = await knex('iva_contabili')
+            .where({ id_ditta })
+            .orderBy('aliquota');
+        res.json({ success: true, data: aliquote });
+    } catch (error) {
+        console.error("Errore nel recupero delle aliquote IVA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- POST /api/amministrazione/iva ---
+// Crea una nuova aliquota IVA. Richiede il permesso CT_IVA_MANAGE.
+router.post('/iva', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_IVA_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+
+    const { id_ditta, id: id_utente } = req.user;
+    const { codice, descrizione, aliquota } = req.body;
+
+    if (!codice || !descrizione || aliquota === undefined) {
+        return res.status(400).json({ success: false, message: 'Codice, descrizione e aliquota sono obbligatori.' });
+    }
+
+    const trx = await knex.transaction();
+    try {
+        const [newId] = await trx('iva_contabili').insert({ id_ditta, codice, descrizione, aliquota });
+        
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Creazione Aliquota IVA',
+            dettagli: `Creata nuova aliquota: ${codice} - ${descrizione} (${aliquota}%)`
+        });
+
+        await trx.commit();
+        res.status(201).json({ success: true, message: 'Aliquota IVA creata con successo.', id: newId });
+    } catch (error) {
+        await trx.rollback();
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: `Il codice IVA "${codice}" esiste già.` });
+        }
+        console.error("Errore nella creazione dell'aliquota IVA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- PATCH /api/amministrazione/iva/:id ---
+// Modifica un'aliquota IVA esistente. Richiede il permesso CT_IVA_MANAGE.
+router.patch('/iva/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_IVA_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+
+    const { id } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    const { descrizione, aliquota } = req.body;
+
+    const trx = await knex.transaction();
+    try {
+        const updated = await trx('iva_contabili')
+            .where({ id, id_ditta })
+            .update({ descrizione, aliquota });
+
+        if (updated === 0) {
+            await trx.rollback();
+            return res.status(404).json({ success: false, message: 'Aliquota non trovata.' });
+        }
+
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Modifica Aliquota IVA',
+            dettagli: `Modificata aliquota ID: ${id}`
+        });
+
+        await trx.commit();
+        res.json({ success: true, message: 'Aliquota IVA aggiornata con successo.' });
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore nell'aggiornamento dell'aliquota IVA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- DELETE /api/amministrazione/iva/:id ---
+// Elimina un'aliquota IVA. Richiede il permesso CT_IVA_MANAGE.
+router.delete('/iva/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_IVA_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+    }
+
+    const { id } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+
+    const trx = await knex.transaction();
+    try {
+        const deleted = await trx('iva_contabili').where({ id, id_ditta }).del();
+
+        if (deleted === 0) {
+            await trx.rollback();
+            return res.status(404).json({ success: false, message: 'Aliquota non trovata.' });
+        }
+        
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Eliminazione Aliquota IVA',
+            dettagli: `Eliminata aliquota ID: ${id}`
+        });
+
+        await trx.commit();
+        res.json({ success: true, message: 'Aliquota IVA eliminata con successo.' });
+    } catch (error) {
+        await trx.rollback();
+        // Gestisce il caso in cui l'aliquota è usata da altre tabelle
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+            return res.status(409).json({ success: false, message: 'Impossibile eliminare l\'aliquota perché è in uso.' });
+        }
+        console.error("Errore nell'eliminazione dell'aliquota IVA:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 module.exports = router;

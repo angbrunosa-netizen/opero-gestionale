@@ -17,6 +17,7 @@
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "mammoth": "^1.10.0",
+    "papaparse": "^5.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-quill": "^2.0.0",
