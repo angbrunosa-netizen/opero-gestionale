@@ -498,27 +498,48 @@ router.delete('/stati-entita/:id', verifyToken, async (req, res) => {
 // #################################################
 
 // --- GET /api/catalogo/entita ---
+// --- GET /api/catalogo/entita (con TUTTI i prezzi dal listino valido) ---
 router.get('/entita', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_VIEW')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
     const { id_ditta } = req.user;
-    const { includeArchived } = req.query; // Legge il parametro dalla querystring
+    const { includeArchived } = req.query;
 
     try {
+        const currentDate = new Date().toISOString().slice(0, 10);
+
+        // Costruiamo dinamicamente la lista di campi da selezionare dal listino
+        const listinoFields = [];
+        for (let i = 1; i <= 6; i++) {
+            listinoFields.push(`l.ricarico_cessione_${i}`);
+            listinoFields.push(`l.prezzo_cessione_${i}`);
+            listinoFields.push(`l.ricarico_pubblico_${i}`);
+            listinoFields.push(`l.prezzo_pubblico_${i}`);
+        }
+
         let query = knex('ct_catalogo as cat')
             .leftJoin('ct_categorie as c', 'cat.id_categoria', 'c.id')
             .leftJoin('ct_unita_misura as um', 'cat.id_unita_misura', 'um.id')
             .leftJoin('iva_contabili as iva', 'cat.id_aliquota_iva', 'iva.id')
             .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
+            .leftJoin('ct_listini as l', function() {
+                this.on('cat.id', '=', 'l.id_entita_catalogo')
+                    .andOn('l.data_inizio_validita', '<=', knex.raw('?', [currentDate]))
+                    .andOn(function() {
+                        this.on('l.data_fine_validita', '>=', knex.raw('?', [currentDate]))
+                            .orOnNull('l.data_fine_validita');
+                    });
+            })
             .where('cat.id_ditta', id_ditta)
             .select(
                 'cat.*',
                 'c.nome_categoria',
                 'um.sigla_um',
-                'iva.descrizione as descrizione_iva',
+                'iva.aliquota as aliquota_iva_valore', // Aggiungiamo il valore dell'aliquota per i calcoli
                 'se.descrizione as stato_entita',
-                'se.codice as codice_stato'
+                'se.codice as codice_stato',
+                ...listinoFields // Aggiungiamo tutti i campi del listino
             );
 
         if (includeArchived !== 'true') {
@@ -527,66 +548,14 @@ router.get('/entita', verifyToken, async (req, res) => {
                 query = query.andWhere('cat.id_stato_entita', '!=', statoEliminato.id);
             }
         }
-
+        
+        query = query.orderBy('cat.codice_entita', 'asc');
         const entita = await query;
         res.json({ success: true, data: entita });
 
     } catch (error) {
         console.error("Errore nel recupero del catalogo:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
-    }
-});
-
-// --- POST /api/catalogo/entita (Creazione Entità) ---
-router.post('/entita', verifyToken, async (req, res) => {
-    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
-        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
-    }
-    
-    const { id_ditta, id: id_utente } = req.user;
-    const trx = await knex.transaction();
-    try {
-        const statoAttivo = await trx('ct_stati_entita').where('codice', 'ATT').first();
-        if (!statoAttivo) {
-            await trx.rollback();
-            return res.status(500).json({ message: "Stato 'Attivo' non configurato nel sistema." });
-        }
-        
-        // Sanitizzazione dei dati in ingresso
-        const { 
-            codice_entita, descrizione, id_categoria, tipo_entita, 
-            id_unita_misura, id_aliquota_iva, costo_base, 
-            gestito_a_magazzino 
-        } = req.body;
-
-        const dataToInsert = {
-            codice_entita, descrizione, id_categoria, tipo_entita, 
-            id_unita_misura, id_aliquota_iva, costo_base, 
-            gestito_a_magazzino,
-            id_ditta,
-            id_stato_entita: statoAttivo.id // Assegna lo stato Attivo di default
-        };
-
-        const [newId] = await trx('ct_catalogo').insert(dataToInsert);
-
-        await trx('log_azioni').insert({
-            id_utente,
-            id_ditta,
-            azione: 'Creazione Entità Catalogo',
-            dettagli: `Creata nuova entità: ${dataToInsert.codice_entita} - ${dataToInsert.descrizione}`
-        });
-
-        await trx.commit();
-        res.status(201).json({ success: true, id: newId });
-
-    } catch (error) {
-        await trx.rollback();
-        console.error("Errore nella creazione dell'entità catalogo:", error);
-        // Gestione errore per codice duplicato
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ success: false, message: `Il codice entità '${req.body.codice_entita}' esiste già.` });
-        }
-        res.status(500).json({ success: false, message: "Errore interno del server." });
     }
 });
 
@@ -655,7 +624,6 @@ router.patch('/entita/:id', verifyToken, async (req, res) => {
 // #           API GESTIONE LISTINI                #
 // #################################################
 
-// --- GET /api/catalogo/entita/:entitaId/listini (Recupera tutti i listini per un'entità) ---
 router.get('/entita/:entitaId/listini', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_VIEW')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
@@ -680,7 +648,6 @@ router.get('/entita/:entitaId/listini', verifyToken, async (req, res) => {
     }
 });
 
-// --- POST /api/catalogo/entita/:entitaId/listini (Crea un nuovo listino) ---
 router.post('/entita/:entitaId/listini', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_MANAGE')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
@@ -708,25 +675,56 @@ router.post('/entita/:entitaId/listini', verifyToken, async (req, res) => {
     }
 });
 
-// --- PATCH /api/catalogo/listini/:listinoId (Modifica un listino esistente) ---
 router.patch('/listini/:listinoId', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_MANAGE')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
-    // ... (Logica di modifica da implementare)
-    res.status(501).send("Not Implemented Yet");
+    const { listinoId } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    const dataToUpdate = req.body;
+
+    try {
+        const updated = await knex('ct_listini').where({ id: listinoId, id_ditta }).update(dataToUpdate);
+        if (updated === 0) {
+            return res.status(404).json({ success: false, message: 'Listino non trovato o non appartenente alla ditta.' });
+        }
+        
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Modifica Listino',
+            dettagli: `Modificato listino ID: ${listinoId}`
+        });
+
+        res.json({ success: true, message: 'Listino aggiornato con successo.' });
+    } catch (error) {
+        console.error("Errore modifica listino:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
 });
 
-// --- DELETE /api/catalogo/listini/:listinoId (Elimina un listino) ---
 router.delete('/listini/:listinoId', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_MANAGE')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
-    // ... (Logica di eliminazione da implementare)
-    res.status(501).send("Not Implemented Yet");
+    const { listinoId } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+
+    try {
+        const deleted = await knex('ct_listini').where({ id: listinoId, id_ditta }).del();
+        if (deleted === 0) {
+            return res.status(404).json({ success: false, message: 'Listino non trovato o non appartenente alla ditta.' });
+        }
+        
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Eliminazione Listino',
+            dettagli: `Eliminato listino ID: ${listinoId}`
+        });
+        
+        res.json({ success: true, message: 'Listino eliminato con successo.' });
+    } catch (error) {
+        console.error("Errore eliminazione listino:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
 });
-
-
 
 
 

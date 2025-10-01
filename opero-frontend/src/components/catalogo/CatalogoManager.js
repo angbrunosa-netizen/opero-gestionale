@@ -1,22 +1,21 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
  * @description Componente completo per la gestione dell'anagrafica entità catalogo.
- * - Integra la gestione avanzata dei listini e l'importazione da CSV.
- * - Implementa form di inserimento/modifica e logica CRUD completa.
+ * - v4.3: Ricostruito per stabilità. Passa correttamente 'entita' e 'aliquoteIva' al ListiniManager.
  * @date 2025-10-01
- * @version 4.0 (Completo)
+ * @version 4.3
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon } from '@heroicons/react/24/solid';
 
 import ImportCsvModal from './ImportCsvModal';
 import ListiniManager from './ListiniManager';
 
-// --- Componente Modale per Creazione/Modifica (Completo) ---
+// --- Sotto-Componente: Form di Creazione/Modifica Anagrafica ---
 const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
     const [formData, setFormData] = useState({});
 
@@ -32,7 +31,6 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
             gestito_a_magazzino: false,
             id_stato_entita: null,
         };
-        // Se item esiste (modifica), popola il form con i suoi dati. Altrimenti, usa lo stato iniziale.
         setFormData(item ? { ...initialState, ...item } : initialState);
     }, [item]);
 
@@ -46,7 +44,6 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
         onSave(formData, item ? item.id : null);
     };
 
-    // Funzione ricorsiva per renderizzare le opzioni delle categorie gerarchiche
     const renderCategoryOptions = (nodes, depth = 0) => {
         let options = [];
         nodes.forEach(node => {
@@ -68,54 +65,43 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                 <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità Catalogo' : 'Nuova Entità Catalogo'}</h2>
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div>
+                        <div>
                             <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
-                            {/* ############################################################### */}
-                            {/* ## IMPLEMENTAZIONE: Campo disabilitato in modalità modifica.   ## */}
-                            {/* ############################################################### */}
-                            <input 
-                                type="text" 
-                                name="codice_entita" 
-                                value={formData.codice_entita || ''} 
-                                onChange={handleChange} 
-                                required 
-                                disabled={!!(item && item.id)} 
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                            />
+                            <input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
                         </div>
                         <div>
                             <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
-                            <input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                            <input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
                         </div>
                         <div className="col-span-2">
                             <label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
-                            <select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                                <option value="">-- Seleziona una categoria --</option>
+                            <select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                <option value="">-- Seleziona --</option>
                                 {supportData.categorie && renderCategoryOptions(supportData.categorie)}
                             </select>
                         </div>
                         <div>
                             <label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label>
-                            <input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                            <input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
                         </div>
                         <div>
                            <label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label>
                             <select name="id_aliquota_iva" value={formData.id_aliquota_iva || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona IVA --</option>
+                                <option value="">-- Seleziona --</option>
                                 {supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}
                             </select>
                         </div>
                         <div>
                            <label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label>
                             <select name="id_unita_misura" value={formData.id_unita_misura || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona UM --</option>
+                                <option value="">-- Seleziona --</option>
                                 {supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}
                             </select>
                         </div>
                         <div>
                            <label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label>
                             <select name="id_stato_entita" value={formData.id_stato_entita || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona Stato --</option>
+                                <option value="">-- Seleziona --</option>
                                 {supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}
                             </select>
                         </div>
@@ -146,7 +132,6 @@ const CatalogoManager = () => {
     const [supportData, setSupportData] = useState({ categorie: [], unitaMisura: [], aliquoteIva: [], statiEntita: [] });
     const [includeArchived, setIncludeArchived] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    
     const [isListiniModalOpen, setIsListiniModalOpen] = useState(false);
     const [selectedEntita, setSelectedEntita] = useState(null);
 
@@ -166,7 +151,7 @@ const CatalogoManager = () => {
             });
         } catch (err) {
             console.error("Errore nel caricamento dei dati di supporto", err);
-            setError("Impossibile caricare i dati di supporto necessari per la modifica.");
+            setError("Impossibile caricare i dati di supporto necessari.");
         }
     }, []);
 
@@ -186,39 +171,26 @@ const CatalogoManager = () => {
 
     useEffect(() => {
         fetchSupportData();
-    }, [fetchSupportData]);
-
-    useEffect(() => {
         fetchEntita();
-    }, [fetchEntita]);
-
+    }, [fetchSupportData, fetchEntita]);
 
     const handleOpenListini = (entita) => {
         setSelectedEntita(entita);
         setIsListiniModalOpen(true);
     };
     
-    const handleAdd = () => {
-        setEditingItem(null);
-        setIsModalOpen(true);
-    };
-
-    const handleEdit = (item) => {
-        setEditingItem(item);
-        setIsModalOpen(true);
-    };
-
+    const handleAdd = () => { setEditingItem(null); setIsModalOpen(true); };
+    const handleEdit = (item) => { setEditingItem(item); setIsModalOpen(true); };
     const handleArchive = async (item) => {
         if (window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
             try {
                 await api.delete(`/catalogo/entita/${item.id}`);
                 fetchEntita();
             } catch (err) {
-                alert('Errore durante l\'archiviazione: ' + (err.response?.data?.message || err.message));
+                alert('Errore: ' + (err.response?.data?.message || err.message));
             }
         }
     };
-
     const handleSave = async (data, itemId) => {
         try {
             if (itemId) {
@@ -228,16 +200,11 @@ const CatalogoManager = () => {
             }
             fetchEntita();
             setIsModalOpen(false);
-            setEditingItem(null);
         } catch (err) {
-            alert('Errore durante il salvataggio: ' + (err.response?.data?.message || err.message));
+            alert('Errore: ' + (err.response?.data?.message || err.message));
         }
     };
-
-    const handleCancel = () => {
-        setIsModalOpen(false);
-        setEditingItem(null);
-    };
+    const handleCancel = () => { setIsModalOpen(false); };
 
     const columns = useMemo(() => [
         { header: 'Codice', accessorKey: 'codice_entita' },
@@ -245,19 +212,20 @@ const CatalogoManager = () => {
         { header: 'Categoria', accessorKey: 'nome_categoria' },
         { header: 'Stato', accessorKey: 'stato_entita' },
         { header: 'Costo Base', accessorKey: 'costo_base', cell: info => `€ ${parseFloat(info.getValue() || 0).toFixed(2)}` },
-        { header: 'P. Cessione Attuale', accessorKey: 'prezzo_cessione_1', cell: info => info.getValue() ? `€ ${parseFloat(info.getValue()).toFixed(2)}` : 'N/D' },
+        { header: 'P. Cess. 1', accessorKey: 'prezzo_cessione_1', cell: info => info.getValue() ? `€ ${parseFloat(info.getValue()).toFixed(2)}` : 'N/D' },
         {
             header: 'Azioni',
             id: 'actions',
             cell: ({ row }) => (
                 <div className="flex gap-3 items-center">
-                    {hasPermission('CT_LISTINI_VIEW') && (
-                        <button onClick={() => handleOpenListini(row.original)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini">
-                            <ListBulletIcon className="h-5 w-5" />
-                        </button>
-                    )}
                     {hasPermission('CT_MANAGE') && (
-                        <button onClick={() => handleEdit(row.original)} className="text-blue-600 hover:text-blue-800" title="Modifica">Modifica</button>
+                        <button onClick={() => handleEdit(row.original)} className="p-1 text-blue-600 hover:text-blue-800" title="Modifica"><PencilIcon className="h-5 w-5" /></button>
+                    )}
+                    {hasPermission('CT_LISTINI_VIEW') && (
+                        <button onClick={() => handleOpenListini(row.original)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini"><ListBulletIcon className="h-5 w-5" /></button>
+                    )}
+                    {hasPermission('CT_MANAGE') && row.original.codice_stato !== 'DEL' && (
+                        <button onClick={() => handleArchive(row.original)} className="p-1 text-red-600 hover:text-red-800" title="Archivia"><ArchiveBoxIcon className="h-5 w-5" /></button>
                     )}
                 </div>
             )
@@ -275,7 +243,7 @@ const CatalogoManager = () => {
                     </div>
                     {hasPermission('CT_IMPORT_CSV') && (
                         <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-3 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm">
-                            <DocumentArrowUpIcon className="h-5 w-5 mr-1"/> Importa da CSV
+                            <DocumentArrowUpIcon className="h-5 w-5 mr-1"/> Importa
                         </button>
                     )}
                     {hasPermission('CT_MANAGE') && (
@@ -288,20 +256,8 @@ const CatalogoManager = () => {
             <AdvancedDataGrid columns={columns} data={entita} loading={loading} error={error} />
 
             {isModalOpen && ( <CatalogoFormModal item={editingItem} onSave={handleSave} onCancel={handleCancel} supportData={supportData} /> )}
-           {isImportModalOpen && ( 
-                <ImportCsvModal 
-                    onClose={() => {
-                        setIsImportModalOpen(false);
-                        fetchEntita(); // Ricarica i dati quando il modale viene chiuso
-                    }} 
-                    onImportSuccess={() => {
-                        // Questa funzione ora serve solo a notificare che ci sono stati cambiamenti,
-                        // ma non chiude più il modale. Potremmo usarla in futuro per un feedback immediato.
-                        // Per ora, la lasciamo per ricaricare i dati in background se necessario.
-                        fetchEntita();
-                    }} 
-                /> 
-            )}
+            {isImportModalOpen && ( <ImportCsvModal onClose={() => {setIsImportModalOpen(false); fetchEntita();}} onImportSuccess={() => { fetchEntita(); }} /> )}
+            
             {isListiniModalOpen && selectedEntita && (
                 <ListiniManager
                     entita={selectedEntita}
@@ -310,6 +266,7 @@ const CatalogoManager = () => {
                         setSelectedEntita(null);
                         fetchEntita();
                     }}
+                    aliquoteIva={supportData.aliquoteIva}
                 />
             )}
         </div>
