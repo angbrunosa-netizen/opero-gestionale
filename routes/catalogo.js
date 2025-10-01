@@ -537,10 +537,57 @@ router.get('/entita', verifyToken, async (req, res) => {
     }
 });
 
-// --- POST /api/catalogo/entita ---
+// --- POST /api/catalogo/entita (Creazione Entità) ---
 router.post('/entita', verifyToken, async (req, res) => {
-    // ... implementazione esistente
-     res.status(501).send("Not Implemented Yet");
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    
+    const { id_ditta, id: id_utente } = req.user;
+    const trx = await knex.transaction();
+    try {
+        const statoAttivo = await trx('ct_stati_entita').where('codice', 'ATT').first();
+        if (!statoAttivo) {
+            await trx.rollback();
+            return res.status(500).json({ message: "Stato 'Attivo' non configurato nel sistema." });
+        }
+        
+        // Sanitizzazione dei dati in ingresso
+        const { 
+            codice_entita, descrizione, id_categoria, tipo_entita, 
+            id_unita_misura, id_aliquota_iva, costo_base, 
+            gestito_a_magazzino 
+        } = req.body;
+
+        const dataToInsert = {
+            codice_entita, descrizione, id_categoria, tipo_entita, 
+            id_unita_misura, id_aliquota_iva, costo_base, 
+            gestito_a_magazzino,
+            id_ditta,
+            id_stato_entita: statoAttivo.id // Assegna lo stato Attivo di default
+        };
+
+        const [newId] = await trx('ct_catalogo').insert(dataToInsert);
+
+        await trx('log_azioni').insert({
+            id_utente,
+            id_ditta,
+            azione: 'Creazione Entità Catalogo',
+            dettagli: `Creata nuova entità: ${dataToInsert.codice_entita} - ${dataToInsert.descrizione}`
+        });
+
+        await trx.commit();
+        res.status(201).json({ success: true, id: newId });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore nella creazione dell'entità catalogo:", error);
+        // Gestione errore per codice duplicato
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: `Il codice entità '${req.body.codice_entita}' esiste già.` });
+        }
+        res.status(500).json({ success: false, message: "Errore interno del server." });
+    }
 });
 
 // --- PATCH /api/catalogo/entita/:id ---
@@ -550,8 +597,7 @@ router.patch('/entita/:id', verifyToken, async (req, res) => {
     }
     const { id } = req.params;
     const { id_ditta, id: id_utente } = req.user;
-    const dataToUpdate = req.body;
-
+    
     const trx = await knex.transaction();
     try {
         const entita = await trx('ct_catalogo').where({ id, id_ditta }).first();
@@ -559,12 +605,29 @@ router.patch('/entita/:id', verifyToken, async (req, res) => {
             await trx.rollback();
             return res.status(404).json({ message: "Entità non trovata." });
         }
+        // LASCIO LIBERA LA POSSIBITLITA' DI RIPRISTARE E MODIFICARE LO STATO ENTITA' 
+       // const statoEliminato = await trx('ct_stati_entita').where('codice', 'DEL').first();
+       // if (entita.id_stato_entita === statoEliminato?.id) {
+       //     await trx.rollback();
+       //     return res.status(403).json({ message: "Impossibile modificare un'entità archiviata." });
+       // }
         
-        const statoEliminato = await trx('ct_stati_entita').where('codice', 'DEL').first();
-        if (entita.id_stato_entita === statoEliminato.id) {
-            await trx.rollback();
-            return res.status(403).json({ message: "Impossibile modificare un'entità archiviata." });
-        }
+        // #####################################################################
+        // ## CORREZIONE: Sanitizzazione dei dati prima dell'aggiornamento.   ##
+        // ## Creiamo un oggetto "pulito" con solo i campi della tabella      ##
+        // ## ct_catalogo, ignorando i dati extra provenienti dal frontend.   ##
+        // #####################################################################
+        const { 
+            codice_entita, descrizione, id_categoria, tipo_entita, 
+            id_unita_misura, id_aliquota_iva, costo_base, 
+            gestito_a_magazzino, id_stato_entita 
+        } = req.body;
+
+        const dataToUpdate = {
+            codice_entita, descrizione, id_categoria, tipo_entita, 
+            id_unita_misura, id_aliquota_iva, costo_base, 
+            gestito_a_magazzino, id_stato_entita
+        };
 
         await trx('ct_catalogo').where({ id, id_ditta }).update(dataToUpdate);
 
@@ -583,9 +646,96 @@ router.patch('/entita/:id', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: "Errore interno del server." });
     }
 });
+// #################################################
+// #           API GESTIONE LISTINI                #
+// #################################################
+
+
+// #################################################
+// #           API GESTIONE LISTINI                #
+// #################################################
+
+// --- GET /api/catalogo/entita/:entitaId/listini (Recupera tutti i listini per un'entità) ---
+router.get('/entita/:entitaId/listini', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_VIEW')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { entitaId } = req.params;
+    const { id_ditta } = req.user;
+
+    try {
+        const entita = await knex('ct_catalogo').where({ id: entitaId, id_ditta }).first();
+        if (!entita) {
+            return res.status(404).json({ success: false, message: 'Entità non trovata.' });
+        }
+
+        const listini = await knex('ct_listini')
+            .where({ id_entita_catalogo: entitaId })
+            .orderBy('data_inizio_validita', 'desc');
+        
+        res.json({ success: true, data: listini });
+    } catch (error) {
+        console.error("Errore nel recupero dei listini:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- POST /api/catalogo/entita/:entitaId/listini (Crea un nuovo listino) ---
+router.post('/entita/:entitaId/listini', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { entitaId } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    const listinoData = req.body;
+
+    try {
+        const [newId] = await knex('ct_listini').insert({
+            ...listinoData,
+            id_entita_catalogo: entitaId,
+            id_ditta
+        });
+        
+        await knex('log_azioni').insert({
+            id_utente, id_ditta, azione: 'Creazione Listino',
+            dettagli: `Creato nuovo listino "${listinoData.nome_listino}" per entità ID ${entitaId}`
+        });
+
+        res.status(201).json({ success: true, id: newId });
+    } catch (error) {
+        console.error("Errore creazione listino:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// --- PATCH /api/catalogo/listini/:listinoId (Modifica un listino esistente) ---
+router.patch('/listini/:listinoId', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    // ... (Logica di modifica da implementare)
+    res.status(501).send("Not Implemented Yet");
+});
+
+// --- DELETE /api/catalogo/listini/:listinoId (Elimina un listino) ---
+router.delete('/listini/:listinoId', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_LISTINI_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    // ... (Logica di eliminazione da implementare)
+    res.status(501).send("Not Implemented Yet");
+});
+
+
+
+
+
 
 // #################################################
 // #           API IMPORTAZIONE CSV                #
+// #################################################
+// #################################################
+// #           API IMPORTAZIONE CSV (AVANZATA)     #
 // #################################################
 
 router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
@@ -596,6 +746,7 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
     }
 
+    const { updateStrategy } = req.body; // 'update' o 'skip'
     const { id_ditta, id: id_utente } = req.user;
     const results = [];
     const errors = [];
@@ -612,65 +763,88 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         .on('end', async () => {
             const trx = await knex.transaction();
             try {
+                // Pre-caricamento dati di supporto
                 const defaultCategory = await trx('ct_categorie').where({ id_ditta }).orderBy('id', 'asc').first();
                 const allIva = await trx('iva_contabili').where({ id_ditta });
+                const allUm = await trx('ct_unita_misura').where({ id_ditta });
                 const statoAttivo = await trx('ct_stati_entita').where('codice', 'ATT').first();
 
-                if (!statoAttivo) {
-                    throw new Error("Stato 'Attivo' non configurato nel sistema.");
-                }
+                if (!statoAttivo) throw new Error("Stato 'Attivo' non configurato.");
+
+                // Identifica le entità esistenti
+                const codiciDaImportare = results.map(r => r.codice_entita).filter(Boolean);
+                const entitaEsistenti = await trx('ct_catalogo')
+                    .where({ id_ditta })
+                    .whereIn('codice_entita', codiciDaImportare);
+                const mappaEsistenti = new Map(entitaEsistenti.map(e => [e.codice_entita, e]));
 
                 let entitaToInsert = [];
+                let entitaToUpdate = [];
+                let skippedCount = 0;
 
                 for (const row of results) {
                     if (!row.codice_entita || !row.descrizione) {
                         errors.push({ row: row.originalRow, error: "Campi 'codice_entita' e 'descrizione' sono obbligatori." });
                         continue;
                     }
-                    
+
+                    // Logica di mappatura (IVA, Categoria, UM)
                     let categoryId = defaultCategory ? defaultCategory.id : null;
                     if (row.codice_categoria) {
                         const foundCategory = await trx('ct_categorie').where({ codice_categoria: row.codice_categoria, id_ditta }).first();
-                        if (foundCategory) {
-                            categoryId = foundCategory.id;
-                        }
+                        if (foundCategory) categoryId = foundCategory.id;
                     }
 
                     let ivaId = null;
                     if (row.codice_iva) {
                         const foundIva = allIva.find(iva => iva.codice === row.codice_iva);
-                        if (foundIva) {
-                            ivaId = foundIva.id;
-                        }
+                        if (foundIva) ivaId = foundIva.id;
                     }
+                    
+                    let umId = null;
+                    if (row.sigla_um) {
+                        const foundUm = allUm.find(um => um.sigla_um === row.sigla_um);
+                        if(foundUm) umId = foundUm.id;
+                    }
+                    const trueValues = ['1', 'true', 's', 'si', 'vero'];
+                    const gestitoAMagazzino = row.gestito_a_magazzino ? trueValues.includes(row.gestito_a_magazzino.toLowerCase()) : false;
 
-                    // #################################################################
-                    // ## CORREZIONE: Allineamento ai campi reali del database.       ##
-                    // ## - Rimosso 'prezzo_acquisto'.                              ##
-                    // ## - Mappato 'prezzo_vendita' su 'prezzo_vendita_1'.         ##
-                    // #################################################################
-                    entitaToInsert.push({
-                        id_ditta,
-                        codice_entita: row.codice_entita,
+                    const entitaData = {
                         descrizione: row.descrizione,
                         id_categoria: categoryId,
                         id_aliquota_iva: ivaId,
-                        prezzo_vendita_1: parseFloat(row.prezzo_vendita?.replace(',', '.')) || 0,
+                        id_unita_misura: umId,
+                        costo_base: parseFloat(row.costo_base?.replace(',', '.')) || 0,
                         id_stato_entita: statoAttivo.id,
                         tipo_entita: 'bene',
-                        gestito_a_magazzino: false
-                    });
+                        gestito_a_magazzino: gestitoAMagazzino // <-- CAMPO AGGIORNATO
+                         };
+
+                    const existing = mappaEsistenti.get(row.codice_entita);
+                    if (existing) {
+                        if (updateStrategy === 'update') {
+                            entitaToUpdate.push({ id: existing.id, data: entitaData });
+                        } else {
+                            skippedCount++;
+                        }
+                    } else {
+                        entitaToInsert.push({ ...entitaData, codice_entita: row.codice_entita, id_ditta });
+                    }
                 }
                 
+                // Esegui operazioni sul DB
                 if (entitaToInsert.length > 0) {
                     await trx('ct_catalogo').insert(entitaToInsert);
+                }
+                for (const item of entitaToUpdate) {
+                    await trx('ct_catalogo').where('id', item.id).update(item.data);
                 }
 
                 await trx('log_azioni').insert({
                     id_utente,
                     id_ditta,
                     azione: 'Importazione CSV Catalogo',
-                    dettagli: `Importate ${entitaToInsert.length} nuove entità. Errori: ${errors.length}.`
+                    dettagli: `Create: ${entitaToInsert.length}, Aggiornate: ${entitaToUpdate.length}, Ignorate: ${skippedCount}. Errori: ${errors.length}.`
                 });
 
                 await trx.commit();
@@ -678,7 +852,9 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                 res.status(200).json({
                     success: true,
                     message: `Importazione completata.`,
-                    imported: entitaToInsert.length,
+                    created: entitaToInsert.length,
+                    updated: entitaToUpdate.length,
+                    skipped: skippedCount,
                     errors: errors.length,
                     errorDetails: errors
                 });
@@ -694,9 +870,12 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
             }
         });
 });
-
 module.exports = router;
 
+// NUOVA API per importare i listini (da implementare)
+router.post('/import-listini-csv', verifyToken, upload.single('csvFile'), (req, res) => {
+     res.status(501).send("Not Implemented Yet");
+});
 
 
 module.exports = router;
