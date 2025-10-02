@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Creato il: Set 19, 2025 alle 20:55
+-- Creato il: Ott 02, 2025 alle 10:56
 -- Versione del server: 10.4.32-MariaDB
 -- Versione PHP: 8.2.12
 
@@ -28,16 +28,61 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `allegati_tracciati` (
-  `id` int(10) UNSIGNED NOT NULL,
+  `id` int(11) NOT NULL,
   `id_email_inviata` int(11) NOT NULL,
   `nome_file_originale` varchar(255) NOT NULL,
   `percorso_file_salvato` varchar(255) NOT NULL,
-  `download_id` varchar(36) NOT NULL,
-  `scaricato` tinyint(1) NOT NULL DEFAULT 0,
-  `data_primo_scaricamento` timestamp NULL DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `tipo_file` varchar(100) DEFAULT NULL,
+  `dimensione_file` int(11) DEFAULT NULL,
+  `scaricato` tinyint(1) DEFAULT 0,
+  `data_primo_download` timestamp NULL DEFAULT NULL,
+  `download_id` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `allegati_tracciati`
+--
+
+INSERT INTO `allegati_tracciati` (`id`, `id_email_inviata`, `nome_file_originale`, `percorso_file_salvato`, `tipo_file`, `dimensione_file`, `scaricato`, `data_primo_download`, `download_id`) VALUES
+(1, 1, 'palermoservizi_gruppi.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753470784241-palermoservizi_gruppi.pdf', 'application/pdf', 113033, 0, NULL, '275d9cbe-db37-456e-a3bb-24f48297d4d9'),
+(2, 3, 'surgelo_.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753471059552-surgelo_.pdf', 'application/pdf', 212216, 1, '2025-07-25 19:18:11', '0ebed6c3-bcfe-442d-94fe-ca8a7ef96b56'),
+(3, 4, '1218302039.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753472002575-1218302039.pdf', 'application/pdf', 53626, 1, '2025-07-25 19:34:07', 'cb608327-91db-459e-b727-b1a0d656c4cd'),
+(4, 5, 'surgelo_.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753472096001-surgelo_.pdf', 'application/pdf', 212216, 1, '2025-07-25 19:37:09', '2720cf97-e22b-4322-9b8c-3048f1d5fc8b'),
+(5, 9, 'MEMBRI ASSEMBLEA ELETTIVA.xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753522372999-MEMBRI ASSEMBLEA ELETTIVA.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 18833, 0, NULL, '153e8a26-30aa-4c23-b85a-4bfaf5414d54'),
+(6, 11, 'Fattura_2972377giugno2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910505-Fattura_2972377giugno2024.pdf', 'application/pdf', 200017, 0, NULL, 'dfe94a73-557f-470b-86fd-e5b54778627a'),
+(7, 11, 'Fattura_3148208lug2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910509-Fattura_3148208lug2024.pdf', 'application/pdf', 200866, 0, NULL, '3ae7a052-c0d5-41e0-b654-8e008041f7de'),
+(8, 11, 'Fattura_3336520ago2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910512-Fattura_3336520ago2024.pdf', 'application/pdf', 201119, 0, NULL, 'd033d882-ade7-4729-b9a6-2477c6147100'),
+(9, 11, 'Fattura_3511936sett2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910514-Fattura_3511936sett2024.pdf', 'application/pdf', 227628, 0, NULL, 'c41be342-1840-4807-af32-b8da88ff3c4d'),
+(10, 11, 'Fattura_3889618nov2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910515-Fattura_3889618nov2024.pdf', 'application/pdf', 215176, 0, NULL, 'ae59e82a-72c4-4040-930c-82531581d7f7'),
+(11, 11, 'Fattura_4039396dic2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910517-Fattura_4039396dic2024.pdf', 'application/pdf', 177862, 0, NULL, 'b7c46ada-520b-4139-9a4d-36313a4eabe6'),
+(12, 11, 'Fattura_4870821.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910520-Fattura_4870821.pdf', 'application/pdf', 190649, 0, NULL, 'addd69da-6bf6-46de-a4e9-5dd605a757a4'),
+(13, 11, 'Fattura_5080927MAGGIO.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910521-Fattura_5080927MAGGIO.pdf', 'application/pdf', 178922, 0, NULL, 'f833d2af-4cce-48e2-9db7-4b38fd265204'),
+(14, 11, 'Fattura_5553859LUGL.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910523-Fattura_5553859LUGL.pdf', 'application/pdf', 520484, 0, NULL, '4909d0b9-2423-4348-adc8-b52dafbd30df'),
+(15, 11, 'Fattura_37132450tt2024.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910529-Fattura_37132450tt2024.pdf', 'application/pdf', 214678, 0, NULL, 'a7126a2a-9dcf-4032-aa72-1e33f5cf03d3'),
+(16, 11, 'Fattura_422459531gen.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910532-Fattura_422459531gen.pdf', 'application/pdf', 190040, 0, NULL, '5d6db57d-9c7c-4050-a6af-021eae67e7e3'),
+(17, 11, 'Fattura_444766428febbr.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910535-Fattura_444766428febbr.pdf', 'application/pdf', 178298, 0, NULL, '8d446803-c7a8-4fa1-95c6-130a48f8a6c7'),
+(18, 11, 'Fattura_460428631marzo.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910549-Fattura_460428631marzo.pdf', 'application/pdf', 178474, 0, NULL, 'e9fac1f0-9d6c-4987-ab67-d344a43d1159'),
+(19, 11, 'Fattura_487082130aprile.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910554-Fattura_487082130aprile.pdf', 'application/pdf', 190649, 0, NULL, '31c53d62-2f3d-4779-97ef-a469f9d7b48a'),
+(20, 11, 'Fattura_530427130giu.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910557-Fattura_530427130giu.pdf', 'application/pdf', 179010, 0, NULL, '54817f6c-5fe7-4b7a-9e62-f33a89f11c1b'),
+(21, 11, 'Fattura_50809273005.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910560-Fattura_50809273005.pdf', 'application/pdf', 178922, 0, NULL, 'bef80f5c-6f7f-44d0-a619-de9a7f1e827e'),
+(22, 11, 'Riepilogo_Energia_Elettrica_maggio24_maggio25.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1753884910561-Riepilogo_Energia_Elettrica_maggio24_maggio25.pdf', 'application/pdf', 218659, 0, NULL, 'e65a1452-0a4e-4898-9aaa-bc53f8865992'),
+(23, 13, 'mastri-1.xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754414930982-mastri-1.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 11671, 0, NULL, 'e7ccdf5a-7413-4084-a144-dfaf71fb8486'),
+(24, 24, 'operodb.sql', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754649216203-operodb.sql', 'application/octet-stream', 78416, 0, NULL, '35971f8a-c5d4-433f-aef5-563f8af90999'),
+(25, 25, 'operodb (1).sql', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754649752084-operodb (1).sql', 'application/octet-stream', 78717, 0, NULL, '6cb5ebe0-79b0-470c-b651-716da0aad338'),
+(26, 26, 'operodb.json', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754649940696-operodb.json', 'application/json', 80472, 0, NULL, 'd974a39a-1a59-4f1c-b5a7-42255d4852cd'),
+(27, 27, 'conti_cont.xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754650409887-conti_cont.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, 'aa376dc0-7d40-4ae6-97d1-547007bb0652'),
+(28, 28, 'operodb (1).sql', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754650553031-operodb (1).sql', 'application/octet-stream', 78717, 0, NULL, 'bd0ff43b-d98a-4cc4-9c0f-18df32b2a1fb'),
+(29, 30, 'conti_cont.xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754650691645-conti_cont.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, '41244d4d-d345-430f-9cba-d2c5888f4952'),
+(30, 31, 'conti_cont.xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754650826973-conti_cont.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, '012bc5bc-7623-461a-a77d-044dce05902b'),
+(31, 32, 'conti_cont (1).xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754652354689-conti_cont (1).xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, '756f8325-c59e-4b3f-9977-4e8df9832a6b'),
+(32, 33, 'conti_cont (1).xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754652631573-conti_cont (1).xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 1, '2025-08-08 11:31:01', 'e1bd71b9-b92e-4fc9-8d31-51233b505123'),
+(33, 34, 'moduli.pdf', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754679234734-moduli.pdf', 'application/pdf', 103865, 0, NULL, '21175ce6-46b1-44b3-ad12-7eba47a47aa9'),
+(34, 35, 'conti_cont (1) (1).xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754679820987-conti_cont (1) (1).xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, '3f550d63-4556-4052-a6b7-b17aef0d7043'),
+(35, 36, 'conti_cont.xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754679871165-conti_cont.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, '9ca6d528-12b2-49cb-b997-c38212450d04'),
+(36, 37, 'conti_cont (1) (1).xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754680301138-conti_cont (1) (1).xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 0, NULL, 'f3d1c72b-aa88-4328-8083-90e2aa7bf4ab'),
+(37, 38, 'conti_cont (3).xlsx', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754680349490-conti_cont (3).xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 600756, 1, '2025-08-08 19:22:46', 'c5df5342-488e-4fac-ac04-1a204d713fed'),
+(38, 41, 'UserForm.js', 'C:\\Users\\ANGELOBRUNO\\Documents\\app\\opero\\uploads\\1754755511252-UserForm.js', 'text/javascript', 3828, 0, NULL, '76a1d5c5-0938-4e3e-b7eb-f57c1804737d'),
+(39, 85, 'report_procedura.pdf', 'Generato in memoria per invio email', NULL, NULL, 0, NULL, '29164a38-2e5c-4bbb-939b-e580ae6fc610');
 
 -- --------------------------------------------------------
 
@@ -61,7 +106,7 @@ CREATE TABLE `an_progressivi` (
 --
 
 INSERT INTO `an_progressivi` (`id`, `id_ditta`, `codice_progressivo`, `descrizione`, `serie`, `ultimo_numero`, `data_ult`, `formato`) VALUES
-(1, 1, 'PROT_CONT', 'Protocollo Registrazioni Contabili', NULL, 23, '2025-09-17', NULL);
+(1, 1, 'PROT_CONT', 'Protocollo Registrazioni Contabili', NULL, 19, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -77,6 +122,28 @@ CREATE TABLE `an_relazioni` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `an_servizi_aziendali_mail`
+--
+
+CREATE TABLE `an_servizi_aziendali_mail` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `nome_servizio` varchar(100) NOT NULL COMMENT 'Es: ''PPA_COMMUNICATION'', ''FATTURAZIONE''',
+  `id_ditta_mail_account` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `an_servizi_aziendali_mail`
+--
+
+INSERT INTO `an_servizi_aziendali_mail` (`id`, `id_ditta`, `nome_servizio`, `id_ditta_mail_account`, `created_at`, `updated_at`) VALUES
+(1, 1, 'PPA_COMUNICATION', 13, '2025-09-23 19:02:54', '2025-09-23 19:02:54');
 
 -- --------------------------------------------------------
 
@@ -158,6 +225,377 @@ INSERT INTO `app_ruoli_funzioni` (`id_ruolo`, `id_funzione`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `bs_attivita`
+--
+
+CREATE TABLE `bs_attivita` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_bene` int(10) UNSIGNED NOT NULL,
+  `id_utente_utilizzatore` int(11) DEFAULT NULL,
+  `data_inizio` datetime DEFAULT NULL,
+  `data_fine` datetime DEFAULT NULL,
+  `ore_utilizzo` decimal(10,2) DEFAULT NULL,
+  `unita_prodotte` decimal(15,2) DEFAULT NULL,
+  `valore_contatore` decimal(15,2) DEFAULT NULL,
+  `descrizione_attivita` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `bs_beni`
+--
+
+CREATE TABLE `bs_beni` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `id_categoria` int(10) UNSIGNED NOT NULL,
+  `codice_bene` varchar(100) NOT NULL,
+  `descrizione` text DEFAULT NULL,
+  `matricola` varchar(255) DEFAULT NULL,
+  `url_foto` varchar(500) DEFAULT NULL,
+  `data_acquisto` date DEFAULT NULL,
+  `valore_acquisto` decimal(15,2) DEFAULT NULL,
+  `id_sottoconto_costo` int(11) DEFAULT NULL,
+  `id_sottoconto_cespite` int(11) DEFAULT NULL,
+  `id_fornitore` int(10) UNSIGNED DEFAULT NULL,
+  `riferimento_fattura` varchar(255) DEFAULT NULL,
+  `stato` enum('In uso','In manutenzione','Dismesso','In magazzino') DEFAULT 'In magazzino',
+  `ubicazione` varchar(255) DEFAULT NULL,
+  `data_dismissione` date DEFAULT NULL,
+  `valore_dismissione` decimal(15,2) DEFAULT NULL,
+  `note` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `bs_beni`
+--
+
+INSERT INTO `bs_beni` (`id`, `id_ditta`, `id_categoria`, `codice_bene`, `descrizione`, `matricola`, `url_foto`, `data_acquisto`, `valore_acquisto`, `id_sottoconto_costo`, `id_sottoconto_cespite`, `id_fornitore`, `riferimento_fattura`, `stato`, `ubicazione`, `data_dismissione`, `valore_dismissione`, `note`, `created_at`, `updated_at`) VALUES
+(1, 1, 6, 'PC_OLIVETI-M24', 'PC OLIVETTI M 24', 'PCIT000', 'www.fk', '1980-10-10', 7500.00, 22, 4, 8, '150', 'In uso', 'UFFICIO REPERTI', NULL, NULL, 'il pc presenta segni di usura, tastiera scolorita', '2025-09-20 18:14:20', '2025-09-20 18:14:20');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `bs_categorie`
+--
+
+CREATE TABLE `bs_categorie` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `codice` varchar(50) DEFAULT NULL,
+  `descrizione` varchar(255) DEFAULT NULL,
+  `aliquota_ammortamento` decimal(5,2) DEFAULT NULL,
+  `id_sottoconto_costi` int(11) DEFAULT NULL,
+  `id_sottoconto_ammortamenti` int(11) DEFAULT NULL,
+  `id_sottoconto_fondo` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `bs_categorie`
+--
+
+INSERT INTO `bs_categorie` (`id`, `id_ditta`, `codice`, `descrizione`, `aliquota_ammortamento`, `id_sottoconto_costi`, `id_sottoconto_ammortamenti`, `id_sottoconto_fondo`, `created_at`, `updated_at`) VALUES
+(1, 1, 'IMM', 'Immobili', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(2, 1, 'ARR', 'Arredamenti', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(3, 1, 'ATT-IND', 'Attrezzatura Industriale', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(4, 1, 'ATT-COM', 'Attrezzatura Commerciale', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(5, 1, 'ATT-UFF', 'Attrezzatura Uffici', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(6, 1, 'ELT', 'Elettronici', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(7, 1, 'MAC-OP', 'Macchine Operatrici', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(8, 1, 'OFF', 'Officina', NULL, NULL, NULL, NULL, '2025-09-20 17:16:55', '2025-09-20 17:16:55'),
+(9, 1, 'MOB-REG', 'MOBILI REGISTRATI', NULL, NULL, NULL, NULL, '2025-09-21 10:54:30', '2025-09-21 10:54:30');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `bs_costi`
+--
+
+CREATE TABLE `bs_costi` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_bene` int(10) UNSIGNED NOT NULL,
+  `data_costo` date DEFAULT NULL,
+  `descrizione_costo` varchar(255) DEFAULT NULL,
+  `importo` decimal(15,2) DEFAULT NULL,
+  `id_sottoconto_contabile` int(11) DEFAULT NULL,
+  `documento_riferimento` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `bs_manutenzioni`
+--
+
+CREATE TABLE `bs_manutenzioni` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_bene` int(10) UNSIGNED NOT NULL,
+  `data_intervento` date DEFAULT NULL,
+  `tipo_intervento` enum('Ordinaria','Straordinaria','Programmata') DEFAULT NULL,
+  `descrizione_intervento` text DEFAULT NULL,
+  `id_fornitore_manutenzione` int(10) UNSIGNED DEFAULT NULL,
+  `costo_intervento` decimal(15,2) DEFAULT NULL,
+  `id_sottoconto_contabile` int(11) DEFAULT NULL,
+  `documento_riferimento` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `bs_scadenze`
+--
+
+CREATE TABLE `bs_scadenze` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_bene` int(10) UNSIGNED NOT NULL,
+  `id_tipo_scadenza` int(10) UNSIGNED DEFAULT NULL,
+  `descrizione` text DEFAULT NULL,
+  `data_scadenza` date DEFAULT NULL,
+  `giorni_preavviso` int(11) DEFAULT 7,
+  `id_fornitore_associato` int(10) UNSIGNED DEFAULT NULL,
+  `importo_previsto` decimal(15,2) DEFAULT NULL,
+  `stato` enum('Pianificata','Completata','Annullata') DEFAULT 'Pianificata',
+  `data_completamento` date DEFAULT NULL,
+  `note` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `bs_tipi_scadenze`
+--
+
+CREATE TABLE `bs_tipi_scadenze` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `codice` varchar(50) NOT NULL,
+  `descrizione` varchar(255) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_catalogo`
+--
+
+CREATE TABLE `ct_catalogo` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `codice_entita` varchar(50) NOT NULL,
+  `descrizione` varchar(255) NOT NULL,
+  `id_categoria` int(10) UNSIGNED DEFAULT NULL,
+  `tipo_entita` enum('bene','servizio','composito') NOT NULL,
+  `id_unita_misura` int(10) UNSIGNED DEFAULT NULL,
+  `id_aliquota_iva` int(10) UNSIGNED DEFAULT NULL,
+  `costo_base` decimal(10,2) DEFAULT 0.00,
+  `gestito_a_magazzino` tinyint(1) DEFAULT 0,
+  `id_stato_entita` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_catalogo`
+--
+
+INSERT INTO `ct_catalogo` (`id`, `id_ditta`, `codice_entita`, `descrizione`, `id_categoria`, `tipo_entita`, `id_unita_misura`, `id_aliquota_iva`, `costo_base`, `gestito_a_magazzino`, `id_stato_entita`, `created_at`, `updated_at`) VALUES
+(1, 1, '300411050', 'CORDON BLEU FATTORIA  KG1', 24, 'bene', 1, 3, 1.00, 1, 1, '2025-10-01 13:30:45', '2025-10-01 13:30:45'),
+(2, 1, '300411054', 'AMADORI GRAN BURGER 2PZ 280GR', 24, 'bene', 1, 3, 1.98, 0, 1, '2025-10-01 13:30:45', '2025-10-01 13:30:45'),
+(3, 1, '305020007', 'COTOLETTA AMADORI POLLO GR700', 24, 'bene', 1, 3, 5.00, 1, 1, '2025-10-01 13:30:45', '2025-10-01 13:30:45'),
+(4, 1, '305770007', 'KEBAB AMADORI TACCHINO 700 GR', 24, 'bene', 1, 3, 6.90, 1, 1, '2025-10-01 13:30:45', '2025-10-01 13:30:45'),
+(5, 1, '305770009', 'ALETTE DI POLLO PICCCANTI AMADORI 700GR', 24, 'bene', 1, 3, 5.25, 0, 1, '2025-10-01 13:30:45', '2025-10-01 13:30:45'),
+(6, 1, '305000063', 'FILETTI DI MERLUZZO ALASKA  NORDICO800G', 25, 'bene', 1, 3, 4.29, 0, 1, '2025-10-01 13:30:45', '2025-10-01 13:30:45'),
+(13, 1, '3004110509', 'ARTICOLO', 19, 'bene', 2, 3, 15.00, 0, 4, '2025-10-01 15:14:44', '2025-10-01 15:14:44');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_catalogo_compositi`
+--
+
+CREATE TABLE `ct_catalogo_compositi` (
+  `id_catalogo_padre` int(10) UNSIGNED NOT NULL,
+  `id_catalogo_componente` int(10) UNSIGNED NOT NULL,
+  `quantita_componente` decimal(10,3) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_catalogo_dati_beni`
+--
+
+CREATE TABLE `ct_catalogo_dati_beni` (
+  `id_catalogo` int(10) UNSIGNED NOT NULL,
+  `peso` decimal(10,3) DEFAULT NULL,
+  `volume` decimal(10,3) DEFAULT NULL,
+  `dimensioni` varchar(50) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_catalogo_dati_servizi`
+--
+
+CREATE TABLE `ct_catalogo_dati_servizi` (
+  `id_catalogo` int(10) UNSIGNED NOT NULL,
+  `durata_stimata` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_categorie`
+--
+
+CREATE TABLE `ct_categorie` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `nome_categoria` varchar(100) NOT NULL,
+  `descrizione` text DEFAULT NULL,
+  `codice_categoria` varchar(255) DEFAULT NULL,
+  `progressivo` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `id_padre` int(10) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_categorie`
+--
+
+INSERT INTO `ct_categorie` (`id`, `id_ditta`, `nome_categoria`, `descrizione`, `codice_categoria`, `progressivo`, `created_at`, `updated_at`, `id_padre`) VALUES
+(15, 1, 'MERCI', 'PRODOTTI FISICI DI MAGAZZINO ', '001', 1, '2025-09-29 19:00:38', '2025-09-29 19:00:38', NULL),
+(16, 1, 'FOOD', 'PRODOTTI ALIMENTARI', '001.001', 1, '2025-09-29 19:00:53', '2025-09-29 19:00:53', 15),
+(17, 1, 'NO FOOD', 'NON ALIMENTARI', '001.002', 2, '2025-09-29 19:01:14', '2025-09-29 19:01:14', 15),
+(18, 1, 'DEPERIBILI', 'ALIMENTARI DEPERIBILI', '001.001.001', 1, '2025-09-29 19:01:34', '2025-09-29 19:01:34', 16),
+(19, 1, 'SERVIZI', 'SERVIZI AZIENDALI', '002', 2, '2025-09-29 19:07:17', '2025-09-29 19:07:17', NULL),
+(20, 1, 'LAVORAZIONI', 'LAVORAZIONI ESEGUITE', '003', 3, '2025-09-29 19:07:35', '2025-09-29 19:07:35', NULL),
+(21, 1, 'LIQUIDI', 'PRODOTTI LIQUIDI', '001.001.002', 2, '2025-09-30 17:18:23', '2025-09-30 17:18:23', 16),
+(22, 1, 'DISPENSA', 'PRODOTTI DIPENSA', '001.001.003', 3, '2025-09-30 17:18:50', '2025-09-30 17:18:50', 16),
+(24, 1, 'SURGELATI', 'PRODOTTI SURGELATI', '001.001.001.001', 1, '2025-09-30 17:19:44', '2025-09-30 17:19:44', 18),
+(25, 1, 'FRESCHI', 'PRODOTTI FRESCHI', '001.001.001.002', 2, '2025-09-30 17:20:38', '2025-09-30 17:20:38', 18),
+(26, 1, 'IGIENE CASA', 'IGIENE CASA', '001.002.001', 1, '2025-09-30 17:21:11', '2025-09-30 17:21:11', 17),
+(29, 1, 'IGIENE PERSONA', 'IGIENE PERSONA', '001.002.002', 2, '2025-09-30 17:21:51', '2025-09-30 17:21:51', 17);
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_listini`
+--
+
+CREATE TABLE `ct_listini` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `id_entita_catalogo` int(10) UNSIGNED NOT NULL,
+  `nome_listino` varchar(255) NOT NULL,
+  `data_inizio_validita` date NOT NULL,
+  `data_fine_validita` date DEFAULT NULL,
+  `ricarico_cessione_6` decimal(8,2) DEFAULT 0.00,
+  `ricarico_cessione_5` decimal(8,2) DEFAULT 0.00,
+  `ricarico_cessione_4` decimal(8,2) DEFAULT 0.00,
+  `ricarico_cessione_3` decimal(8,2) DEFAULT 0.00,
+  `ricarico_cessione_2` decimal(8,2) DEFAULT 0.00,
+  `ricarico_cessione_1` decimal(8,2) DEFAULT 0.00,
+  `prezzo_cessione_1` decimal(10,2) DEFAULT 0.00,
+  `prezzo_pubblico_1` decimal(10,2) DEFAULT 0.00,
+  `ricarico_pubblico_1` decimal(5,2) DEFAULT 0.00,
+  `prezzo_cessione_2` decimal(10,2) DEFAULT 0.00,
+  `prezzo_pubblico_2` decimal(10,2) DEFAULT 0.00,
+  `ricarico_pubblico_2` decimal(5,2) DEFAULT 0.00,
+  `prezzo_cessione_3` decimal(10,2) DEFAULT 0.00,
+  `prezzo_pubblico_3` decimal(10,2) DEFAULT 0.00,
+  `ricarico_pubblico_3` decimal(5,2) DEFAULT 0.00,
+  `prezzo_cessione_4` decimal(10,2) DEFAULT 0.00,
+  `prezzo_pubblico_4` decimal(10,2) DEFAULT 0.00,
+  `ricarico_pubblico_4` decimal(5,2) DEFAULT 0.00,
+  `prezzo_cessione_5` decimal(10,2) DEFAULT 0.00,
+  `prezzo_pubblico_5` decimal(10,2) DEFAULT 0.00,
+  `ricarico_pubblico_5` decimal(5,2) DEFAULT 0.00,
+  `prezzo_cessione_6` decimal(10,2) DEFAULT 0.00,
+  `prezzo_pubblico_6` decimal(10,2) DEFAULT 0.00,
+  `ricarico_pubblico_6` decimal(5,2) DEFAULT 0.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_listini`
+--
+
+INSERT INTO `ct_listini` (`id`, `id_ditta`, `id_entita_catalogo`, `nome_listino`, `data_inizio_validita`, `data_fine_validita`, `ricarico_cessione_6`, `ricarico_cessione_5`, `ricarico_cessione_4`, `ricarico_cessione_3`, `ricarico_cessione_2`, `ricarico_cessione_1`, `prezzo_cessione_1`, `prezzo_pubblico_1`, `ricarico_pubblico_1`, `prezzo_cessione_2`, `prezzo_pubblico_2`, `ricarico_pubblico_2`, `prezzo_cessione_3`, `prezzo_pubblico_3`, `ricarico_pubblico_3`, `prezzo_cessione_4`, `prezzo_pubblico_4`, `ricarico_pubblico_4`, `prezzo_cessione_5`, `prezzo_pubblico_5`, `ricarico_pubblico_5`, `prezzo_cessione_6`, `prezzo_pubblico_6`, `ricarico_pubblico_6`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 'base', '2025-09-29', NULL, 0.00, 0.00, 0.00, 0.00, 30.00, 10.00, 1.10, 1.59, 31.40, 1.30, 1.93, 35.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-01 14:09:46', '2025-10-01 14:09:46'),
+(2, 1, 1, 'futuro', '2025-10-01', NULL, 35.00, 20.00, 15.00, 34.00, 35.00, 30.00, 1.30, 1.86, 30.00, 1.35, 2.00, 35.00, 1.34, 1.99, 35.00, 1.15, 1.52, 20.00, 1.20, 1.65, 25.00, 1.35, 1.51, 1.68, '2025-10-01 16:11:08', '2025-10-01 16:11:08');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_stati_entita`
+--
+
+CREATE TABLE `ct_stati_entita` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `codice` varchar(10) NOT NULL,
+  `descrizione` varchar(100) NOT NULL,
+  `visibilita` varchar(255) DEFAULT NULL COMMENT 'Indica contesti di visibilità specifici, es. ECOMMERCE, ADMIN',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_stati_entita`
+--
+
+INSERT INTO `ct_stati_entita` (`id`, `codice`, `descrizione`, `visibilita`, `created_at`, `updated_at`) VALUES
+(1, 'ATT', 'ATTIVO', '', '2025-09-30 15:33:08', '2025-09-30 15:33:08'),
+(2, 'REV', 'IN REVISIONE', 'ADMIN', '2025-09-30 15:34:03', '2025-09-30 15:34:03'),
+(3, 'OBS', 'OBSOLETO', 'ADMIN', '2025-09-30 15:34:25', '2025-09-30 15:34:25'),
+(4, 'DEL', 'ARCHIVIATO- (ELIMINATO)', 'ADMIN', '2025-09-30 15:35:01', '2025-09-30 15:35:01');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_unita_misura`
+--
+
+CREATE TABLE `ct_unita_misura` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `sigla_um` varchar(10) NOT NULL,
+  `descrizione` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_unita_misura`
+--
+
+INSERT INTO `ct_unita_misura` (`id`, `id_ditta`, `sigla_um`, `descrizione`, `created_at`, `updated_at`) VALUES
+(1, 1, 'PZ', 'PEZZI', '2025-09-30 14:45:41', '2025-09-30 14:45:41'),
+(2, 1, 'CT', 'CARTONI', '2025-09-30 14:45:59', '2025-09-30 14:45:59'),
+(3, 1, 'KG', 'Chilogrammi', '2025-09-30 17:43:33', '2025-09-30 17:43:33'),
+(4, 1, 'LT', 'LITRO', '2025-09-30 17:43:45', '2025-09-30 17:43:45');
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `ditta_mail_accounts`
 --
 
@@ -182,8 +620,8 @@ CREATE TABLE `ditta_mail_accounts` (
 INSERT INTO `ditta_mail_accounts` (`id`, `id_ditta`, `id_utente_creazione`, `nome_account`, `email_address`, `imap_host`, `imap_port`, `smtp_host`, `smtp_port`, `auth_user`, `auth_pass`) VALUES
 (9, 3, NULL, 'DifamConsegneGmail', 'difamconsegne@gmail.com', 'imap.gmail.com', 993, 'smtp.gmail.com', 465, 'difamconsegne@gmail.com', 'd12d71b072f38f15aa9693640f02224f:24b11118a6603262259e59beecdbdce7602f6660f4a4dc89cfb10dbfebc9c9da'),
 (10, 3, NULL, 'Mail Cedibef', 'opero@difam.it', 'imaps.aruba.it', 993, 'smtps.aruba.it', 465, 'opero@difam.it', '626f6ce6b770d4acce16029cd33f817b:79a53cf6cd29cc71bccffb3f5bcabb99'),
-(11, 1, 9, 'MASTER OPERO', 'opero@difam.it', 'imaps.aruba.it', 993, 'smtps.aruba.it', 465, 'opero@difam.it', '1b6622c1617dafdddbf644896cccf9fc:a48333991689f1bb7f3a7fe72d855664'),
-(13, 1, NULL, 'Opero Gestionale', 'info@difam.it', 'imaps.difam.it', 993, 'smtps.aruba.it', 465, 'info@difam.it', 'ed74345a3f1b04e5f5d5386b1b9f526e:4f94b009dde529557be409f55196fbf1');
+(11, 1, 9, 'MASTER OPERO', 'opero@difam.it', 'imaps.aruba.it', 993, 'smtps.aruba.it', 465, 'opero@difam.it', '627f9eb8ff5834b4683ac12affbc7e89:2b64f98bc8ba7d0284ea2f4a26bb5874'),
+(13, 1, NULL, 'Opero Gestionale', 'info@difam.it', 'imaps.aruba.it', 993, 'smtps.aruba.it', 465, 'info@difam.it', '70c131b21826a05ba45b9ed4abdc53d2:0719c787229faaba1f923be416552992');
 
 -- --------------------------------------------------------
 
@@ -228,25 +666,16 @@ INSERT INTO `ditte` (`id`, `ragione_sociale`, `logo_url`, `indirizzo`, `citta`, 
 (3, 'ditta prova proprietaria', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'angbrunosa@gmail.com', NULL, NULL, NULL, NULL, NULL, 1, 1, NULL, 'N', NULL, NULL, NULL, NULL, NULL),
 (4, 'ditta  prova inserita', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'inseri@gmail.com', NULL, NULL, NULL, NULL, NULL, 1, 2, NULL, 'F', NULL, NULL, NULL, NULL, NULL),
 (5, 'La produttrice srl', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'angbrunosa@gmail.com', NULL, NULL, NULL, NULL, NULL, 1, 2, NULL, 'C', NULL, NULL, NULL, NULL, NULL),
-(6, 'Prova Admin Cliente', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'prova@prova.it', NULL, NULL, NULL, NULL, NULL, 1, 2, NULL, 'C', NULL, NULL, NULL, 1, NULL),
+(6, 'Prova Admin Cliente', NULL, 'Cda Soda, 4', 'Saracena', 'CS', '87010', '3356738658', NULL, 'angbrunosa@gmail.com', '', NULL, '', 'aaaaaaaaaa', 'aaaa', 1, 2, NULL, 'C', NULL, NULL, NULL, 1, NULL),
 (7, 'punto_vendita_prova', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'puntovendita@prova.it', NULL, NULL, NULL, NULL, NULL, 1, 2, NULL, 'P', NULL, NULL, NULL, 1, 203),
-(8, 'DITTA PROVA CLIENTE FORNITORE', NULL, 'VIA NOSTRA', 'NOSTRA', 'NS', '87010', '0981', '0982', 'INFO@CEDIBEF.COM', '', '', '0000000', '0125025693', '01205', 1, NULL, NULL, 'E', 75, 76, NULL, 1, NULL),
-(12, 'CARAMELLE SALATE cliente', NULL, 'DEI DOLCI', 'SULMONA', 'DC', '87010', '0152', '155', 'INFO@CEDIBEF.COM', '', 'cliedemo@pec.it', '0000001', '0125205269', '0122640', 0, 2, NULL, 'E', 73, 74, NULL, 1, NULL),
-(13, 'DITTA SALATI TUTTIfornitroe', NULL, 'VIA DEI SALATINI', 'SALTO', 'SS', '90878', '098198025', '093', 'INFO@CEDIBEF.COM', '', NULL, '0000000', '0102512554', '0125002541', 1, NULL, NULL, 'E', 77, 78, NULL, 1, NULL),
-(14, 'SALATI E DOLCI', NULL, 'DEI GUSTI', 'GUSTOSA', 'GS', '75000', '02555', '0255', 'A@LIBERO.IT', '', NULL, '0000000', '01245454', '0213313', 1, NULL, NULL, 'C', NULL, NULL, NULL, 1, NULL),
-(15, 'SARACENARE EXPORT', NULL, 'VIA MAZZINI', 'SARACENA', 'CS', '87010', '098134463', '0985233', 'TRI@TE.IT', '', NULL, '', '0102555', '02692', 1, NULL, NULL, 'F', NULL, 27, NULL, 1, NULL),
-(16, 'CAROFIGLIO SPA', NULL, 'FIGLINE', 'FIGLINE VIGLIATURAO', 'FG', '87100', '02255', '02555', 'CARMO@FIOR.IT', '', NULL, '', '55656565', '3299', 1, 2, NULL, 'E', 71, 72, NULL, 1, NULL),
-(17, 'PROVA DITTA 2 fornitore', NULL, 'prova', 'provolino', 'pr', '87410', '012', '088', 'eee@fr.it', '', NULL, NULL, '09999', '87899', 1, 2, NULL, 'C', NULL, NULL, NULL, 1, NULL),
-(18, 'Cliente Linux', NULL, 'entram', 'entr', 'cs', '85200', '022', '022', 'ang@opero.it', '', NULL, NULL, '021212121', '01212121', 1, 2, NULL, 'C', 28, NULL, NULL, 1, NULL),
-(48, 'DIFAM SRL', NULL, 'Cda Soda, 4', 'Saracena', 'CS', '87010', '0982', '095', 'A@LIBERO.IT', '', 'cliedemeeo@pec.it', '000000', '252', '252', 1, 2, NULL, 'E', 58, 59, NULL, 1, NULL),
-(50, 'DIST PANETTERIA', NULL, 'VIA PANETTIERI', 'PANOPOLI', 'PD', '90909', '09765654', '', 'PANOPOLI@PANE.IT', '', 'NON@PEC.IT', '002030', '0293040', 'PNNPNN', 1, 2, NULL, 'E', 62, 63, NULL, 1, NULL),
-(51, 'INDUSTRIA CERAMICA', NULL, 'VIA MATTONELLA', 'BETONELLA', 'LC', '98029', '00582025', '002520', 'BETO@LIBE.IT', '', 'PIOVA@PEC.IT', '0987678', '098657', 'KTIO', 1, 2, NULL, 'E', 64, 65, NULL, 1, NULL),
-(52, 'LA BONTA DEL SOLE', NULL, 'VIA CARAMELLE', 'SALAMINO', 'CS', '85850', '0981', '0982', 'PAO@DO.IT', '', 'POST@LIOV', '85858', '69098', 'JDKDF', 1, 2, NULL, 'E', 66, 67, NULL, 1, NULL),
-(53, 'CLIENTI TIPO', NULL, 'TIPICA', 'TIPO', 'TP', '87010', '0985', '35', 'G@POLIT.IT', '', 'IO@PO', '012345', '0252025', 'BRFFDS', 1, 2, NULL, 'C', 79, NULL, NULL, 1, NULL),
-(54, 'DITTA PROVA MASTRINI', NULL, 'MASTRINI', 'CARAN', 'MD', '980', '02', '02', 'PLIO@LIT.IT', '', 'OL@PL.COM', '0120', '85915', 'DèZòD', 1, 2, NULL, 'E', 80, 81, NULL, 1, NULL),
-(55, 'cliente-INTELL', NULL, 'INTELL', 'INT', 'IN', '87122', '45456', '89', 'JHC@PIO', 'PIO@KJ', 'PO@POP', '00000', '12502', '125', 1, 2, NULL, 'C', 82, NULL, NULL, 1, NULL),
-(56, 'CALZATURE SPA', NULL, 'CALZOLAI', 'CZ', 'DC', '87010', '0982', '02456', 'WS@KO.IT', '', 'TYR@FRI', '123', '922366', '46464', 1, 2, NULL, 'F', NULL, 83, NULL, 1, NULL),
-(57, 'PUNTO VENDITA ROMA', NULL, 'VIA COMMERCIALE', 'ROMA', 'RM', '78192', '0855', '0855', 'ROMA@PV.IT', '', 'ROMA@PV.PEC', '000', '0000222', 'EEEE', 1, 2, NULL, 'P', NULL, NULL, 84, 1, NULL);
+(8, 'DITTA PROVA CLIENTE FORNITORE', NULL, 'VIA NOSTRA', 'NOSTRA', 'NS', '87010', '0981', '0982', 'INFO@CEDIBEF.COM', '', NULL, '0000000', '0125025693', '01205', 1, NULL, NULL, 'F', NULL, NULL, NULL, 1, NULL),
+(12, 'CARAMELLE SALATE cliente', NULL, 'DEI DOLCI', 'SULMONA', 'DC', '87010', '0152', '155', 'INFO@CEDIBEF.COM', '', 'cliedemo@pec.it', '0000001', '0125205269', '0122640', 1, NULL, NULL, 'E', 52, 53, NULL, 1, NULL),
+(13, 'DITTA SALATI TUTTIfornitroe', NULL, 'VIA DEI SALATINI', 'SALTO', 'SS', '90878', '098198025', '093', 'INFO@CEDIBEF.COM', NULL, NULL, NULL, '0102512554', '0125002541', 1, NULL, NULL, 'F', NULL, NULL, NULL, 1, NULL),
+(14, 'SALATI E DOLCI', NULL, 'DEI GUSTI', 'GUSTOSA', 'GS', '75000', '02555', '0255', 'A@LIBERO.IT', NULL, NULL, NULL, '01245454', '0213313', 1, NULL, NULL, 'C', NULL, NULL, NULL, 1, NULL),
+(15, 'SARACENARE EXPORT', NULL, 'VIA MAZZINI', 'SARACENA', 'CS', '87010', '098134463', '0985233', 'TRI@TE.IT', NULL, NULL, NULL, '0102555', '02692', 1, NULL, NULL, 'F', NULL, 27, NULL, 1, NULL),
+(16, 'CAROFIGLIO SPA', NULL, 'FIGLINE', 'FIGLINE VIGLIATURAO', 'FG', '87100', '02255', '02555', 'opero@difam.it', NULL, NULL, '', '55656565', '3299', 1, NULL, NULL, 'E', 54, 55, NULL, 1, NULL),
+(17, 'PROVA DITTA 2 fornitore', NULL, 'prova', 'provolino', 'pr', '87410', '012', '088', 'eee@fr.it', NULL, NULL, NULL, '09999', '87899', 1, 2, NULL, 'C', NULL, NULL, NULL, 1, NULL),
+(18, 'prima prova di 3 cliente', NULL, 'entram', 'entr', 'cs', '85200', '022', '022', 'ang@opero.it', NULL, NULL, NULL, '021212121', '01212121', 1, 2, NULL, 'C', NULL, NULL, NULL, 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -270,6 +699,9 @@ INSERT INTO `ditte_moduli` (`id_ditta`, `codice_modulo`) VALUES
 (1, 40),
 (1, 50),
 (1, 60),
+(1, 70),
+(1, 80),
+(1, 90),
 (2, 20),
 (2, 30),
 (2, 50),
@@ -285,6 +717,7 @@ INSERT INTO `ditte_moduli` (`id_ditta`, `codice_modulo`) VALUES
 
 CREATE TABLE `email_inviate` (
   `id` int(11) NOT NULL,
+  `id_ditta` int(10) UNSIGNED DEFAULT NULL,
   `id_utente_mittente` int(11) NOT NULL,
   `destinatari` text NOT NULL,
   `cc` text DEFAULT NULL,
@@ -301,65 +734,20 @@ CREATE TABLE `email_inviate` (
 -- Dump dei dati per la tabella `email_inviate`
 --
 
-INSERT INTO `email_inviate` (`id`, `id_utente_mittente`, `destinatari`, `cc`, `bcc`, `oggetto`, `corpo`, `data_invio`, `aperta`, `data_prima_apertura`, `tracking_id`) VALUES
-(1, 6, 'angbrunosa@gmai.com', NULL, NULL, 'ciao', NULL, '2025-07-25 19:13:04', 0, NULL, '974c346a-4882-4b6e-94a3-a1aa09163788'),
-(2, 6, 'angbrunosa@gmail.com', NULL, NULL, 'saluti ciao', NULL, '2025-07-25 19:14:35', 0, NULL, '41785fd2-96f9-478a-b681-7fa3029e9314'),
-(3, 6, 'info@difam.it', NULL, NULL, 'mail di prova con allegato', NULL, '2025-07-25 19:17:39', 1, '2025-07-25 19:18:06', 'c2649c3d-f649-4ecc-9d85-be58012cb4fa'),
-(4, 6, 'angbrunosa@gmail.com', NULL, NULL, 'saluti', NULL, '2025-07-25 19:33:22', 0, NULL, '70d47b45-d95a-4f61-b5f4-d7ad47812dad'),
-(5, 6, 'info@difam.it', NULL, NULL, 'saluti', NULL, '2025-07-25 19:34:56', 1, '2025-07-25 19:36:55', 'f48d8199-0fd0-4ae6-b4c9-66f6d644268e'),
-(6, 6, 'info@difam.it', NULL, NULL, 'ciao senza allegati', NULL, '2025-07-25 19:36:42', 1, '2025-07-25 19:37:13', 'c1d66b26-69d1-491d-a42c-59e98d17206d'),
-(7, 4, 'angbrunosa@gmail.com', NULL, NULL, 'Re: Re: controlla l\'allegato', NULL, '2025-07-26 08:26:14', 0, NULL, '48296042-da48-4fae-8aa3-0766026518a9'),
-(8, 9, 'angbrunosa@gmail.com', NULL, NULL, '21', NULL, '2025-07-26 08:38:30', 0, NULL, '042ecc50-8616-4b21-a84b-a76c13256af4'),
-(9, 6, 'info@difam.it', NULL, NULL, 'saluti', NULL, '2025-07-26 09:32:53', 0, NULL, '2e85f514-3703-489e-b961-f309cd32f794'),
-(10, 10, 'angbrunosa@gmail.com', NULL, NULL, 'saltu', NULL, '2025-07-26 19:05:49', 0, NULL, '7e32d264-08d3-4f59-8852-b982ce0b215d'),
-(11, 10, 'angbrunosa@gmail.com', NULL, NULL, 'riepilogo', NULL, '2025-07-30 14:15:10', 0, NULL, 'e019b2ce-3e9b-4347-a706-cfd0ad21a8a7'),
-(12, 10, 'angbrunosa@gmail.com', NULL, NULL, 'iscrizione opero_ab', NULL, '2025-07-30 14:46:13', 0, NULL, '1f1a67ad-58c1-4376-a592-c7505c84b723'),
-(13, 9, 'angbrunosa@gmail.com', NULL, NULL, 'ciao', NULL, '2025-08-05 17:28:50', 0, NULL, '92c4fdf3-edea-4d93-8a9d-28482a4a5f35'),
-(15, 4, 'angbrunosa@gmail.com', NULL, NULL, 'òòò\\', NULL, '2025-08-06 15:53:08', 0, NULL, 'f067fc99-9a17-4017-be45-789f848445b2'),
-(16, 10, 'angbrunosa@gmail,com', NULL, NULL, 'saluti', NULL, '2025-08-06 15:54:36', 0, NULL, '13de43d1-9707-4eb1-bb03-47d18625a6de'),
-(17, 10, 'angbrunosa@gmail.com', NULL, NULL, 'saluti', NULL, '2025-08-06 15:58:54', 0, NULL, 'cd943cb1-e22b-443f-937f-6e7447769ea3'),
-(18, 4, 'angbrunosa@gmail.com', NULL, NULL, 'klklkl', NULL, '2025-08-06 16:18:15', 0, NULL, 'edf1c0c0-40c7-4c4b-be68-36d880fa2790'),
-(19, 4, 'angbrunosa@gmail.com', NULL, NULL, 'kp', NULL, '2025-08-06 18:15:42', 0, NULL, '79f1d8b3-894b-4726-9c2d-82107da3b0b3'),
-(20, 10, 'angbrunosa@gmail.com', NULL, NULL, 'saluti d aopero', NULL, '2025-08-08 10:08:08', 0, NULL, ''),
-(23, 10, 'angbrunosa@gmail.com', NULL, NULL, 'saluti', NULL, '2025-08-08 10:30:10', 0, NULL, 'c8a053f3-a605-4aa0-8ca1-51dd682ca47e'),
-(24, 10, 'angbrunosa@gmail.com', NULL, NULL, 'sa', NULL, '2025-08-08 10:33:36', 0, NULL, '8c7736a1-a472-49ee-9f40-39eb0b49b350'),
-(25, 10, 'angbrunosa@gmail.com', NULL, NULL, 'cisualizza', NULL, '2025-08-08 10:42:32', 1, '2025-08-08 10:44:21', '6c1d90f2-b09f-45b4-bd56-7af521bbedab'),
-(26, 10, 'postmaster@cedibef.com', NULL, NULL, 'dddl', NULL, '2025-08-08 10:45:40', 1, '2025-08-08 10:46:13', 'e56c0c22-95c6-45fb-83b0-a5f6bf08e67d'),
-(27, 10, 'angbrunosa@gmail.com', NULL, NULL, 'sòlal', NULL, '2025-08-08 10:53:30', 0, NULL, '0ab613a8-f1b4-470d-be9b-203f477609aa'),
-(28, 10, 'postmaster@cedibef.com', NULL, NULL, 'saaa', NULL, '2025-08-08 10:55:53', 1, '2025-08-08 10:56:13', '098344cf-15b7-4446-aef1-fb1a82647fc1'),
-(29, 10, 'postmaster@cedibef.com', NULL, NULL, 'dldld', NULL, '2025-08-08 10:58:01', 1, '2025-08-08 10:59:35', 'dfcae428-2cf4-4399-897e-c3f4f92ae796'),
-(30, 10, 'postmaster@cedibef.com', NULL, NULL, 'dldld', NULL, '2025-08-08 10:58:11', 1, '2025-08-08 10:58:23', '2a53a043-f221-4fe7-95b8-41f3a95fb13b'),
-(31, 10, 'angbrunosa@gmail.com', NULL, NULL, 'dff', NULL, '2025-08-08 11:00:26', 0, NULL, '2bec09ef-18d8-458b-b3d9-55fbc120cfa9'),
-(32, 10, 'angbrunosa@gmail.com', NULL, NULL, 'saluti 1 ', NULL, '2025-08-08 11:25:54', 0, NULL, 'b5f0edbe-a8c2-4c20-9cd4-76e4fbb78524'),
-(33, 10, 'angbrunosa@gmail.com', NULL, NULL, 'ciao', NULL, '2025-08-08 11:30:31', 0, NULL, '9f7dafcd-243d-4622-9041-ef2a493b3a84'),
-(34, 10, 'luca.cicioce@gmail.com ', NULL, NULL, 'prova mail opero', NULL, '2025-08-08 18:53:54', 1, '2025-08-08 19:13:21', 'e60188fc-c2e5-4319-980c-831ad081a025'),
-(35, 10, 'info@difam.it', NULL, NULL, 'saluti', NULL, '2025-08-08 19:03:40', 0, NULL, '042fbf1a-8fd6-40d8-80f2-ce09c0f90cae'),
-(36, 10, 'info@difam.it', NULL, NULL, 'seconda prova', 'eee', '2025-08-08 19:04:31', 0, NULL, 'da3313a3-9287-4bf4-974c-a9745045bceb'),
-(37, 10, 'angbrunosa@gmail.com', NULL, NULL, 'prova invio cop', NULL, '2025-08-08 19:11:41', 0, NULL, '404da3a0-cfc9-4c9e-aeb3-a68fea618979'),
-(38, 10, 'angbrunosa@gmail.com', NULL, NULL, 'terzo invio', NULL, '2025-08-08 19:12:29', 0, NULL, 'ca13300f-fa2e-4979-b172-2e2eada6a503'),
-(39, 10, 'angbrunosa@gmail.com', NULL, NULL, 'llld terzo', '<p><br></p><p><br></p><p>dott. Ansagelo Bruno opero il gestionale che opera per te</p>', '2025-08-08 19:14:45', 0, NULL, '2d942a62-f863-4014-aee7-792df11e0596'),
-(40, 10, 'mimmaforte@gmail.com', NULL, NULL, 'saluti da Pietro', '<p>Ciao Nonna ricordati che ho fame e che tra poco salgo.</p><p>Ciao</p><p><br></p><p>PS anche zio ha Fame</p><p><br></p><p>dott. Angelo Bruno opero il gestionale che opera per te</p>', '2025-08-09 11:05:49', 0, NULL, 'f323ac4a-846b-48f9-aa7b-c3e233878306'),
-(41, 10, 'angbrunosa@gmail.com', NULL, NULL, 'video', '<p><br></p><p><br></p><p>dott. Angelo Bruno opero il gestionale che opera per te</p>', '2025-08-09 16:05:11', 0, NULL, '259b91bd-990e-4604-a489-06d868ba2df2'),
-(42, 3, 'angbrunosa@gmail.com', NULL, NULL, 'saluti da opero', '<p>saluti</p>', '2025-08-20 11:23:29', 0, NULL, '857ecc1a-7e91-44ad-b889-13b4519bf376'),
-(43, 3, 'angbrunosa@gmail.com', NULL, NULL, 'Re: Re: saluti da opero', '<p>con molto entusiamso</p><p><br></p><p><em>Il 20/08/2025, 13:35:36, \"Angelo Bruno\"  ha scritto:</em></p><blockquote>anche a te</blockquote><blockquote>____________________________________________________________</blockquote><blockquote>Dott. Angelo Bruno</blockquote><blockquote>c.da Soda ,5</blockquote><blockquote>87010 Saracena CS</blockquote><blockquote>Cell. +39 3356738658</blockquote><blockquote>Ph. 098134463, fax 0981349501</blockquote><blockquote><br></blockquote><blockquote><br></blockquote><blockquote><img src=\"http://www.cedibef.com/csv/logo.jpg\" height=\"31\" width=\"200\"></blockquote><blockquote class=\"ql-align-justify\"><strong style=\"color: black;\">Nota di riservatezza</strong><span style=\"color: black;\">:&nbsp;il presente messaggio, allegati inclusi, è personale, ed è rivolto unicamente alla persona cui è&nbsp;indirizzato. Chiunque ricevesse questo messaggio per errore o comunque lo leggesse senza esserne legittimato è avvertito&nbsp;che&nbsp;trattenerlo, copiarlo, divulgarlo o distribuirlo a persone diverse dal destinatario è severamente&nbsp;&nbsp;proibito, sia&nbsp;ai sensi dell\'art. 616 c.p. che del Regolamento Europeo 2016/679 ed è&nbsp;pregato di&nbsp;rinviarlo immediatamente al mittente distruggendone l\'originale. Grazie.</span></blockquote><blockquote class=\"ql-align-justify\"><span style=\"color: black;\">&nbsp;</span></blockquote><blockquote class=\"ql-align-justify\"><strong style=\"color: black;\">Confidentially note</strong><span style=\"color: black;\">: this&nbsp;message, including&nbsp;all&nbsp;attachments,&nbsp;is confidential and&nbsp;is&nbsp;intended&nbsp;for&nbsp;the&nbsp;addressee (s)&nbsp;only. If&nbsp;anyone receives this message by mistake or reads it&nbsp;without&nbsp;entitlement is forewarned that keeping, copying, disseminating or distributing&nbsp;it&nbsp;to people&nbsp;other than the addressee(s) is strictly forbidden in compliance with European Personal Data Protection Code 2016/679 and is asked to transmit to the sender and to erase the original&nbsp;received.&nbsp;Thank you.</span></blockquote><blockquote class=\"ql-align-justify\"><span style=\"color: black;\">&nbsp;</span></blockquote><blockquote class=\"ql-align-justify\"><span style=\"color: black;\">Sebbene la presente E-Mail sia da ritenersi&nbsp;non infetta da virus ed altri difetti,&nbsp;è&nbsp;dovere del destinatario assicurarsi&nbsp;dell\'assenza di virus.Angelo Bruno non&nbsp;si&nbsp;assume&nbsp;pertanto alcuna responsabilità in caso di danni o perdite di dati.</span></blockquote><blockquote>&nbsp;</blockquote><blockquote><br></blockquote><blockquote><br></blockquote><blockquote>Il giorno mer 20 ago 2025 alle ore 13:23 Angelo Bruno &lt;<a href=\"mailto:opero@difam.it\" rel=\"noopener noreferrer\" target=\"_blank\">opero@difam.it</a>&gt; ha scritto:</blockquote><blockquote>saluti</blockquote><blockquote><strong>Allegati:</strong></blockquote><ul><li><a href=\"http://localhost:3001/api/track/download/c2d5c473-b3cb-432d-8b62-531bd8bf17de\" rel=\"noopener noreferrer\" target=\"_blank\">BACCALA.jfif</a></li></ul><blockquote><img src=\"http://localhost:3001/api/track/open/857ecc1a-7e91-44ad-b889-13b4519bf376\" height=\"1\" width=\"1\"></blockquote><blockquote><a href=\"http://www.avg.com/email-signature?utm_medium=email&amp;utm_source=link&amp;utm_campaign=sig-email&amp;utm_content=emailclient\" rel=\"noopener noreferrer\" target=\"_blank\"><img src=\"https://s-install.avcdn.net/ipm/preview/icons/icon-envelope-tick-green-avg-v1.png\" height=\"29\" width=\"46\"></a>Privo di virus.<a href=\"http://www.avg.com/email-signature?utm_medium=email&amp;utm_source=link&amp;utm_campaign=sig-email&amp;utm_content=emailclient\" rel=\"noopener noreferrer\" target=\"_blank\" style=\"color: rgb(68, 83, 234);\">www.avg.com</a><a href=\"#m_-2312977726257523537_DAB4FAD8-2DD7-40BB-A1B8-4E2AA1F9FDF2\" rel=\"noopener noreferrer\" target=\"_blank\"> </a></blockquote>', '2025-08-20 11:39:58', 0, NULL, 'aee761df-0229-442d-ae4a-bb0f61068f00'),
-(44, 3, 'opero@difam.it', NULL, NULL, 'saluti da me stesso', '<p>me lo lasci dire</p>', '2025-08-20 11:41:11', 0, NULL, 'df17fa7c-f0f0-4d4b-80e0-11b16b2cd6ac'),
-(45, 3, 'opero@difam.it', NULL, NULL, 'Re: saluti da me stesso', '<p><br></p><p>e lo dica</p><p><em>Il 20/08/2025, 13:41:11, \"Angelo Bruno\"  ha scritto:</em></p><blockquote>me lo lasci dire</blockquote><blockquote><strong>Allegati:</strong></blockquote><ul><li><a href=\"http://localhost:3001/api/track/download/012594b2-c096-48e1-a491-d5ff625f500c\" rel=\"noopener noreferrer\" target=\"_blank\">Istituto-Denza-google-maps-1.png</a></li></ul><blockquote><img src=\"http://localhost:3001/api/track/open/df17fa7c-f0f0-4d4b-80e0-11b16b2cd6ac\" height=\"1\" width=\"1\"></blockquote><blockquote><a href=\"http://www.avg.com/email-signature?utm_medium=email&amp;utm_source=link&amp;utm_campaign=sig-email&amp;utm_content=emailclient\" rel=\"noopener noreferrer\" target=\"_blank\"><img src=\"https://s-install.avcdn.net/ipm/preview/icons/icon-envelope-tick-green-avg-v1.png\" height=\"29\" width=\"46\"></a>Privo di virus.<a href=\"http://www.avg.com/email-signature?utm_medium=email&amp;utm_source=link&amp;utm_campaign=sig-email&amp;utm_content=emailclient\" rel=\"noopener noreferrer\" target=\"_blank\" style=\"color: rgb(68, 83, 234);\">www.avg.com</a><a href=\"#DAB4FAD8-2DD7-40BB-A1B8-4E2AA1F9FDF2\" rel=\"noopener noreferrer\" target=\"_blank\"> </a></blockquote>', '2025-08-20 12:31:59', 0, NULL, '8b51576f-557b-4a78-aefe-4c3cde8cf22b'),
-(51, 3, 'befretail@gmail.com', '', '', 'ddd', '<p>ddd</p>', '2025-08-20 13:47:54', 0, NULL, '95f671bd-ea3b-43d4-80f6-9580aca44ad0'),
-(52, 3, 'master@opero.it', '', '', 'iscrizione a ditta', '<p>ecco il link  per poterti registrare come nostro utente </p><p><br></p><p>http://localhost:3000/register/7c7ee98f-d64f-4c7b-b6c4-face72c391b6</p>', '2025-08-20 15:18:35', 0, NULL, '8a80fbfb-3aeb-4b36-bb55-32ca8ff0f9b8'),
-(53, 3, 'opero@difam.it', '', '', 'iscrizione', '<p><span style=\"background-color: rgb(255, 255, 255);\">http://localhost:3000/register/7c7ee98f-d64f-4c7b-b6c4-face72c391b6</span></p>', '2025-08-20 15:24:05', 0, NULL, 'c190742c-c3e7-4bfa-aa1e-a781a9c16b55'),
-(57, 3, 'befretail@gmail.com', '', '', 'sss', '<p>ss</p>', '2025-08-20 15:37:24', 0, NULL, 'b3742363-8f9b-48d8-8a2a-62154503bac1'),
-(59, 3, 'amministrazione@difam.it', '', '', '54546', '<p>1654564564</p>', '2025-08-20 17:10:40', 0, NULL, '7dfaf219-ac22-4666-bbd8-cb43c18c7876'),
-(61, 3, 'h; befretail@gmail.com', '', '', 'h', '<p>h</p>', '2025-08-20 18:11:58', 0, NULL, 'c2e97b31-42ed-41ae-993b-5c9930fb7620'),
-(63, 3, 'befretail@gmail.com', '', '', 'ddd', '<p>ccc</p>', '2025-08-21 15:00:12', 0, NULL, '1b81de2e-26ff-495e-9770-d38ab1dbb804'),
-(65, 3, 'befretail@gmail.com', 'befretail@gmail.com', '', '00', '<p>2222</p>', '2025-08-21 15:02:04', 0, NULL, '10492445-0ff4-448c-9695-1235e5eeef30'),
-(66, 3, 'angbrunosa@gmail.com', '', '', 'saluti', '<p><br></p>', '2025-08-21 19:53:48', 0, NULL, 'dfe864ae-fe3a-4765-874c-ff533eec1867'),
-(68, 3, 'angbrunosa@gmail.com;  befretail@gmail.com; amministrazione@difam.it', '', '', 'prova list', '<p>salutissimi</p>', '2025-08-21 19:55:08', 0, NULL, 'b474d719-b19e-426d-a9e0-6f8748183457'),
-(69, 31, 'angbrunosa@gmail.com', '', 'befretail@gmail.com', 'rappresentante', '<p>vi prego di voler illustrare la vostra idea allego la mia</p>', '2025-08-22 16:12:29', 0, NULL, '0dc414b3-13ff-428f-b07d-6fc326c5cb8f'),
-(71, 3, 'angbrunosa@gmail.com', '', '', 'ok', '<p>visualizza</p>', '2025-08-23 19:06:18', 0, NULL, 'e4ac6d9f-124a-4073-9381-e11a0c459671'),
-(73, 3, 'angbrunosa@gmail.com; info@example.com; ', '', '', 'SALUTI', '<p>SALUTI DA OPERO</p>', '2025-08-25 09:00:37', 0, NULL, '70a73d01-0999-4ad6-a39d-37f2d70fb264'),
-(74, 3, 'angbrunosa@gmail.com', '', '', 'prova da locale', '<p>saluti</p>', '2025-09-06 11:27:10', 0, NULL, '46bb71fe-e807-4df7-af08-8075341d8fde'),
-(75, 3, 'angbrunosa@gmail.com', '', '', 'saluti', '<p>saluti</p>', '2025-09-19 07:35:44', 0, NULL, '0758d67e-32e9-47f0-a317-98453a7d5193'),
-(79, 3, 'cicio.l@tiscali.it', '', '', 'SALUTI', '<p>CIAO TI è ARRIVATA </p>', '2025-09-19 15:40:44', 0, NULL, 'f04668b0-2d7c-467a-9ec8-a6242f9810c4');
+INSERT INTO `email_inviate` (`id`, `id_ditta`, `id_utente_mittente`, `destinatari`, `cc`, `bcc`, `oggetto`, `corpo`, `data_invio`, `aperta`, `data_prima_apertura`, `tracking_id`) VALUES
+(1, NULL, 6, 'angbrunosa@gmai.com', NULL, NULL, 'ciao', NULL, '2025-09-20 17:15:45', 0, NULL, '974c346a-4882-4b6e-94a3-a1aa09163788'),
+(74, NULL, 3, 'angbrunosa@gmail.com', NULL, NULL, 'prova da locale', '<p>saluti</p>', '2025-09-20 17:15:45', 0, NULL, '46bb71fe-e807-4df7-af08-8075341d8fde'),
+(75, NULL, 3, 'angbrunosa@gmail.com', '', '', 'sss', '<p>ssss</p>', '2025-09-24 15:48:06', 0, NULL, 'f84f6674-4328-4dd4-8aa6-5b62c061c445'),
+(76, NULL, 3, 'amerigo.celia@gmail.com', '', '', 'file fatture', '<p>in allegato quanto in oggetto	</p><p>saluti </p><p>Angelo</p><p><br></p>', '2025-09-26 09:56:08', 0, NULL, '2f87e111-76cc-4df8-9ffa-a44d26f722f2'),
+(77, NULL, 3, 'mimmaforte@gmail.com', '', '', 'saluti', '<p>saluti</p>', '2025-09-26 18:53:58', 0, NULL, '646ba121-7ce8-4cc7-8973-ae2249e02397'),
+(78, NULL, 3, 'angbrunosa@gmail.com', '', '', 'fff', '<p>ffff</p>', '2025-09-26 19:07:36', 0, NULL, '8d6a311e-b726-4cd0-b4cc-0429c63a9e4d'),
+(79, NULL, 3, 'angbrunosa@gmail.com', '', '', 'prova', '<p>saluti</p>', '2025-09-28 08:48:46', 0, NULL, 'be7171bb-fb3d-4051-9cb2-65b26c953774'),
+(80, 1, 3, 'opero@difam.it', NULL, NULL, 'Aggiornamento di Stato: Procedura \"23\"', '<p>Gentile Cliente,</p>\n            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura \"23\".</p>\n            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è \"25/09/2025\".</p>\n            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>\n            <p>Cordiali Saluti,<br/>Opero Gestionale</p>', '2025-09-29 07:15:31', 0, NULL, '<ec360bf6-3eab-400f-ecaa-51e2a0f72955@difam.it>'),
+(81, 1, 3, 'opero@difam.it', NULL, NULL, 'Aggiornamento di Stato: Procedura \"23\"', '<p>Gentile Cliente,</p>\n            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura \"23\".</p>\n            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è \"25/09/2025\".</p>\n            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>\n            <p>Cordiali Saluti,<br/>Opero Gestionale</p>', '2025-09-29 07:15:31', 0, NULL, '9aeba883-cea0-44a0-b745-3582becd4af7'),
+(82, 1, 3, 'opero@difam.it', NULL, NULL, 'Aggiornamento di Stato: Procedura \"Lavorazioni_cliente\"', '<p>Gentile Cliente,</p>\n            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura \"Lavorazioni_cliente\".</p>\n            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è \"18/10/2025\".</p>\n            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>\n            <p>Cordiali Saluti,<br/>Opero Gestionale</p>', '2025-09-29 16:11:38', 0, NULL, '<c45069f7-553b-1413-6692-6f416dba6299@difam.it>'),
+(83, 1, 3, 'opero@difam.it', NULL, NULL, 'Aggiornamento di Stato: Procedura \"Lavorazioni_cliente\"', '<p>Gentile Cliente,</p>\n            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura \"Lavorazioni_cliente\".</p>\n            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è \"18/10/2025\".</p>\n            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>\n            <p>Cordiali Saluti,<br/>Opero Gestionale</p>', '2025-09-29 16:11:38', 0, NULL, '6c685921-2aa4-491c-9993-f6d156640eb2'),
+(84, 1, 3, 'opero@difam.it', NULL, NULL, 'Aggiornamento di Stato: Procedura \"lavorazione_sartoria\"', '<p>Gentile Cliente,</p>\n            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura \"lavorazione_sartoria\".</p>\n            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è \"03/10/2025\".</p>\n            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>\n            <p>Cordiali Saluti,<br/>Opero Gestionale</p>', '2025-10-01 18:31:19', 0, NULL, '<216b4eeb-dda9-5730-a19e-a176d7ab19d3@difam.it>'),
+(85, 1, 3, 'opero@difam.it', NULL, NULL, 'Aggiornamento di Stato: Procedura \"lavorazione_sartoria\"', '<p>Gentile Cliente,</p>\n            <p>le confermiamo che per le lavorazioni richieste le è stata assegnata la procedura \"lavorazione_sartoria\".</p>\n            <p>In allegato trova il report di stato aggiornato ad oggi la data prevista di completamento è \"03/10/2025\".</p>\n            <p>Per qualsiasi domanda o chiarimento, non esiti a contattarci.</p>\n            <p>Cordiali Saluti,<br/>Opero Gestionale</p>', '2025-10-01 18:31:19', 0, NULL, '271e8e26-a9ad-43e5-9db6-1e5119b9e063');
 
 -- --------------------------------------------------------
 
@@ -378,8 +766,9 @@ CREATE TABLE `email_nascoste` (
 --
 
 INSERT INTO `email_nascoste` (`id_utente`, `email_uid`, `data_cancellazione`) VALUES
-(3, 6, '2025-08-20 16:46:53'),
-(3, 9, '2025-08-26 18:14:00');
+(3, 6, '2025-09-20 17:15:45'),
+(3, 9, '2025-09-20 17:15:45'),
+(3, 12836, '2025-09-24 16:04:34');
 
 -- --------------------------------------------------------
 
@@ -405,7 +794,7 @@ INSERT INTO `funzioni` (`id`, `codice`, `descrizione`, `Scorciatoia`, `chiave_co
 (3, 'ANAGRAFICHE_EDIT', 'Permette di modificare un\'anagrafica esistente', 0, 'AMMINISTRAZIONE'),
 (4, 'ANAGRAFICHE_DELETE', 'Permette di eliminare un\'anagrafica', 0, 'AMMINISTRAZIONE'),
 (5, 'UTENTI_VIEW', 'Permette di visualizzare gli utenti della propria ditta', 1, 'AMMINISTRAZIONE'),
-(26, 'PDC_VIEW', 'Visualizzazione del Piano dei Conti', 0, 'AMMINISTRAZIONE'),
+(26, 'PDC_VIEW', 'Visualizzazione del Piano dei Conti', 1, 'AMMINISTRAZIONE'),
 (27, 'PDC_EDIT', 'Modifica e creazione voci del Piano dei Conti', 0, 'AMMINISTRAZIONE'),
 (28, 'MAIL_ACCOUNTS_VIEW', 'Visualizza gli account email della ditta', 0, 'AMMINISTRAZIONE'),
 (29, 'MAIL_ACCOUNTS_EDIT', 'crea e modifica gli account ditta', 0, 'AMMINISTRAZIONE'),
@@ -413,10 +802,34 @@ INSERT INTO `funzioni` (`id`, `codice`, `descrizione`, `Scorciatoia`, `chiave_co
 (31, 'UTENTI_EDIT', 'Permette di modificare i dati degli utenti', 0, 'AMMINISTRAZIONE'),
 (32, 'AddressBookManager', 'gestione della rubrica \r\ncon liste di distribuzione', 1, 'MAIL'),
 (34, 'RUBRICA_VIEW', 'Visualizza la rubrica aziendale', 1, 'RUBRICA'),
-(35, 'RUBRICA_MANAGE', 'Crea e modifica contatti e liste di distribuzione', 0, 'RUBRICA'),
+(35, 'RUBRICA_MANAGE', 'Crea e modifica contatti e liste di distribuzione', 1, 'RUBRICA'),
 (36, 'PPA_MODULE', 'PERMETTE DI GESTIRE LA LOGICA E LO SPVILUPPO DEL PPA PROCEDURE PROCESSI AZIONI', 1, 'AMMINISTRAZIONE'),
 (37, 'PROGRESSIVI_MANAGE', 'gestione di tutti i progressivi ditta\r\nprotocollo contabile\r\nnumero doc ', 0, NULL),
-(38, 'FIN_SMART', 'gestione finanze', 0, 'FIN_SMART');
+(38, 'FIN_SMART', 'gestione finanze', 1, 'FIN_SMART'),
+(70, 'BS_VIEW_BENI', 'Permette di visualizzare l\'elenco dei beni.\r\ndi beni strumentali', 1, 'BSSMART'),
+(71, 'BS_MANAGE_CATEGORIE', 'Permette di creare e modificare le categorie. DEI BENI STRUMENTALI', 0, 'BSSMART'),
+(72, 'BS_VIEW_SCADENZE', 'GESTIONE SCADENZE BS', 1, 'BSSMART'),
+(73, 'BS_CREATE_BENE', 'CREA UN NUOVO BENE', 0, 'BSSMART'),
+(74, 'BS_EDIT_BENE', 'MODIFICHE SUL BENE', 0, 'BSSMART'),
+(75, 'BS_DELETE_BENE', 'Permette di eliminare un bene.', 0, 'BSSMART'),
+(76, 'BS_MANAGE_SCADENZE', 'MANAGERE SCADENZE BENI STRUMENTALI', 0, 'BSSMART'),
+(80, 'PPA_SIS_MODULE_VIEW', 'accesso al modulo ppa ', 0, 'PPA SIS'),
+(81, 'PPA_DESIGN_PROCEDURE', 'funzione di progettazione delle ppa', 0, 'PPA SIS'),
+(82, 'PPA_ASSIGN_PROCEDURE', 'assegnazione delle ppa', 0, 'PPA SIS'),
+(83, 'PPA_VIEW_MY_TASKS', NULL, 1, 'PPA SIS'),
+(84, 'PPA_MONITOR_ALL', 'verifica tutte le ppa aziendali', 0, 'PPA SIS'),
+(90, 'CT_VIEW', 'visualizza modulo catalogo', 0, 'CT_VIEW'),
+(91, 'CT_MANAGE', 'Per la creazione e modifica delle entità del catalogo (categorie, articoli).', 0, 'CT_VIEW'),
+(92, 'CT_COMPOSITI_MANAGE', 'Per la gestione specifica dei prodotti compositi..', 0, 'CT_VIEW'),
+(93, 'MG_GIACENZE_VIEW', ' Per la sola visualizzazione delle giacenze di magazzino.\r\n\r\n', 0, 'CT_VIEW'),
+(94, 'MG_MOVIMENTI_CREATE', ' Per poter effettuare movimenti di magazzino (carico/scarico).', 1, 'CT_VIEW'),
+(95, 'MG_CONFIG_MANAGE', ' Per la configurazione delle tabelle di supporto al magazzino ', 0, 'CT_VIEW'),
+(96, 'CT_IVA_MANAGE', 'visualizzazione e manutenzione iva', 0, 'CT_VIEW'),
+(97, 'CT_UM_MANAGE', 'GESTIONE UNTIA DI MISURA', 0, 'CT_VIEW'),
+(98, 'CT_STATI_MANAGE', 'Gestione Stati Entità Catalogo', 0, 'CT_VIEW'),
+(99, 'CT_IMPORT_CSV', 'Importa Entità Catalogo da CSV', 0, 'CT_VIEW'),
+(100, 'CT_LISTINI_VIEW', 'visualizza listini catalogo', 0, 'CT_VIEW'),
+(101, 'CT_LISTINI_MANAGE', 'Gestione (creazione/modifica/eliminazione) listini di vendita del catalogo', 0, 'CT_VIEW');
 
 -- --------------------------------------------------------
 
@@ -487,8 +900,30 @@ INSERT INTO `knex_migrations` (`id`, `name`, `batch`, `migration_time`) VALUES
 (26, '20250917150000_add_camporicercarihecontabili.js', 21, '2025-09-17 12:38:19'),
 (27, '20251709160052_tipo_scrittconta.js', 22, '2025-09-17 13:01:50'),
 (28, '20251809160052_TABELLAUTENTIMAIL.js', 23, '2025-09-19 07:33:01'),
-(29, '20251809230052_TABELLLETTIMAIL.js', 23, '2025-09-19 07:33:01'),
-(30, '20251809235052_TABELLLETTIMigraL.js', 23, '2025-09-19 07:33:01');
+(32, '20250920180000_crea_modulo_beni_strumentali.js', 25, '2025-09-20 14:13:54'),
+(33, '20250920193000_add_sottoconto_costo_to_bs_beni.js', 26, '2025-09-20 17:31:30'),
+(34, '20250921191000_crea_tipi_scadenza.js', 27, '2025-09-22 07:32:55'),
+(35, '20250921211000_modificanometabtipiscade.js', 27, '2025-09-22 07:32:55'),
+(36, '20250921211000_modificanoscadenzede.js', NULL, '2025-09-22 07:34:42'),
+(39, '202502209160052_PPA_1.js', 28, '2025-09-22 08:17:46'),
+(40, '202502209160052_PPA_2.js', 28, '2025-09-22 08:17:46'),
+(41, '202502209160052_PPA_3.js', 28, '2025-09-22 08:17:46'),
+(42, '2025021309100045_creatbellamailservizi.js', 29, '2025-09-23 19:00:59'),
+(43, '2025024309100045_creatbellateamcomunicai.js', 30, '2025-09-24 13:56:24'),
+(44, '20250273161500_inserimentocaponote.js', 31, '2025-09-27 09:21:06'),
+(45, '20250274309100045_implementamail.js', 32, '2025-09-27 17:08:45'),
+(46, '20250290309100045_TABELLECATALOGOEMAG1.js', 33, '2025-09-29 10:18:25'),
+(47, '20251809230052_TABELLLETTIMAIL.js', 34, '2025-09-29 17:23:25'),
+(48, '20251809235052_TABELLLETTIMigraL.js', 35, '2025-09-29 17:28:48'),
+(49, '20252009160052_TABELLAUTENTIMAIL.js', 36, '2025-09-29 17:29:06'),
+(50, '202529091848_modificacategorie.js', 36, '2025-09-29 17:29:06'),
+(51, '202529091948_modificacategorie2.js', 37, '2025-09-29 18:47:19'),
+(52, '20250930190000_crea_tabella_stati_entita.js', 38, '2025-09-30 15:31:36'),
+(53, '20250930190200_add_stato_to_ct_catalogo.js', 39, '2025-09-30 15:35:44'),
+(54, '20251001090000_rename_prezzo_base_in_ct_catalogo.js', 40, '2025-10-01 07:05:53'),
+(55, '20251001090100_crea_tabella_ct_listini.js', 41, '2025-10-01 07:07:00'),
+(56, '20251001180000_crea_tabella_ct_listini_avanzata.js', 42, '2025-10-01 16:46:32'),
+(57, '20251001200200_rename_ricarico_fields_in_ct_listini.js', 43, '2025-10-01 18:08:08');
 
 -- --------------------------------------------------------
 
@@ -506,7 +941,7 @@ CREATE TABLE `knex_migrations_lock` (
 --
 
 INSERT INTO `knex_migrations_lock` (`index`, `is_locked`) VALUES
-(1, 0);
+(3, 0);
 
 -- --------------------------------------------------------
 
@@ -599,7 +1034,15 @@ CREATE TABLE `log_accessi` (
 --
 
 INSERT INTO `log_accessi` (`id`, `id_utente`, `indirizzo_ip`, `data_ora_accesso`, `id_funzione_accessibile`, `dettagli_azione`) VALUES
-(1, 1, '192.168.1.10', '2025-07-24 15:08:31', 5, 'Login riuscito');
+(1, 1, '192.168.1.10', '2025-09-20 17:15:45', 5, 'Login riuscito'),
+(2, 3, NULL, '2025-09-29 17:46:54', NULL, 'Creata nuova categoria catalogo: FOOD (id: 4)'),
+(3, 3, NULL, '2025-09-29 17:47:49', NULL, 'Creata nuova categoria catalogo: ALIMENTARI SECCHI (id: 5)'),
+(4, 3, NULL, '2025-09-29 17:48:02', NULL, 'Creata nuova categoria catalogo: LIQUIDI (id: 6)'),
+(5, 3, NULL, '2025-09-29 17:48:17', NULL, 'Creata nuova categoria catalogo: ALCOLICI (id: 7)'),
+(6, 3, NULL, '2025-09-29 17:48:41', NULL, 'Creata nuova categoria catalogo: BEVANDE ANALCOLICHE (id: 8)'),
+(7, 3, NULL, '2025-09-29 17:48:51', NULL, 'Creata nuova categoria catalogo: SUCCHI DI FRUTTA (id: 9)'),
+(8, 3, NULL, '2025-09-29 17:49:12', NULL, 'Creata nuova categoria catalogo: LISCE (id: 10)'),
+(9, 3, NULL, '2025-09-29 17:49:41', NULL, 'Creata nuova categoria catalogo: GASSATE (id: 11)');
 
 -- --------------------------------------------------------
 
@@ -621,34 +1064,138 @@ CREATE TABLE `log_azioni` (
 --
 
 INSERT INTO `log_azioni` (`id`, `id_utente`, `id_ditta`, `azione`, `dettagli`, `timestamp`) VALUES
-(1, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 52, Funzione: 9', '2025-09-17 07:16:12'),
-(2, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 53, Funzione: 9', '2025-09-17 08:13:35'),
-(3, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 55, Funzione: 9', '2025-09-17 08:18:21'),
-(4, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 56, Funzione: 9', '2025-09-17 08:19:35'),
-(5, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 57, Funzione: 12', '2025-09-17 08:32:04'),
-(6, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 58, Funzione: 12', '2025-09-17 08:40:42'),
-(7, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 59, Funzione: 12', '2025-09-17 08:42:11'),
-(8, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 60, Funzione: 12', '2025-09-17 09:49:18'),
-(9, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 61, Funzione: 9', '2025-09-17 15:37:42'),
-(10, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 62, Funzione: 9', '2025-09-17 17:13:12'),
-(11, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 63, Funzione: 23', '2025-09-17 18:07:18'),
-(12, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 64, Funzione: 9', '2025-09-17 18:52:50'),
-(13, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 65, Funzione: 12', '2025-09-18 14:29:48'),
-(14, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 66, Funzione: 12', '2025-09-18 14:30:54'),
-(15, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 67, Funzione: 12', '2025-09-19 07:41:26'),
-(16, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 68, Funzione: 9', '2025-09-19 10:06:48'),
-(17, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 69, Funzione: 23', '2025-09-19 11:24:00'),
-(18, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 70, Funzione: 9', '2025-09-19 12:49:08'),
-(19, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 71, Funzione: 12', '2025-09-19 12:50:40'),
-(20, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 72, Funzione: 9', '2025-09-19 14:00:05'),
-(21, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 73, Funzione: 23', '2025-09-19 14:10:57'),
-(22, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 74, Funzione: 23', '2025-09-19 14:11:15'),
-(23, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 79, Funzione: 23', '2025-09-19 15:02:27'),
-(24, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 80, Funzione: 9', '2025-09-19 15:43:26'),
-(25, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 81, Funzione: 9', '2025-09-19 16:06:17'),
-(26, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 82, Funzione: 26', '2025-09-19 16:07:20'),
-(27, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 83, Funzione: 26', '2025-09-19 17:02:04'),
-(28, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 84, Funzione: 27', '2025-09-19 18:20:04');
+(1, 3, 1, 'Creazione Bene Strumentale', 'ID Bene: 1, Descrizione: PC OLIVETTI M 24', '2025-09-20 18:14:20'),
+(2, 3, 1, 'Creazione Categoria Bene', 'ID: 9, Codice: MOB-REG', '2025-09-21 10:54:30'),
+(3, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 33, Funzione: 12', '2025-09-26 18:30:55'),
+(4, 3, 1, 'Creazione Registrazione Contabile', 'ID Testata: 34, Funzione: 14', '2025-09-26 18:35:01'),
+(5, 3, 1, 'aggiornamento', 'aggiornata categoria catalogo: ALIMENTARI LIQUIDI (id: 6)', '2025-09-29 18:01:23'),
+(6, 3, 1, 'eliminazione', 'eliminata categoria catalogo: LISCE (id: 10)', '2025-09-29 18:01:35'),
+(7, 3, 1, '', 'Creata nuova categoria catalogo: PRODOTTI-FISICI (id: 12)', '2025-09-29 18:06:12'),
+(8, 3, 1, 'aggiornamento', 'aggiornata categoria catalogo: FOOD (id: 4)', '2025-09-29 18:06:18'),
+(9, 3, 1, 'aggiornamento', 'aggiornata categoria catalogo: PRODOTTI-FISICI-MERCI (id: 12)', '2025-09-29 18:06:30'),
+(10, 3, 1, '', 'Creata nuova categoria catalogo: SERVIZI (id: 13)', '2025-09-29 18:06:51'),
+(11, 3, 1, '', 'Creata nuova categoria catalogo: LAVORAZIONI (id: 14)', '2025-09-29 18:07:19'),
+(12, 3, 1, 'eliminazione', 'eliminata categoria catalogo: LAVORAZIONI (id: 14)', '2025-09-29 18:45:15'),
+(13, 3, 1, 'eliminazione', 'eliminata categoria catalogo: PRODOTTI-FISICI-MERCI (id: 12)', '2025-09-29 18:45:18'),
+(14, 3, 1, 'eliminazione', 'eliminata categoria catalogo: FOOD (id: 4)', '2025-09-29 18:45:22'),
+(15, 3, 1, 'eliminazione', 'eliminata categoria catalogo: ALIMENTARI LIQUIDI (id: 6)', '2025-09-29 18:45:24'),
+(16, 3, 1, 'eliminazione', 'eliminata categoria catalogo: ALCOLICI (id: 7)', '2025-09-29 18:45:28'),
+(17, 3, 1, 'eliminazione', 'eliminata categoria catalogo: ALIMENTARI SECCHI (id: 5)', '2025-09-29 18:45:30'),
+(18, 3, 1, 'eliminazione', 'eliminata categoria catalogo: BEVANDE ANALCOLICHE (id: 8)', '2025-09-29 18:45:33'),
+(19, 3, 1, 'eliminazione', 'eliminata categoria catalogo: GASSATE (id: 11)', '2025-09-29 18:45:36'),
+(20, 3, 1, 'eliminazione', 'eliminata categoria catalogo: SERVIZI (id: 13)', '2025-09-29 18:45:39'),
+(21, 3, 1, 'eliminazione', 'eliminata categoria catalogo: SUCCHI DI FRUTTA (id: 9)', '2025-09-29 18:45:41'),
+(22, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001 - MERCI (ID: 15)', '2025-09-29 19:00:38'),
+(23, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001 - FOOD (ID: 16)', '2025-09-29 19:00:53'),
+(24, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.002 - NO FOOD (ID: 17)', '2025-09-29 19:01:14'),
+(25, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001.001 - DEPERIBILI (ID: 18)', '2025-09-29 19:01:34'),
+(26, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 002 - SERVIZI (ID: 19)', '2025-09-29 19:07:17'),
+(27, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 003 - LAVORAZIONI (ID: 20)', '2025-09-29 19:07:35'),
+(28, 3, 1, 'Creazione Aliquota IVA', 'Creata nuova aliquota: 37 - IVA 37% (37%)', '2025-09-30 13:43:00'),
+(29, 3, 1, 'Eliminazione Aliquota IVA', 'Eliminata aliquota ID: 6', '2025-09-30 14:17:54'),
+(30, 3, 1, 'Creazione Unità di Misura', 'Creata nuova unità di misura: PZ - PEZZI', '2025-09-30 14:45:41'),
+(31, 3, 1, 'Creazione Unità di Misura', 'Creata nuova unità di misura: CT - CARTONI', '2025-09-30 14:45:59'),
+(32, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001.002 - LIQUIDI (ID: 21)', '2025-09-30 17:18:23'),
+(33, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001.003 - DISPENSA (ID: 22)', '2025-09-30 17:18:50'),
+(34, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001.004 - FRESCHI (ID: 23)', '2025-09-30 17:19:17'),
+(35, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001.001.001 - SURGELATI (ID: 24)', '2025-09-30 17:19:44'),
+(36, 3, 1, 'Eliminazione Categoria Catalogo', 'Eliminata categoria: 001.001.004 - FRESCHI (id: 23)', '2025-09-30 17:20:15'),
+(37, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.001.001.002 - FRESCHI (ID: 25)', '2025-09-30 17:20:38'),
+(38, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.002.001 - IGIENE CASA (ID: 26)', '2025-09-30 17:21:11'),
+(39, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.002.002 - IGIENE CASA (ID: 27)', '2025-09-30 17:21:12'),
+(40, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.002.002 - IGIENE CASA (ID: 28)', '2025-09-30 17:21:20'),
+(41, 3, 1, 'Eliminazione Categoria Catalogo', 'Eliminata categoria: 001.002.002 - IGIENE CASA (id: 28)', '2025-09-30 17:21:32'),
+(42, 3, 1, 'Eliminazione Categoria Catalogo', 'Eliminata categoria: 001.002.002 - IGIENE CASA (id: 27)', '2025-09-30 17:21:35'),
+(43, 3, 1, 'Creazione Categoria Catalogo', 'Creata categoria: 001.002.002 - IGIENE PERSONA (ID: 29)', '2025-09-30 17:21:51'),
+(44, 3, 1, 'Creazione Unità di Misura', 'Creata nuova unità di misura: KG - Chilogrammi', '2025-09-30 17:43:33'),
+(45, 3, 1, 'Creazione Unità di Misura', 'Creata nuova unità di misura: LT - LITRO', '2025-09-30 17:43:45'),
+(46, 3, 1, 'Modifica Stato Entità', 'Modificato stato ID: 1', '2025-09-30 17:52:10'),
+(47, 3, 1, 'Modifica Stato Entità', 'Modificato stato ID: 1', '2025-09-30 17:52:18'),
+(48, 3, 1, 'Importazione CSV Catalogo', 'Importate 0 nuove entità. Errori: 6.', '2025-09-30 19:49:01'),
+(49, 3, 1, 'Importazione CSV Catalogo', 'Importate 6 nuove entità. Errori: 0.', '2025-10-01 13:30:45'),
+(50, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 0, Ignorate: 6. Errori: 0.', '2025-10-01 13:42:55'),
+(51, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 0, Ignorate: 6. Errori: 0.', '2025-10-01 13:44:20'),
+(52, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 13:57:54'),
+(53, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 13:58:23'),
+(54, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 13:58:52'),
+(55, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 0, Ignorate: 6. Errori: 0.', '2025-10-01 14:02:51'),
+(56, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:03:36'),
+(57, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:08:15'),
+(58, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:08:58'),
+(59, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:12:38'),
+(60, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:13:19'),
+(61, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:17:02'),
+(62, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 0, Ignorate: 6. Errori: 0.', '2025-10-01 14:17:13'),
+(63, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 0, Ignorate: 6. Errori: 0.', '2025-10-01 14:30:13'),
+(64, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 14:30:28'),
+(65, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 300411050 (ID: 1)', '2025-10-01 14:37:56'),
+(66, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 300411050 (ID: 1)', '2025-10-01 14:38:02'),
+(67, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 305020007 (ID: 3)', '2025-10-01 14:38:10'),
+(68, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 305770007 (ID: 4)', '2025-10-01 14:38:14'),
+(69, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 305770009 (ID: 5)', '2025-10-01 14:38:18'),
+(70, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 305770009 (ID: 5)', '2025-10-01 14:38:40'),
+(71, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 300411050 (ID: 1)', '2025-10-01 14:40:47'),
+(72, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 3004110500 (ID: 1)', '2025-10-01 14:40:55'),
+(73, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 305770009 (ID: 5)', '2025-10-01 14:43:56'),
+(74, 3, 1, 'Creazione Entità Catalogo', 'Creata nuova entità: 3004110509 - ARTICOLO', '2025-10-01 15:14:44'),
+(75, 3, 1, 'Importazione CSV Catalogo', 'Create: 0, Aggiornate: 6, Ignorate: 0. Errori: 0.', '2025-10-01 15:53:42'),
+(76, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 3004110509 (ID: 13)', '2025-10-01 15:53:55'),
+(77, 3, 1, 'Modifica Entità Catalogo', 'Modificata entità: 300411050 (ID: 1)', '2025-10-01 18:09:19'),
+(78, 3, 1, 'Creazione Listino', 'Creato nuovo listino \"base\" per entità ID 1', '2025-10-01 18:09:47'),
+(79, 3, 1, 'Modifica Listino', 'Modificato listino ID: 1', '2025-10-01 18:10:16'),
+(80, 3, 1, 'Modifica Listino', 'Modificato listino ID: 1', '2025-10-01 18:10:26'),
+(81, 3, 1, 'Creazione Listino', 'Creato nuovo listino \"futuro\" per entità ID 1', '2025-10-01 18:11:08'),
+(82, 3, 1, 'Modifica Listino', 'Modificato listino ID: 2', '2025-10-02 07:31:56');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `mg_causali_movimento`
+--
+
+CREATE TABLE `mg_causali_movimento` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `causale` varchar(100) NOT NULL,
+  `tipo_movimento` enum('carico','scarico') NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `mg_magazzini`
+--
+
+CREATE TABLE `mg_magazzini` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `nome_magazzino` varchar(100) NOT NULL,
+  `descrizione` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `mg_movimenti`
+--
+
+CREATE TABLE `mg_movimenti` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `id_magazzino` int(10) UNSIGNED DEFAULT NULL,
+  `id_catalogo` int(10) UNSIGNED DEFAULT NULL,
+  `id_causale` int(10) UNSIGNED DEFAULT NULL,
+  `quantita` decimal(10,3) NOT NULL,
+  `data_movimento` timestamp NOT NULL DEFAULT current_timestamp(),
+  `id_utente` int(11) DEFAULT NULL,
+  `note` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -672,7 +1219,10 @@ INSERT INTO `moduli` (`codice`, `descrizione`, `chiave_componente`) VALUES
 (30, 'Pannello Admin', 'ADMIN_PANEL'),
 (40, 'Posta', 'MAIL'),
 (50, 'Rubrica', 'RUBRICA'),
-(60, 'Gestione Finanza', 'FIN_SMART');
+(60, 'Gestione Finanza', 'FIN_SMART'),
+(70, 'BS SMART', 'BSSMART'),
+(80, 'SISTEMA PPA', 'PPA SIS'),
+(90, 'CATALOGO', 'CT_VIEW');
 
 -- --------------------------------------------------------
 
@@ -694,25 +1244,17 @@ CREATE TABLE `ppa_azioni` (
 
 INSERT INTO `ppa_azioni` (`ID`, `ID_Processo`, `NomeAzione`, `Descrizione`, `ID_RuoloDefault`) VALUES
 (1, 4, 'Verifica strutture di vendita', 'Nel corso del primo appuntamento nella sede del cliente, è essenziale verificare lo stato dei punti vendita.  Verificare qualità assortimento - adeguatezza del personale - formazione del personale- qualità e completezza delle attrezzature - ', 3),
-(2, 4, 'verifiche logistiche', 'Verificare i luoghi di scarico merce\ndefinire modalità e orari \nattenzione particolare alla gestione di Fresco e Resi', 3),
-(3, 5, 'Ricevimento Ordini', 'Elaborare con anticipo l\'ordine e verificare con il cliente la corretta ricezione - consigliare sostituzioni con prodotti del nostro assortimento strategico', 3),
-(4, 5, 'verificare Puntualità pagamenti', 'ogni settimana verificare ricezione scaduti e in caso di mancato pagamento sollecitare ricezione e bloccare consegne', 2),
-(5, 1, 'Contattare il responsabile azienda', 'Inviare prima email e concordare ora della telefonata', 3),
-(6, 4, 'Assortimetno', 'Composizione Attuale\nN° Referenze\nReferenze per Reparto\n', 3),
-(7, 6, 'Obbietti', 'Ripetere le misurazioni di ingresso\ne valutare le variazioni\n', 3),
-(8, 6, 'Verifiche', 'Assortimento\nVendute in promozione\nAnalisi Andamento', 3),
-(10, 1, 'stabilire consegna', 'Trovare accordo per la logista', 3),
-(11, 2, 'Informazioni Consegna', 'concordare info consega', NULL),
-(12, 8, 'verifica documenti', 'partita iva\niscrizione ccia\ndurc', 2),
-(13, 9, 'Verifica Assortimento Iniziale', 'Numero referenze\nDistribuzione per reparti\n% fresco\n% Freddo\n% Detergenza\n% Alimentari secco\n% Bibite', 3),
-(14, 9, 'Assortimento Continuativo', 'Verifiche puntuali trimestrali sullo sviluppo e mantenimento assortimento', 3),
-(15, 9, 'Stagionali', 'Comunicazione al cliente dei prodotti Stagionali\nPrevisione di inseriemento con il cliente', 3),
-(16, 12, 'controllo manuale', 'controllare la validita dei documenti', 3),
-(17, 13, 'Evidenze', 'verificare lo stato di consegna del capo', 3),
-(18, 13, 'Misure_su cliente', 'verificare la taglie e le dimensione del modello', 2),
-(19, 13, 'richieste_specifice cliente', 'acquisire le taglie ', 3),
-(20, 14, 'esecuzione lavori richiesti', 'il lavoro deve porta a termine', 2),
-(21, 15, 'consegna al cliente', 'dimostrazione al cliente delle lavorazione eseguite\ne firma ricezione capo', 3);
+(22, 16, 'PROA', 'PRIMA', 3),
+(25, 19, '2', '2', 2),
+(27, 23, 'controllare lo stato', NULL, 3),
+(28, 24, 'lavorazione', 'eseguire il lavoror', 3),
+(29, 25, 'consegna al cliente', 'dimostrazione al cliente delle lavorazione eseguite\ne firma ricezione capo', 3),
+(30, 26, 'Prepararsi per il ritiro', 'il cliente sarà avvisato', 4),
+(31, 27, 'ritiro del capo', 'verificare il capo assieme al cliente', 3),
+(32, 27, 'prendere le misure', 'le misure vanno prese con attenzione', 3),
+(33, 28, 'messa a modello', 'raccogliere le informazione ed eseguire i lavori', 3),
+(34, 29, 'chiamare il cliente', 'telefonare per il ritiro', 3),
+(35, 29, 'incasso', 'prima della consegna incassare', 2);
 
 -- --------------------------------------------------------
 
@@ -728,44 +1270,51 @@ CREATE TABLE `ppa_istanzeazioni` (
   `ID_Stato` int(11) DEFAULT NULL,
   `DataScadenza` date DEFAULT NULL,
   `DataCompletamento` datetime DEFAULT NULL,
-  `NoteSvolgimento` text DEFAULT NULL
+  `NoteSvolgimento` text DEFAULT NULL,
+  `NoteParticolari` text DEFAULT NULL,
+  `Note` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dump dei dati per la tabella `ppa_istanzeazioni`
 --
 
-INSERT INTO `ppa_istanzeazioni` (`ID`, `ID_IstanzaProcedura`, `ID_Azione`, `ID_UtenteAssegnato`, `ID_Stato`, `DataScadenza`, `DataCompletamento`, `NoteSvolgimento`) VALUES
-(1, 1, 1, 31, 1, NULL, NULL, NULL),
-(2, 1, 2, 3, 4, NULL, NULL, ''),
-(3, 1, 3, 6, 1, NULL, NULL, NULL),
-(4, 1, 4, 6, 1, NULL, NULL, NULL),
-(26, 5, 1, 31, 1, '2025-08-30', NULL, NULL),
-(27, 5, 2, 9, 1, '2025-08-30', NULL, NULL),
-(28, 5, 3, 3, 1, '2025-08-30', NULL, NULL),
-(29, 5, 4, 43, 1, '2025-08-30', NULL, NULL),
-(30, 5, 6, 9, 1, '2025-08-30', NULL, NULL),
-(31, 5, 7, 9, 1, '2025-08-30', NULL, NULL),
-(32, 5, 8, 31, 1, '2025-08-30', NULL, NULL),
-(33, 6, 12, 31, 1, '2025-08-24', NULL, NULL),
-(34, 7, 12, 31, 1, '2025-08-30', NULL, NULL),
-(35, 8, 1, 31, 1, '2025-08-24', NULL, NULL),
-(36, 8, 2, 3, 3, '2025-08-24', NULL, ''),
-(37, 8, 6, 43, 1, '2025-08-24', NULL, NULL),
-(38, 8, 3, 3, 2, '2025-08-24', NULL, ''),
-(39, 8, 4, 3, 2, '2025-08-24', NULL, ''),
-(40, 8, 7, 31, 1, '2025-08-24', NULL, NULL),
-(41, 8, 8, 3, 1, '2025-08-24', NULL, NULL),
-(42, 9, 13, 31, NULL, '2025-11-29', NULL, NULL),
-(43, 9, 14, 3, NULL, '2025-11-29', NULL, NULL),
-(44, 9, 15, 43, NULL, '2025-11-29', NULL, NULL),
-(45, 10, 1, 31, NULL, '2025-10-30', NULL, NULL),
-(46, 10, 2, 6, NULL, '2025-10-30', NULL, NULL),
-(47, 10, 6, 1, NULL, '2025-10-30', NULL, NULL),
-(48, 10, 3, 43, NULL, '2025-10-30', NULL, NULL),
-(49, 10, 4, 3, NULL, '2025-10-30', NULL, NULL),
-(50, 10, 7, 43, NULL, '2025-10-30', NULL, NULL),
-(51, 10, 8, 6, NULL, '2025-10-30', NULL, NULL);
+INSERT INTO `ppa_istanzeazioni` (`ID`, `ID_IstanzaProcedura`, `ID_Azione`, `ID_UtenteAssegnato`, `ID_Stato`, `DataScadenza`, `DataCompletamento`, `NoteSvolgimento`, `NoteParticolari`, `Note`) VALUES
+(1, 1, 1, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(51, 10, 8, 6, NULL, '2025-10-30', NULL, NULL, NULL, NULL),
+(53, 12, 25, 3, 1, '2025-10-05', NULL, NULL, NULL, NULL),
+(54, 13, 25, 3, 1, '2025-09-24', NULL, NULL, NULL, NULL),
+(55, 14, 27, 6, 1, '2025-09-19', NULL, NULL, NULL, NULL),
+(56, 14, 28, 31, 1, '2025-09-26', NULL, NULL, NULL, NULL),
+(57, 14, 29, 6, 1, '2025-09-13', NULL, NULL, NULL, NULL),
+(58, 14, 30, 48, 1, '2025-09-26', NULL, NULL, NULL, NULL),
+(59, 15, 25, 3, 1, '2025-09-17', NULL, NULL, NULL, NULL),
+(60, 16, 25, 3, 1, '2025-09-25', NULL, NULL, NULL, NULL),
+(61, 17, 25, 3, 1, '2025-09-18', NULL, NULL, NULL, NULL),
+(62, 18, 25, 3, 1, '2025-09-26', NULL, NULL, NULL, NULL),
+(63, 19, 27, 6, 1, NULL, NULL, NULL, NULL, NULL),
+(64, 19, 28, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(65, 19, 29, 6, 1, NULL, NULL, NULL, NULL, NULL),
+(66, 19, 30, 48, 1, NULL, NULL, NULL, NULL, NULL),
+(67, 20, 27, 6, 1, NULL, NULL, NULL, NULL, NULL),
+(68, 20, 28, 6, 1, NULL, NULL, NULL, NULL, NULL),
+(69, 20, 29, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(70, 20, 30, 48, 1, NULL, NULL, NULL, NULL, NULL),
+(71, 21, 31, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(72, 21, 32, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(73, 21, 33, 6, 1, NULL, NULL, NULL, NULL, NULL),
+(74, 21, 34, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(75, 21, 35, 3, 3, NULL, '2025-09-27 17:25:22', NULL, NULL, 'ho telefonato il clente che porterà solo soldi in contanti'),
+(76, 22, 31, 6, 1, '2025-09-27', NULL, NULL, NULL, NULL),
+(77, 22, 32, 31, 1, '2025-09-27', NULL, NULL, NULL, NULL),
+(78, 22, 33, 6, 1, '2025-09-27', NULL, NULL, NULL, NULL),
+(79, 22, 34, 31, 1, '2025-09-30', NULL, NULL, NULL, NULL),
+(80, 22, 35, 3, 3, NULL, '2025-09-27 15:31:54', NULL, NULL, 'il campo è pronto '),
+(81, 23, 31, 6, 1, '2025-10-16', NULL, NULL, 'rrr', NULL),
+(82, 23, 32, 6, 1, NULL, NULL, NULL, NULL, NULL),
+(83, 23, 33, 31, 1, NULL, NULL, NULL, NULL, NULL),
+(84, 23, 34, 1, 1, '2025-10-03', NULL, NULL, NULL, NULL),
+(85, 23, 35, 3, 1, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -775,8 +1324,9 @@ INSERT INTO `ppa_istanzeazioni` (`ID`, `ID_IstanzaProcedura`, `ID_Azione`, `ID_U
 
 CREATE TABLE `ppa_istanzeprocedure` (
   `ID` int(11) NOT NULL,
+  `TargetEntityType` varchar(20) NOT NULL,
+  `TargetEntityID` int(10) UNSIGNED NOT NULL,
   `ID_ProceduraDitta` int(10) UNSIGNED NOT NULL,
-  `ID_DittaTarget` int(10) UNSIGNED NOT NULL,
   `ID_UtenteCreatore` int(11) NOT NULL COMMENT 'L''utente che ha avviato la procedura',
   `DataInizio` datetime NOT NULL DEFAULT current_timestamp(),
   `DataPrevistaFine` date DEFAULT NULL,
@@ -789,14 +1339,26 @@ CREATE TABLE `ppa_istanzeprocedure` (
 -- Dump dei dati per la tabella `ppa_istanzeprocedure`
 --
 
-INSERT INTO `ppa_istanzeprocedure` (`ID`, `ID_ProceduraDitta`, `ID_DittaTarget`, `ID_UtenteCreatore`, `DataInizio`, `DataPrevistaFine`, `DataConclusioneEffettiva`, `Stato`, `Esito`) VALUES
-(1, 2, 6, 3, '2025-08-23 12:38:38', '2025-10-24', NULL, 'In Corso', NULL),
-(5, 2, 7, 3, '2025-08-23 17:42:43', '2025-08-30', NULL, 'In Corso', NULL),
-(6, 1, 6, 3, '2025-08-23 20:05:11', '2025-08-24', NULL, 'In Corso', NULL),
-(7, 1, 6, 3, '2025-08-23 20:15:12', '2025-08-30', NULL, 'In Corso', NULL),
-(8, 2, 6, 3, '2025-08-23 20:27:25', '2025-08-24', NULL, 'In Corso', NULL),
-(9, 6, 6, 3, '2025-08-25 10:58:38', '2025-11-29', NULL, 'In Corso', NULL),
-(10, 2, 14, 3, '2025-08-26 20:11:57', '2025-10-30', NULL, 'In Corso', NULL);
+INSERT INTO `ppa_istanzeprocedure` (`ID`, `TargetEntityType`, `TargetEntityID`, `ID_ProceduraDitta`, `ID_UtenteCreatore`, `DataInizio`, `DataPrevistaFine`, `DataConclusioneEffettiva`, `Stato`, `Esito`) VALUES
+(1, 'DITTA', 6, 2, 3, '2025-09-20 19:15:45', '2025-10-24', NULL, 'In Corso', NULL),
+(5, 'DITTA', 7, 2, 3, '2025-09-20 19:15:45', '2025-08-30', NULL, 'In Corso', NULL),
+(6, 'DITTA', 6, 1, 3, '2025-09-20 19:15:45', '2025-08-24', NULL, 'In Corso', NULL),
+(7, 'DITTA', 6, 1, 3, '2025-09-20 19:15:45', '2025-08-30', NULL, 'In Corso', NULL),
+(8, 'DITTA', 6, 2, 3, '2025-09-20 19:15:45', '2025-08-24', NULL, 'In Corso', NULL),
+(9, 'DITTA', 6, 6, 3, '2025-09-20 19:15:45', '2025-11-29', NULL, 'In Corso', NULL),
+(10, 'DITTA', 14, 2, 3, '2025-09-20 19:15:45', '2025-10-30', NULL, 'In Corso', NULL),
+(12, 'DITTA', 12, 13, 3, '2025-09-23 20:16:56', '2025-09-26', NULL, 'In Corso', NULL),
+(13, 'DITTA', 14, 13, 3, '2025-09-23 20:19:07', '2025-09-27', NULL, 'In Corso', NULL),
+(14, 'UTENTE', 46, 7, 3, '2025-09-23 20:33:17', '2025-09-26', NULL, 'In Corso', NULL),
+(15, 'UTENTE', 48, 13, 3, '2025-09-23 20:39:49', '2025-09-27', NULL, 'In Corso', NULL),
+(16, 'DITTA', 12, 13, 3, '2025-09-23 20:40:25', '2025-10-05', NULL, 'In Corso', NULL),
+(17, 'DITTA', 12, 13, 3, '2025-09-23 20:45:09', '2025-09-26', NULL, 'In Corso', NULL),
+(18, 'DITTA', 16, 13, 3, '2025-09-24 14:49:47', '2025-09-25', NULL, 'In Corso', NULL),
+(19, 'DITTA', 16, 7, 3, '2025-09-24 19:17:41', '2025-10-03', NULL, 'In Corso', NULL),
+(20, 'DITTA', 16, 7, 3, '2025-09-24 19:20:35', '2025-09-26', NULL, 'In Corso', NULL),
+(21, 'DITTA', 16, 14, 3, '2025-09-26 20:44:20', '2025-10-18', NULL, 'In Corso', NULL),
+(22, 'UTENTE', 48, 14, 3, '2025-09-27 13:31:16', '2025-10-04', NULL, 'In Corso', NULL),
+(23, 'DITTA', 14, 14, 3, '2025-10-01 20:30:41', '2025-10-25', NULL, 'In Corso', NULL);
 
 -- --------------------------------------------------------
 
@@ -809,6 +1371,7 @@ CREATE TABLE `ppa_procedureditta` (
   `id_ditta` int(10) UNSIGNED NOT NULL,
   `ID_ProceduraStandard` int(10) UNSIGNED NOT NULL,
   `NomePersonalizzato` varchar(255) NOT NULL,
+  `TargetEntityTypeAllowed` varchar(20) NOT NULL DEFAULT 'DITTA',
   `Attiva` tinyint(1) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -816,14 +1379,17 @@ CREATE TABLE `ppa_procedureditta` (
 -- Dump dei dati per la tabella `ppa_procedureditta`
 --
 
-INSERT INTO `ppa_procedureditta` (`ID`, `id_ditta`, `ID_ProceduraStandard`, `NomePersonalizzato`, `Attiva`) VALUES
-(1, 1, 1, 'Gruppo G%G spa ', 1),
-(2, 1, 2, 'Nuovi Clienti Top', 1),
-(3, 1, 3, 'prodotti venduti on line', 1),
-(4, 1, 1, 'Verifica Documenti', 1),
-(5, 1, 1, 'Tagliano Auto-FuoriGaranzia', 1),
-(6, 1, 1, 'Gestione Cliente Associato', 1),
-(7, 1, 2, 'lavorazione_sartoria', 1);
+INSERT INTO `ppa_procedureditta` (`ID`, `id_ditta`, `ID_ProceduraStandard`, `NomePersonalizzato`, `TargetEntityTypeAllowed`, `Attiva`) VALUES
+(1, 1, 1, 'Gruppo G%G spa ', 'DITTA', 1),
+(2, 1, 2, 'Nuovi Clienti Top', 'DITTA', 1),
+(3, 1, 3, 'prodotti venduti on line', 'DITTA', 1),
+(4, 1, 1, 'Verifica Documenti', 'DITTA', 1),
+(5, 1, 1, 'Tagliano Auto-FuoriGaranzia', 'DITTA', 1),
+(6, 1, 1, 'Gestione Cliente Associato', 'DITTA', 1),
+(7, 1, 2, 'lavorazione_sartoria', 'DITTA', 1),
+(12, 1, 4, 'PRIMA', 'DITTA', 1),
+(13, 1, 4, '23', 'DITTA', 1),
+(14, 1, 4, 'Lavorazioni_cliente', 'UTENTE', 1);
 
 -- --------------------------------------------------------
 
@@ -844,7 +1410,8 @@ CREATE TABLE `ppa_procedurestandard` (
 INSERT INTO `ppa_procedurestandard` (`ID`, `CodiceProcedura`, `Descrizione`) VALUES
 (1, 'ONBOARDING_CLIENTE', 'Flusso standard per l\'acquisizione di un nuovo cliente'),
 (2, 'GESTIONE_ORDINE', 'Flusso standard per la gestione di un ordine di vendita'),
-(3, 'RIPARAZIONE_PRODOTTO', 'Flusso standard per la riparazione di un prodotto in garanzia');
+(3, 'RIPARAZIONE_PRODOTTO', 'Flusso standard per la riparazione di un prodotto in garanzia'),
+(4, '', 'Procedura Personalizzata / Non Standard');
 
 -- --------------------------------------------------------
 
@@ -865,7 +1432,7 @@ CREATE TABLE `ppa_processi` (
 
 INSERT INTO `ppa_processi` (`ID`, `ID_ProceduraDitta`, `NomeProcesso`, `OrdineSequenziale`) VALUES
 (1, 3, 'Stabilire contatto con Cliente - Email- Telefonico .', 0),
-(2, 3, 'Verifica Consegna', NULL),
+(2, 3, 'Verifica Consegna', 0),
 (3, 3, 'Contattare il Cliente per soluzione', 0),
 (4, 2, 'Appuntamento con la Direzione ', 0),
 (5, 2, 'Gestione Cliente dedicata per i primi 3 mesi', 0),
@@ -875,9 +1442,15 @@ INSERT INTO `ppa_processi` (`ID`, `ID_ProceduraDitta`, `NomeProcesso`, `OrdineSe
 (10, 6, 'Gestione Promozioni', 0),
 (11, 6, 'Amministrative', 0),
 (12, 4, 'raccolta dati documeti', 0),
-(13, 7, 'Ricezione_Verifica_Capo', 0),
-(14, 7, 'lavorazione', 0),
-(15, 7, 'consegna-capo', 0);
+(16, 12, 'PRIMA', 0),
+(19, 13, '2e', 0),
+(23, 7, 'Ricezione_Verifica_Capo', 0),
+(24, 7, 'lavorazione', 0),
+(25, 7, 'consegna-capo', 0),
+(26, 7, 'ritiro capo', 0),
+(27, 14, 'Consegna materiale', 0),
+(28, 14, 'lavorazioni', 0),
+(29, 14, 'consegna del prodotto finio', 0);
 
 -- --------------------------------------------------------
 
@@ -921,12 +1494,18 @@ CREATE TABLE `ppa_team` (
 --
 
 INSERT INTO `ppa_team` (`ID`, `ID_IstanzaProcedura`, `NomeTeam`, `DataCreazione`) VALUES
-(4, 5, 'Team Procedura #5 - 23/08/2025', '2025-08-23 15:42:43'),
-(5, 6, 'Team Procedura #6 - 23/08/2025', '2025-08-23 18:05:11'),
-(6, 7, 'Team Procedura #7 - 23/08/2025', '2025-08-23 18:15:12'),
-(7, 8, 'Team Procedura #8 - 23/08/2025', '2025-08-23 18:27:25'),
-(8, 9, 'Team Procedura #9 - 25/08/2025', '2025-08-25 08:58:39'),
-(9, 10, 'Team Procedura #10 - 26/08/2025', '2025-08-26 18:11:57');
+(4, 5, 'Team Procedura #5 - 23/08/2025', '2025-09-20 17:15:45'),
+(5, 6, 'Team Procedura #6 - 23/08/2025', '2025-09-20 17:15:45'),
+(6, 7, 'Team Procedura #7 - 23/08/2025', '2025-09-20 17:15:45'),
+(7, 8, 'Team Procedura #8 - 23/08/2025', '2025-09-20 17:15:45'),
+(8, 9, 'Team Procedura #9 - 25/08/2025', '2025-09-20 17:15:45'),
+(9, 10, 'Team Procedura #10 - 26/08/2025', '2025-09-20 17:15:45'),
+(10, 18, 'Team per 23', '2025-09-24 12:49:47'),
+(11, 19, 'Team per lavorazione_sartoria', '2025-09-24 17:17:41'),
+(12, 20, 'Team per lavorazione_sartoria', '2025-09-24 17:20:35'),
+(13, 21, 'Team per Lavorazioni_cliente', '2025-09-26 18:44:20'),
+(14, 22, 'Team per Lavorazioni_cliente', '2025-09-27 11:31:16'),
+(15, 23, 'Team per procedura 23', '2025-10-01 18:30:41');
 
 -- --------------------------------------------------------
 
@@ -960,7 +1539,56 @@ INSERT INTO `ppa_teammembri` (`ID_Team`, `ID_Utente`) VALUES
 (9, 3),
 (9, 6),
 (9, 31),
-(9, 43);
+(9, 43),
+(10, 3),
+(11, 6),
+(11, 31),
+(11, 48),
+(12, 6),
+(12, 31),
+(12, 48),
+(13, 3),
+(13, 6),
+(13, 31),
+(14, 3),
+(14, 6),
+(14, 31),
+(15, 1),
+(15, 3),
+(15, 6),
+(15, 31);
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ppa_team_comunicazioni`
+--
+
+CREATE TABLE `ppa_team_comunicazioni` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_team` int(11) NOT NULL,
+  `id_utente_mittente` int(11) NOT NULL,
+  `messaggio` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ppa_team_comunicazioni`
+--
+
+INSERT INTO `ppa_team_comunicazioni` (`id`, `id_team`, `id_utente_mittente`, `messaggio`, `created_at`) VALUES
+(1, 7, 3, 'eee', '2025-09-24 15:39:07'),
+(2, 7, 3, 'eee', '2025-09-24 15:39:24'),
+(3, 7, 3, 'proveedo', '2025-09-24 16:12:17'),
+(4, 7, 3, 'saluti\n', '2025-09-24 16:26:08'),
+(5, 7, 3, 'ecco', '2025-09-24 16:51:34'),
+(6, 10, 3, 'iiii', '2025-09-24 16:54:15'),
+(7, 7, 3, 'kkk', '2025-09-24 17:36:22'),
+(8, 5, 3, 'qqq', '2025-09-26 18:03:36'),
+(9, 5, 3, 'salve\n', '2025-09-26 18:10:32'),
+(10, 13, 3, 'mancano le misure specifiche', '2025-09-26 18:45:13'),
+(11, 13, 3, 'il lavoro è pronto\n', '2025-09-27 10:09:10'),
+(12, 14, 3, 'le misure del modello sono\n30 cm larghezza\n32 cm collo', '2025-09-27 11:32:45');
 
 -- --------------------------------------------------------
 
@@ -981,8 +1609,8 @@ CREATE TABLE `privacy_policies` (
 --
 
 INSERT INTO `privacy_policies` (`id`, `id_ditta`, `responsabile_trattamento`, `corpo_lettera`, `data_aggiornamento`) VALUES
-(1, 1, 'Angelo Breuno', '<p><br></p><p><strong>Autorizzazione al Trattamento dei Dati Personali per Finalità Commerciali e per la Comunicazione a Terzi</strong></p><p>Io sottoscritto/a,</p><p><strong>[Nome_Utente]</strong>, codice fiscale <strong>[codice fiscale]</strong>,</p><p><strong>PREMESSO CHE</strong></p><p><br></p><ul><li>ho ricevuto l\'informativa ai sensi dell’art. 13 del Regolamento (UE) 2016/679 (GDPR) relativa al trattamento dei miei dati personali da parte di <strong>[DITTA]</strong>, con sede in <strong>[indirizzo completo]</strong>,</li><li>ho compreso le finalità e le modalità del trattamento, i miei diritti e i soggetti coinvolti nel trattamento stesso,</li></ul><p><strong>AUTORIZZO</strong></p><p>il trattamento dei miei dati personali da parte di <strong>[Nome dell’Azienda]</strong> per le seguenti finalità:</p><ol><li><strong>Finalità di marketing diretto</strong>: invio di comunicazioni commerciali, promozionali e informative tramite e-mail, SMS, telefono, posta tradizionale o altri strumenti automatizzati di contatto, relative a prodotti e servizi offerti dal Titolare;</li><li><strong>Finalità di profilazione</strong>: analisi delle mie preferenze, abitudini e scelte di consumo al fine di ricevere comunicazioni personalizzate;</li><li><strong>Comunicazione a soggetti terzi</strong>: cessione e/o comunicazione dei miei dati personali a società terze, partner commerciali o altri titolari autonomi del trattamento, che potranno trattarli per proprie finalità di marketing diretto o altre attività commerciali compatibili.</li></ol><p><strong>DICHIARO</strong> inoltre di essere consapevole che:</p><p><br></p><ul><li>Il conferimento dei dati per le suddette finalità è facoltativo e l’eventuale mancato consenso non pregiudica la fruizione dei servizi principali offerti;</li><li>Posso in qualsiasi momento revocare il presente consenso, ai sensi dell’art. 7, par. 3, GDPR, scrivendo a <strong>[indirizzo email del titolare del trattamento]</strong>;</li><li>I miei diritti in merito al trattamento sono indicati negli articoli da 15 a 22 del GDPR.</li></ul><p>Luogo e data: _______________________________</p><p>Il presente documento è inviato a mezzo mail, accedendo al portale si considera accettata</p><p>non</p>', '2025-08-15 20:42:37'),
-(2, 3, 'angioletto', '<p>se le informazioni le vuoi pazientarrrr</p>', '2025-08-13 10:36:33');
+(1, 1, 'Angelo Breuno', '<p><br></p><p><strong>Autorizzazione al Trattamento dei Dati Personali per Finalità Commerciali e per la Comunicazione a Terzi</strong></p><p>Io sottoscritto/a,</p><p><strong>[Nome_Utente]</strong>, codice fiscale <strong>[codice fiscale]</strong>,</p><p><strong>PREMESSO CHE</strong></p><p><br></p><ul><li>ho ricevuto l\'informativa ai sensi dell’art. 13 del Regolamento (UE) 2016/679 (GDPR) relativa al trattamento dei miei dati personali da parte di <strong>[DITTA]</strong>, con sede in <strong>[indirizzo completo]</strong>,</li><li>ho compreso le finalità e le modalità del trattamento, i miei diritti e i soggetti coinvolti nel trattamento stesso,</li></ul><p><strong>AUTORIZZO</strong></p><p>il trattamento dei miei dati personali da parte di <strong>[Nome dell’Azienda]</strong> per le seguenti finalità:</p><ol><li><strong>Finalità di marketing diretto</strong>: invio di comunicazioni commerciali, promozionali e informative tramite e-mail, SMS, telefono, posta tradizionale o altri strumenti automatizzati di contatto, relative a prodotti e servizi offerti dal Titolare;</li><li><strong>Finalità di profilazione</strong>: analisi delle mie preferenze, abitudini e scelte di consumo al fine di ricevere comunicazioni personalizzate;</li><li><strong>Comunicazione a soggetti terzi</strong>: cessione e/o comunicazione dei miei dati personali a società terze, partner commerciali o altri titolari autonomi del trattamento, che potranno trattarli per proprie finalità di marketing diretto o altre attività commerciali compatibili.</li></ol><p><strong>DICHIARO</strong> inoltre di essere consapevole che:</p><p><br></p><ul><li>Il conferimento dei dati per le suddette finalità è facoltativo e l’eventuale mancato consenso non pregiudica la fruizione dei servizi principali offerti;</li><li>Posso in qualsiasi momento revocare il presente consenso, ai sensi dell’art. 7, par. 3, GDPR, scrivendo a <strong>[indirizzo email del titolare del trattamento]</strong>;</li><li>I miei diritti in merito al trattamento sono indicati negli articoli da 15 a 22 del GDPR.</li></ul><p>Luogo e data: _______________________________</p><p>Il presente documento è inviato a mezzo mail, accedendo al portale si considera accettata</p><p>non</p>', '2025-09-20 17:15:45'),
+(2, 3, 'angioletto', '<p>se le informazioni le vuoi pazientarrrr</p>', '2025-09-20 17:15:45');
 
 -- --------------------------------------------------------
 
@@ -1005,33 +1633,8 @@ CREATE TABLE `registration_tokens` (
 --
 
 INSERT INTO `registration_tokens` (`id`, `id_ditta`, `token`, `email_destinatario`, `scadenza`, `utilizzato`, `data_creazione`) VALUES
-(1, 3, '7a92f40a-3995-4e19-b471-6c56d80c855c', NULL, '2025-08-06 14:45:35', 0, '2025-07-30 14:45:35'),
-(2, 3, '0cbb7efb-2c43-4f08-a825-c40b4fef55cf', NULL, '2025-08-06 15:01:47', 0, '2025-07-30 15:01:47'),
-(3, 3, '28e0cc1e-de38-42b1-be85-0996e0a27df6', NULL, '2025-08-06 15:03:16', 0, '2025-07-30 15:03:16'),
-(4, 3, 'db830a35-1f34-4146-b144-f21409cd109c', NULL, '2025-07-30 15:09:02', 1, '2025-07-30 15:05:35'),
-(5, 3, 'b9da1260-001e-42cc-9756-867efea4575f', NULL, '2025-07-30 15:58:51', 1, '2025-07-30 15:57:01'),
-(6, 3, '67285bd9-bc67-4102-9de0-76fd478b0abc', NULL, '2025-08-06 17:37:37', 0, '2025-07-30 17:37:37'),
-(7, 3, 'c790891f-fb9b-4511-b440-1788adb7cdde', NULL, '2025-07-30 18:11:16', 1, '2025-07-30 18:10:21'),
-(8, 3, 'e1fdf689-ac96-43d6-9941-8a36b2b78644', NULL, '2025-08-06 18:30:16', 0, '2025-07-30 18:30:16'),
-(9, 3, '2aad2d3f-6098-417c-aaf4-59d15f38b1df', NULL, '2025-08-07 17:58:58', 0, '2025-07-31 17:58:58'),
-(10, 3, 'ad34591b-8ac7-4d1e-905e-c19c8d4e4716', NULL, '2025-08-16 11:14:37', 0, '2025-08-09 11:14:37'),
-(11, 3, '287f815a-ce9a-4412-9a25-ba2031d850c8', NULL, '2025-08-20 10:17:40', 0, '2025-08-13 10:17:40'),
-(12, 3, 'b6b13347-e535-4f9b-beb2-a621264a2859', NULL, '2025-08-20 10:22:37', 0, '2025-08-13 10:22:37'),
-(13, 3, '7b95f9ba-9f57-4298-a6c9-52f027e917c4', NULL, '2025-08-20 10:24:23', 0, '2025-08-13 10:24:23'),
-(14, 3, '7fe41e5c-dea0-422a-97f4-19292ef48060', NULL, '2025-08-20 10:34:18', 0, '2025-08-13 10:34:18'),
-(15, 3, '94581e21-a76a-48e6-85d9-7224d5a6941a', NULL, '2025-08-20 10:36:38', 0, '2025-08-13 10:36:38'),
-(16, 3, '5600c7e6-2802-410e-a954-a8f00e9286d7', NULL, '2025-08-20 10:42:04', 0, '2025-08-13 10:42:04'),
-(17, 3, '30dd7f76-9881-473f-be92-3c0ec3c097be', NULL, '2025-08-20 10:42:13', 0, '2025-08-13 10:42:13'),
-(18, 3, '01f371f1-3ee6-4e6d-8828-c6981019e72d', NULL, '2025-08-21 13:46:04', 0, '2025-08-14 13:46:04'),
-(19, 3, 'dc7e499c-0934-4535-bb67-2831f8fd55f9', NULL, '2025-08-21 13:55:04', 0, '2025-08-14 13:55:04'),
-(20, 3, '1f54acda-2478-4b20-9dfc-513349d4004a', NULL, '2025-08-14 14:10:54', 1, '2025-08-14 14:10:03'),
-(21, 1, '854c0e8e-29b9-4c8d-b3a9-d7faa2a6517a', NULL, '2025-08-26 18:17:11', 0, '2025-08-19 18:17:11'),
-(22, 1, 'c763de5d-2ac2-4276-a569-77698a27e7de', NULL, '2025-08-26 18:24:08', 0, '2025-08-19 18:24:08'),
-(23, 1, '65b22eb5-b3b6-4ccd-ab5a-8fcdbc6b4cef', NULL, '2025-08-26 18:31:33', 0, '2025-08-19 18:31:33'),
-(24, 1, '914c9081-c6a0-4710-aeef-227a74188c95', NULL, '2025-08-19 18:36:30', 1, '2025-08-19 18:35:32'),
-(25, 1, '41f26b1a-8e9b-474d-983a-d6ff8e448b55', NULL, '2025-08-26 19:13:48', 0, '2025-08-19 19:13:48'),
-(26, 1, '7c7ee98f-d64f-4c7b-b6c4-face72c391b6', NULL, '2025-08-27 15:17:07', 0, '2025-08-20 15:17:07'),
-(27, 1, '80ce27b1-f1ac-4fa6-997d-800b8c67f0b9', NULL, '2025-09-13 11:02:59', 1, '2025-09-13 11:00:52');
+(1, 3, '7a92f40a-3995-4e19-b471-6c56d80c855c', NULL, '2025-09-20 17:15:45', 0, '2025-09-20 17:15:45'),
+(27, 1, '80ce27b1-f1ac-4fa6-997d-800b8c67f0b9', NULL, '2025-09-20 17:15:45', 1, '2025-09-20 17:15:45');
 
 -- --------------------------------------------------------
 
@@ -1109,6 +1712,30 @@ INSERT INTO `ruoli_funzioni` (`id_ruolo`, `id_funzione`) VALUES
 (2, 36),
 (2, 37),
 (2, 38),
+(2, 70),
+(2, 71),
+(2, 72),
+(2, 73),
+(2, 74),
+(2, 75),
+(2, 76),
+(2, 80),
+(2, 81),
+(2, 82),
+(2, 83),
+(2, 84),
+(2, 90),
+(2, 91),
+(2, 92),
+(2, 93),
+(2, 94),
+(2, 95),
+(2, 96),
+(2, 97),
+(2, 98),
+(2, 99),
+(2, 100),
+(2, 101),
 (4, 1);
 
 -- --------------------------------------------------------
@@ -1163,13 +1790,11 @@ CREATE TABLE `sc_funzioni_contabili` (
 --
 
 INSERT INTO `sc_funzioni_contabili` (`id`, `id_ditta`, `codice_funzione`, `nome_funzione`, `descrizione`, `categoria`, `tipo_funzione`, `gestioni_abbinate`, `attiva`, `created_at`, `updated_at`) VALUES
-(9, 1, 'REG-FATT-ACQ', 'Registrazione Fattura Acquisto', 'Registra una fattura da fornitore, gestisce l\'IVA e crea la partita aperta nello scadenzario.', 'Acquisti', 'Finanziaria', 'I', 1, '2025-09-08 09:44:24', '2025-09-08 09:44:24'),
-(11, 1, 'DARE_AVERE', 'DARE AVERE', 'questa funzione permette all\'utente di scegliere i conti ', 'Generale', 'Finanziaria', NULL, 1, '2025-09-08 14:09:00', '2025-09-08 14:09:00'),
-(12, 1, 'REG-FATT-VENDITA', 'REG_ FATTURE VENDITA', 'REGISTRAZIONE MANUALE FATTURA2', 'Vendite', 'Finanziaria', 'I', 1, '2025-09-09 16:49:31', '2025-09-09 16:49:31'),
-(13, 1, 'VER-BANC', 'Versamento In banca ', 'registra le operazioni di giroconto dal conto cassa al conto Banca . L\'utente sceglierà il sottoconto della banca', 'Giroconti', 'Primaria', '', 1, '2025-09-11 08:17:51', '2025-09-11 08:17:51'),
-(23, 1, '1', 'INCASSO FATTURA VENDITA', 'Incasso da cliente ', 'Pagamenti', 'Finanziaria', 'E', 1, '2025-09-15 13:51:32', '2025-09-15 13:51:32'),
-(26, 1, 'PAG-FTACQ', 'PAGAMENTO FORNITORI', 'EFFETTUA IL PAGAMENTO DELLE PARTITE APERTE DA FORNITORE', 'Pagamenti', 'Finanziaria', 'E', 1, '2025-09-19 15:26:02', '2025-09-19 15:26:02'),
-(27, 1, '', 'INCASSO CORRISPETTIVI', 'REGISTRA I CORRISPETTIVI DI INCASSO ', 'Corrispettivi', 'Finanziaria', 'I', 1, '2025-09-19 17:04:51', '2025-09-19 17:04:51');
+(9, 1, 'REG-FATT-ACQ', 'Registrazione Fattura Acquisto', 'Registra una fattura da fornitore, gestisce l\'IVA e crea la partita aperta nello scadenzario.', 'Acquisti', 'Finanziaria', 'I', 1, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(11, 1, 'DARE_AVERE', 'DARE AVERE', 'questa funzione permette all\'utente di scegliere i conti ', 'Generale', 'Primaria', NULL, 1, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(12, 1, 'REG-FATT-VENDITA', 'Registrazione Fattura Vendita', 'REGISTRAZIONE MANUALE FATTURA2', 'Vendite', 'Finanziaria', 'I', 1, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(13, 1, '', 'Versamento In banca ', 'registra le operazioni di giroconto dal conto cassa al conto Banca . L\'utente sceglierà il sottoconto della banca', NULL, 'Primaria', NULL, 1, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(14, 1, 'INC_FT', 'INCASSO FATTURA VENDITA', 'rEGISTRAZIONE INCASSI CONTANTI DAI CLIENTI', 'Pagamenti', 'Finanziaria', 'E', 1, '2025-09-26 18:34:32', '2025-09-26 18:34:32');
 
 -- --------------------------------------------------------
 
@@ -1194,23 +1819,18 @@ CREATE TABLE `sc_funzioni_contabili_righe` (
 --
 
 INSERT INTO `sc_funzioni_contabili_righe` (`id`, `id_funzione_contabile`, `id_conto`, `tipo_movimento`, `descrizione_riga_predefinita`, `is_sottoconto_modificabile`, `is_conto_ricerca`, `created_at`, `updated_at`) VALUES
-(123, 13, 9, 'D', 'versamento contnati', 1, 1, '2025-09-13 16:12:46', '2025-09-13 16:12:46'),
-(124, 13, 10, 'A', 'versamento in banca', 1, 0, '2025-09-13 16:12:46', '2025-09-13 16:12:46'),
-(125, 12, 17, 'A', 'Iva a Debito', 1, 0, '2025-09-13 16:16:58', '2025-09-13 16:16:58'),
-(126, 12, 25, 'A', 'ricavo vendita', 1, 0, '2025-09-13 16:16:58', '2025-09-13 16:16:58'),
-(127, 12, 7, 'D', 'credito verso clienti', 1, 1, '2025-09-13 16:16:58', '2025-09-13 16:16:58'),
-(132, 23, 6, 'D', '', 1, 1, '2025-09-17 01:26:03', '2025-09-17 01:26:03'),
-(133, 23, 10, 'A', '', 1, 0, '2025-09-17 01:26:03', '2025-09-17 01:26:03'),
-(134, 9, 20, 'D', 'Costo per acquisto merci/servizi', 1, 0, '2025-09-17 11:26:18', '2025-09-17 11:26:18'),
-(135, 9, 51, 'D', 'credito erario conto iva', 1, 0, '2025-09-17 11:26:18', '2025-09-17 11:26:18'),
-(136, 9, 14, 'A', 'debito verso fornitore', 1, 1, '2025-09-17 11:26:18', '2025-09-17 11:26:18'),
-(137, 11, 9, 'D', '', 1, 0, '2025-09-17 15:39:04', '2025-09-17 15:39:04'),
-(138, 11, 10, 'D', '', 1, 0, '2025-09-17 15:39:04', '2025-09-17 15:39:04'),
-(139, 26, 15, 'D', '', 1, 1, '2025-09-19 15:26:02', '2025-09-19 15:26:02'),
-(140, 26, 10, 'A', '', 1, 0, '2025-09-19 15:26:02', '2025-09-19 15:26:02'),
-(141, 27, 10, 'D', '', 1, 0, '2025-09-19 05:04:51', '2025-09-19 05:04:51'),
-(142, 27, 24, 'A', '', 1, 1, '2025-09-19 05:04:51', '2025-09-19 05:04:51'),
-(143, 27, 17, 'D', '', 1, 0, '2025-09-19 05:04:51', '2025-09-19 05:04:51');
+(93, 9, 20, 'D', 'Costo per acquisto merci/servizi', 1, 0, '2025-09-20 15:15:45', '2025-09-20 15:15:45'),
+(94, 9, 51, 'D', 'credito erario conto iva', 1, 0, '2025-09-20 15:15:45', '2025-09-20 15:15:45'),
+(95, 9, 15, 'A', 'debito verso fornitore', 1, 1, '2025-09-20 15:15:45', '2025-09-20 15:15:45'),
+(112, 11, 9, 'D', NULL, 1, 0, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(113, 11, 10, 'D', NULL, 1, 0, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(123, 13, 9, 'D', 'versamento contnati', 1, 0, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(124, 13, 10, 'A', 'versamento in banca', 1, 0, '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(125, 12, 17, 'A', 'Iva a Debito', 1, 0, '2025-09-20 13:15:45', '2025-09-20 13:15:45'),
+(126, 12, 25, 'A', 'ricavo vendita', 1, 0, '2025-09-20 13:15:45', '2025-09-20 13:15:45'),
+(127, 12, 7, 'D', 'credito verso clienti', 1, 1, '2025-09-20 13:15:45', '2025-09-20 13:15:45'),
+(128, 14, 6, 'D', '', 1, 1, '2025-09-26 18:34:32', '2025-09-26 18:34:32'),
+(129, 14, 8, 'A', '', 1, 0, '2025-09-26 18:34:32', '2025-09-26 18:34:32');
 
 -- --------------------------------------------------------
 
@@ -1257,53 +1877,10 @@ CREATE TABLE `sc_partite_aperte` (
 --
 
 INSERT INTO `sc_partite_aperte` (`id`, `id_ditta_anagrafica`, `data_scadenza`, `importo`, `stato`, `created_at`, `updated_at`, `data_registrazione`, `id_registrazione_testata`, `id_ditta`, `id_anagrafica`, `numero_documento`, `data_documento`, `id_sottoconto`, `tipo_movimento`) VALUES
-(1, 15, '2025-09-11', 122.00, 'APERTA', '2025-09-09 16:38:31', '2025-09-09 16:38:31', '2025-09-09', 6, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(2, 15, '2025-09-10', 110.00, 'APERTA', '2025-09-09 16:43:12', '2025-09-09 16:43:12', '2025-09-09', 7, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(3, 15, '2025-09-19', 990.00, 'APERTA', '2025-09-13 10:16:34', '2025-09-13 10:16:34', '2025-09-13', 8, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(4, 6, '2025-09-12', 104.00, 'APERTA', '2025-09-13 10:27:48', '2025-09-13 10:27:48', '2025-09-13', 9, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(5, 15, '2025-09-20', 990.00, 'APERTA', '2025-09-13 11:09:29', '2025-09-13 11:09:29', '2025-09-13', 10, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(6, 15, '2025-09-19', 11.00, 'APERTA', '2025-09-13 14:13:22', '2025-09-13 14:13:22', '2025-09-13', 19, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(7, 15, '2025-09-19', 11.00, 'APERTA', '2025-09-13 14:13:22', '2025-09-13 14:13:22', '2025-09-13', 20, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(8, 15, '2025-09-19', 11.00, 'APERTA', '2025-09-13 14:13:22', '2025-09-13 14:13:22', '2025-09-13', 21, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(9, 15, '2026-02-10', 11.00, 'APERTA', '2025-09-13 14:14:19', '2025-09-13 14:14:19', '2025-09-13', 22, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(10, 15, '2025-09-27', 33.00, 'APERTA', '2025-09-13 14:32:22', '2025-09-13 14:32:22', '2025-09-13', 25, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(11, 15, '2025-09-13', 11.00, 'APERTA', '2025-09-13 15:19:03', '2025-09-13 15:19:03', '2025-09-13', 26, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(12, 8, '2025-09-15', 1100.00, 'APERTA', '2025-09-13 16:47:28', '2025-09-13 16:47:28', '2025-09-13', 27, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(13, 8, '2025-09-15', 1100.00, 'APERTA', '2025-09-13 16:47:28', '2025-09-13 16:47:28', '2025-09-13', 28, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(14, 14, '2025-09-15', 1100.00, 'APERTA', '2025-09-13 16:48:25', '2025-09-13 16:48:25', '2025-09-13', 29, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(15, 14, '2025-09-15', 1100.00, 'APERTA', '2025-09-13 16:48:25', '2025-09-13 16:48:25', '2025-09-13', 30, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(16, 14, '2025-11-25', 11.00, 'APERTA', '2025-09-13 18:45:02', '2025-09-13 18:45:02', '2025-09-13', 31, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(17, 14, '2025-11-25', 11.00, 'APERTA', '2025-09-13 18:45:02', '2025-09-13 18:45:02', '2025-09-13', 32, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(18, 14, '2025-09-26', 990.00, 'APERTA', '2025-09-15 09:36:12', '2025-09-15 09:36:12', '2025-09-15', 33, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(19, 14, '2025-09-26', 990.00, 'APERTA', '2025-09-15 09:36:12', '2025-09-15 09:36:12', '2025-09-15', 34, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(20, 14, '2025-09-24', 99.00, 'APERTA', '2025-09-16 08:24:53', '2025-09-16 08:24:53', '2025-09-16', 35, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(21, 14, '2025-09-24', 99.00, 'APERTA', '2025-09-16 08:24:53', '2025-09-16 08:24:53', '2025-09-16', 36, 0, NULL, NULL, NULL, NULL, 'Apertura_Debito'),
-(31, 15, '2025-09-24', 1100.00, 'CHIUSA', '2025-09-17 08:18:21', '2025-09-17 08:18:21', '2025-09-16', 55, 1, 15, NULL, '2025-09-15', 15, 'Apertura_Debito'),
-(32, 15, '2025-09-24', 660.00, 'CHIUSA', '2025-09-17 08:19:35', '2025-09-17 08:19:35', '2025-09-17', 56, 1, 15, NULL, '2025-09-24', 15, 'Apertura_Debito'),
-(33, 18, '2025-10-07', 1100.00, 'APERTA', '2025-09-17 08:32:04', '2025-09-17 08:32:04', '2025-09-17', 57, 1, 18, NULL, '2025-09-15', 18, 'Apertura_Credito'),
-(34, 18, '2025-10-07', 1100.00, 'APERTA', '2025-09-17 08:40:42', '2025-09-17 08:40:42', '2025-09-17', 58, 1, 18, NULL, '2025-09-15', 18, 'Apertura_Credito'),
-(35, 18, '2025-09-18', 1560.00, 'APERTA', '2025-09-17 08:42:11', '2025-09-17 08:42:11', '2025-09-17', 59, 1, 18, NULL, '2025-09-17', 18, 'Apertura_Credito'),
-(36, 18, '2025-09-27', 1100.00, 'APERTA', '2025-09-17 09:49:18', '2025-09-17 09:49:18', '2025-09-17', 60, 1, 18, NULL, '2025-09-16', 18, 'Apertura_Credito'),
-(37, 15, '2026-08-20', 1100.00, 'APERTA', '2025-09-17 15:37:42', '2025-09-17 15:37:42', '2025-09-17', 61, 1, 15, '100', '2025-09-11', 15, 'Apertura_Debito'),
-(38, 15, '2025-09-25', 1100.00, 'APERTA', '2025-09-17 17:13:12', '2025-09-17 17:13:12', '2025-09-17', 62, 1, 15, '5', '2025-09-16', 15, 'Apertura_Debito'),
-(39, 18, '2025-09-17', 500.00, 'APERTA', '2025-09-17 18:07:18', '2025-09-17 18:07:18', '2025-09-17', 63, 1, 18, '10', '2025-12-10', 18, 'Chiusura_Debito'),
-(40, 15, '2025-10-24', 1500.00, 'APERTA', '2025-09-17 18:52:50', '2025-09-17 18:52:50', '2025-09-17', 64, 1, 15, '10', '2025-09-16', 15, 'Apertura_Debito'),
-(41, 48, '2025-09-26', 1220.00, 'APERTA', '2025-09-18 14:29:48', '2025-09-18 14:29:48', '2025-09-18', 65, 1, 48, '10', '2025-09-19', 48, 'Apertura_Credito'),
-(42, 48, '2025-09-18', 1220.00, 'CHIUSA', '2025-09-18 14:30:54', '2025-09-18 14:30:54', '2025-09-18', 66, 1, 48, '15', '2025-09-18', 48, 'Apertura_Credito'),
-(43, 16, '2025-09-15', 1220.00, 'APERTA', '2025-09-19 07:41:26', '2025-09-19 07:41:26', '2025-09-19', 67, 1, 16, '1', '2025-09-01', 16, 'Apertura_Credito'),
-(44, 16, '2025-09-20', 1500.00, 'APERTA', '2025-09-19 10:06:48', '2025-09-19 10:06:48', '2025-09-19', 68, 1, 16, '12', '2025-09-20', 16, 'Apertura_Debito'),
-(45, 16, '0000-00-00', 1500.00, 'APERTA', '2025-09-19 11:24:00', '2025-09-19 11:24:00', '2025-09-19', 69, 1, 16, '', '0000-00-00', 16, 'Chiusura_Debito'),
-(46, 54, '2025-10-09', 999.00, 'APERTA', '2025-09-19 12:49:08', '2025-09-19 12:49:08', '2025-09-19', 70, 1, 54, '99', '2025-09-09', 54, 'Apertura_Debito'),
-(47, 54, '2025-10-08', 880.00, 'APERTA', '2025-09-19 12:50:40', '2025-09-19 12:50:40', '2025-09-19', 71, 1, 54, '88', '2025-08-08', 54, 'Apertura_Credito'),
-(48, 51, '2025-09-23', 99.00, 'APERTA', '2025-09-19 14:00:05', '2025-09-19 14:00:05', '2025-09-19', 72, 1, 51, '123', '2025-09-03', 51, 'Apertura_Debito'),
-(49, 16, '0000-00-00', 1220.00, 'APERTA', '2025-09-19 14:10:57', '2025-09-19 14:10:57', '2025-09-19', 73, 1, 16, '', '0000-00-00', 16, 'Chiusura_Debito'),
-(50, 16, '0000-00-00', 1220.00, 'APERTA', '2025-09-19 14:11:15', '2025-09-19 14:11:15', '2025-09-19', 74, 1, 16, '', '0000-00-00', 16, 'Chiusura_Debito'),
-(55, 48, '2025-09-19', 1220.00, 'CHIUSA', '2025-09-19 15:02:27', '2025-09-19 15:02:27', '2025-09-19', 79, 1, NULL, '', '0000-00-00', 58, 'Chiusura_Credito'),
-(56, 51, '2025-12-19', 660.00, 'APERTA', '2025-09-19 15:43:26', '2025-09-19 15:43:26', '2025-09-19', 80, 1, 51, '150', '2025-09-19', 65, 'Apertura_Debito'),
-(57, 13, '2025-10-01', 15000.00, 'CHIUSA', '2025-09-19 16:06:17', '2025-09-19 16:06:17', '2025-09-19', 81, 1, 13, '8877', '2025-01-15', 78, 'Apertura_Debito'),
-(58, 13, '2025-09-19', 15000.00, 'CHIUSA', '2025-09-19 16:07:20', '2025-09-19 16:07:20', '2025-09-19', 82, 1, NULL, '', '0000-00-00', 78, 'Chiusura_Credito'),
-(59, 15, '2025-09-19', 1760.00, 'CHIUSA', '2025-09-19 17:02:04', '2025-09-19 17:02:04', '2025-09-19', 83, 1, NULL, '', '0000-00-00', 27, 'Chiusura_Debito'),
-(60, 57, '2025-09-19', 1220.00, 'APERTA', '2025-09-19 18:20:04', '2025-09-19 18:20:04', '2025-09-19', 84, 1, 57, '1', '2025-09-19', NULL, 'Apertura_Credito');
+(1, 15, '2025-09-11', 122.00, 'APERTA', '2025-09-20 17:15:45', '2025-09-20 17:15:45', '2025-09-09', 6, 0, NULL, NULL, NULL, NULL, 'Apertura_Credito'),
+(17, 14, '2025-11-25', 11.00, 'APERTA', '2025-09-20 17:15:45', '2025-09-20 17:15:45', '2025-09-13', 32, 0, NULL, NULL, NULL, NULL, 'Apertura_Credito'),
+(18, 16, '2025-10-26', 1502.00, 'CHIUSA', '2025-09-26 18:30:55', '2025-09-26 18:30:55', '2025-09-26', 33, 1, 16, '15', '2025-09-26', 54, 'Apertura_Credito'),
+(19, 16, '2025-09-26', 1502.00, 'CHIUSA', '2025-09-26 18:35:01', '2025-09-26 18:35:01', '2025-09-26', 34, 1, NULL, '', '0000-00-00', 54, 'Chiusura_Credito');
 
 -- --------------------------------------------------------
 
@@ -1328,59 +1905,41 @@ CREATE TABLE `sc_piano_dei_conti` (
 --
 
 INSERT INTO `sc_piano_dei_conti` (`id`, `id_ditta`, `codice`, `descrizione`, `id_padre`, `tipo`, `natura`, `bloccato`, `data_creazione`) VALUES
-(1, 1, '10', 'IMMOBILIZZAZIONI', NULL, 'Mastro', 'Attività', 0, '2025-08-25 06:40:32'),
-(2, 1, '10.01', 'Immobilizzazioni materiali', 1, 'Conto', 'Attività', 0, '2025-08-25 06:40:32'),
-(3, 1, '10.01.001', 'Fabbricati', 2, 'Sottoconto', 'Attività', 0, '2025-08-25 06:40:32'),
-(4, 1, '10.01.002', 'Impianti e macchinari', 2, 'Sottoconto', 'Attività', 0, '2025-08-25 06:40:32'),
-(5, 1, '20', 'ATTIVO CIRCOLANTE', NULL, 'Mastro', 'Attività', 0, '2025-08-25 06:40:32'),
-(6, 1, '20.05', 'Crediti v/Clienti', 5, 'Conto', 'Attività', 0, '2025-08-25 06:40:32'),
-(7, 1, '20.05.001', 'Clienti Italia', 6, 'Sottoconto', 'Attività', 0, '2025-08-25 06:40:32'),
-(8, 1, '20.15', 'Disponibilità liquide', 5, 'Conto', 'Attività', 0, '2025-08-25 06:40:32'),
-(9, 1, '20.15.001', 'Banca c/c', 8, 'Sottoconto', 'Attività', 0, '2025-08-25 06:40:32'),
-(10, 1, '20.15.002', 'Cassa contanti', 8, 'Sottoconto', 'Attività', 0, '2025-08-25 06:40:32'),
-(11, 1, '30', 'PATRIMONIO NETTO', NULL, 'Mastro', 'Patrimonio Netto', 0, '2025-08-25 06:40:32'),
-(12, 1, '30.01', 'Capitale Sociale', 11, 'Conto', 'Patrimonio Netto', 0, '2025-08-25 06:40:32'),
-(13, 1, '40', 'DEBITI', NULL, 'Mastro', 'Passività', 0, '2025-08-25 06:40:32'),
-(14, 1, '40.05', 'Debiti v/Fornitori', 13, 'Conto', 'Passività', 0, '2025-08-25 06:40:32'),
-(15, 1, '40.05.001', 'Fornitori Italia', 14, 'Sottoconto', 'Passività', 0, '2025-08-25 06:40:32'),
-(16, 1, '40.10', 'Debiti Tributari', 13, 'Conto', 'Passività', 0, '2025-08-25 06:40:32'),
-(17, 1, '40.10.001', 'Erario c/IVA', 16, 'Sottoconto', 'Passività', 0, '2025-08-25 06:40:33'),
-(18, 1, '60', 'COSTI DELLA PRODUZIONE', NULL, 'Mastro', 'Costo', 0, '2025-08-25 06:40:33'),
-(19, 1, '60.01', 'Acquisti', 18, 'Conto', 'Costo', 0, '2025-08-25 06:40:33'),
-(20, 1, '60.01.001', 'Materie prime c/acquisti', 19, 'Sottoconto', 'Costo', 0, '2025-08-25 06:40:33'),
-(21, 1, '60.05', 'Servizi', 18, 'Conto', 'Costo', 0, '2025-08-25 06:40:33'),
-(22, 1, '60.05.001', 'Consulenze professionali', 21, 'Sottoconto', 'Costo', 0, '2025-08-25 06:40:33'),
-(23, 1, '70', 'RICAVI DELLE VENDITE', NULL, 'Mastro', 'Ricavo', 0, '2025-08-25 06:40:33'),
-(24, 1, '70.01', 'Ricavi', 23, 'Conto', 'Ricavo', 0, '2025-08-25 06:40:33'),
-(25, 1, '70.01.001', 'Prodotti finiti c/vendite', 24, 'Sottoconto', 'Ricavo', 0, '2025-08-25 06:40:33'),
-(26, 1, '20.05.002', 'SALATI E DOLCI', 6, 'Sottoconto', 'Attività', 0, '2025-08-25 08:41:13'),
-(27, 1, '40.05.002', 'SARACENARE EXPORT', 14, 'Sottoconto', 'Passività', 0, '2025-08-25 08:45:17'),
-(28, 1, '20.05.003', 'linux spa', 6, 'Sottoconto', 'Attività', 0, '2025-09-02 09:28:36'),
-(29, 1, '40.05.003', 'linux spa', 14, 'Sottoconto', 'Passività', 0, '2025-09-02 09:28:36'),
-(50, 1, '20.20', 'Crediti Erariali', 5, 'Conto', 'Attività', 0, '2025-09-09 15:26:57'),
-(51, 1, '20.20.01', 'IVA A CREDITO', 50, 'Sottoconto', 'Attività', 0, '2025-09-09 15:27:47'),
-(58, 1, '20.05NaN', 'DIFAM SRL', 6, 'Mastro', '', 0, '2025-09-18 11:16:01'),
-(59, 1, '40NaN', 'DIFAM SRL', 13, 'Mastro', '', 0, '2025-09-18 11:16:01'),
-(62, 1, '20.05001', 'DIST PANETTERIA', 6, 'Mastro', '', 0, '2025-09-18 14:00:36'),
-(63, 1, '40.01.001', 'DIST PANETTERIA', 13, 'Mastro', '', 0, '2025-09-18 14:00:36'),
-(64, 1, '20.05.4', 'INDUSTRIA CERAMICA', 6, 'Mastro', '', 0, '2025-09-18 14:36:46'),
-(65, 1, '40.05.4', 'INDUSTRIA CERAMICA', 14, 'Mastro', '', 0, '2025-09-18 14:36:46'),
-(66, 1, '20.05.0005', 'LA BONTA DEL SOLE', 6, 'Mastro', '', 0, '2025-09-18 14:44:51'),
-(67, 1, '40.05.0005', 'LA BONTA DEL SOLE', 14, 'Sottoconto', '', 0, '2025-09-18 14:44:51'),
-(71, 1, '20.05.0006', 'CAROFIGLIO SPA', 6, 'Sottoconto', '', 0, '2025-09-18 16:21:01'),
-(72, 1, '40.05.0006', 'CAROFIGLIO SPA', 14, 'Sottoconto', '', 0, '2025-09-18 16:21:01'),
-(73, 1, '20.05.0007', 'CARAMELLE SALATE cliente', 6, 'Sottoconto', '', 0, '2025-09-18 16:21:15'),
-(74, 1, '40.05.0007', 'CARAMELLE SALATE cliente', 14, 'Sottoconto', '', 0, '2025-09-18 16:21:15'),
-(75, 1, '20.05.0008', 'DITTA PROVA CLIENTE FORNITORE', 6, 'Sottoconto', '', 0, '2025-09-18 16:21:34'),
-(76, 1, '40.05.0008', 'DITTA PROVA CLIENTE FORNITORE', 14, 'Sottoconto', '', 0, '2025-09-18 16:21:42'),
-(77, 1, '20.05.0009', 'DITTA SALATI TUTTIfornitroe', 6, 'Sottoconto', '', 0, '2025-09-18 16:21:51'),
-(78, 1, '40.05.0009', 'DITTA SALATI TUTTIfornitroe', 14, 'Sottoconto', '', 0, '2025-09-18 16:21:51'),
-(79, 1, '20.05.0010', 'CLIENTI TIPO', 6, 'Sottoconto', '', 0, '2025-09-18 16:24:45'),
-(80, 1, '20.05.0011', 'DITTA PROVA MASTRINI', 6, 'Sottoconto', '', 0, '2025-09-19 12:46:19'),
-(81, 1, '40.05.0010', 'DITTA PROVA MASTRINI', 14, 'Sottoconto', '', 0, '2025-09-19 12:46:19'),
-(82, 1, '20.05.0012', 'cliente-INTELL', 6, 'Sottoconto', '', 0, '2025-09-19 16:36:52'),
-(83, 1, '40.05.0011', 'CALZATURE SPA', 14, 'Sottoconto', 'Passività', 0, '2025-09-19 16:48:03'),
-(84, 1, '70.001', 'PUNTO VENDITA ROMA', 24, 'Sottoconto', 'Ricavo', 0, '2025-09-19 17:10:02');
+(1, 1, '10', 'IMMOBILIZZAZIONI', NULL, 'Mastro', 'Attività', 0, '2025-09-20 17:15:45'),
+(2, 1, '10.01', 'Immobilizzazioni materiali', 1, 'Conto', 'Attività', 0, '2025-09-20 17:15:45'),
+(3, 1, '10.01.001', 'Fabbricati', 2, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(4, 1, '10.01.002', 'Impianti e macchinari', 2, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(5, 1, '20', 'ATTIVO CIRCOLANTE', NULL, 'Mastro', 'Attività', 0, '2025-09-20 17:15:45'),
+(6, 1, '20.05', 'Crediti v/Clienti', 5, 'Conto', 'Attività', 0, '2025-09-20 17:15:45'),
+(7, 1, '20.05.001', 'Clienti Italia', 6, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(8, 1, '20.15', 'Disponibilità liquide', 5, 'Conto', 'Attività', 0, '2025-09-20 17:15:45'),
+(9, 1, '20.15.001', 'Banca c/c', 8, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(10, 1, '20.15.002', 'Cassa contanti', 8, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(11, 1, '30', 'PATRIMONIO NETTO', NULL, 'Mastro', 'Patrimonio Netto', 0, '2025-09-20 17:15:45'),
+(12, 1, '30.01', 'Capitale Sociale', 11, 'Conto', 'Patrimonio Netto', 0, '2025-09-20 17:15:45'),
+(13, 1, '40', 'DEBITI', NULL, 'Mastro', 'Passività', 0, '2025-09-20 17:15:45'),
+(14, 1, '40.05', 'Debiti v/Fornitori', 13, 'Conto', 'Passività', 0, '2025-09-20 17:15:45'),
+(15, 1, '40.05.001', 'Fornitori Italia', 14, 'Sottoconto', 'Passività', 0, '2025-09-20 17:15:45'),
+(16, 1, '40.10', 'Debiti Tributari', 13, 'Conto', 'Passività', 0, '2025-09-20 17:15:45'),
+(17, 1, '40.10.001', 'Erario c/IVA', 16, 'Sottoconto', 'Passività', 0, '2025-09-20 17:15:45'),
+(18, 1, '60', 'COSTI DELLA PRODUZIONE', NULL, 'Mastro', 'Costo', 0, '2025-09-20 17:15:45'),
+(19, 1, '60.01', 'Acquisti', 18, 'Conto', 'Costo', 0, '2025-09-20 17:15:45'),
+(20, 1, '60.01.001', 'Materie prime c/acquisti', 19, 'Sottoconto', 'Costo', 0, '2025-09-20 17:15:45'),
+(21, 1, '60.05', 'Servizi', 18, 'Conto', 'Costo', 0, '2025-09-20 17:15:45'),
+(22, 1, '60.05.001', 'Consulenze professionali', 21, 'Sottoconto', 'Costo', 0, '2025-09-20 17:15:45'),
+(23, 1, '70', 'RICAVI DELLE VENDITE', NULL, 'Mastro', 'Ricavo', 0, '2025-09-20 17:15:45'),
+(24, 1, '70.01', 'Ricavi', 23, 'Conto', 'Ricavo', 0, '2025-09-20 17:15:45'),
+(25, 1, '70.01.001', 'Prodotti finiti c/vendite', 24, 'Sottoconto', 'Ricavo', 0, '2025-09-20 17:15:45'),
+(26, 1, '20.05.002', 'SALATI E DOLCI', 6, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(27, 1, '40.05.002', 'SARACENARE EXPORT', 14, 'Sottoconto', 'Passività', 0, '2025-09-20 17:15:45'),
+(28, 1, '20.05.003', 'linux spa', 6, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(29, 1, '40.05.003', 'linux spa', 14, 'Sottoconto', 'Passività', 0, '2025-09-20 17:15:45'),
+(50, 1, '20.20', 'Crediti Erariali', 5, 'Conto', 'Attività', 0, '2025-09-20 17:15:45'),
+(51, 1, '20.20.01', 'IVA A CREDITO', 50, 'Sottoconto', 'Attività', 0, '2025-09-20 17:15:45'),
+(52, 1, '20.05.0004', 'CARAMELLE SALATE cliente', 6, 'Mastro', '', 0, '2025-09-20 18:01:05'),
+(53, 1, '40.05.0004', 'CARAMELLE SALATE cliente', 14, 'Mastro', '', 0, '2025-09-20 18:01:05'),
+(54, 1, '20.05.0005', 'CAROFIGLIO SPA', 6, 'Mastro', '', 0, '2025-09-24 16:11:29'),
+(55, 1, '40.05.0005', 'CAROFIGLIO SPA', 14, 'Mastro', '', 0, '2025-09-24 16:11:30');
 
 -- --------------------------------------------------------
 
@@ -1403,163 +1962,15 @@ CREATE TABLE `sc_registrazioni_righe` (
 
 INSERT INTO `sc_registrazioni_righe` (`id`, `id_testata`, `id_conto`, `descrizione_riga`, `importo_dare`, `importo_avere`) VALUES
 (16, 6, 27, 'Fornitori Italia', 0.00, 122.00),
-(17, 6, 51, 'IVA A CREDITO', 22.00, 0.00),
-(18, 6, 20, 'Materie prime c/acquisti', 100.00, 0.00),
-(19, 7, 27, 'Fornitori Italia', 0.00, 110.00),
-(20, 7, 51, 'IVA A CREDITO', 10.00, 0.00),
-(21, 7, 20, 'Materie prime c/acquisti', 100.00, 0.00),
-(22, 8, 27, 'Ns. Rif. 10 SARACENARE EXPORT', 0.00, 990.00),
-(23, 8, 20, 'Costo per acquisto merci/servizi', 900.00, 0.00),
-(24, 8, 51, 'credito erario conto iva', 90.00, 0.00),
-(25, 9, 7, 'Vs. Rif. 1 Prova Admin Cliente', 104.00, 0.00),
-(26, 9, 17, 'credito erario', 0.00, 100.00),
-(27, 9, 25, 'ricavo vendita', 0.00, 4.00),
-(28, 10, 7, 'Vs. Rif. 10 SARACENARE EXPORT', 990.00, 0.00),
-(29, 10, 17, 'credito erario', 0.00, 900.00),
-(30, 10, 25, 'ricavo vendita', 0.00, 90.00),
-(31, 11, 9, '', 0.00, 1.00),
-(32, 11, 10, '', 1.00, 0.00),
-(33, 19, 27, 'Ns. Rif. 1 SARACENARE EXPORT', 0.00, 11.00),
-(34, 19, 20, 'Costo per acquisto merci/servizi', 10.00, 0.00),
-(35, 19, 51, 'credito erario conto iva', 1.00, 0.00),
-(36, 20, 27, 'Ns. Rif. 1 SARACENARE EXPORT', 0.00, 11.00),
-(37, 20, 20, 'Costo per acquisto merci/servizi', 10.00, 0.00),
-(38, 20, 51, 'credito erario conto iva', 1.00, 0.00),
-(39, 21, 27, 'Ns. Rif. 1 SARACENARE EXPORT', 0.00, 11.00),
-(40, 21, 20, 'Costo per acquisto merci/servizi', 10.00, 0.00),
-(41, 21, 51, 'credito erario conto iva', 1.00, 0.00),
-(42, 22, 27, 'Ns. Rif. 10 SARACENARE EXPORT', 0.00, 11.00),
-(43, 22, 20, 'Costo per acquisto merci/servizi', 10.00, 0.00),
-(44, 22, 51, 'credito erario conto iva', 1.00, 0.00),
-(45, 23, 28, '', 1.00, 0.00),
-(46, 23, 15, '', 0.00, 1.00),
-(47, 24, 9, 'versamento contnati', 0.00, 1.00),
-(48, 24, 10, 'versamento in banca', 1.00, 0.00),
-(49, 25, 27, 'Ns. Rif. 333 SARACENARE EXPORT', 0.00, 33.00),
-(50, 25, 20, 'Costo per acquisto merci/servizi', 30.00, 0.00),
-(51, 25, 51, 'credito erario conto iva', 3.00, 0.00),
-(52, 26, 27, 'Ns. Rif. 10 SARACENARE EXPORT', 0.00, 11.00),
-(53, 26, 20, 'Costo per acquisto merci/servizi', 10.00, 0.00),
-(54, 26, 51, 'credito erario conto iva', 1.00, 0.00),
-(55, 27, 15, 'Ns. Rif. 1500 DITTA PROVA CLIENTE FORNITORE', 0.00, 1100.00),
-(56, 27, 20, 'Costo per acquisto merci/servizi', 1000.00, 0.00),
-(57, 27, 51, 'credito erario conto iva', 100.00, 0.00),
-(58, 28, 15, 'Ns. Rif. 1500 DITTA PROVA CLIENTE FORNITORE', 0.00, 1100.00),
-(59, 28, 20, 'Costo per acquisto merci/servizi', 1000.00, 0.00),
-(60, 28, 51, 'credito erario conto iva', 100.00, 0.00),
-(61, 29, 7, 'Vs. Rif. 185 SALATI E DOLCI', 1100.00, 0.00),
-(62, 29, 17, 'credito erario', 0.00, 1000.00),
-(63, 29, 25, 'ricavo vendita', 0.00, 100.00),
-(64, 30, 7, 'Vs. Rif. 185 SALATI E DOLCI', 1100.00, 0.00),
-(65, 30, 17, 'credito erario', 0.00, 1000.00),
-(66, 30, 25, 'ricavo vendita', 0.00, 100.00),
-(67, 31, 7, 'Vs. Rif. 555 SALATI E DOLCI', 11.00, 0.00),
-(68, 31, 25, 'ricavo vendita', 0.00, 10.00),
-(69, 31, 17, 'Iva a Debito', 0.00, 1.00),
-(70, 32, 7, 'Vs. Rif. 555 SALATI E DOLCI', 11.00, 0.00),
-(71, 32, 25, 'ricavo vendita', 0.00, 10.00),
 (72, 32, 17, 'Iva a Debito', 0.00, 1.00),
-(73, 33, 7, 'Vs. Rif. 10 SALATI E DOLCI', 990.00, 0.00),
-(74, 33, 25, 'ricavo vendita', 0.00, 900.00),
-(75, 33, 17, 'Iva a Debito', 0.00, 90.00),
-(76, 34, 7, 'Vs. Rif. 10 SALATI E DOLCI', 990.00, 0.00),
-(77, 34, 25, 'ricavo vendita', 0.00, 900.00),
-(78, 34, 17, 'Iva a Debito', 0.00, 90.00),
-(79, 35, 7, 'Vs. Rif. 12 SALATI E DOLCI', 99.00, 0.00),
-(80, 35, 25, 'ricavo vendita', 0.00, 90.00),
-(81, 35, 17, 'Iva a Debito', 0.00, 9.00),
-(82, 36, 7, 'Vs. Rif. 12 SALATI E DOLCI', 99.00, 0.00),
-(83, 36, 25, 'ricavo vendita', 0.00, 90.00),
-(84, 36, 17, 'Iva a Debito', 0.00, 9.00),
-(118, 52, 27, 'Rif. doc undefined SARACENARE EXPORT', 0.00, 1100.00),
-(119, 52, 20, 'Costo per acquisto merci/servizi', 1000.00, 0.00),
-(120, 53, 27, 'Rif. doc undefined SARACENARE EXPORT', 0.00, 44.00),
-(121, 53, 20, 'Costo per acquisto merci/servizi', 40.00, 0.00),
-(125, 55, 27, 'Rif. doc undefined SARACENARE EXPORT', 0.00, 1100.00),
-(126, 55, 20, 'Costo per acquisto merci/servizi', 1000.00, 0.00),
-(127, 55, 51, 'credito erario conto iva 10.00%', 100.00, 0.00),
-(128, 56, 27, 'Rif. doc undefined SARACENARE EXPORT', 0.00, 660.00),
-(129, 56, 20, 'Costo per acquisto merci/servizi', 600.00, 0.00),
-(130, 56, 51, 'credito erario conto iva 10.00%', 60.00, 0.00),
-(131, 57, 28, 'Rif. doc undefined Cliente Linux', 1100.00, 0.00),
-(132, 57, 25, 'ricavo vendita', 0.00, 1000.00),
-(133, 57, 17, 'Iva a Debito 10.00%', 0.00, 100.00),
-(134, 58, 28, 'Rif. doc undefined Cliente Linux', 1100.00, 0.00),
-(135, 58, 25, 'ricavo vendita', 0.00, 1000.00),
-(136, 58, 17, 'Iva a Debito 10.00%', 0.00, 100.00),
-(137, 59, 28, 'Rif. doc undefined Cliente Linux', 1560.00, 0.00),
-(138, 59, 25, 'ricavo vendita', 0.00, 1465.09),
-(139, 59, 17, 'Iva a Debito 4.00%', 0.00, 36.00),
-(140, 59, 17, 'Iva a Debito 4.00%', 0.00, 4.40),
-(141, 59, 17, 'Iva a Debito 4.00%', 0.00, 54.51),
-(142, 60, 28, 'Rif. doc undefined Cliente Linux', 1100.00, 0.00),
-(143, 60, 25, 'ricavo vendita', 0.00, 1000.00),
-(144, 60, 17, 'Iva a Debito 10.00%', 0.00, 100.00),
-(145, 61, 27, 'Rif. doc 100 SARACENARE EXPORT', 0.00, 1100.00),
-(146, 61, 20, 'Costo per acquisto merci/servizi', 1000.00, 0.00),
-(147, 61, 51, 'credito erario conto iva 10.00%', 100.00, 0.00),
-(148, 62, 27, 'Rif. doc 5 SARACENARE EXPORT', 0.00, 1100.00),
-(149, 62, 20, 'Costo per acquisto merci/servizi', 1000.00, 0.00),
-(150, 62, 51, 'credito erario conto iva 10.00%', 100.00, 0.00),
-(151, 63, 28, '', 500.00, 0.00),
-(152, 63, 10, '', 0.00, 500.00),
-(153, 64, 27, 'Rif. doc 10 SARACENARE EXPORT', 0.00, 1500.00),
-(154, 64, 20, 'Costo per acquisto merci/servizi', 1257.69, 0.00),
-(155, 64, 51, 'credito erario conto iva 22.00%', 220.00, 0.00),
-(156, 64, 51, 'credito erario conto iva 22.00%', 20.00, 0.00),
-(157, 64, 51, 'credito erario conto iva 22.00%', 2.31, 0.00),
-(158, 65, 58, 'Rif. doc 10 DIFAM SRL', 1220.00, 0.00),
-(159, 65, 25, 'ricavo vendita', 0.00, 1000.00),
-(160, 65, 17, 'Iva a Debito 22.00%', 0.00, 220.00),
-(161, 66, 58, 'Rif. doc 15 DIFAM SRL', 1220.00, 0.00),
-(162, 66, 25, 'ricavo vendita', 0.00, 1000.00),
-(163, 66, 17, 'Iva a Debito 22.00%', 0.00, 220.00),
-(164, 67, 71, 'Rif. doc 1 CAROFIGLIO SPA', 1220.00, 0.00),
-(165, 67, 25, 'ricavo vendita', 0.00, 1000.00),
-(166, 67, 17, 'Iva a Debito 22.00%', 0.00, 220.00),
-(167, 68, 71, 'Rif. doc 12 CAROFIGLIO SPA', 0.00, 1500.00),
-(168, 68, 20, 'Costo per acquisto merci/servizi', 1420.00, 0.00),
-(169, 68, 51, 'credito erario conto iva 4.00%', 40.00, 0.00),
-(170, 68, 51, 'credito erario conto iva 4.00%', 40.00, 0.00),
-(171, 69, 71, 'Incasso/Pagamento Fatt. 12', 1500.00, 0.00),
-(172, 69, 10, 'Incasso/Pagamento', 0.00, 1500.00),
-(173, 70, 81, 'Rif. doc 99 DITTA PROVA MASTRINI', 0.00, 999.00),
-(174, 70, 20, 'Costo per acquisto merci/servizi', 908.57, 0.00),
-(175, 70, 51, 'credito erario conto iva 10.00%', 90.00, 0.00),
-(176, 70, 51, 'credito erario conto iva 10.00%', 0.43, 0.00),
-(177, 71, 80, 'Rif. doc 88 DITTA PROVA MASTRINI', 880.00, 0.00),
-(178, 71, 25, 'ricavo vendita', 0.00, 800.00),
-(179, 71, 17, 'Iva a Debito 10.00%', 0.00, 80.00),
-(180, 72, 64, 'Rif. doc 123 INDUSTRIA CERAMICA', 0.00, 99.00),
-(181, 72, 20, 'Costo per acquisto merci/servizi', 90.00, 0.00),
-(182, 72, 51, 'credito erario conto iva 10.00%', 9.00, 0.00),
-(183, 73, 71, 'Incasso/Pagamento Fatt. 1', 1220.00, 0.00),
-(184, 73, 10, 'Incasso/Pagamento', 0.00, 1220.00),
-(185, 74, 71, 'Incasso/Pagamento Fatt. 1', 1220.00, 0.00),
-(186, 74, 10, 'Incasso/Pagamento', 0.00, 1220.00),
-(198, 79, 58, 'Incasso/Pagamento Fatt. 15', 1220.00, 0.00),
-(199, 79, 10, 'Incasso/Pagamento', 0.00, 1220.00),
-(200, 80, 64, 'Rif. doc 150 INDUSTRIA CERAMICA', 0.00, 660.00),
-(201, 80, 20, 'Costo per acquisto merci/servizi', 600.00, 0.00),
-(202, 80, 51, 'credito erario conto iva 10.00%', 60.00, 0.00),
-(203, 80, 51, 'credito erario conto iva 10.00%', 60.00, 0.00),
-(204, 81, 77, 'Rif. doc 8877 DITTA SALATI TUTTIfornitroe', 0.00, 15000.00),
-(205, 81, 20, 'Costo per acquisto merci/servizi', 12327.27, 0.00),
-(206, 81, 51, 'credito erario conto iva 22.00%', 2200.00, 0.00),
-(207, 81, 51, 'credito erario conto iva 22.00%', 440.00, 0.00),
-(208, 81, 51, 'credito erario conto iva 10.00%', 32.73, 0.00),
-(209, 81, 51, 'credito erario conto iva 22.00%', 2200.00, 0.00),
-(210, 81, 51, 'credito erario conto iva 22.00%', 440.00, 0.00),
-(211, 81, 51, 'credito erario conto iva 22.00%', 32.73, 0.00),
-(212, 82, 78, 'Incasso/Pagamento Fatt. 8877', 15000.00, 0.00),
-(213, 82, 10, 'Incasso/Pagamento', 0.00, 15000.00),
-(214, 83, 27, 'Incasso/Pagamento Fatt. N/D', 1100.00, 0.00),
-(215, 83, 27, 'Incasso/Pagamento Fatt. N/D', 660.00, 0.00),
-(216, 83, 10, 'Incasso/Pagamento', 0.00, 1760.00),
-(217, 84, 84, 'Rif. doc 1 PUNTO VENDITA ROMA', 0.00, 1220.00),
-(218, 84, 10, '', 1000.00, 0.00),
-(219, 84, 17, 'IVA 22.00%', 220.00, 0.00),
-(220, 84, 17, 'IVA 22.00%', 220.00, 0.00);
+(73, 33, 54, 'Rif. doc 15 CAROFIGLIO SPA', 1502.00, 0.00),
+(74, 33, 25, 'ricavo vendita', 0.00, 1259.61),
+(75, 33, 17, 'Iva a Debito', 0.00, 242.39),
+(76, 33, 17, 'Iva a Debito', 0.00, 220.00),
+(77, 33, 17, 'Iva a Debito', 0.00, 20.00),
+(78, 33, 17, 'Iva a Debito', 0.00, 2.38),
+(79, 34, 54, 'Incasso/Pagamento Fatt. 15', 1502.00, 0.00),
+(80, 34, 8, 'Incasso/Pagamento', 0.00, 1502.00);
 
 -- --------------------------------------------------------
 
@@ -1588,58 +1999,10 @@ CREATE TABLE `sc_registrazioni_testata` (
 --
 
 INSERT INTO `sc_registrazioni_testata` (`id`, `id_ditta`, `id_utente`, `data_registrazione`, `descrizione_testata`, `data_documento`, `numero_documento`, `totale_documento`, `id_ditte`, `numero_protocollo`, `stato`, `data_creazione`, `data_ultima_modifica`) VALUES
-(6, 1, 3, '2025-09-09', 'Registrazione Fattura Acquisto', NULL, NULL, NULL, NULL, 1, 'Confermato', '2025-09-09 16:38:31', '2025-09-13 12:56:09'),
-(7, 1, 3, '2025-09-09', 'Registrazione Fattura Acquisto', NULL, NULL, NULL, NULL, 2, 'Confermato', '2025-09-09 16:43:12', '2025-09-13 12:56:09'),
-(8, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', NULL, NULL, NULL, 15, 3, 'Provvisorio', '2025-09-13 10:16:34', '2025-09-13 12:56:09'),
-(9, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', NULL, NULL, NULL, 6, 4, 'Provvisorio', '2025-09-13 10:27:47', '2025-09-13 12:56:09'),
-(10, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', NULL, NULL, NULL, 15, 5, 'Provvisorio', '2025-09-13 11:09:29', '2025-09-13 12:56:09'),
-(11, 1, 3, '2025-09-13', 'DARE AVERE', NULL, NULL, NULL, NULL, 0, 'Provvisorio', '2025-09-13 13:38:33', '2025-09-13 13:38:33'),
-(19, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-09-06', '1', 11.00, 15, 6, 'Provvisorio', '2025-09-13 14:13:22', '2025-09-13 14:13:22'),
-(20, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-09-06', '1', 11.00, 15, 7, 'Provvisorio', '2025-09-13 14:13:22', '2025-09-13 14:13:22'),
-(21, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-09-06', '1', 11.00, 15, 8, 'Provvisorio', '2025-09-13 14:13:22', '2025-09-13 14:13:22'),
-(22, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-11-10', '10', 11.00, 15, 9, 'Provvisorio', '2025-09-13 14:14:19', '2025-09-13 14:14:19'),
-(23, 1, 3, '2025-09-13', 'Versamento In banca ', NULL, NULL, NULL, NULL, 10, 'Provvisorio', '2025-09-13 14:15:03', '2025-09-13 14:15:03'),
-(24, 1, 3, '2025-09-13', 'Versamento In banca ', NULL, NULL, NULL, NULL, 11, 'Provvisorio', '2025-09-13 14:31:33', '2025-09-13 14:31:33'),
-(25, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-09-06', '333', 33.00, 15, 12, 'Provvisorio', '2025-09-13 14:32:22', '2025-09-13 14:32:22'),
-(26, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-09-13', '10', 11.00, 15, 13, 'Provvisorio', '2025-09-13 15:19:03', '2025-09-13 15:19:03'),
-(27, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-10-10', '1500', 1100.00, 8, 14, 'Provvisorio', '2025-09-13 16:47:28', '2025-09-13 16:47:28'),
-(28, 1, 3, '2025-09-13', 'Registrazione Fattura Acquisto', '2025-10-10', '1500', 1100.00, 8, 15, 'Provvisorio', '2025-09-13 16:47:28', '2025-09-13 16:47:28'),
-(29, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', '2025-10-10', '185', 1100.00, 14, 16, 'Provvisorio', '2025-09-13 16:48:25', '2025-09-13 16:48:25'),
-(30, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', '2025-10-10', '185', 1100.00, 14, 17, 'Provvisorio', '2025-09-13 16:48:25', '2025-09-13 16:48:25'),
-(31, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', '2025-10-25', '555', 11.00, 14, 18, 'Provvisorio', '2025-09-13 18:45:02', '2025-09-13 18:45:02'),
-(32, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', '2025-10-25', '555', 11.00, 14, 19, 'Provvisorio', '2025-09-13 18:45:02', '2025-09-13 18:45:02'),
-(33, 1, 3, '2025-09-15', 'Registrazione Fattura Vendita', '2025-09-09', '10', 990.00, 14, 20, 'Provvisorio', '2025-09-15 09:36:12', '2025-09-15 09:36:12'),
-(34, 1, 3, '2025-09-15', 'Registrazione Fattura Vendita', '2025-09-09', '10', 990.00, 14, 21, 'Provvisorio', '2025-09-15 09:36:12', '2025-09-15 09:36:12'),
-(35, 1, 3, '2025-09-16', 'Registrazione Fattura Vendita', '2025-09-16', '12', 99.00, 14, 22, 'Provvisorio', '2025-09-16 08:24:53', '2025-09-16 08:24:53'),
-(36, 1, 3, '2025-09-16', 'Registrazione Fattura Vendita', '2025-09-16', '12', 99.00, 14, 23, 'Provvisorio', '2025-09-16 08:24:53', '2025-09-16 08:24:53'),
-(52, 1, 3, '2025-09-17', 'Registrazione Fattura Acquisto', '2025-09-18', NULL, 1100.00, 15, 24, 'Provvisorio', '2025-09-17 07:16:12', '2025-09-17 07:16:12'),
-(53, 1, 3, '2025-09-17', 'Registrazione Fattura Acquisto', '2025-09-17', NULL, 44.00, 15, 25, 'Provvisorio', '2025-09-17 08:13:35', '2025-09-17 08:13:35'),
-(55, 1, 3, '2025-09-16', 'Registrazione Fattura Acquisto', '2025-09-15', NULL, 1100.00, 15, 26, 'Provvisorio', '2025-09-17 08:18:21', '2025-09-17 08:18:21'),
-(56, 1, 3, '2025-09-17', 'Registrazione Fattura Acquisto', '2025-09-24', NULL, 660.00, 15, 27, 'Provvisorio', '2025-09-17 08:19:35', '2025-09-17 08:19:35'),
-(57, 1, 3, '2025-09-17', 'Registrazione Fattura Vendita', '2025-09-15', NULL, 1100.00, 18, 28, 'Provvisorio', '2025-09-17 08:32:04', '2025-09-17 08:32:04'),
-(58, 1, 3, '2025-09-17', 'Registrazione Fattura Vendita', '2025-09-15', NULL, 1100.00, 18, 29, 'Provvisorio', '2025-09-17 08:40:42', '2025-09-17 08:40:42'),
-(59, 1, 3, '2025-09-17', 'Registrazione Fattura Vendita', '2025-09-17', NULL, 1560.00, 18, 30, 'Provvisorio', '2025-09-17 08:42:11', '2025-09-17 08:42:11'),
-(60, 1, 3, '2025-09-17', 'Registrazione Fattura Vendita', '2025-09-16', NULL, 1100.00, 18, 31, 'Provvisorio', '2025-09-17 09:49:18', '2025-09-17 09:49:18'),
-(61, 1, 3, '2025-09-17', 'Registrazione Fattura Acquisto', '2025-09-11', '100', 1100.00, 15, 32, 'Provvisorio', '2025-09-17 15:37:42', '2025-09-17 15:37:42'),
-(62, 1, 3, '2025-09-17', 'Registrazione Fattura Acquisto', '2025-09-16', '5', 1100.00, 15, 33, 'Provvisorio', '2025-09-17 17:13:12', '2025-09-17 17:13:12'),
-(63, 1, 3, '2025-09-17', 'INCASSO FATTURA VENDITA', '2025-12-10', '10', 500.00, 18, 34, 'Provvisorio', '2025-09-17 18:07:18', '2025-09-17 18:07:18'),
-(64, 1, 3, '2025-09-17', 'Registrazione Fattura Acquisto', '2025-09-16', '10', 1500.00, 15, 35, 'Provvisorio', '2025-09-17 18:52:50', '2025-09-17 18:52:50'),
-(65, 1, 3, '2025-09-18', 'REG_ FATTURE VENDITA', '2025-09-19', '10', 1220.00, 48, 36, 'Provvisorio', '2025-09-18 14:29:48', '2025-09-18 14:29:48'),
-(66, 1, 3, '2025-09-18', 'REG_ FATTURE VENDITA', '2025-09-18', '15', 1220.00, 48, 37, 'Provvisorio', '2025-09-18 14:30:54', '2025-09-18 14:30:54'),
-(67, 1, 3, '2025-09-19', 'REG_ FATTURE VENDITA', '2025-09-01', '1', 1220.00, 16, 38, 'Provvisorio', '2025-09-19 07:41:26', '2025-09-19 07:41:26'),
-(68, 1, 3, '2025-09-19', 'Registrazione Fattura Acquisto', '2025-09-20', '12', 1500.00, 16, 39, 'Provvisorio', '2025-09-19 10:06:48', '2025-09-19 10:06:48'),
-(69, 1, 3, '2025-09-19', 'INCASSO FATTURA VENDITA', NULL, NULL, 1500.00, 16, 40, 'Provvisorio', '2025-09-19 11:24:00', '2025-09-19 11:24:00'),
-(70, 1, 3, '2025-09-19', 'Registrazione Fattura Acquisto', '2025-09-09', '99', 999.00, 54, 41, 'Provvisorio', '2025-09-19 12:49:08', '2025-09-19 12:49:08'),
-(71, 1, 3, '2025-09-19', 'REG_ FATTURE VENDITA', '2025-08-08', '88', 880.00, 54, 42, 'Provvisorio', '2025-09-19 12:50:40', '2025-09-19 12:50:40'),
-(72, 1, 3, '2025-09-19', 'Registrazione Fattura Acquisto', '2025-09-03', '123', 99.00, 51, 43, 'Provvisorio', '2025-09-19 14:00:05', '2025-09-19 14:00:05'),
-(73, 1, 3, '2025-09-19', 'INCASSO FATTURA VENDITA', NULL, NULL, 1220.00, 16, 44, 'Provvisorio', '2025-09-19 14:10:57', '2025-09-19 14:10:57'),
-(74, 1, 3, '2025-09-19', 'INCASSO FATTURA VENDITA', NULL, NULL, 1220.00, 16, 45, 'Provvisorio', '2025-09-19 14:11:15', '2025-09-19 14:11:15'),
-(79, 1, 3, '2025-09-19', 'INCASSO FATTURA VENDITA', NULL, NULL, 1220.00, 48, 46, 'Provvisorio', '2025-09-19 15:02:27', '2025-09-19 15:02:27'),
-(80, 1, 3, '2025-09-19', 'Registrazione Fattura Acquisto', '2025-09-19', '150', 660.00, 51, 47, 'Provvisorio', '2025-09-19 15:43:26', '2025-09-19 15:43:26'),
-(81, 1, 3, '2025-09-19', 'Registrazione Fattura Acquisto', '2025-01-15', '8877', 15000.00, 13, 48, 'Provvisorio', '2025-09-19 16:06:17', '2025-09-19 16:06:17'),
-(82, 1, 3, '2025-09-19', 'PAGAMENTO FORNITORI', NULL, NULL, 15000.00, 13, 49, 'Provvisorio', '2025-09-19 16:07:20', '2025-09-19 16:07:20'),
-(83, 1, 3, '2025-09-19', 'PAGAMENTO FORNITORI', NULL, NULL, 1760.00, 15, 50, 'Provvisorio', '2025-09-19 17:02:04', '2025-09-19 17:02:04'),
-(84, 1, 3, '2025-09-19', 'INCASSO CORRISPETTIVI', '2025-09-19', '1', 1220.00, 57, 51, 'Provvisorio', '2025-09-19 18:20:04', '2025-09-19 18:20:04');
+(6, 1, 3, '2025-09-09', 'Registrazione Fattura Acquisto', NULL, NULL, NULL, NULL, 1, 'Confermato', '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(32, 1, 3, '2025-09-13', 'Registrazione Fattura Vendita', '2025-10-25', '555', 11.00, 14, 19, 'Provvisorio', '2025-09-20 17:15:45', '2025-09-20 17:15:45'),
+(33, 1, 3, '2025-09-26', 'Registrazione Fattura Vendita', '2025-09-26', '15', 1502.00, 16, 20, 'Provvisorio', '2025-09-26 18:30:55', '2025-09-26 18:30:55'),
+(34, 1, 3, '2025-09-26', 'INCASSO FATTURA VENDITA', NULL, NULL, 1502.00, 16, 21, 'Provvisorio', '2025-09-26 18:35:01', '2025-09-26 18:35:01');
 
 -- --------------------------------------------------------
 
@@ -1666,33 +2029,9 @@ CREATE TABLE `sc_registri_iva` (
 INSERT INTO `sc_registri_iva` (`id`, `id_riga_registrazione`, `tipo_registro`, `data_documento`, `numero_documento`, `id_anagrafica`, `imponibile`, `aliquota_iva`, `importo_iva`) VALUES
 (1, 18, 'Acquisti', '2025-09-09', '10', 15, 100.00, 22.00, 22.00),
 (2, 21, 'Acquisti', '2025-09-09', '100', 15, 100.00, 10.00, 10.00),
-(6, 127, 'Acquisti', '2025-09-15', '', 15, 1000.00, 10.00, 100.00),
-(7, 130, 'Acquisti', '2025-09-24', '', 15, 600.00, 10.00, 60.00),
-(8, 133, 'Vendite', '2025-09-15', '', 18, 1000.00, 10.00, 100.00),
-(9, 136, 'Vendite', '2025-09-15', '', 18, 1000.00, 10.00, 100.00),
-(10, 139, 'Vendite', '2025-09-17', '', 18, 900.00, 4.00, 36.00),
-(11, 140, 'Vendite', '2025-09-17', '', 18, 20.00, 22.00, 4.40),
-(12, 141, 'Vendite', '2025-09-17', '', 18, 545.09, 10.00, 54.51),
-(13, 144, 'Vendite', '2025-09-16', '', 18, 1000.00, 10.00, 100.00),
-(14, 147, 'Acquisti', '2025-09-11', '100', 15, 1000.00, 10.00, 100.00),
-(15, 150, 'Acquisti', '2025-09-16', '5', 15, 1000.00, 10.00, 100.00),
-(16, 155, 'Acquisti', '2025-09-16', '10', 15, 1000.00, 22.00, 220.00),
-(17, 156, 'Acquisti', '2025-09-16', '10', 15, 200.00, 10.00, 20.00),
-(18, 157, 'Acquisti', '2025-09-16', '10', 15, 57.69, 4.00, 2.31),
-(19, 160, 'Vendite', '2025-09-19', '10', 48, 1000.00, 22.00, 220.00),
-(20, 163, 'Vendite', '2025-09-18', '15', 48, 1000.00, 22.00, 220.00),
-(21, 166, 'Vendite', '2025-09-01', '1', 16, 1000.00, 22.00, 220.00),
-(22, 169, 'Acquisti', '2025-09-20', '12', 16, 1000.00, 4.00, 40.00),
-(23, 170, 'Acquisti', '2025-09-20', '12', 16, 400.00, 10.00, 40.00),
-(24, 175, 'Acquisti', '2025-09-09', '99', 54, 900.00, 10.00, 90.00),
-(25, 176, 'Acquisti', '2025-09-09', '99', 54, 8.57, 5.00, 0.43),
-(26, 179, 'Vendite', '2025-08-08', '88', 54, 800.00, 10.00, 80.00),
-(27, 182, 'Acquisti', '2025-09-03', '123', 51, 90.00, 10.00, 9.00),
-(28, 203, 'Acquisti', '2025-09-19', '150', 51, 600.00, 10.00, 60.00),
-(29, 209, 'Acquisti', '2025-01-15', '8877', 13, 10000.00, 22.00, 2200.00),
-(30, 210, 'Acquisti', '2025-01-15', '8877', 13, 2000.00, 22.00, 440.00),
-(31, 211, 'Acquisti', '2025-01-15', '8877', 13, 327.27, 10.00, 32.73),
-(32, 220, 'Vendite', '2025-09-19', '1', 57, 1000.00, 22.00, 220.00);
+(3, 76, 'Vendite', '2025-09-26', '15', 16, 1000.00, 22.00, 220.00),
+(4, 77, 'Vendite', '2025-09-26', '15', 16, 200.00, 10.00, 20.00),
+(5, 78, 'Vendite', '2025-09-26', '15', 16, 59.61, 4.00, 2.38);
 
 -- --------------------------------------------------------
 
@@ -1702,16 +2041,60 @@ INSERT INTO `sc_registri_iva` (`id`, `id_riga_registrazione`, `tipo_registro`, `
 
 CREATE TABLE `stati_lettura` (
   `id_utente` int(11) NOT NULL,
-  `email_uid` varchar(255) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `email_uid` int(11) NOT NULL,
+  `data_lettura` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dump dei dati per la tabella `stati_lettura`
 --
 
-INSERT INTO `stati_lettura` (`id_utente`, `email_uid`, `created_at`) VALUES
-(3, '8', '2025-09-19 07:34:49');
+INSERT INTO `stati_lettura` (`id_utente`, `email_uid`, `data_lettura`) VALUES
+(3, 34, '2025-09-29 16:27:24'),
+(4, 20, '2025-07-25 16:27:04'),
+(4, 43, '2025-07-25 16:08:22'),
+(4, 44, '2025-07-25 16:08:23'),
+(4, 47, '2025-07-25 16:07:43'),
+(4, 49, '2025-07-24 18:52:02'),
+(4, 50, '2025-07-25 16:07:37'),
+(4, 51, '2025-07-25 16:00:32'),
+(4, 52, '2025-07-25 16:00:24'),
+(4, 53, '2025-07-24 18:51:58'),
+(4, 54, '2025-07-24 19:02:16'),
+(4, 55, '2025-07-25 16:17:11'),
+(4, 56, '2025-07-25 16:22:07'),
+(4, 57, '2025-07-25 16:28:44'),
+(4, 58, '2025-07-25 16:28:48'),
+(4, 59, '2025-07-25 16:39:33'),
+(4, 60, '2025-07-26 08:20:44'),
+(4, 137, '2025-08-08 13:30:34'),
+(4, 138, '2025-08-08 13:30:34'),
+(4, 140, '2025-08-09 11:13:42'),
+(5, 45, '2025-07-24 18:52:26'),
+(5, 49, '2025-07-24 18:58:20'),
+(5, 51, '2025-07-24 18:50:50'),
+(5, 52, '2025-07-24 18:50:45'),
+(5, 53, '2025-07-24 18:50:37'),
+(5, 54, '2025-07-24 19:02:57'),
+(6, 56, '2025-07-25 18:55:16'),
+(6, 57, '2025-07-25 18:06:29'),
+(6, 58, '2025-07-25 18:03:18'),
+(6, 60, '2025-07-25 18:55:35'),
+(9, 58, '2025-07-26 08:21:36'),
+(9, 59, '2025-07-26 08:21:30'),
+(9, 60, '2025-07-25 20:04:34'),
+(10, 1, '2025-08-14 14:09:47'),
+(10, 2, '2025-08-14 17:20:42'),
+(10, 51, '2025-07-31 15:09:10'),
+(10, 57, '2025-07-31 19:47:11'),
+(10, 58, '2025-07-30 14:11:41'),
+(10, 59, '2025-07-30 11:23:24'),
+(10, 60, '2025-07-26 17:25:33'),
+(10, 120, '2025-08-08 18:41:22'),
+(10, 136, '2025-08-08 13:33:17'),
+(10, 138, '2025-08-08 09:56:53'),
+(10, 139, '2025-08-08 10:44:21'),
+(10, 140, '2025-08-08 19:13:21');
 
 -- --------------------------------------------------------
 
@@ -1796,8 +2179,8 @@ CREATE TABLE `utente_mail_accounts` (
 --
 
 INSERT INTO `utente_mail_accounts` (`id_utente`, `id_mail_account`, `created_at`, `updated_at`) VALUES
-(3, 11, '2025-09-19 07:34:39', '2025-09-19 07:34:39'),
-(3, 13, '2025-09-19 07:34:39', '2025-09-19 07:34:39');
+(3, 11, '2025-09-20 07:35:41', '2025-09-20 07:35:41'),
+(3, 13, '2025-09-20 07:35:41', '2025-09-20 07:35:41');
 
 -- --------------------------------------------------------
 
@@ -1816,9 +2199,14 @@ CREATE TABLE `utente_scorciatoie` (
 
 INSERT INTO `utente_scorciatoie` (`id_utente`, `id_funzione`) VALUES
 (3, 5),
+(3, 26),
 (3, 32),
 (3, 34),
-(3, 36);
+(3, 36),
+(3, 38),
+(3, 72),
+(3, 84),
+(4, 32);
 
 -- --------------------------------------------------------
 
@@ -1860,32 +2248,32 @@ CREATE TABLE `utenti` (
 --
 
 INSERT INTO `utenti` (`id`, `email`, `mail_contatto`, `mail_collaboratore`, `mail_pec`, `password`, `nome`, `cognome`, `codice_fiscale`, `telefono`, `indirizzo`, `citta`, `provincia`, `cap`, `id_ditta`, `id_ruolo`, `attivo`, `data_creazione`, `data_ultimo_accesso`, `note`, `firma`, `privacy`, `funzioni_attive`, `livello`, `Codice_Tipo_Utente`, `verification_token`) VALUES
-(1, 'sysadmin@mia-azienda.it', 'sysadmin@mia-azienda.it', NULL, NULL, 'password_criptata_qui', 'System', 'Admin', NULL, NULL, NULL, NULL, NULL, NULL, 1, 3, 1, '2025-07-24 15:08:31', NULL, NULL, NULL, 0, NULL, 50, 1, NULL),
-(2, 'mario.rossi@cliente-demo.it', 'mario.rossi@cliente-demo.it', NULL, NULL, 'password_criptata_qui', 'Mario', 'Rossi', NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-07-24 15:08:31', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(3, 'angbrunosa@gmail.com', 'angbrunosa@gmail.com', NULL, NULL, '$2b$10$JxllX3i7uL3CGpUunIoVSOdq1/zHxU9cckBYRXTPNBNbRz81lCXwC', 'Angelo ok', 'Bruno', NULL, NULL, NULL, NULL, NULL, NULL, 1, 2, 1, '2025-07-24 13:48:22', NULL, NULL, 'la mia firma', 0, NULL, 99, 1, NULL),
-(4, 'info@difam.it', 'info@difam.it', NULL, NULL, '$2b$10$mDL.FXQ4GmIhthGlmLCRFOwv7FxAXCJkRqa0AqKI9GIogmP6fxmnK', 'francesco ', 'baggetta', 'brf', NULL, NULL, NULL, NULL, NULL, 3, 3, 1, '2025-07-24 18:34:46', NULL, NULL, 'dott. Francesco Baggetta Direttore Generale Confesercenti Calabria Servizi', 1, NULL, 50, NULL, NULL),
-(5, 'admin@example.com', 'admin@example.com', NULL, NULL, '$2b$10$tbky/vlxsUxLcVHY1hY/YuJysH9mNaj7bFxxfVpFed1FYCMUMABWy', 'Angelo ', 'Bruno', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 4, 1, '2025-07-24 18:43:36', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(6, 'info@example.com', 'info@example.com', NULL, NULL, '$2b$10$TE4iHRvwQ1Wgabc6gq..z.MiVOf2Ypjp4ehAHl.aJdQINjeLN5owi', 'Angelo', 'Bruno', NULL, NULL, NULL, NULL, NULL, NULL, 1, 3, 1, '2025-07-25 18:03:06', NULL, NULL, 'dott. Angelo Bruno\nww', 0, NULL, 50, NULL, NULL),
-(9, 'master@opero.it', 'master@opero.it', NULL, NULL, '$2b$10$yApw9swySOyQbtFCOC8TVOhPJTmrhIH0eDuVxc5H1WAGh0eAMFq6u', 'Master', 'Admin', NULL, 'uu', NULL, NULL, NULL, NULL, 1, 1, 1, '2025-07-25 19:58:14', NULL, NULL, 'Direzione Gestionale Opero.\nwww.operomeglio.it\n', 0, NULL, 50, NULL, NULL),
-(10, 'provadmin@prova.it', 'provadmin@prova.it', NULL, NULL, '$2b$10$DrytCfOdmnOgEH7ISH86X.NFCep9OVxfII5w6dCHfcoX.BYWN0fCC', 'dott. Angelo', 'Bruno -Opero-GEST', NULL, NULL, NULL, NULL, NULL, NULL, 3, 3, 1, '2025-07-26 16:10:54', NULL, NULL, 'dott. Angelo Bruno\n\nopero il gestionale che opera per te', 0, NULL, 99, NULL, NULL),
-(11, 'AngProva@provino.it', 'AngProva@provino.it', NULL, NULL, '$2b$10$dLb.wC/gRYtCmuISajM...LQ12V5oLd1c6aOZYGLw.wzfRw.kMqTu', 'angeloProva', 'BrunoProva', 's', NULL, NULL, NULL, NULL, NULL, 3, 4, 1, '2025-07-30 15:09:02', NULL, NULL, NULL, 1, NULL, 50, NULL, NULL),
-(13, 'provaCOM@prova.it', 'provaCOM@prova.it', NULL, NULL, '$2b$10$C26/u3pagw9zt5TYoqgCGernyCIXjt/c9xj/47mRiV1EXtYOC0T16', 'PROVACOMPLETA', 'PROVACOMPLETA', 'BRNNGL76L21C349J', '098134463', 'VIA DEL CORSO2', 'PASSOLENTO', 'CS', NULL, 3, 3, 1, '2025-07-30 15:58:51', NULL, NULL, NULL, 1, NULL, 49, NULL, NULL),
-(14, 'lucaprovadmin@prova.it', 'lucaprovadmin@prova.it', NULL, NULL, '$2b$10$XJOnOO3o.s5DtorcN7JWG.3IoOTgJIPDNeJ07HcxUOmqZz3K3PlDq', 'luca proca', 'cicone prova', 'lcvvnlsosos', '098135363', 'vico fioravanti', 'saracena', 'cs', NULL, 3, 3, 1, '2025-07-30 18:11:16', NULL, NULL, NULL, 1, NULL, 10, NULL, NULL),
-(15, 'difamconsegne@gmail.com', 'difamconsegne@gmail.com', NULL, NULL, '$2b$10$xw6CzU2voWK5sIEGzUflU.6BIn3cq1W4347npwYBad8ARJuzDNKJy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-07 12:22:28', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(16, 'postmaster@cedibef.com', 'postmaster@cedibef.com', NULL, NULL, '$2b$10$dNnNFQx.dfTl1ofrRe0HeOk8MwMfT03tzj3o8LUm89NBiTvgS5p7a', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-08 11:24:17', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(31, 'befretail@gmail.com', 'befretail@gmail.com', NULL, NULL, '$2b$10$JxllX3i7uL3CGpUunIoVSOdq1/zHxU9cckBYRXTPNBNbRz81lCXwC', 'Cavolo', 'A Fiore', NULL, 'oppido', 'mamertino', '', 'cs', '', 1, 3, 1, '2025-08-14 14:10:54', NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL),
-(32, 'opero@difam.it', 'opero@difam.it', NULL, NULL, '$2b$10$HzcHeKuF1/LE1/3UY4jxLOFHvETDChIGrIqyzAiUkNZZBN.820ggK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-14 14:15:23', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(33, 'postmaster@difam.it', 'postmaster@difam.it', NULL, NULL, '$2b$10$9ti7YOjqWQKXUqbknXTtKOMLMCzTRCrBkv1YTzgpXSiGmgXnycYyK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-14 14:58:32', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(34, 'provaadmin@prova.it', 'provaadmin@prova.it', NULL, NULL, '$2b$10$nu1x6jTlOh5Uv9uRUITC1OgrueRQboMJJHUy98TN6hjbz/jVoxI9q', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-15 18:54:22', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(35, 'befretail@gmai.com', 'befretail@gmai.com', NULL, NULL, '$2b$10$yHIhsE9kDtGZhwMC.3p82.sVZNMVR7FnfOBfabyQFLS4fWLL3k02q', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-15 20:53:29', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(36, 'master@oper.it', 'master@oper.it', NULL, NULL, '$2b$10$yWaTJtd1vXGdx.a1PPTnFOHfW6ct4RB0eJWmCWnDRc5oP3NpNRr4K', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-15 21:16:43', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(37, 'befretail@befretail.srl', 'befretail@befretail.srl', NULL, NULL, '$2b$10$hkxyH85TK4x3Nn.0OcfFX.zAkE4hCUqXWug00ZQz1egk5UgUwN03a', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-16 21:30:18', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(38, 'befretail@gmail.srl', 'befretail@gmail.srl', NULL, NULL, '$2b$10$i75f4L16LWzI6.UYxx7jRuhwsGmS1INZpWoaq2m7jUTr5IMAutq1q', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-16 21:31:07', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(39, 'befreatail@gmail.com', 'befreatail@gmail.com', NULL, NULL, '$2b$10$NM6C65gA02ffDqpb30/3xuhkTUZet9yQ9ThL/Oa7jxkYzg1b4J0Zu', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-08-17 18:43:52', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
-(43, 'amministrazione@difam.it', 'amministrazione@difam.it', NULL, NULL, '$2b$10$.OPBEp3K0Z2Lqw5u81/lhO21U1iBqusAh2PpAAPU4mXI5vi.ZT7la', 'Angelo-Amministrazione', 'Bruno-Amministrazione', 'profrold', '3356738658', 'Cda Soda, 4', 'Saracena', NULL, '87010', 1, 2, 1, '2025-08-19 16:36:30', NULL, 'bellissimo', NULL, 1, NULL, 93, 1, NULL),
-(46, 'dantoniomaria70@gmail.com', 'dantoniomaria70@gmail.com', NULL, NULL, 'password_provvisoria', 'a', 's', NULL, '3356738658', NULL, NULL, NULL, NULL, 1, 4, 0, '2025-08-21 15:03:34', NULL, NULL, NULL, 0, NULL, 0, 2, NULL),
-(47, 'carmicol@libero.it', 'carmicol@libero.it', NULL, NULL, 'password_provvisoria', 'carmine', 'colautti', NULL, '098134463', NULL, NULL, NULL, NULL, 1, 4, 0, '2025-08-21 15:12:08', NULL, NULL, NULL, 0, NULL, 0, 2, NULL),
-(48, 'cicio.l@tiscali.it', NULL, NULL, NULL, '$2b$10$VxKnElUjNclmDPMaN0TKiepysi2RD6xXfW5NO6U5i/LwhwIrXwrC6', 'luca ', 'ciciole', 'clclclclc', '3400958887', 'via fioravanti', 'saracena', NULL, '87010', 1, 4, 1, '2025-09-13 11:02:59', NULL, 'cliente sartoria', NULL, 0, NULL, 1, 2, '05350912-8049-4733-a4d4-ed52bcd5fb43');
+(1, 'sysadmin@mia-azienda.it', 'sysadmin@mia-azienda.it', NULL, NULL, 'password_criptata_qui', 'System', 'Admin', NULL, NULL, NULL, NULL, NULL, NULL, 1, 3, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, 1, NULL),
+(2, 'mario.rossi@cliente-demo.it', 'mario.rossi@cliente-demo.it', NULL, NULL, 'password_criptata_qui', 'Mario', 'Rossi', NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(3, 'angbrunosa@gmail.com', 'angbrunosa@gmail.com', NULL, NULL, '$2b$10$JxllX3i7uL3CGpUunIoVSOdq1/zHxU9cckBYRXTPNBNbRz81lCXwC', 'Angelo ok', 'Bruno', NULL, NULL, NULL, NULL, NULL, NULL, 1, 2, 1, '2025-09-20 17:15:45', NULL, NULL, 'la mia firma', 0, NULL, 99, 1, NULL),
+(4, 'info@difam.it', 'info@difam.it', NULL, NULL, '$2b$10$mDL.FXQ4GmIhthGlmLCRFOwv7FxAXCJkRqa0AqKI9GIogmP6fxmnK', 'francesco ', 'baggetta', 'brf', NULL, NULL, NULL, NULL, NULL, 3, 3, 1, '2025-09-20 17:15:45', NULL, NULL, 'dott. Francesco Baggetta Direttore Generale Confesercenti Calabria Servizi', 1, NULL, 50, NULL, NULL),
+(5, 'admin@example.com', 'admin@example.com', NULL, NULL, '$2b$10$tbky/vlxsUxLcVHY1hY/YuJysH9mNaj7bFxxfVpFed1FYCMUMABWy', 'Angelo ', 'Bruno', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(6, 'info@example.com', 'info@example.com', NULL, NULL, '$2b$10$TE4iHRvwQ1Wgabc6gq..z.MiVOf2Ypjp4ehAHl.aJdQINjeLN5owi', 'Angelo', 'Bruno', NULL, NULL, NULL, NULL, NULL, NULL, 1, 3, 1, '2025-09-20 17:15:45', NULL, NULL, 'dott. Angelo Bruno\nww', 0, NULL, 50, NULL, NULL),
+(9, 'master@opero.it', 'master@opero.it', NULL, NULL, '$2b$10$yApw9swySOyQbtFCOC8TVOhPJTmrhIH0eDuVxc5H1WAGh0eAMFq6u', 'Master', 'Admin', NULL, 'uu', NULL, NULL, NULL, NULL, 1, 1, 1, '2025-09-20 17:15:45', NULL, NULL, 'Direzione Gestionale Opero.\nwww.operomeglio.it\n', 0, NULL, 50, NULL, NULL),
+(10, 'provadmin@prova.it', 'provadmin@prova.it', NULL, NULL, '$2b$10$DrytCfOdmnOgEH7ISH86X.NFCep9OVxfII5w6dCHfcoX.BYWN0fCC', 'dott. Angelo', 'Bruno -Opero-GEST', NULL, NULL, NULL, NULL, NULL, NULL, 3, 3, 1, '2025-09-20 17:15:45', NULL, NULL, 'dott. Angelo Bruno\n\nopero il gestionale che opera per te', 0, NULL, 99, NULL, NULL),
+(11, 'AngProva@provino.it', 'AngProva@provino.it', NULL, NULL, '$2b$10$dLb.wC/gRYtCmuISajM...LQ12V5oLd1c6aOZYGLw.wzfRw.kMqTu', 'angeloProva', 'BrunoProva', 's', NULL, NULL, NULL, NULL, NULL, 3, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 1, NULL, 50, NULL, NULL),
+(13, 'provaCOM@prova.it', 'provaCOM@prova.it', NULL, NULL, '$2b$10$C26/u3pagw9zt5TYoqgCGernyCIXjt/c9xj/47mRiV1EXtYOC0T16', 'PROVACOMPLETA', 'PROVACOMPLETA', 'BRNNGL76L21C349J', '098134463', 'VIA DEL CORSO2', 'PASSOLENTO', 'CS', NULL, 3, 3, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 1, NULL, 49, NULL, NULL),
+(14, 'lucaprovadmin@prova.it', 'lucaprovadmin@prova.it', NULL, NULL, '$2b$10$XJOnOO3o.s5DtorcN7JWG.3IoOTgJIPDNeJ07HcxUOmqZz3K3PlDq', 'luca proca', 'cicone prova', 'lcvvnlsosos', '098135363', 'vico fioravanti', 'saracena', 'cs', NULL, 3, 3, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 1, NULL, 10, NULL, NULL),
+(15, 'difamconsegne@gmail.com', 'difamconsegne@gmail.com', NULL, NULL, '$2b$10$xw6CzU2voWK5sIEGzUflU.6BIn3cq1W4347npwYBad8ARJuzDNKJy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(16, 'postmaster@cedibef.com', 'postmaster@cedibef.com', NULL, NULL, '$2b$10$dNnNFQx.dfTl1ofrRe0HeOk8MwMfT03tzj3o8LUm89NBiTvgS5p7a', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(31, 'befretail@gmail.com', 'befretail@gmail.com', NULL, NULL, '$2b$10$JxllX3i7uL3CGpUunIoVSOdq1/zHxU9cckBYRXTPNBNbRz81lCXwC', 'Cavolo', 'A Fiore', NULL, 'oppido', 'mamertino', NULL, 'cs', NULL, 1, 3, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 1, NULL, 50, NULL, NULL),
+(32, 'opero@difam.it', 'opero@difam.it', NULL, NULL, '$2b$10$HzcHeKuF1/LE1/3UY4jxLOFHvETDChIGrIqyzAiUkNZZBN.820ggK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(33, 'postmaster@difam.it', 'postmaster@difam.it', NULL, NULL, '$2b$10$9ti7YOjqWQKXUqbknXTtKOMLMCzTRCrBkv1YTzgpXSiGmgXnycYyK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(34, 'provaadmin@prova.it', 'provaadmin@prova.it', NULL, NULL, '$2b$10$nu1x6jTlOh5Uv9uRUITC1OgrueRQboMJJHUy98TN6hjbz/jVoxI9q', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(35, 'befretail@gmai.com', 'befretail@gmai.com', NULL, NULL, '$2b$10$yHIhsE9kDtGZhwMC.3p82.sVZNMVR7FnfOBfabyQFLS4fWLL3k02q', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(36, 'master@oper.it', 'master@oper.it', NULL, NULL, '$2b$10$yWaTJtd1vXGdx.a1PPTnFOHfW6ct4RB0eJWmCWnDRc5oP3NpNRr4K', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(37, 'befretail@befretail.srl', 'befretail@befretail.srl', NULL, NULL, '$2b$10$hkxyH85TK4x3Nn.0OcfFX.zAkE4hCUqXWug00ZQz1egk5UgUwN03a', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(38, 'befretail@gmail.srl', 'befretail@gmail.srl', NULL, NULL, '$2b$10$i75f4L16LWzI6.UYxx7jRuhwsGmS1INZpWoaq2m7jUTr5IMAutq1q', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(39, 'befreatail@gmail.com', 'befreatail@gmail.com', NULL, NULL, '$2b$10$NM6C65gA02ffDqpb30/3xuhkTUZet9yQ9ThL/Oa7jxkYzg1b4J0Zu', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 4, 1, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 50, NULL, NULL),
+(43, 'amministrazione@difam.it', 'amministrazione@difam.it', NULL, NULL, '$2b$10$.OPBEp3K0Z2Lqw5u81/lhO21U1iBqusAh2PpAAPU4mXI5vi.ZT7la', 'Angelo-Amministrazione', 'Bruno-Amministrazione', 'profrold', '3356738658', 'Cda Soda, 4', 'Saracena', NULL, '87010', 1, 2, 1, '2025-09-20 17:15:45', NULL, 'bellissimo', NULL, 1, NULL, 93, 1, NULL),
+(46, 'dantoniomaria70@gmail.com', 'dantoniomaria70@gmail.com', NULL, NULL, 'password_provvisoria', 'a', 's', NULL, '3356738658', NULL, NULL, NULL, NULL, 1, 4, 0, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 0, 2, NULL),
+(47, 'carmicol@libero.it', 'carmicol@libero.it', NULL, NULL, 'password_provvisoria', 'carmine', 'colautti', NULL, '098134463', NULL, NULL, NULL, NULL, 1, 4, 0, '2025-09-20 17:15:45', NULL, NULL, NULL, 0, NULL, 0, 2, NULL),
+(48, 'cicio.l@tiscali.it', NULL, NULL, NULL, '$2b$10$VxKnElUjNclmDPMaN0TKiepysi2RD6xXfW5NO6U5i/LwhwIrXwrC6', 'luca ', 'ciciole', 'clclclclc', '3400958887', 'via fioravanti', 'saracena', NULL, '87010', 1, 4, 1, '2025-09-20 17:15:45', NULL, 'cliente sartoria', NULL, 0, NULL, 1, 2, '05350912-8049-4733-a4d4-ed52bcd5fb43');
 
 --
 -- Indici per le tabelle scaricate
@@ -1896,8 +2284,8 @@ INSERT INTO `utenti` (`id`, `email`, `mail_contatto`, `mail_collaboratore`, `mai
 --
 ALTER TABLE `allegati_tracciati`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `allegati_tracciati_download_id_unique` (`download_id`),
-  ADD KEY `allegati_tracciati_id_email_inviata_foreign` (`id_email_inviata`);
+  ADD UNIQUE KEY `download_id` (`download_id`),
+  ADD KEY `id_email_inviata` (`id_email_inviata`);
 
 --
 -- Indici per le tabelle `an_progressivi`
@@ -1913,6 +2301,14 @@ ALTER TABLE `an_relazioni`
   ADD PRIMARY KEY (`id`),
   ADD KEY `fk_an_relazioni_id_ditta_origine` (`id_ditta_origine`),
   ADD KEY `fk_an_relazioni_id_ditta_correlata` (`id_ditta_correlata`);
+
+--
+-- Indici per le tabelle `an_servizi_aziendali_mail`
+--
+ALTER TABLE `an_servizi_aziendali_mail`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `an_servizi_aziendali_mail_id_ditta_nome_servizio_unique` (`id_ditta`,`nome_servizio`),
+  ADD KEY `an_servizi_aziendali_mail_id_ditta_mail_account_foreign` (`id_ditta_mail_account`);
 
 --
 -- Indici per le tabelle `an_tipi_relazione`
@@ -1942,6 +2338,129 @@ ALTER TABLE `app_ruoli`
 ALTER TABLE `app_ruoli_funzioni`
   ADD PRIMARY KEY (`id_ruolo`,`id_funzione`),
   ADD KEY `id_funzione` (`id_funzione`);
+
+--
+-- Indici per le tabelle `bs_attivita`
+--
+ALTER TABLE `bs_attivita`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `bs_attivita_id_bene_foreign` (`id_bene`),
+  ADD KEY `bs_attivita_id_utente_utilizzatore_foreign` (`id_utente_utilizzatore`);
+
+--
+-- Indici per le tabelle `bs_beni`
+--
+ALTER TABLE `bs_beni`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `bs_beni_id_ditta_codice_bene_unique` (`id_ditta`,`codice_bene`),
+  ADD KEY `bs_beni_id_categoria_foreign` (`id_categoria`),
+  ADD KEY `bs_beni_id_sottoconto_cespite_foreign` (`id_sottoconto_cespite`),
+  ADD KEY `bs_beni_id_fornitore_foreign` (`id_fornitore`),
+  ADD KEY `bs_beni_id_sottoconto_costo_foreign` (`id_sottoconto_costo`);
+
+--
+-- Indici per le tabelle `bs_categorie`
+--
+ALTER TABLE `bs_categorie`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `bs_categorie_id_ditta_foreign` (`id_ditta`),
+  ADD KEY `bs_categorie_id_sottoconto_costi_foreign` (`id_sottoconto_costi`),
+  ADD KEY `bs_categorie_id_sottoconto_ammortamenti_foreign` (`id_sottoconto_ammortamenti`),
+  ADD KEY `bs_categorie_id_sottoconto_fondo_foreign` (`id_sottoconto_fondo`);
+
+--
+-- Indici per le tabelle `bs_costi`
+--
+ALTER TABLE `bs_costi`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `bs_costi_id_bene_foreign` (`id_bene`),
+  ADD KEY `bs_costi_id_sottoconto_contabile_foreign` (`id_sottoconto_contabile`);
+
+--
+-- Indici per le tabelle `bs_manutenzioni`
+--
+ALTER TABLE `bs_manutenzioni`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `bs_manutenzioni_id_bene_foreign` (`id_bene`),
+  ADD KEY `bs_manutenzioni_id_fornitore_manutenzione_foreign` (`id_fornitore_manutenzione`),
+  ADD KEY `bs_manutenzioni_id_sottoconto_contabile_foreign` (`id_sottoconto_contabile`);
+
+--
+-- Indici per le tabelle `bs_scadenze`
+--
+ALTER TABLE `bs_scadenze`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `bs_scadenze_id_bene_foreign` (`id_bene`),
+  ADD KEY `bs_scadenze_id_fornitore_associato_foreign` (`id_fornitore_associato`),
+  ADD KEY `bs_scadenze_id_tipo_scadenza_foreign` (`id_tipo_scadenza`);
+
+--
+-- Indici per le tabelle `bs_tipi_scadenze`
+--
+ALTER TABLE `bs_tipi_scadenze`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `bs_tipi_scadenza_id_ditta_codice_unique` (`id_ditta`,`codice`);
+
+--
+-- Indici per le tabelle `ct_catalogo`
+--
+ALTER TABLE `ct_catalogo`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ct_catalogo_id_ditta_codice_entita_unique` (`id_ditta`,`codice_entita`),
+  ADD KEY `ct_catalogo_id_categoria_foreign` (`id_categoria`),
+  ADD KEY `ct_catalogo_id_unita_misura_foreign` (`id_unita_misura`),
+  ADD KEY `ct_catalogo_id_aliquota_iva_foreign` (`id_aliquota_iva`),
+  ADD KEY `ct_catalogo_id_stato_entita_foreign` (`id_stato_entita`);
+
+--
+-- Indici per le tabelle `ct_catalogo_compositi`
+--
+ALTER TABLE `ct_catalogo_compositi`
+  ADD PRIMARY KEY (`id_catalogo_padre`,`id_catalogo_componente`),
+  ADD KEY `ct_catalogo_compositi_id_catalogo_componente_foreign` (`id_catalogo_componente`);
+
+--
+-- Indici per le tabelle `ct_catalogo_dati_beni`
+--
+ALTER TABLE `ct_catalogo_dati_beni`
+  ADD PRIMARY KEY (`id_catalogo`);
+
+--
+-- Indici per le tabelle `ct_catalogo_dati_servizi`
+--
+ALTER TABLE `ct_catalogo_dati_servizi`
+  ADD PRIMARY KEY (`id_catalogo`);
+
+--
+-- Indici per le tabelle `ct_categorie`
+--
+ALTER TABLE `ct_categorie`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `ct_categorie_id_ditta_foreign` (`id_ditta`),
+  ADD KEY `ct_categorie_id_padre_foreign` (`id_padre`),
+  ADD KEY `ct_categorie_codice_categoria_index` (`codice_categoria`);
+
+--
+-- Indici per le tabelle `ct_listini`
+--
+ALTER TABLE `ct_listini`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `ct_listini_id_ditta_foreign` (`id_ditta`),
+  ADD KEY `ct_listini_id_entita_catalogo_foreign` (`id_entita_catalogo`);
+
+--
+-- Indici per le tabelle `ct_stati_entita`
+--
+ALTER TABLE `ct_stati_entita`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ct_stati_entita_codice_unique` (`codice`);
+
+--
+-- Indici per le tabelle `ct_unita_misura`
+--
+ALTER TABLE `ct_unita_misura`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `ct_unita_misura_id_ditta_foreign` (`id_ditta`);
 
 --
 -- Indici per le tabelle `ditta_mail_accounts`
@@ -1975,7 +2494,8 @@ ALTER TABLE `ditte_moduli`
 ALTER TABLE `email_inviate`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `tracking_id` (`tracking_id`),
-  ADD KEY `id_utente_mittente` (`id_utente_mittente`);
+  ADD KEY `id_utente_mittente` (`id_utente_mittente`),
+  ADD KEY `email_inviate_id_ditta_foreign` (`id_ditta`);
 
 --
 -- Indici per le tabelle `email_nascoste`
@@ -2048,6 +2568,31 @@ ALTER TABLE `log_azioni`
   ADD KEY `id_ditta` (`id_ditta`);
 
 --
+-- Indici per le tabelle `mg_causali_movimento`
+--
+ALTER TABLE `mg_causali_movimento`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `mg_causali_movimento_id_ditta_foreign` (`id_ditta`);
+
+--
+-- Indici per le tabelle `mg_magazzini`
+--
+ALTER TABLE `mg_magazzini`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `mg_magazzini_id_ditta_foreign` (`id_ditta`);
+
+--
+-- Indici per le tabelle `mg_movimenti`
+--
+ALTER TABLE `mg_movimenti`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `mg_movimenti_id_ditta_foreign` (`id_ditta`),
+  ADD KEY `mg_movimenti_id_magazzino_foreign` (`id_magazzino`),
+  ADD KEY `mg_movimenti_id_causale_foreign` (`id_causale`),
+  ADD KEY `mg_movimenti_id_utente_foreign` (`id_utente`),
+  ADD KEY `mg_movimenti_id_catalogo_foreign` (`id_catalogo`);
+
+--
 -- Indici per le tabelle `moduli`
 --
 ALTER TABLE `moduli`
@@ -2078,8 +2623,7 @@ ALTER TABLE `ppa_istanzeazioni`
 ALTER TABLE `ppa_istanzeprocedure`
   ADD PRIMARY KEY (`ID`),
   ADD KEY `ID_UtenteCreatore` (`ID_UtenteCreatore`),
-  ADD KEY `fk_ppa_istanzeprocedure_ID_ProceduraDitta` (`ID_ProceduraDitta`),
-  ADD KEY `fk_ppa_istanzeprocedure_ID_DittaTarget` (`ID_DittaTarget`);
+  ADD KEY `fk_ppa_istanzeprocedure_ID_ProceduraDitta` (`ID_ProceduraDitta`);
 
 --
 -- Indici per le tabelle `ppa_procedureditta`
@@ -2123,6 +2667,13 @@ ALTER TABLE `ppa_team`
 ALTER TABLE `ppa_teammembri`
   ADD PRIMARY KEY (`ID_Team`,`ID_Utente`),
   ADD KEY `ID_Utente` (`ID_Utente`);
+
+--
+-- Indici per le tabelle `ppa_team_comunicazioni`
+--
+ALTER TABLE `ppa_team_comunicazioni`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `ppa_team_comunicazioni_id_team_foreign` (`id_team`);
 
 --
 -- Indici per le tabelle `privacy_policies`
@@ -2294,7 +2845,7 @@ ALTER TABLE `utenti`
 -- AUTO_INCREMENT per la tabella `allegati_tracciati`
 --
 ALTER TABLE `allegati_tracciati`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
 
 --
 -- AUTO_INCREMENT per la tabella `an_progressivi`
@@ -2307,6 +2858,12 @@ ALTER TABLE `an_progressivi`
 --
 ALTER TABLE `an_relazioni`
   MODIFY `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `an_servizi_aziendali_mail`
+--
+ALTER TABLE `an_servizi_aziendali_mail`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT per la tabella `an_tipi_relazione`
@@ -2327,6 +2884,78 @@ ALTER TABLE `app_ruoli`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT per la tabella `bs_attivita`
+--
+ALTER TABLE `bs_attivita`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `bs_beni`
+--
+ALTER TABLE `bs_beni`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT per la tabella `bs_categorie`
+--
+ALTER TABLE `bs_categorie`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+
+--
+-- AUTO_INCREMENT per la tabella `bs_costi`
+--
+ALTER TABLE `bs_costi`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `bs_manutenzioni`
+--
+ALTER TABLE `bs_manutenzioni`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `bs_scadenze`
+--
+ALTER TABLE `bs_scadenze`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `bs_tipi_scadenze`
+--
+ALTER TABLE `bs_tipi_scadenze`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `ct_catalogo`
+--
+ALTER TABLE `ct_catalogo`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+
+--
+-- AUTO_INCREMENT per la tabella `ct_categorie`
+--
+ALTER TABLE `ct_categorie`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
+
+--
+-- AUTO_INCREMENT per la tabella `ct_listini`
+--
+ALTER TABLE `ct_listini`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT per la tabella `ct_stati_entita`
+--
+ALTER TABLE `ct_stati_entita`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT per la tabella `ct_unita_misura`
+--
+ALTER TABLE `ct_unita_misura`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
 -- AUTO_INCREMENT per la tabella `ditta_mail_accounts`
 --
 ALTER TABLE `ditta_mail_accounts`
@@ -2336,37 +2965,37 @@ ALTER TABLE `ditta_mail_accounts`
 -- AUTO_INCREMENT per la tabella `ditte`
 --
 ALTER TABLE `ditte`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT per la tabella `email_inviate`
 --
 ALTER TABLE `email_inviate`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=80;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=86;
 
 --
 -- AUTO_INCREMENT per la tabella `funzioni`
 --
 ALTER TABLE `funzioni`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
 
 --
 -- AUTO_INCREMENT per la tabella `iva_contabili`
 --
 ALTER TABLE `iva_contabili`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT per la tabella `knex_migrations`
 --
 ALTER TABLE `knex_migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
 
 --
 -- AUTO_INCREMENT per la tabella `knex_migrations_lock`
 --
 ALTER TABLE `knex_migrations_lock`
-  MODIFY `index` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `index` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT per la tabella `liste_distribuzione`
@@ -2378,55 +3007,73 @@ ALTER TABLE `liste_distribuzione`
 -- AUTO_INCREMENT per la tabella `log_accessi`
 --
 ALTER TABLE `log_accessi`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT per la tabella `log_azioni`
 --
 ALTER TABLE `log_azioni`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=83;
+
+--
+-- AUTO_INCREMENT per la tabella `mg_causali_movimento`
+--
+ALTER TABLE `mg_causali_movimento`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `mg_magazzini`
+--
+ALTER TABLE `mg_magazzini`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `mg_movimenti`
+--
+ALTER TABLE `mg_movimenti`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT per la tabella `moduli`
 --
 ALTER TABLE `moduli`
-  MODIFY `codice` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
+  MODIFY `codice` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=91;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_azioni`
 --
 ALTER TABLE `ppa_azioni`
-  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_istanzeazioni`
 --
 ALTER TABLE `ppa_istanzeazioni`
-  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=86;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_istanzeprocedure`
 --
 ALTER TABLE `ppa_istanzeprocedure`
-  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_procedureditta`
 --
 ALTER TABLE `ppa_procedureditta`
-  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_procedurestandard`
 --
 ALTER TABLE `ppa_procedurestandard`
-  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_processi`
 --
 ALTER TABLE `ppa_processi`
-  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `ID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT per la tabella `ppa_stati_azione`
@@ -2438,13 +3085,19 @@ ALTER TABLE `ppa_stati_azione`
 -- AUTO_INCREMENT per la tabella `ppa_team`
 --
 ALTER TABLE `ppa_team`
-  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+
+--
+-- AUTO_INCREMENT per la tabella `ppa_team_comunicazioni`
+--
+ALTER TABLE `ppa_team_comunicazioni`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT per la tabella `privacy_policies`
 --
 ALTER TABLE `privacy_policies`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT per la tabella `registration_tokens`
@@ -2474,13 +3127,13 @@ ALTER TABLE `sc_funzioni_collegate_mapping`
 -- AUTO_INCREMENT per la tabella `sc_funzioni_contabili`
 --
 ALTER TABLE `sc_funzioni_contabili`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT per la tabella `sc_funzioni_contabili_righe`
 --
 ALTER TABLE `sc_funzioni_contabili_righe`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=144;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=130;
 
 --
 -- AUTO_INCREMENT per la tabella `sc_movimenti_iva`
@@ -2492,31 +3145,31 @@ ALTER TABLE `sc_movimenti_iva`
 -- AUTO_INCREMENT per la tabella `sc_partite_aperte`
 --
 ALTER TABLE `sc_partite_aperte`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT per la tabella `sc_piano_dei_conti`
 --
 ALTER TABLE `sc_piano_dei_conti`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
 
 --
 -- AUTO_INCREMENT per la tabella `sc_registrazioni_righe`
 --
 ALTER TABLE `sc_registrazioni_righe`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=221;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=81;
 
 --
 -- AUTO_INCREMENT per la tabella `sc_registrazioni_testata`
 --
 ALTER TABLE `sc_registrazioni_testata`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT per la tabella `sc_registri_iva`
 --
 ALTER TABLE `sc_registri_iva`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT per la tabella `tipi_pagamento`
@@ -2547,12 +3200,6 @@ ALTER TABLE `utenti`
 --
 
 --
--- Limiti per la tabella `allegati_tracciati`
---
-ALTER TABLE `allegati_tracciati`
-  ADD CONSTRAINT `allegati_tracciati_id_email_inviata_foreign` FOREIGN KEY (`id_email_inviata`) REFERENCES `email_inviate` (`id`) ON DELETE CASCADE;
-
---
 -- Limiti per la tabella `an_progressivi`
 --
 ALTER TABLE `an_progressivi`
@@ -2564,6 +3211,13 @@ ALTER TABLE `an_progressivi`
 ALTER TABLE `an_relazioni`
   ADD CONSTRAINT `fk_an_relazioni_id_ditta_correlata` FOREIGN KEY (`id_ditta_correlata`) REFERENCES `ditte` (`id`),
   ADD CONSTRAINT `fk_an_relazioni_id_ditta_origine` FOREIGN KEY (`id_ditta_origine`) REFERENCES `ditte` (`id`);
+
+--
+-- Limiti per la tabella `an_servizi_aziendali_mail`
+--
+ALTER TABLE `an_servizi_aziendali_mail`
+  ADD CONSTRAINT `an_servizi_aziendali_mail_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `an_servizi_aziendali_mail_id_ditta_mail_account_foreign` FOREIGN KEY (`id_ditta_mail_account`) REFERENCES `ditta_mail_accounts` (`id`) ON DELETE CASCADE;
 
 --
 -- Limiti per la tabella `app_funzioni`
@@ -2584,6 +3238,110 @@ ALTER TABLE `app_ruoli`
 ALTER TABLE `app_ruoli_funzioni`
   ADD CONSTRAINT `app_ruoli_funzioni_ibfk_1` FOREIGN KEY (`id_ruolo`) REFERENCES `app_ruoli` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `app_ruoli_funzioni_ibfk_2` FOREIGN KEY (`id_funzione`) REFERENCES `app_funzioni` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `bs_attivita`
+--
+ALTER TABLE `bs_attivita`
+  ADD CONSTRAINT `bs_attivita_id_bene_foreign` FOREIGN KEY (`id_bene`) REFERENCES `bs_beni` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_attivita_id_utente_utilizzatore_foreign` FOREIGN KEY (`id_utente_utilizzatore`) REFERENCES `utenti` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `bs_beni`
+--
+ALTER TABLE `bs_beni`
+  ADD CONSTRAINT `bs_beni_id_categoria_foreign` FOREIGN KEY (`id_categoria`) REFERENCES `bs_categorie` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_beni_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_beni_id_fornitore_foreign` FOREIGN KEY (`id_fornitore`) REFERENCES `ditte` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `bs_beni_id_sottoconto_cespite_foreign` FOREIGN KEY (`id_sottoconto_cespite`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `bs_beni_id_sottoconto_costo_foreign` FOREIGN KEY (`id_sottoconto_costo`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `bs_categorie`
+--
+ALTER TABLE `bs_categorie`
+  ADD CONSTRAINT `bs_categorie_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_categorie_id_sottoconto_ammortamenti_foreign` FOREIGN KEY (`id_sottoconto_ammortamenti`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `bs_categorie_id_sottoconto_costi_foreign` FOREIGN KEY (`id_sottoconto_costi`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `bs_categorie_id_sottoconto_fondo_foreign` FOREIGN KEY (`id_sottoconto_fondo`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `bs_costi`
+--
+ALTER TABLE `bs_costi`
+  ADD CONSTRAINT `bs_costi_id_bene_foreign` FOREIGN KEY (`id_bene`) REFERENCES `bs_beni` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_costi_id_sottoconto_contabile_foreign` FOREIGN KEY (`id_sottoconto_contabile`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `bs_manutenzioni`
+--
+ALTER TABLE `bs_manutenzioni`
+  ADD CONSTRAINT `bs_manutenzioni_id_bene_foreign` FOREIGN KEY (`id_bene`) REFERENCES `bs_beni` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_manutenzioni_id_fornitore_manutenzione_foreign` FOREIGN KEY (`id_fornitore_manutenzione`) REFERENCES `ditte` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `bs_manutenzioni_id_sottoconto_contabile_foreign` FOREIGN KEY (`id_sottoconto_contabile`) REFERENCES `sc_piano_dei_conti` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `bs_scadenze`
+--
+ALTER TABLE `bs_scadenze`
+  ADD CONSTRAINT `bs_scadenze_id_bene_foreign` FOREIGN KEY (`id_bene`) REFERENCES `bs_beni` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bs_scadenze_id_fornitore_associato_foreign` FOREIGN KEY (`id_fornitore_associato`) REFERENCES `ditte` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `bs_scadenze_id_tipo_scadenza_foreign` FOREIGN KEY (`id_tipo_scadenza`) REFERENCES `bs_tipi_scadenze` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `bs_tipi_scadenze`
+--
+ALTER TABLE `bs_tipi_scadenze`
+  ADD CONSTRAINT `bs_tipi_scadenza_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ct_catalogo`
+--
+ALTER TABLE `ct_catalogo`
+  ADD CONSTRAINT `ct_catalogo_id_aliquota_iva_foreign` FOREIGN KEY (`id_aliquota_iva`) REFERENCES `iva_contabili` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ct_catalogo_id_categoria_foreign` FOREIGN KEY (`id_categoria`) REFERENCES `ct_categorie` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ct_catalogo_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ct_catalogo_id_stato_entita_foreign` FOREIGN KEY (`id_stato_entita`) REFERENCES `ct_stati_entita` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ct_catalogo_id_unita_misura_foreign` FOREIGN KEY (`id_unita_misura`) REFERENCES `ct_unita_misura` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `ct_catalogo_compositi`
+--
+ALTER TABLE `ct_catalogo_compositi`
+  ADD CONSTRAINT `ct_catalogo_compositi_id_catalogo_componente_foreign` FOREIGN KEY (`id_catalogo_componente`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ct_catalogo_compositi_id_catalogo_padre_foreign` FOREIGN KEY (`id_catalogo_padre`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ct_catalogo_dati_beni`
+--
+ALTER TABLE `ct_catalogo_dati_beni`
+  ADD CONSTRAINT `ct_catalogo_dati_beni_id_catalogo_foreign` FOREIGN KEY (`id_catalogo`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ct_catalogo_dati_servizi`
+--
+ALTER TABLE `ct_catalogo_dati_servizi`
+  ADD CONSTRAINT `ct_catalogo_dati_servizi_id_catalogo_foreign` FOREIGN KEY (`id_catalogo`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ct_categorie`
+--
+ALTER TABLE `ct_categorie`
+  ADD CONSTRAINT `ct_categorie_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ct_categorie_id_padre_foreign` FOREIGN KEY (`id_padre`) REFERENCES `ct_categorie` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `ct_listini`
+--
+ALTER TABLE `ct_listini`
+  ADD CONSTRAINT `ct_listini_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ct_listini_id_entita_catalogo_foreign` FOREIGN KEY (`id_entita_catalogo`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ct_unita_misura`
+--
+ALTER TABLE `ct_unita_misura`
+  ADD CONSTRAINT `ct_unita_misura_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE;
 
 --
 -- Limiti per la tabella `ditta_mail_accounts`
@@ -2612,7 +3370,8 @@ ALTER TABLE `ditte_moduli`
 -- Limiti per la tabella `email_inviate`
 --
 ALTER TABLE `email_inviate`
-  ADD CONSTRAINT `email_inviate_ibfk_1` FOREIGN KEY (`id_utente_mittente`) REFERENCES `utenti` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `email_inviate_ibfk_1` FOREIGN KEY (`id_utente_mittente`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `email_inviate_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE SET NULL;
 
 --
 -- Limiti per la tabella `email_nascoste`
@@ -2667,6 +3426,28 @@ ALTER TABLE `log_azioni`
   ADD CONSTRAINT `log_azioni_ibfk_1` FOREIGN KEY (`id_utente`) REFERENCES `utenti` (`id`);
 
 --
+-- Limiti per la tabella `mg_causali_movimento`
+--
+ALTER TABLE `mg_causali_movimento`
+  ADD CONSTRAINT `mg_causali_movimento_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `mg_magazzini`
+--
+ALTER TABLE `mg_magazzini`
+  ADD CONSTRAINT `mg_magazzini_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `mg_movimenti`
+--
+ALTER TABLE `mg_movimenti`
+  ADD CONSTRAINT `mg_movimenti_id_catalogo_foreign` FOREIGN KEY (`id_catalogo`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `mg_movimenti_id_causale_foreign` FOREIGN KEY (`id_causale`) REFERENCES `mg_causali_movimento` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `mg_movimenti_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `mg_movimenti_id_magazzino_foreign` FOREIGN KEY (`id_magazzino`) REFERENCES `mg_magazzini` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `mg_movimenti_id_utente_foreign` FOREIGN KEY (`id_utente`) REFERENCES `utenti` (`id`);
+
+--
 -- Limiti per la tabella `ppa_azioni`
 --
 ALTER TABLE `ppa_azioni`
@@ -2686,7 +3467,6 @@ ALTER TABLE `ppa_istanzeazioni`
 -- Limiti per la tabella `ppa_istanzeprocedure`
 --
 ALTER TABLE `ppa_istanzeprocedure`
-  ADD CONSTRAINT `fk_ppa_istanzeprocedure_ID_DittaTarget` FOREIGN KEY (`ID_DittaTarget`) REFERENCES `ditte` (`id`),
   ADD CONSTRAINT `fk_ppa_istanzeprocedure_ID_ProceduraDitta` FOREIGN KEY (`ID_ProceduraDitta`) REFERENCES `ppa_procedureditta` (`ID`),
   ADD CONSTRAINT `ppa_istanzeprocedure_ibfk_3` FOREIGN KEY (`ID_UtenteCreatore`) REFERENCES `utenti` (`id`);
 
@@ -2721,6 +3501,12 @@ ALTER TABLE `ppa_team`
 ALTER TABLE `ppa_teammembri`
   ADD CONSTRAINT `ppa_teammembri_ibfk_1` FOREIGN KEY (`ID_Team`) REFERENCES `ppa_team` (`ID`) ON DELETE CASCADE,
   ADD CONSTRAINT `ppa_teammembri_ibfk_2` FOREIGN KEY (`ID_Utente`) REFERENCES `utenti` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ppa_team_comunicazioni`
+--
+ALTER TABLE `ppa_team_comunicazioni`
+  ADD CONSTRAINT `ppa_team_comunicazioni_id_team_foreign` FOREIGN KEY (`id_team`) REFERENCES `ppa_team` (`ID`) ON DELETE CASCADE;
 
 --
 -- Limiti per la tabella `privacy_policies`
@@ -2798,7 +3584,7 @@ ALTER TABLE `sc_registri_iva`
 -- Limiti per la tabella `stati_lettura`
 --
 ALTER TABLE `stati_lettura`
-  ADD CONSTRAINT `stati_lettura_id_utente_foreign` FOREIGN KEY (`id_utente`) REFERENCES `utenti` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `stati_lettura_ibfk_1` FOREIGN KEY (`id_utente`) REFERENCES `utenti` (`id`) ON DELETE CASCADE;
 
 --
 -- Limiti per la tabella `tipi_pagamento`

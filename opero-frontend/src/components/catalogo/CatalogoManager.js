@@ -1,16 +1,20 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
  * @description Componente completo per la gestione dell'anagrafica entità catalogo.
- * - v4.3: Ricostruito per stabilità. Passa correttamente 'entita' e 'aliquoteIva' al ListiniManager.
- * @date 2025-10-01
- * @version 4.3
+ * - v4.8: Aggiunge la funzionalità di gestione EAN alla versione stabile v4.3 dell'utente.
+ * Utilizza useCallback per garantire la stabilità delle funzioni di callback.
+ * @date 2025-10-02
+ * @version 4.8
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon } from '@heroicons/react/24/solid';
+// --- MODIFICA EAN ---
+import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon, QrCodeIcon } from '@heroicons/react/24/solid';
+import EanManager from './EanManager';
+// --- FINE MODIFICA EAN ---
 
 import ImportCsvModal from './ImportCsvModal';
 import ListiniManager from './ListiniManager';
@@ -135,6 +139,11 @@ const CatalogoManager = () => {
     const [isListiniModalOpen, setIsListiniModalOpen] = useState(false);
     const [selectedEntita, setSelectedEntita] = useState(null);
 
+    // --- MODIFICA EAN ---
+    const [isEanModalOpen, setIsEanModalOpen] = useState(false);
+    const [selectedItemIdForEan, setSelectedItemIdForEan] = useState(null);
+    // --- FINE MODIFICA EAN ---
+
     const fetchSupportData = useCallback(async () => {
         try {
             const [catRes, umRes, ivaRes, statiRes] = await Promise.all([
@@ -174,14 +183,23 @@ const CatalogoManager = () => {
         fetchEntita();
     }, [fetchSupportData, fetchEntita]);
 
-    const handleOpenListini = (entita) => {
+    const handleOpenListini = useCallback((entita) => {
         setSelectedEntita(entita);
         setIsListiniModalOpen(true);
-    };
+    }, []);
     
-    const handleAdd = () => { setEditingItem(null); setIsModalOpen(true); };
-    const handleEdit = (item) => { setEditingItem(item); setIsModalOpen(true); };
-    const handleArchive = async (item) => {
+    // --- MODIFICA EAN ---
+    const handleOpenEanModal = useCallback((itemId) => {
+        console.log("Apertura modale EAN per l'ID:", itemId);
+        setSelectedItemIdForEan(itemId);
+        setIsEanModalOpen(true);
+    }, []);
+    // --- FINE MODIFICA EAN ---
+
+    const handleAdd = useCallback(() => { setEditingItem(null); setIsModalOpen(true); }, []);
+    const handleEdit = useCallback((item) => { setEditingItem(item); setIsModalOpen(true); }, []);
+    
+    const handleArchive = useCallback(async (item) => {
         if (window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
             try {
                 await api.delete(`/catalogo/entita/${item.id}`);
@@ -190,8 +208,9 @@ const CatalogoManager = () => {
                 alert('Errore: ' + (err.response?.data?.message || err.message));
             }
         }
-    };
-    const handleSave = async (data, itemId) => {
+    }, [fetchEntita]);
+
+    const handleSave = useCallback(async (data, itemId) => {
         try {
             if (itemId) {
                 await api.patch(`/catalogo/entita/${itemId}`, data);
@@ -203,8 +222,9 @@ const CatalogoManager = () => {
         } catch (err) {
             alert('Errore: ' + (err.response?.data?.message || err.message));
         }
-    };
-    const handleCancel = () => { setIsModalOpen(false); };
+    }, [fetchEntita]);
+
+    const handleCancel = useCallback(() => { setIsModalOpen(false); }, []);
 
     const columns = useMemo(() => [
         { header: 'Codice', accessorKey: 'codice_entita' },
@@ -224,13 +244,20 @@ const CatalogoManager = () => {
                     {hasPermission('CT_LISTINI_VIEW') && (
                         <button onClick={() => handleOpenListini(row.original)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini"><ListBulletIcon className="h-5 w-5" /></button>
                     )}
+                    {/* --- MODIFICA EAN --- */}
+                    {hasPermission('CT_EAN_VIEW') && (
+                         <button onClick={() => handleOpenEanModal(row.original.id)} className="p-1 text-gray-600 hover:text-gray-800" title="Gestisci Codici EAN">
+                            <QrCodeIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                    {/* --- FINE MODIFICA EAN --- */}
                     {hasPermission('CT_MANAGE') && row.original.codice_stato !== 'DEL' && (
                         <button onClick={() => handleArchive(row.original)} className="p-1 text-red-600 hover:text-red-800" title="Archivia"><ArchiveBoxIcon className="h-5 w-5" /></button>
                     )}
                 </div>
             )
         }
-    ], [hasPermission]);
+    ], [hasPermission, handleEdit, handleOpenListini, handleArchive, handleOpenEanModal]);
 
     return (
         <div className="p-4">
@@ -269,6 +296,15 @@ const CatalogoManager = () => {
                     aliquoteIva={supportData.aliquoteIva}
                 />
             )}
+            
+            {/* --- MODIFICA EAN --- */}
+            {isEanModalOpen && (
+                <EanManager
+                    itemId={selectedItemIdForEan}
+                    onClose={() => setIsEanModalOpen(false)}
+                />
+            )}
+            {/* --- FINE MODIFICA EAN --- */}
         </div>
     );
 };

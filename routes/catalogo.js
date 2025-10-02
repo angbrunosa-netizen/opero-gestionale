@@ -10,7 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const { knex } = require('../config/db'); 
-const { verifyToken } = require('../utils/auth');
+const { verifyToken,hasPermission } = require('../utils/auth');
 // --- DIPENDENZE PER IMPORT CSV ---
 const multer = require('multer');
 const csv = require('csv-parser');
@@ -19,6 +19,36 @@ const { Readable } = require('stream');
 // Configurazione di Multer per gestire il file in memoria
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+
+
+// Funzione di utility per la validazione del check digit EAN-13
+function isValidEan13(ean) {
+    if (typeof ean !== 'string' || ean.length !== 13 || !/^\d+$/.test(ean)) {
+        return false;
+    }
+
+    const digits = ean.split('').map(Number);
+    const checksum = digits.pop();
+
+    let sumOdd = 0;
+    let sumEven = 0;
+
+    digits.forEach((digit, index) => {
+        if (index % 2 === 0) { // posizioni 1, 3, 5... (index 0, 2, 4...)
+            sumOdd += digit;
+        } else { // posizioni 2, 4, 6... (index 1, 3, 5...)
+            sumEven += digit;
+        }
+    });
+
+    const totalSum = sumOdd + (sumEven * 3);
+    const calculatedChecksum = (10 - (totalSum % 10)) % 10;
+
+    return checksum === calculatedChecksum;
+}
+
+
 
 // #################################################
 // #                API CATEGORIE                  #
@@ -726,6 +756,86 @@ router.delete('/listini/:listinoId', verifyToken, async (req, res) => {
     }
 });
 
+// ===============================================
+//              API GESTIONE CODICI EAN
+// ===============================================
+
+// GET: Recupera tutti i codici EAN per un'entità del catalogo
+// GET /api/catalogo/entita/:entitaId/ean - Recupera EAN per un articolo
+router.get('/entita/:entitaId/ean', verifyToken, async (req, res) => {
+    if (!req.user.permissions.includes('CT_EAN_VIEW')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    try {
+        const eans = await knex('ct_ean').where({ id_catalogo: req.params.entitaId, id_ditta: req.user.id_ditta });
+        res.json(eans);
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Errore recupero EAN.' });
+    }
+});
+
+
+// POST: Aggiunge un nuovo codice EAN a un'entità del catalogo
+
+// POST /api/catalogo/entita/:entitaId/ean - Aggiunge un EAN
+router.post('/entita/:entitaId/ean', verifyToken, async (req, res) => {
+    if (!req.user.permissions.includes('CT_EAN_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { codice_ean, tipo_ean, tipo_ean_prodotto } = req.body;
+    if (!isValidEan13(codice_ean)) {
+        return res.status(400).json({ success: false, message: 'Codice EAN non valido.' });
+    }
+    const trx = await knex.transaction();
+    try {
+        await trx('ct_ean').insert({
+            id_ditta: req.user.id_ditta,
+            id_catalogo: req.params.entitaId,
+            codice_ean,
+            tipo_ean,
+            tipo_ean_prodotto,
+            created_by: req.user.id
+        });
+        await trx('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta: req.user.id_ditta,
+            azione: 'Aggiunta EAN',
+            dettagli: `Aggiunto EAN ${codice_ean} a entità ID ${req.params.entitaId}`
+        });
+        await trx.commit();
+        res.status(201).json({ success: true });
+    } catch (error) {
+        await trx.rollback();
+        res.status(500).json({ success: false, message: 'Errore aggiunta EAN.' });
+    }
+});
+
+// DELETE: Rimuove un codice EAN
+// DELETE /api/catalogo/ean/:eanId - Elimina un EAN
+router.delete('/ean/:eanId', verifyToken, async (req, res) => {
+    if (!req.user.permissions.includes('CT_EAN_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const trx = await knex.transaction();
+    try {
+        const count = await trx('ct_ean').where({ id: req.params.eanId, id_ditta: req.user.id_ditta }).del();
+        if(count === 0) {
+            await trx.rollback();
+            return res.status(404).json({ success: false, message: 'EAN non trovato.' });
+        }
+        await trx('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta: req.user.id_ditta,
+            azione: 'Eliminazione EAN',
+            dettagli: `Eliminato EAN con ID: ${req.params.eanId}`
+        });
+        await trx.commit();
+        res.json({ success: true });
+    } catch (error) {
+        await trx.rollback();
+        res.status(500).json({ success: false, message: 'Errore eliminazione EAN.' });
+    }
+});
 
 
 
@@ -875,6 +985,23 @@ router.post('/import-listini-csv', verifyToken, upload.single('csvFile'), (req, 
      res.status(501).send("Not Implemented Yet");
 });
 
+
+// GET /api/catalogo/ - Recupera tutte le entità del catalogo
+// GET /api/catalogo/ - Recupera tutte le entità del catalogo
+router.get('/', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_VIEW')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    try {
+        const entita = await knex('ct_catalogo')
+            .where('id_ditta', req.user.id_ditta)
+            .select('*');
+        res.json(entita);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero del catalogo.' });
+    }
+});
 
 module.exports = router;
 
