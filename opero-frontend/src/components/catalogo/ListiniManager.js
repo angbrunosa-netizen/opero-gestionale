@@ -1,9 +1,9 @@
 /**
  * @file opero-frontend/src/components/catalogo/ListiniManager.js
  * @description Componente modale per la gestione avanzata dei listini di un'entità.
- * - v2.2: Aggiunta la visualizzazione del costo base nel form per un contesto immediato.
+ * - v2.3: Aggiunta funzionalità di simulazione con costo base modificabile.
  * @date 2025-10-02
- * @version 2.2
+ * @version 2.3
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -15,6 +15,11 @@ import { PlusIcon, ArrowPathIcon, XMarkIcon, PencilIcon, TrashIcon } from '@hero
 // --- Sotto-Componente: Form di Creazione/Modifica Listino ---
 const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) => {
     const [formData, setFormData] = useState({});
+    
+    // #####################################################################
+    // ## IMPLEMENTAZIONE 1: Stato locale per la simulazione del costo base. ##
+    // #####################################################################
+    const [simulationCostoBase, setSimulationCostoBase] = useState(0);
 
     useEffect(() => {
         const initialState = { nome_listino: '', data_inizio_validita: new Date().toISOString().slice(0, 10), data_fine_validita: null };
@@ -25,7 +30,11 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
             initialState[`prezzo_pubblico_${i}`] = 0;
         }
         setFormData(listino ? { ...initialState, ...listino } : initialState);
-    }, [listino]);
+
+        // Inizializziamo il costo di simulazione con quello reale dell'entità
+        setSimulationCostoBase(entita?.costo_base || 0);
+
+    }, [listino, entita]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -36,7 +45,10 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
         const numericValue = parseFloat(value) || 0;
         let newFormData = { ...formData };
         
-        const costoBase = parseFloat(entita.costo_base) || 0;
+        // #####################################################################
+        // ## IMPLEMENTAZIONE 2: Usiamo il costo di simulazione per i calcoli. ##
+        // #####################################################################
+        const costoBase = simulationCostoBase;
         const ivaRate = 1 + (aliquotaIva / 100);
 
         const ricaricoCessKey = `ricarico_cessione_${index}`;
@@ -103,11 +115,26 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
                     </div>
 
                     {/* ############################################################### */}
-                    {/* ## NUOVA IMPLEMENTAZIONE: Visualizzazione del Costo Base       ## */}
+                    {/* ## IMPLEMENTAZIONE 3: Campo Costo Base modificabile + Ripristino ## */}
                     {/* ############################################################### */}
-                    <div className="mb-6 p-3 bg-indigo-50 rounded-lg flex items-center justify-center">
-                        <span className="text-sm font-medium text-indigo-800">Costo Base di Riferimento:</span>
-                        <span className="ml-2 text-lg font-bold text-indigo-900">€ {parseFloat(entita.costo_base || 0).toFixed(2)}</span>
+                    <div className="mb-6 p-3 bg-indigo-50 rounded-lg flex items-center justify-center gap-4">
+                        <label htmlFor="simulationCostoBase" className="text-sm font-medium text-indigo-800">Costo Base di Calcolo:</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            id="simulationCostoBase"
+                            value={simulationCostoBase}
+                            onChange={(e) => setSimulationCostoBase(parseFloat(e.target.value) || 0)}
+                            className="w-32 text-lg font-bold text-indigo-900 bg-white border border-indigo-200 rounded-md text-center p-1"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setSimulationCostoBase(entita?.costo_base || 0)}
+                            title="Ripristina al costo base originale dell'entità"
+                            className="p-2 text-indigo-600 hover:text-indigo-800 rounded-full hover:bg-indigo-100"
+                        >
+                            <ArrowPathIcon className="h-5 w-5" />
+                        </button>
                     </div>
 
                     <div className="space-y-3">
@@ -188,7 +215,7 @@ const ListiniManager = ({ entita, onClose, aliquoteIva }) => {
             fetchListini();
             setIsFormOpen(false);
         } catch (err) {
-            alert('Errore durante il salvataggio del listino: ' + (err.response?.data?.message || err.message));
+            alert('Errore: ' + (err.response?.data?.message || err.message));
         }
     };
     
@@ -200,7 +227,7 @@ const ListiniManager = ({ entita, onClose, aliquoteIva }) => {
                 await api.delete(`/catalogo/listini/${listino.id}`);
                 fetchListini();
             } catch (err) {
-                alert('Errore durante l\'eliminazione: ' + (err.response?.data?.message || err.message));
+                alert('Errore: ' + (err.response?.data?.message || err.message));
             }
         }
     };
@@ -222,7 +249,7 @@ const ListiniManager = ({ entita, onClose, aliquoteIva }) => {
                 </div>
             )
         }
-    ], [hasPermission]);
+    ], [hasPermission, handleEdit, handleDelete]); // Aggiunte dipendenze mancanti
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
