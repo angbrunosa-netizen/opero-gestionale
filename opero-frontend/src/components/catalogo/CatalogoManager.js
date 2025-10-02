@@ -1,25 +1,26 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
- * @description Componente completo per la gestione dell'anagrafica entità catalogo.
- * - v4.8: Aggiunge la funzionalità di gestione EAN alla versione stabile v4.3 dell'utente.
- * Utilizza useCallback per garantire la stabilità delle funzioni di callback.
+ * @description Componente aggiornato per includere sia la gestione EAN che codici fornitore.
+ * - v5.2: Reintegra la funzionalità di gestione EAN che era stata persa
+ * e stabilizza tutte le funzioni di azione con useCallback.
  * @date 2025-10-02
- * @version 4.8
+ * @version 5.2
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-// --- MODIFICA EAN ---
-import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon, QrCodeIcon } from '@heroicons/react/24/solid';
-import EanManager from './EanManager';
-// --- FINE MODIFICA EAN ---
+// INTEGRAZIONE EAN: Aggiunta QrCodeIcon
+import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon, BuildingOfficeIcon, QrCodeIcon } from '@heroicons/react/24/solid';
 
 import ImportCsvModal from './ImportCsvModal';
 import ListiniManager from './ListiniManager';
+import CodiciFornitoreManager from './CodiciFornitoreManager';
+// INTEGRAZIONE EAN: Aggiunta import EanManager
+import EanManager from './EanManager';
 
-// --- Sotto-Componente: Form di Creazione/Modifica Anagrafica ---
+// --- Sotto-Componente: Form di Creazione/Modifica Anagrafica (INVARIATO) ---
 const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
     const [formData, setFormData] = useState({});
 
@@ -139,10 +140,11 @@ const CatalogoManager = () => {
     const [isListiniModalOpen, setIsListiniModalOpen] = useState(false);
     const [selectedEntita, setSelectedEntita] = useState(null);
 
-    // --- MODIFICA EAN ---
+    const [isCodiciFornitoreModalOpen, setIsCodiciFornitoreModalOpen] = useState(false);
+    const [selectedItemId, setSelectedItemId] = useState(null);
+
+    // INTEGRAZIONE EAN: Aggiunta stato per modale EAN
     const [isEanModalOpen, setIsEanModalOpen] = useState(false);
-    const [selectedItemIdForEan, setSelectedItemIdForEan] = useState(null);
-    // --- FINE MODIFICA EAN ---
 
     const fetchSupportData = useCallback(async () => {
         try {
@@ -182,35 +184,9 @@ const CatalogoManager = () => {
         fetchSupportData();
         fetchEntita();
     }, [fetchSupportData, fetchEntita]);
-
-    const handleOpenListini = useCallback((entita) => {
-        setSelectedEntita(entita);
-        setIsListiniModalOpen(true);
-    }, []);
     
-    // --- MODIFICA EAN ---
-    const handleOpenEanModal = useCallback((itemId) => {
-        console.log("Apertura modale EAN per l'ID:", itemId);
-        setSelectedItemIdForEan(itemId);
-        setIsEanModalOpen(true);
-    }, []);
-    // --- FINE MODIFICA EAN ---
-
-    const handleAdd = useCallback(() => { setEditingItem(null); setIsModalOpen(true); }, []);
-    const handleEdit = useCallback((item) => { setEditingItem(item); setIsModalOpen(true); }, []);
-    
-    const handleArchive = useCallback(async (item) => {
-        if (window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
-            try {
-                await api.delete(`/catalogo/entita/${item.id}`);
-                fetchEntita();
-            } catch (err) {
-                alert('Errore: ' + (err.response?.data?.message || err.message));
-            }
-        }
-    }, [fetchEntita]);
-
-    const handleSave = useCallback(async (data, itemId) => {
+    const handleAdd = () => { setEditingItem(null); setIsModalOpen(true); };
+    const handleSave = async (data, itemId) => {
         try {
             if (itemId) {
                 await api.patch(`/catalogo/entita/${itemId}`, data);
@@ -222,9 +198,40 @@ const CatalogoManager = () => {
         } catch (err) {
             alert('Errore: ' + (err.response?.data?.message || err.message));
         }
-    }, [fetchEntita]);
+    };
+    const handleCancel = () => { setIsModalOpen(false); };
 
-    const handleCancel = useCallback(() => { setIsModalOpen(false); }, []);
+    const handleOpenListini = useCallback((entita) => {
+        setSelectedEntita(entita);
+        setIsListiniModalOpen(true);
+    }, []);
+    
+    const handleEdit = useCallback((item) => { 
+        setEditingItem(item); 
+        setIsModalOpen(true); 
+    }, []);
+    
+    const handleArchive = useCallback(async (item) => {
+        if (window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
+            try {
+                await api.delete(`/catalogo/entita/${item.id}`);
+                fetchEntita();
+            } catch (err) {
+                alert('Errore: ' + (err.response?.data?.message || err.message));
+            }
+        }
+    }, [fetchEntita]);
+    
+    // INTEGRAZIONE EAN: Funzione per aprire modale EAN
+    const handleOpenEanModal = useCallback((itemId) => {
+        setSelectedItemId(itemId);
+        setIsEanModalOpen(true);
+    }, []);
+
+    const handleOpenCodiciFornitoreModal = useCallback((itemId) => {
+        setSelectedItemId(itemId);
+        setIsCodiciFornitoreModalOpen(true);
+    }, []);
 
     const columns = useMemo(() => [
         { header: 'Codice', accessorKey: 'codice_entita' },
@@ -244,30 +251,31 @@ const CatalogoManager = () => {
                     {hasPermission('CT_LISTINI_VIEW') && (
                         <button onClick={() => handleOpenListini(row.original)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini"><ListBulletIcon className="h-5 w-5" /></button>
                     )}
-                    {/* --- MODIFICA EAN --- */}
+                    {/* INTEGRAZIONE EAN: Pulsante EAN */}
                     {hasPermission('CT_EAN_VIEW') && (
-                         <button onClick={() => handleOpenEanModal(row.original.id)} className="p-1 text-gray-600 hover:text-gray-800" title="Gestisci Codici EAN">
-                            <QrCodeIcon className="h-5 w-5" />
-                        </button>
+                         <button onClick={() => handleOpenEanModal(row.original.id)} className="p-1 text-gray-600 hover:text-gray-900" title="Gestisci EAN"><QrCodeIcon className="h-5 w-5" /></button>
                     )}
-                    {/* --- FINE MODIFICA EAN --- */}
+                    {hasPermission('CT_COD_FORN_VIEW') && (
+                         <button onClick={() => handleOpenCodiciFornitoreModal(row.original.id)} className="p-1 text-purple-600 hover:text-purple-800" title="Codici Fornitore"><BuildingOfficeIcon className="h-5 w-5" /></button>
+                    )}
                     {hasPermission('CT_MANAGE') && row.original.codice_stato !== 'DEL' && (
                         <button onClick={() => handleArchive(row.original)} className="p-1 text-red-600 hover:text-red-800" title="Archivia"><ArchiveBoxIcon className="h-5 w-5" /></button>
                     )}
                 </div>
             )
         }
-    ], [hasPermission, handleEdit, handleOpenListini, handleArchive, handleOpenEanModal]);
+    ], 
+    [hasPermission, handleEdit, handleOpenListini, handleArchive, handleOpenCodiciFornitoreModal, handleOpenEanModal]); // INTEGRAZIONE EAN: Aggiunta dipendenza
 
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-xl font-bold">Anagrafica Entità Catalogo</h1>
-                 <div className="flex items-center gap-2">
-                    <div className="flex items-center">
-                        <input type="checkbox" id="includeArchived" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                        <label htmlFor="includeArchived" className="ml-2 text-sm text-gray-600">Mostra Archiviati</label>
-                    </div>
+                   <div className="flex items-center gap-2">
+                     <div className="flex items-center">
+                         <input type="checkbox" id="includeArchived" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
+                         <label htmlFor="includeArchived" className="ml-2 text-sm text-gray-600">Mostra Archiviati</label>
+                     </div>
                     {hasPermission('CT_IMPORT_CSV') && (
                         <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-3 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm">
                             <DocumentArrowUpIcon className="h-5 w-5 mr-1"/> Importa
@@ -296,15 +304,21 @@ const CatalogoManager = () => {
                     aliquoteIva={supportData.aliquoteIva}
                 />
             )}
-            
-            {/* --- MODIFICA EAN --- */}
+
+            {isCodiciFornitoreModalOpen && (
+                <CodiciFornitoreManager
+                    itemId={selectedItemId}
+                    onClose={() => setIsCodiciFornitoreModalOpen(false)}
+                />
+            )}
+
+            {/* INTEGRAZIONE EAN: Rendering condizionale modale EAN */}
             {isEanModalOpen && (
                 <EanManager
-                    itemId={selectedItemIdForEan}
+                    itemId={selectedItemId}
                     onClose={() => setIsEanModalOpen(false)}
                 />
             )}
-            {/* --- FINE MODIFICA EAN --- */}
         </div>
     );
 };

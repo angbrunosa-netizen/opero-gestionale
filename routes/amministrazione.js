@@ -1018,4 +1018,29 @@ router.delete('/iva/:id', verifyToken, async (req, res) => {
     }
 });
 
+// ##################################################################
+// #                      ROUTING FORNITORI                         #
+// ##################################################################
+
+// GET /api/amministrazione/fornitori - Recupera elenco fornitori per la ditta corrente
+router.get('/fornitori', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+
+    try {
+        // Logica corretta: cerca direttamente nella tabella 'ditte'
+        const fornitori = await knex('ditte')
+            .where({ id_ditta_proprietaria: id_ditta }) // Filtra per la ditta proprietaria
+            .whereIn('codice_relazione', ['F', 'E'])   // Filtra per relazione Fornitore o Entrambi
+            .select('id', 'ragione_sociale')
+            .orderBy('ragione_sociale', 'asc');
+
+        res.json(fornitori);
+
+    } catch (error) {
+        console.error(`Errore nel recupero dei fornitori per la ditta ${id_ditta}:`, error);
+        res.status(500).json({ success: false, message: "Errore interno del server durante il recupero dei fornitori." });
+    }
+});
+
+
 module.exports = router;

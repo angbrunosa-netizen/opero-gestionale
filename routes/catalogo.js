@@ -838,6 +838,102 @@ router.delete('/ean/:eanId', verifyToken, async (req, res) => {
 });
 
 
+// ##################################################################
+// #                   ROUTING CODICI FORNITORE                     #
+// ##################################################################
+
+router.get('/entita/:itemId/codici-fornitore', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_COD_FORN_VIEW')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { itemId } = req.params;
+    const { id_ditta } = req.user;
+    try {
+        const codici = await knex('ct_codici_fornitore as ccf')
+            .leftJoin('ditte as f', 'ccf.id_fornitore', 'f.id')
+            .where('ccf.id_catalogo', itemId)
+            .andWhere('ccf.id_ditta', id_ditta)
+            .select(
+                'ccf.id',
+                'ccf.codice_articolo_fornitore',
+                'ccf.id_fornitore',
+                'f.ragione_sociale as nome_fornitore',
+                'ccf.tipo_codice'
+            );
+        res.json(codici);
+    } catch (error) {
+        console.error("Errore recupero codici fornitore:", error);
+        res.status(500).json({ success: false, message: "Errore server" });
+    }
+});
+
+router.post('/entita/:itemId/codici-fornitore', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_COD_FORN_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { itemId } = req.params;
+    const { id_ditta, id: id_utente } = req.user;
+    const { codice_articolo_fornitore, id_fornitore, tipo_codice } = req.body;
+
+    const trx = await knex.transaction();
+    try {
+        if (tipo_codice === 'ST') {
+            const existingStandard = await trx('ct_codici_fornitore')
+                .where({
+                    id_catalogo: itemId,
+                    id_ditta: id_ditta,
+                    tipo_codice: 'ST'
+                })
+                .first();
+            
+            if (existingStandard) {
+                await trx.rollback();
+                return res.status(409).json({ success: false, message: "Esiste già un fornitore Standard per questo articolo. Per impostare questo come standard, rimuovere prima il precedente." });
+            }
+        }
+
+        await trx('ct_codici_fornitore').insert({
+            id_ditta,
+            id_catalogo: itemId,
+            codice_articolo_fornitore,
+            id_fornitore: id_fornitore || null,
+            tipo_codice,
+            created_by: id_utente
+        });
+
+        await trx.commit();
+        res.status(201).json({ success: true });
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore inserimento codice fornitore:", error);
+        res.status(500).json({ success: false, message: "Errore server" });
+    }
+});
+
+router.delete('/codici-fornitore/:codiceId', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_COD_FORN_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { codiceId } = req.params;
+    const { id_ditta } = req.user;
+    try {
+        const deleted = await knex('ct_codici_fornitore').where({ id: codiceId, id_ditta }).del();
+        if (deleted === 0) {
+            return res.status(404).json({ message: 'Codice fornitore non trovato' });
+        }
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Errore eliminazione codice fornitore:', error);
+        res.status(500).json({ message: 'Errore server' });
+    }
+});
+
+
+
+module.exports = router;
+
+
+
 
 // #################################################
 // #           API IMPORTAZIONE CSV                #
@@ -1002,6 +1098,8 @@ router.get('/', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore nel recupero del catalogo.' });
     }
 });
+
+
 
 module.exports = router;
 

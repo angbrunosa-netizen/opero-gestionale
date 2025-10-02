@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Creato il: Ott 02, 2025 alle 10:56
+-- Creato il: Ott 02, 2025 alle 16:39
 -- Versione del server: 10.4.32-MariaDB
 -- Versione PHP: 8.2.12
 
@@ -497,6 +497,55 @@ INSERT INTO `ct_categorie` (`id`, `id_ditta`, `nome_categoria`, `descrizione`, `
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `ct_codici_fornitore`
+--
+
+CREATE TABLE `ct_codici_fornitore` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `id_catalogo` int(10) UNSIGNED NOT NULL,
+  `id_anagrafica_fornitore` int(10) UNSIGNED DEFAULT NULL,
+  `codice_articolo_fornitore` varchar(255) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `tipo_codice` enum('ST','OCC') NOT NULL DEFAULT 'OCC'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_codici_fornitore`
+--
+
+INSERT INTO `ct_codici_fornitore` (`id`, `id_ditta`, `id_catalogo`, `id_anagrafica_fornitore`, `codice_articolo_fornitore`, `created_at`, `updated_at`, `created_by`, `tipo_codice`) VALUES
+(1, 1, 1, 16, '10', '2025-10-02 14:16:22', '2025-10-02 14:16:22', 3, 'OCC');
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `ct_ean`
+--
+
+CREATE TABLE `ct_ean` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `id_ditta` int(10) UNSIGNED NOT NULL,
+  `id_catalogo` int(10) UNSIGNED NOT NULL,
+  `codice_ean` varchar(13) NOT NULL,
+  `tipo_ean` enum('PRODOTTO','CONFEZIONE') NOT NULL,
+  `tipo_ean_prodotto` enum('PEZZO','PESO','PREZZO') DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dump dei dati per la tabella `ct_ean`
+--
+
+INSERT INTO `ct_ean` (`id`, `id_ditta`, `id_catalogo`, `codice_ean`, `tipo_ean`, `tipo_ean_prodotto`, `created_at`, `created_by`) VALUES
+(1, 1, 1, '8006473903932', 'PRODOTTO', 'PEZZO', '2025-10-02 12:58:05', 3);
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `ct_listini`
 --
 
@@ -540,8 +589,9 @@ CREATE TABLE `ct_listini` (
 --
 
 INSERT INTO `ct_listini` (`id`, `id_ditta`, `id_entita_catalogo`, `nome_listino`, `data_inizio_validita`, `data_fine_validita`, `ricarico_cessione_6`, `ricarico_cessione_5`, `ricarico_cessione_4`, `ricarico_cessione_3`, `ricarico_cessione_2`, `ricarico_cessione_1`, `prezzo_cessione_1`, `prezzo_pubblico_1`, `ricarico_pubblico_1`, `prezzo_cessione_2`, `prezzo_pubblico_2`, `ricarico_pubblico_2`, `prezzo_cessione_3`, `prezzo_pubblico_3`, `ricarico_pubblico_3`, `prezzo_cessione_4`, `prezzo_pubblico_4`, `ricarico_pubblico_4`, `prezzo_cessione_5`, `prezzo_pubblico_5`, `ricarico_pubblico_5`, `prezzo_cessione_6`, `prezzo_pubblico_6`, `ricarico_pubblico_6`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'base', '2025-09-29', NULL, 0.00, 0.00, 0.00, 0.00, 30.00, 10.00, 1.10, 1.59, 31.40, 1.30, 1.93, 35.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-01 14:09:46', '2025-10-01 14:09:46'),
-(2, 1, 1, 'futuro', '2025-10-01', NULL, 35.00, 20.00, 15.00, 34.00, 35.00, 30.00, 1.30, 1.86, 30.00, 1.35, 2.00, 35.00, 1.34, 1.99, 35.00, 1.15, 1.52, 20.00, 1.20, 1.65, 25.00, 1.35, 1.51, 1.68, '2025-10-01 16:11:08', '2025-10-01 16:11:08');
+(1, 1, 1, 'base', '2025-09-29', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 1.10, 1.59, 31.40, 1.30, 1.93, 35.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-01 14:09:46', '2025-10-01 14:09:46'),
+(2, 1, 1, 'futuro', '2025-10-01', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 1.30, 1.86, 30.00, 1.35, 2.00, 35.00, 1.34, 1.99, 35.00, 1.15, 1.52, 20.00, 1.20, 1.65, 25.00, 1.35, 1.51, 1.68, '2025-10-01 16:11:08', '2025-10-01 16:11:08'),
+(3, 1, 1, 'attuale', '2025-10-02', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 15.00, 11.50, 15.18, 20.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-02 13:42:23', '2025-10-02 13:42:23');
 
 -- --------------------------------------------------------
 
@@ -829,7 +879,11 @@ INSERT INTO `funzioni` (`id`, `codice`, `descrizione`, `Scorciatoia`, `chiave_co
 (98, 'CT_STATI_MANAGE', 'Gestione Stati Entità Catalogo', 0, 'CT_VIEW'),
 (99, 'CT_IMPORT_CSV', 'Importa Entità Catalogo da CSV', 0, 'CT_VIEW'),
 (100, 'CT_LISTINI_VIEW', 'visualizza listini catalogo', 0, 'CT_VIEW'),
-(101, 'CT_LISTINI_MANAGE', 'Gestione (creazione/modifica/eliminazione) listini di vendita del catalogo', 0, 'CT_VIEW');
+(101, 'CT_LISTINI_MANAGE', 'Gestione (creazione/modifica/eliminazione) listini di vendita del catalogo', 0, 'CT_VIEW'),
+(102, 'CT_EAN_VIEW', 'visualizza EAN', 0, 'CT_VIEW'),
+(103, 'CT_EAN_MANAGE', 'gestisci EAN', 0, 'CT_VIEW'),
+(104, 'CT_COD_FORN_VIEW', 'visualizza i codici entità fornitroi', 0, 'CT_VIEW'),
+(105, 'CT_COD_FORN_MANAGE', 'gestire i codici entità fornitroi', 0, 'CT_VIEW');
 
 -- --------------------------------------------------------
 
@@ -922,8 +976,11 @@ INSERT INTO `knex_migrations` (`id`, `name`, `batch`, `migration_time`) VALUES
 (53, '20250930190200_add_stato_to_ct_catalogo.js', 39, '2025-09-30 15:35:44'),
 (54, '20251001090000_rename_prezzo_base_in_ct_catalogo.js', 40, '2025-10-01 07:05:53'),
 (55, '20251001090100_crea_tabella_ct_listini.js', 41, '2025-10-01 07:07:00'),
-(56, '20251001180000_crea_tabella_ct_listini_avanzata.js', 42, '2025-10-01 16:46:32'),
-(57, '20251001200200_rename_ricarico_fields_in_ct_listini.js', 43, '2025-10-01 18:08:08');
+(58, '20250917150000_creazionetabellectean.js', 42, '2025-10-02 09:40:51'),
+(59, '20251001180000_crea_tabella_ct_listini_avanzata.js', 42, '2025-10-02 09:40:51'),
+(60, '20251001200200_rename_ricarico_fields_in_ct_listini.js', 42, '2025-10-02 09:40:51'),
+(61, '20250210309100045_ct_codici_fornitore1.js', 43, '2025-10-02 13:19:59'),
+(62, '20251002164000_add_tipo_codice_to_ct_codici_fornitore.js', 44, '2025-10-02 14:37:57');
 
 -- --------------------------------------------------------
 
@@ -1145,7 +1202,10 @@ INSERT INTO `log_azioni` (`id`, `id_utente`, `id_ditta`, `azione`, `dettagli`, `
 (79, 3, 1, 'Modifica Listino', 'Modificato listino ID: 1', '2025-10-01 18:10:16'),
 (80, 3, 1, 'Modifica Listino', 'Modificato listino ID: 1', '2025-10-01 18:10:26'),
 (81, 3, 1, 'Creazione Listino', 'Creato nuovo listino \"futuro\" per entità ID 1', '2025-10-01 18:11:08'),
-(82, 3, 1, 'Modifica Listino', 'Modificato listino ID: 2', '2025-10-02 07:31:56');
+(82, 3, 1, 'Modifica Listino', 'Modificato listino ID: 2', '2025-10-02 07:31:56'),
+(83, 3, 1, 'Aggiunta EAN', 'Aggiunto EAN 8006473903932 a entità ID 1', '2025-10-02 12:58:05'),
+(84, 3, 1, 'Creazione Listino', 'Creato nuovo listino \"attuale\" per entità ID 1', '2025-10-02 13:42:23'),
+(85, 3, 1, 'Creazione Codice Fornitore', 'Aggiunto codice \'10\' all\'articolo ID 1. Nuovo ID: 1', '2025-10-02 14:16:22');
 
 -- --------------------------------------------------------
 
@@ -1736,6 +1796,10 @@ INSERT INTO `ruoli_funzioni` (`id_ruolo`, `id_funzione`) VALUES
 (2, 99),
 (2, 100),
 (2, 101),
+(2, 102),
+(2, 103),
+(2, 104),
+(2, 105),
 (4, 1);
 
 -- --------------------------------------------------------
@@ -2441,6 +2505,26 @@ ALTER TABLE `ct_categorie`
   ADD KEY `ct_categorie_codice_categoria_index` (`codice_categoria`);
 
 --
+-- Indici per le tabelle `ct_codici_fornitore`
+--
+ALTER TABLE `ct_codici_fornitore`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `ct_codici_fornitore_id_catalogo_foreign` (`id_catalogo`),
+  ADD KEY `ct_codici_fornitore_id_anagrafica_fornitore_foreign` (`id_anagrafica_fornitore`),
+  ADD KEY `ct_codici_fornitore_created_by_foreign` (`created_by`),
+  ADD KEY `ct_codici_fornitore_id_ditta_id_catalogo_index` (`id_ditta`,`id_catalogo`),
+  ADD KEY `ct_codici_fornitore_id_ditta_codice_articolo_fornitore_index` (`id_ditta`,`codice_articolo_fornitore`);
+
+--
+-- Indici per le tabelle `ct_ean`
+--
+ALTER TABLE `ct_ean`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ct_ean_id_catalogo_codice_ean_unique` (`id_catalogo`,`codice_ean`),
+  ADD KEY `ct_ean_id_ditta_foreign` (`id_ditta`),
+  ADD KEY `ct_ean_created_by_foreign` (`created_by`);
+
+--
 -- Indici per le tabelle `ct_listini`
 --
 ALTER TABLE `ct_listini`
@@ -2938,10 +3022,22 @@ ALTER TABLE `ct_categorie`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
+-- AUTO_INCREMENT per la tabella `ct_codici_fornitore`
+--
+ALTER TABLE `ct_codici_fornitore`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT per la tabella `ct_ean`
+--
+ALTER TABLE `ct_ean`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT per la tabella `ct_listini`
 --
 ALTER TABLE `ct_listini`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT per la tabella `ct_stati_entita`
@@ -2977,7 +3073,7 @@ ALTER TABLE `email_inviate`
 -- AUTO_INCREMENT per la tabella `funzioni`
 --
 ALTER TABLE `funzioni`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=106;
 
 --
 -- AUTO_INCREMENT per la tabella `iva_contabili`
@@ -2989,7 +3085,7 @@ ALTER TABLE `iva_contabili`
 -- AUTO_INCREMENT per la tabella `knex_migrations`
 --
 ALTER TABLE `knex_migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=63;
 
 --
 -- AUTO_INCREMENT per la tabella `knex_migrations_lock`
@@ -3013,7 +3109,7 @@ ALTER TABLE `log_accessi`
 -- AUTO_INCREMENT per la tabella `log_azioni`
 --
 ALTER TABLE `log_azioni`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=83;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=86;
 
 --
 -- AUTO_INCREMENT per la tabella `mg_causali_movimento`
@@ -3329,6 +3425,23 @@ ALTER TABLE `ct_catalogo_dati_servizi`
 ALTER TABLE `ct_categorie`
   ADD CONSTRAINT `ct_categorie_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `ct_categorie_id_padre_foreign` FOREIGN KEY (`id_padre`) REFERENCES `ct_categorie` (`id`) ON DELETE SET NULL;
+
+--
+-- Limiti per la tabella `ct_codici_fornitore`
+--
+ALTER TABLE `ct_codici_fornitore`
+  ADD CONSTRAINT `ct_codici_fornitore_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ct_codici_fornitore_id_anagrafica_fornitore_foreign` FOREIGN KEY (`id_anagrafica_fornitore`) REFERENCES `ditte` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `ct_codici_fornitore_id_catalogo_foreign` FOREIGN KEY (`id_catalogo`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ct_codici_fornitore_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `ct_ean`
+--
+ALTER TABLE `ct_ean`
+  ADD CONSTRAINT `ct_ean_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `utenti` (`id`),
+  ADD CONSTRAINT `ct_ean_id_catalogo_foreign` FOREIGN KEY (`id_catalogo`) REFERENCES `ct_catalogo` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `ct_ean_id_ditta_foreign` FOREIGN KEY (`id_ditta`) REFERENCES `ditte` (`id`);
 
 --
 -- Limiti per la tabella `ct_listini`
