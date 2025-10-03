@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Creato il: Ott 02, 2025 alle 16:39
+-- Creato il: Ott 03, 2025 alle 19:04
 -- Versione del server: 10.4.32-MariaDB
 -- Versione PHP: 8.2.12
 
@@ -517,7 +517,8 @@ CREATE TABLE `ct_codici_fornitore` (
 --
 
 INSERT INTO `ct_codici_fornitore` (`id`, `id_ditta`, `id_catalogo`, `id_anagrafica_fornitore`, `codice_articolo_fornitore`, `created_at`, `updated_at`, `created_by`, `tipo_codice`) VALUES
-(1, 1, 1, 16, '10', '2025-10-02 14:16:22', '2025-10-02 14:16:22', 3, 'OCC');
+(1, 1, 1, 16, '10', '2025-10-02 14:16:22', '2025-10-02 14:16:22', 3, 'OCC'),
+(2, 1, 1, 12, 'trio', '2025-10-03 07:23:11', '2025-10-03 07:23:11', 3, 'ST');
 
 -- --------------------------------------------------------
 
@@ -589,9 +590,8 @@ CREATE TABLE `ct_listini` (
 --
 
 INSERT INTO `ct_listini` (`id`, `id_ditta`, `id_entita_catalogo`, `nome_listino`, `data_inizio_validita`, `data_fine_validita`, `ricarico_cessione_6`, `ricarico_cessione_5`, `ricarico_cessione_4`, `ricarico_cessione_3`, `ricarico_cessione_2`, `ricarico_cessione_1`, `prezzo_cessione_1`, `prezzo_pubblico_1`, `ricarico_pubblico_1`, `prezzo_cessione_2`, `prezzo_pubblico_2`, `ricarico_pubblico_2`, `prezzo_cessione_3`, `prezzo_pubblico_3`, `ricarico_pubblico_3`, `prezzo_cessione_4`, `prezzo_pubblico_4`, `ricarico_pubblico_4`, `prezzo_cessione_5`, `prezzo_pubblico_5`, `ricarico_pubblico_5`, `prezzo_cessione_6`, `prezzo_pubblico_6`, `ricarico_pubblico_6`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'base', '2025-09-29', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 1.10, 1.59, 31.40, 1.30, 1.93, 35.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-01 14:09:46', '2025-10-01 14:09:46'),
 (2, 1, 1, 'futuro', '2025-10-01', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 1.30, 1.86, 30.00, 1.35, 2.00, 35.00, 1.34, 1.99, 35.00, 1.15, 1.52, 20.00, 1.20, 1.65, 25.00, 1.35, 1.51, 1.68, '2025-10-01 16:11:08', '2025-10-01 16:11:08'),
-(3, 1, 1, 'attuale', '2025-10-02', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 15.00, 11.50, 15.18, 20.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-02 13:42:23', '2025-10-02 13:42:23');
+(3, 1, 1, 'attuale', '2025-10-08', NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 15.00, 11.50, 15.18, 20.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2025-10-02 11:42:23', '2025-10-02 11:42:23');
 
 -- --------------------------------------------------------
 
@@ -1205,7 +1205,9 @@ INSERT INTO `log_azioni` (`id`, `id_utente`, `id_ditta`, `azione`, `dettagli`, `
 (82, 3, 1, 'Modifica Listino', 'Modificato listino ID: 2', '2025-10-02 07:31:56'),
 (83, 3, 1, 'Aggiunta EAN', 'Aggiunto EAN 8006473903932 a entità ID 1', '2025-10-02 12:58:05'),
 (84, 3, 1, 'Creazione Listino', 'Creato nuovo listino \"attuale\" per entità ID 1', '2025-10-02 13:42:23'),
-(85, 3, 1, 'Creazione Codice Fornitore', 'Aggiunto codice \'10\' all\'articolo ID 1. Nuovo ID: 1', '2025-10-02 14:16:22');
+(85, 3, 1, 'Creazione Codice Fornitore', 'Aggiunto codice \'10\' all\'articolo ID 1. Nuovo ID: 1', '2025-10-02 14:16:22'),
+(86, 3, 1, 'Modifica Listino', 'Modificato listino ID: 3', '2025-10-03 07:26:25'),
+(87, 3, 1, 'Eliminazione Listino', 'Eliminato listino ID: 1', '2025-10-03 07:27:06');
 
 -- --------------------------------------------------------
 
@@ -3025,7 +3027,7 @@ ALTER TABLE `ct_categorie`
 -- AUTO_INCREMENT per la tabella `ct_codici_fornitore`
 --
 ALTER TABLE `ct_codici_fornitore`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT per la tabella `ct_ean`
@@ -3109,7 +3111,7 @@ ALTER TABLE `log_accessi`
 -- AUTO_INCREMENT per la tabella `log_azioni`
 --
 ALTER TABLE `log_azioni`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=86;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=88;
 
 --
 -- AUTO_INCREMENT per la tabella `mg_causali_movimento`
