@@ -7,6 +7,7 @@
     "@ag-grid-community/client-side-row-model": "^32.3.9",
     "@ag-grid-community/csv-export": "^32.3.9",
     "@heroicons/react": "^2.2.0",
+    "@tanstack/react-table": "^8.21.3",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -23,6 +24,7 @@
     "react-quill": "^2.0.0",
     "react-router-dom": "^7.7.1",
     "react-scripts": "5.0.1",
+    "react-table": "^7.8.0",
     "react-to-print": "^3.1.1",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5"

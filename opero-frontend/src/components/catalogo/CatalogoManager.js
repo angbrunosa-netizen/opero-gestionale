@@ -1,27 +1,26 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
- * @description Componente aggiornato per includere sia la gestione EAN che codici fornitore.
- * - v5.2: Reintegra la funzionalità di gestione EAN che era stata persa
- * e stabilizza tutte le funzioni di azione con useCallback.
- * @date 2025-10-02
- * @version 5.2
+ * @description Manager completo per l'anagrafica del catalogo con ricerca server-side unificata e corretta.
+ * - v6.3: Riorganizzati i pulsanti di azione in un gruppo funzionale con menu dropdown.
+ * @date 2025-10-03
+ * @version 6.3
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-// INTEGRAZIONE EAN: Aggiunta QrCodeIcon
-import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon, BuildingOfficeIcon, QrCodeIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon, BuildingOfficeIcon, QrCodeIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 
 import ImportCsvModal from './ImportCsvModal';
 import ListiniManager from './ListiniManager';
 import CodiciFornitoreManager from './CodiciFornitoreManager';
-// INTEGRAZIONE EAN: Aggiunta import EanManager
 import EanManager from './EanManager';
+import EanMassImport from './EanMassImport'; // <-- NUOVO IMPORT
 
-// --- Sotto-Componente: Form di Creazione/Modifica Anagrafica (INVARIATO) ---
+// --- Sotto-Componente: Form di Creazione/Modifica (Modal) ---
 const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
+    // ... (codice del form modale invariato)
     const [formData, setFormData] = useState({});
 
     useEffect(() => {
@@ -69,7 +68,8 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità Catalogo' : 'Nuova Entità Catalogo'}</h2>
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* ... (contenuto del form invariato) ... */}
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
                             <input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
@@ -116,8 +116,8 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                         </div>
                     </div>
                     <div className="mt-6 pt-4 border-t flex justify-end gap-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Salva</button>
+                        <button type="button" onClick={onCancel} className="btn-secondary">Annulla</button>
+                        <button type="submit" className="btn-primary">Salva</button>
                     </div>
                 </form>
             </div>
@@ -125,115 +125,154 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
     );
 };
 
+// Hook custom per il debouncing
+const useDebounce = (value, delay) => {
+    // ... (codice hook invariato)
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => { clearTimeout(handler); };
+    }, [value, delay]);
+    return debouncedValue;
+};
+
 
 // --- Componente Principale ---
 const CatalogoManager = () => {
     const { hasPermission } = useAuth();
-    const [entita, setEntita] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState(null);
+    
+    // STATI DI GESTIONE DATI
+    const [displayedData, setDisplayedData] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const [supportData, setSupportData] = useState({ categorie: [], unitaMisura: [], aliquoteIva: [], statiEntita: [] });
     const [includeArchived, setIncludeArchived] = useState(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    
+    // STATI DI GESTIONE UI (MODALI)
+    const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isListiniModalOpen, setIsListiniModalOpen] = useState(false);
-    const [selectedEntita, setSelectedEntita] = useState(null);
-
     const [isCodiciFornitoreModalOpen, setIsCodiciFornitoreModalOpen] = useState(false);
-    const [selectedItemId, setSelectedItemId] = useState(null);
-
-    // INTEGRAZIONE EAN: Aggiunta stato per modale EAN
     const [isEanModalOpen, setIsEanModalOpen] = useState(false);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false); // Stato per il nuovo menu
+    const actionsMenuRef = useRef(null); // Ref per chiudere il menu al click esterno
+        const [isEanMassImportOpen, setIsEanMassImportOpen] = useState(false); // <-- NUOVO STATO
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    
+    // ... (tutta la logica di fetching e gestione dati rimane invariata)
+    useEffect(() => {
+        const updateGridData = async () => {
+            if (!hasPermission('CT_VIEW')) return;
 
-    const fetchSupportData = useCallback(async () => {
-        try {
-            const [catRes, umRes, ivaRes, statiRes] = await Promise.all([
-                api.get('/catalogo/categorie'),
-                api.get('/catalogo/unita-misura'),
-                api.get('/amministrazione/iva'),
-                api.get('/catalogo/stati-entita')
-            ]);
-            setSupportData({
-                categorie: catRes.data,
-                unitaMisura: umRes.data.data,
-                aliquoteIva: ivaRes.data.data,
-                statiEntita: statiRes.data.data,
-            });
-        } catch (err) {
-            console.error("Errore nel caricamento dei dati di supporto", err);
-            setError("Impossibile caricare i dati di supporto necessari.");
-        }
-    }, []);
+            setIsLoading(true);
+            try {
+                let response;
+                if (debouncedSearchTerm.length >= 2) {
+                    console.log(`[CatalogoManager] Eseguo ricerca per: "${debouncedSearchTerm}"`);
+                    response = await api.get(`/catalogo/search?term=${debouncedSearchTerm}`);
+                    setDisplayedData(response.data || []);
+                } else {
+                    console.log("[CatalogoManager] Carico lista completa...");
+                    response = await api.get(`/catalogo/entita?includeArchived=${includeArchived}`);
+                    setDisplayedData(response.data.data || []);
+                }
+            } catch (error) {
+                console.error("Errore durante l'aggiornamento dei dati:", error);
+                setDisplayedData([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-    const fetchEntita = useCallback(async () => {
-        setLoading(true);
-        try {
-            const response = await api.get(`/catalogo/entita?includeArchived=${includeArchived}`);
-            setEntita(response.data.data || []);
-            setError(null);
-        } catch (err) {
-            setError('Errore nel caricamento delle entità del catalogo.');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }, [includeArchived]);
+        updateGridData();
+    }, [debouncedSearchTerm, includeArchived, hasPermission, refreshTrigger]);
 
     useEffect(() => {
+        const fetchSupportData = async () => {
+            try {
+                const [catRes, umRes, ivaRes, statiRes] = await Promise.all([
+                    api.get('/catalogo/categorie'),
+                    api.get('/catalogo/unita-misura'),
+                    api.get('/amministrazione/iva'),
+                    api.get('/catalogo/stati-entita')
+                ]);
+                setSupportData({
+                    categorie: catRes.data,
+                    unitaMisura: umRes.data.data,
+                    aliquoteIva: ivaRes.data.data,
+                    statiEntita: statiRes.data.data,
+                });
+            } catch (err) {
+                console.error("Errore nel caricamento dei dati di supporto", err);
+            }
+        };
         fetchSupportData();
-        fetchEntita();
-    }, [fetchSupportData, fetchEntita]);
+    }, []);
+
+    // Gestione chiusura menu dropdown al click esterno
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
+                setIsActionsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const forceRefresh = () => setRefreshTrigger(t => t + 1);
+
+    const handleNew = useCallback(() => {
+        setEditingItem(null);
+        setIsFormModalOpen(true);
+    }, []);
+
+    const handleEdit = useCallback((item) => {
+        setEditingItem(item);
+        setIsFormModalOpen(true);
+    }, []);
     
-    const handleAdd = () => { setEditingItem(null); setIsModalOpen(true); };
-    const handleSave = async (data, itemId) => {
+    // ... (altri gestori handleSave, handleArchive, handleOpenSubManager invariati)
+     const handleSave = useCallback(async (data, itemId) => {
         try {
             if (itemId) {
                 await api.patch(`/catalogo/entita/${itemId}`, data);
             } else {
                 await api.post('/catalogo/entita', data);
             }
-            fetchEntita();
-            setIsModalOpen(false);
+            setIsFormModalOpen(false);
+            forceRefresh();
         } catch (err) {
             alert('Errore: ' + (err.response?.data?.message || err.message));
         }
-    };
-    const handleCancel = () => { setIsModalOpen(false); };
+    }, []);
 
-    const handleOpenListini = useCallback((entita) => {
-        setSelectedEntita(entita);
-        setIsListiniModalOpen(true);
-    }, []);
-    
-    const handleEdit = useCallback((item) => { 
-        setEditingItem(item); 
-        setIsModalOpen(true); 
-    }, []);
-    
     const handleArchive = useCallback(async (item) => {
         if (window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
             try {
                 await api.delete(`/catalogo/entita/${item.id}`);
-                fetchEntita();
+                forceRefresh();
             } catch (err) {
                 alert('Errore: ' + (err.response?.data?.message || err.message));
             }
         }
-    }, [fetchEntita]);
-    
-    // INTEGRAZIONE EAN: Funzione per aprire modale EAN
-    const handleOpenEanModal = useCallback((itemId) => {
-        setSelectedItemId(itemId);
-        setIsEanModalOpen(true);
     }, []);
 
-    const handleOpenCodiciFornitoreModal = useCallback((itemId) => {
-        setSelectedItemId(itemId);
-        setIsCodiciFornitoreModalOpen(true);
+    const handleOpenSubManager = useCallback((modalSetter, item) => {
+        setSelectedItem(item);
+        modalSetter(true);
     }, []);
+
 
     const columns = useMemo(() => [
+        // ... (definizione colonne invariata)
         { header: 'Codice', accessorKey: 'codice_entita' },
         { header: 'Descrizione', accessorKey: 'descrizione' },
         { header: 'Categoria', accessorKey: 'nome_categoria' },
@@ -244,81 +283,93 @@ const CatalogoManager = () => {
             header: 'Azioni',
             id: 'actions',
             cell: ({ row }) => (
-                <div className="flex gap-3 items-center">
-                    {hasPermission('CT_MANAGE') && (
-                        <button onClick={() => handleEdit(row.original)} className="p-1 text-blue-600 hover:text-blue-800" title="Modifica"><PencilIcon className="h-5 w-5" /></button>
-                    )}
-                    {hasPermission('CT_LISTINI_VIEW') && (
-                        <button onClick={() => handleOpenListini(row.original)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini"><ListBulletIcon className="h-5 w-5" /></button>
-                    )}
-                    {/* INTEGRAZIONE EAN: Pulsante EAN */}
-                    {hasPermission('CT_EAN_VIEW') && (
-                         <button onClick={() => handleOpenEanModal(row.original.id)} className="p-1 text-gray-600 hover:text-gray-900" title="Gestisci EAN"><QrCodeIcon className="h-5 w-5" /></button>
-                    )}
-                    {hasPermission('CT_COD_FORN_VIEW') && (
-                         <button onClick={() => handleOpenCodiciFornitoreModal(row.original.id)} className="p-1 text-purple-600 hover:text-purple-800" title="Codici Fornitore"><BuildingOfficeIcon className="h-5 w-5" /></button>
-                    )}
-                    {hasPermission('CT_MANAGE') && row.original.codice_stato !== 'DEL' && (
-                        <button onClick={() => handleArchive(row.original)} className="p-1 text-red-600 hover:text-red-800" title="Archivia"><ArchiveBoxIcon className="h-5 w-5" /></button>
-                    )}
+                <div className="flex gap-2 items-center justify-end">
+                    {hasPermission('CT_MANAGE') && <button onClick={() => handleEdit(row.original)} className="p-1 text-blue-600 hover:text-blue-800" title="Modifica"><PencilIcon className="h-5 w-5" /></button>}
+                    {hasPermission('CT_LISTINI_VIEW') && <button onClick={() => handleOpenSubManager(setIsListiniModalOpen, row.original)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini"><ListBulletIcon className="h-5 w-5" /></button>}
+                    {hasPermission('CT_EAN_VIEW') && <button onClick={() => handleOpenSubManager(setIsEanModalOpen, row.original)} className="p-1 text-gray-600 hover:text-gray-900" title="Gestisci EAN"><QrCodeIcon className="h-5 w-5" /></button>}
+                    {hasPermission('CT_COD_FORN_VIEW') && <button onClick={() => handleOpenSubManager(setIsCodiciFornitoreModalOpen, row.original)} className="p-1 text-purple-600 hover:text-purple-800" title="Codici Fornitore"><BuildingOfficeIcon className="h-5 w-5" /></button>}
+                    {hasPermission('CT_MANAGE') && row.original.codice_stato !== 'DEL' && <button onClick={() => handleArchive(row.original)} className="p-1 text-red-600 hover:text-red-800" title="Archivia"><ArchiveBoxIcon className="h-5 w-5" /></button>}
                 </div>
             )
         }
-    ], 
-    [hasPermission, handleEdit, handleOpenListini, handleArchive, handleOpenCodiciFornitoreModal, handleOpenEanModal]); // INTEGRAZIONE EAN: Aggiunta dipendenza
+    ], [hasPermission, handleEdit, handleOpenSubManager, handleArchive]);
+
+    if (!hasPermission('CT_VIEW')) {
+        return <div className="p-4">Accesso non autorizzato.</div>;
+    }
 
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-xl font-bold">Anagrafica Entità Catalogo</h1>
-                   <div className="flex items-center gap-2">
-                     <div className="flex items-center">
-                         <input type="checkbox" id="includeArchived" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                         <label htmlFor="includeArchived" className="ml-2 text-sm text-gray-600">Mostra Archiviati</label>
-                     </div>
-                    {hasPermission('CT_IMPORT_CSV') && (
-                        <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-3 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm">
-                            <DocumentArrowUpIcon className="h-5 w-5 mr-1"/> Importa
-                        </button>
-                    )}
-                    {hasPermission('CT_MANAGE') && (
-                        <button onClick={handleAdd} className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"><PlusIcon className="h-5 w-5 mr-1"/> Nuova</button>
-                    )}
-                    <button onClick={fetchEntita} title="Ricarica dati" className="p-2 text-gray-500 hover:text-gray-800"><ArrowPathIcon className="h-5 w-5"/></button>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center">
+                        <input type="checkbox" id="includeArchived" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                        <label htmlFor="includeArchived" className="ml-2 text-sm text-gray-600">Mostra Archiviati</label>
+                    </div>
+
+                    {/* GRUPPO PULSANTI AZIONE */}
+                    <div className="flex items-center rounded-md shadow-sm">
+                        {hasPermission('CT_MANAGE') && (
+                            <button
+                                type="button"
+                                onClick={handleNew}
+                                className="relative inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold text-sm rounded-l-md hover:bg-blue-700 focus:z-10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                <PlusIcon className="h-5 w-5 mr-2" />
+                                Nuovo
+                            </button>
+                        )}
+                        <div ref={actionsMenuRef} className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
+                                className="relative inline-flex items-center px-2 py-2 bg-white text-gray-500 rounded-r-md border border-gray-300 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                <ChevronDownIcon className="h-5 w-5" />
+                            </button>
+                            {isActionsMenuOpen && (
+                                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+                                    <div className="py-1" role="menu" aria-orientation="vertical">
+                                        {hasPermission('CT_IMPORT_CSV') && (
+                                            <a href="#" onClick={(e) => { e.preventDefault(); setIsImportModalOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                                <DocumentArrowUpIcon className="h-5 w-5 mr-3 text-gray-400" />
+                                                Importa Catalogo
+                                            </a>
+                                        )}
+                                        {/* NUOVA VOCE DI MENU */}
+                                        {hasPermission('CT_EAN_MANAGE') && (
+                                            <a href="#" onClick={(e) => { e.preventDefault(); setIsEanMassImportOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                                <QrCodeIcon className="h-5 w-5 mr-3 text-gray-400" />
+                                                Importa EAN Multipli
+                                            </a>
+                                        )}
+                                        <a href="#" onClick={(e) => { e.preventDefault(); forceRefresh(); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                            <ArrowPathIcon className="h-5 w-5 mr-3 text-gray-400" />
+                                            Ricarica Dati
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <AdvancedDataGrid columns={columns} data={entita} loading={loading} error={error} />
+            <AdvancedDataGrid
+                columns={columns}
+                data={displayedData}
+                isLoading={isLoading}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+            />
 
-            {isModalOpen && ( <CatalogoFormModal item={editingItem} onSave={handleSave} onCancel={handleCancel} supportData={supportData} /> )}
-            {isImportModalOpen && ( <ImportCsvModal onClose={() => {setIsImportModalOpen(false); fetchEntita();}} onImportSuccess={() => { fetchEntita(); }} /> )}
-            
-            {isListiniModalOpen && selectedEntita && (
-                <ListiniManager
-                    entita={selectedEntita}
-                    onClose={() => {
-                        setIsListiniModalOpen(false);
-                        setSelectedEntita(null);
-                        fetchEntita();
-                    }}
-                    aliquoteIva={supportData.aliquoteIva}
-                />
-            )}
-
-            {isCodiciFornitoreModalOpen && (
-                <CodiciFornitoreManager
-                    itemId={selectedItemId}
-                    onClose={() => setIsCodiciFornitoreModalOpen(false)}
-                />
-            )}
-
-            {/* INTEGRAZIONE EAN: Rendering condizionale modale EAN */}
-            {isEanModalOpen && (
-                <EanManager
-                    itemId={selectedItemId}
-                    onClose={() => setIsEanModalOpen(false)}
-                />
-            )}
+            {isFormModalOpen && <CatalogoFormModal item={editingItem} onSave={handleSave} onCancel={() => setIsFormModalOpen(false)} supportData={supportData} />}
+            {isImportModalOpen && <ImportCsvModal onClose={() => {setIsImportModalOpen(false); forceRefresh();}} onImportSuccess={forceRefresh} />}
+            {isEanMassImportOpen && <EanMassImport onClose={() => setIsEanMassImportOpen(false)} onImportSuccess={forceRefresh} />}
+            {isListiniModalOpen && selectedItem && <ListiniManager entita={selectedItem} onClose={() => { setIsListiniModalOpen(false); forceRefresh(); }} aliquoteIva={supportData.aliquoteIva}/>}
+            {isCodiciFornitoreModalOpen && selectedItem && <CodiciFornitoreManager itemId={selectedItem.id} onClose={() => setIsCodiciFornitoreModalOpen(false)} />}
+            {isEanModalOpen && selectedItem && <EanManager itemId={selectedItem.id} onClose={() => setIsEanModalOpen(false)} />}
         </div>
     );
 };

@@ -19,7 +19,7 @@ const CodiciFornitoreManager = ({ itemId, onClose }) => {
     // Stato per il nuovo codice, include il tipo
     const [newCodiceData, setNewCodiceData] = useState({
         codice_articolo_fornitore: '',
-        id_fornitore: '',
+        id_anagrafica_fornitore: '',
         tipo_codice: 'OCC' // Default a 'Occasionale'
     });
 
@@ -57,7 +57,7 @@ const CodiciFornitoreManager = ({ itemId, onClose }) => {
 
         try {
             await api.post(`/catalogo/entita/${itemId}/codici-fornitore`, newCodiceData);
-            setNewCodiceData({ codice_articolo_fornitore: '', id_fornitore: '', tipo_codice: 'OCC' });
+            setNewCodiceData({ codice_articolo_fornitore: '', id_anagrafica_fornitore: '', tipo_codice: 'OCC' });
             fetchCodiciEForntori(); // Ricarica la lista
         } catch (err) {
             console.error("Errore nell'aggiunta del codice:", err);
@@ -128,7 +128,7 @@ const CodiciFornitoreManager = ({ itemId, onClose }) => {
                                 className="p-2 border rounded-md"
                                 required
                             />
-                            <select name="id_fornitore" value={newCodiceData.id_fornitore} onChange={handleInputChange} className="p-2 border rounded-md bg-white">
+                            <select name="id_anagrafica_fornitore" value={newCodiceData.id_anagrafica_fornitore} onChange={handleInputChange} className="p-2 border rounded-md bg-white">
                                 <option value="">-- Fornitore (Opzionale) --</option>
                                 {fornitori.map(f => <option key={f.id} value={f.id}>{f.ragione_sociale}</option>)}
                             </select>

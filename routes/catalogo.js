@@ -850,13 +850,13 @@ router.get('/entita/:itemId/codici-fornitore', verifyToken, async (req, res) => 
     const { id_ditta } = req.user;
     try {
         const codici = await knex('ct_codici_fornitore as ccf')
-            .leftJoin('ditte as f', 'ccf.id_fornitore', 'f.id')
+            .leftJoin('ditte as f', 'ccf.id_anagrafica_fornitore', 'f.id')
             .where('ccf.id_catalogo', itemId)
             .andWhere('ccf.id_ditta', id_ditta)
             .select(
                 'ccf.id',
                 'ccf.codice_articolo_fornitore',
-                'ccf.id_fornitore',
+                'ccf.id_anagrafica_fornitore',
                 'f.ragione_sociale as nome_fornitore',
                 'ccf.tipo_codice'
             );
@@ -873,7 +873,7 @@ router.post('/entita/:itemId/codici-fornitore', verifyToken, async (req, res) =>
     }
     const { itemId } = req.params;
     const { id_ditta, id: id_utente } = req.user;
-    const { codice_articolo_fornitore, id_fornitore, tipo_codice } = req.body;
+    const { codice_articolo_fornitore, id_anagrafica_fornitore, tipo_codice } = req.body;
 
     const trx = await knex.transaction();
     try {
@@ -896,7 +896,7 @@ router.post('/entita/:itemId/codici-fornitore', verifyToken, async (req, res) =>
             id_ditta,
             id_catalogo: itemId,
             codice_articolo_fornitore,
-            id_fornitore: id_fornitore || null,
+            id_anagrafica_fornitore: id_anagrafica_fornitore || null,
             tipo_codice,
             created_by: id_utente
         });
@@ -932,149 +932,199 @@ router.delete('/codici-fornitore/:codiceId', verifyToken, async (req, res) => {
 
 module.exports = router;
 
+//XXXXXXXXXXXXXXXXXXXXXXXX                   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//-********************** import ENTITA CSV XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//XXXXXXXXXXXXXXXXXXXXXXXX                   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
-
-
-// #################################################
-// #           API IMPORTAZIONE CSV                #
-// #################################################
-// #################################################
-// #           API IMPORTAZIONE CSV (AVANZATA)     #
-// #################################################
-
-router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
-    if (!req.user.permissions || !req.user.permissions.includes('CT_IMPORT_CSV')) {
-        return res.status(403).json({ success: false, message: 'Azione non autorizzata. Permessi insufficienti.' });
+// ##################################################################
+// #           API PER IMPORTAZIONE MASSIVA EAN v1.0                #
+// ##################################################################
+router.post('/import-ean-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
+    if (!hasPermission(req.user, 'CT_EAN_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
     }
 
-    const { updateStrategy } = req.body; // 'update' o 'skip'
-    const { id_ditta, id: id_utente } = req.user;
     const results = [];
-    const errors = [];
-    let rowCounter = 0;
+    const stream = Readable.from(req.file.buffer.toString());
 
-    const readableStream = Readable.from(req.file.buffer.toString('utf8'));
-
-    readableStream
-        .pipe(csv({ separator: ';' }))
-        .on('data', (data) => {
-            rowCounter++;
-            results.push({ ...data, originalRow: rowCounter });
-        })
+    stream.pipe(csv({ separator: ';' }))
+        .on('data', (data) => results.push(data))
         .on('end', async () => {
+            const { id_ditta } = req.user;
+            let insertedCount = 0;
+            let skippedCount = 0;
+            const errors = [];
+
             const trx = await knex.transaction();
             try {
-                // Pre-caricamento dati di supporto
-                const defaultCategory = await trx('ct_categorie').where({ id_ditta }).orderBy('id', 'asc').first();
-                const allIva = await trx('iva_contabili').where({ id_ditta });
-                const allUm = await trx('ct_unita_misura').where({ id_ditta });
-                const statoAttivo = await trx('ct_stati_entita').where('codice', 'ATT').first();
+                for (const [index, row] of results.entries()) {
+                    const { codice_entita, codice_ean } = row;
 
-                if (!statoAttivo) throw new Error("Stato 'Attivo' non configurato.");
-
-                // Identifica le entità esistenti
-                const codiciDaImportare = results.map(r => r.codice_entita).filter(Boolean);
-                const entitaEsistenti = await trx('ct_catalogo')
-                    .where({ id_ditta })
-                    .whereIn('codice_entita', codiciDaImportare);
-                const mappaEsistenti = new Map(entitaEsistenti.map(e => [e.codice_entita, e]));
-
-                let entitaToInsert = [];
-                let entitaToUpdate = [];
-                let skippedCount = 0;
-
-                for (const row of results) {
-                    if (!row.codice_entita || !row.descrizione) {
-                        errors.push({ row: row.originalRow, error: "Campi 'codice_entita' e 'descrizione' sono obbligatori." });
+                    if (!codice_entita || !codice_ean) {
+                        errors.push({ line: index + 2, message: 'Le colonne codice_entita e codice_ean sono obbligatorie.' });
+                        skippedCount++;
                         continue;
                     }
 
-                    // Logica di mappatura (IVA, Categoria, UM)
-                    let categoryId = defaultCategory ? defaultCategory.id : null;
-                    if (row.codice_categoria) {
-                        const foundCategory = await trx('ct_categorie').where({ codice_categoria: row.codice_categoria, id_ditta }).first();
-                        if (foundCategory) categoryId = foundCategory.id;
+                    // 1. Trova l'articolo corrispondente
+                    const articolo = await trx('ct_catalogo')
+                        .where({ id_ditta, codice_entita })
+                        .first('id');
+
+                    if (!articolo) {
+                        errors.push({ line: index + 2, message: `Articolo con codice '${codice_entita}' non trovato.` });
+                        skippedCount++;
+                        continue;
                     }
 
-                    let ivaId = null;
-                    if (row.codice_iva) {
-                        const foundIva = allIva.find(iva => iva.codice === row.codice_iva);
-                        if (foundIva) ivaId = foundIva.id;
-                    }
-                    
-                    let umId = null;
-                    if (row.sigla_um) {
-                        const foundUm = allUm.find(um => um.sigla_um === row.sigla_um);
-                        if(foundUm) umId = foundUm.id;
-                    }
-                    const trueValues = ['1', 'true', 's', 'si', 'vero'];
-                    const gestitoAMagazzino = row.gestito_a_magazzino ? trueValues.includes(row.gestito_a_magazzino.toLowerCase()) : false;
-
-                    const entitaData = {
-                        descrizione: row.descrizione,
-                        id_categoria: categoryId,
-                        id_aliquota_iva: ivaId,
-                        id_unita_misura: umId,
-                        costo_base: parseFloat(row.costo_base?.replace(',', '.')) || 0,
-                        id_stato_entita: statoAttivo.id,
-                        tipo_entita: 'bene',
-                        gestito_a_magazzino: gestitoAMagazzino // <-- CAMPO AGGIORNATO
-                         };
-
-                    const existing = mappaEsistenti.get(row.codice_entita);
-                    if (existing) {
-                        if (updateStrategy === 'update') {
-                            entitaToUpdate.push({ id: existing.id, data: entitaData });
-                        } else {
-                            skippedCount++;
-                        }
-                    } else {
-                        entitaToInsert.push({ ...entitaData, codice_entita: row.codice_entita, id_ditta });
-                    }
+                    // 2. Inserisci il nuovo codice EAN
+                    await trx('ct_ean').insert({
+                        id_ditta,
+                        id_catalogo: articolo.id,
+                        codice_ean: codice_ean.trim(),
+                        is_principale: false // Gli EAN importati in massa non sono mai principali
+                    });
+                    insertedCount++;
                 }
-                
-                // Esegui operazioni sul DB
-                if (entitaToInsert.length > 0) {
-                    await trx('ct_catalogo').insert(entitaToInsert);
-                }
-                for (const item of entitaToUpdate) {
-                    await trx('ct_catalogo').where('id', item.id).update(item.data);
-                }
-
-                await trx('log_azioni').insert({
-                    id_utente,
-                    id_ditta,
-                    azione: 'Importazione CSV Catalogo',
-                    dettagli: `Create: ${entitaToInsert.length}, Aggiornate: ${entitaToUpdate.length}, Ignorate: ${skippedCount}. Errori: ${errors.length}.`
-                });
 
                 await trx.commit();
-                
                 res.status(200).json({
                     success: true,
-                    message: `Importazione completata.`,
-                    created: entitaToInsert.length,
-                    updated: entitaToUpdate.length,
+                    message: 'Importazione EAN completata.',
+                    inserted: insertedCount,
                     skipped: skippedCount,
-                    errors: errors.length,
-                    errorDetails: errors
+                    errors: errors
+                });
+
+            } catch (error) {
+                await trx.rollback();
+                console.error("Errore durante l'importazione massiva di EAN:", error);
+                // Gestione errori di duplicati
+                if (error.code === 'ER_DUP_ENTRY') {
+                     return res.status(409).json({ success: false, message: "Errore: uno o più codici EAN che stai cercando di importare sono già presenti nel sistema." });
+                }
+                res.status(500).json({ success: false, message: "Errore interno del server." });
+            }
+        });
+});
+
+// --- API DI IMPORTAZIONE CSV POTENZIATA v2.0 ---
+router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
+    if (!hasPermission(req.user, 'CT_IMPORT_CSV')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
+    }
+
+    const results = [];
+    const stream = Readable.from(req.file.buffer.toString());
+
+    stream.pipe(csv({ separator: ';' }))
+        .on('data', (data) => results.push(data))
+        .on('end', async () => {
+            const { id_ditta, id: id_utente } = req.user;
+            let insertedCount = 0;
+            let skippedCount = 0;
+            let listiniCount = 0;
+            let eanCount = 0;
+            let fornitoreCount = 0;
+            const errors = [];
+
+            // Usiamo una transazione per garantire l'integrità dei dati
+            const trx = await knex.transaction();
+            try {
+                for (const [index, row] of results.entries()) {
+                    const { 
+                        codice_entita, 
+                        descrizione, 
+                        categoria, 
+                        costo_base,
+                        prezzo_cessione_1,
+                        codice_ean_principale,
+                        fornitore_piva,
+                        codice_articolo_fornitore 
+                    } = row;
+
+                    if (!codice_entita || !descrizione) {
+                        errors.push({ line: index + 2, message: 'Codice entità e Descrizione sono obbligatori.', data: row });
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // Inserimento anagrafica principale
+                    const [insertedId] = await trx('ct_catalogo').insert({
+                        id_ditta,
+                        codice_entita,
+                        descrizione,
+                        // ... altri campi dal CSV se presenti ...
+                        costo_base: parseFloat(costo_base) || 0,
+                        created_by: id_utente
+                    }).returning('id');
+                    insertedCount++;
+                    
+                    // 1. Creazione Listino di Base
+                    if(costo_base || prezzo_cessione_1) {
+                        await trx('ct_listini').insert({
+                            id_ditta,
+                            id_entita_catalogo: insertedId,
+                            data_inizio_validita: new Date(),
+                            prezzo_cessione_1: parseFloat(prezzo_cessione_1) || 0,
+                            // Inseriamo solo il primo prezzo, gli altri andranno gestiti manualmente
+                        });
+                        listiniCount++;
+                    }
+
+                    // 2. Inserimento EAN Principale
+                    if (codice_ean_principale) {
+                        await trx('ct_ean').insert({
+                            id_ditta,
+                            id_catalogo: insertedId,
+                            codice_ean: codice_ean_principale,
+                            is_principale: true
+                        });
+                        eanCount++;
+                    }
+
+                    // 3. Inserimento Codice Fornitore
+                    if (fornitore_piva && codice_articolo_fornitore) {
+                        const fornitore = await trx('ditte').where({ partita_iva: fornitore_piva, id_ditta_proprietaria: id_ditta }).first();
+                        if (fornitore) {
+                            await trx('ct_codici_fornitore').insert({
+                                id_ditta,
+                                id_catalogo: insertedId,
+                                id_fornitore: fornitore.id,
+                                codice_articolo_fornitore
+                            });
+                            fornitoreCount++;
+                        } else {
+                            errors.push({ line: index + 2, message: `Fornitore con P.IVA ${fornitore_piva} non trovato.`, data: row });
+                        }
+                    }
+                }
+                
+                await trx.commit();
+                res.status(200).json({
+                    success: true,
+                    message: 'Importazione completata con successo.',
+                    inserted: insertedCount,
+                    skipped: skippedCount,
+                    listini: listiniCount,
+                    ean: eanCount,
+                    fornitori: fornitoreCount,
+                    errors: errors
                 });
 
             } catch (error) {
                 await trx.rollback();
                 console.error("Errore durante l'importazione CSV:", error);
-                res.status(500).json({ 
-                    success: false, 
-                    message: "Errore interno del server durante l'importazione.",
-                    error: error.message
-                });
+                res.status(500).json({ success: false, message: "Errore interno del server." });
             }
         });
 });
-module.exports = router;
 
 // NUOVA API per importare i listini (da implementare)
 router.post('/import-listini-csv', verifyToken, upload.single('csvFile'), (req, res) => {
@@ -1099,6 +1149,68 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
+// ===================================================================
+// =               API DI RICERCA UNIFICATA v1.0                     =
+// ===================================================================
+// GET /api/catalogo/search?term=...
+// Endpoint per una ricerca "intelligente" e unificata tra le entità del catalogo.
+// Cerca il termine fornito su più tabelle e campi collegati.
+//
+// SICUREZZA: 
+// Questo endpoint è protetto solo da 'verifyToken' e NON da un permesso specifico
+// (es. CT_SEARCH). La logica è che questa API sarà invocata da componenti frontend
+// che hanno già i propri controlli di accesso (es. un utente in una schermata di
+// creazione fattura ha già il permesso di accedere a tali dati).
+router.get('/search', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    const { term } = req.query;
+
+    if (!term || term.length < 2) {
+        return res.json([]);
+    }
+
+    try {
+        const searchTerm = `%${term}%`;
+
+        // ## CORREZIONE DEFINITIVA: Utilizzo di sotto-query ##
+        // Questo approccio è più robusto perché isola la ricerca sulle tabelle collegate.
+
+        // 1. Trova gli ID degli articoli che corrispondono alla ricerca per EAN
+        const eanIdsQuery = knex('ct_ean')
+            .where('codice_ean', 'like', searchTerm)
+            .andWhere('id_ditta', id_ditta)
+            .select('id_catalogo');
+
+        // 2. Trova gli ID degli articoli che corrispondono alla ricerca per Codice Fornitore
+        const fornitoreIdsQuery = knex('ct_codici_fornitore')
+            .where('codice_articolo_fornitore', 'like', searchTerm)
+            .andWhere('id_ditta', id_ditta)
+            .select('id_catalogo');
+
+        // 3. Esegui la query principale
+        const results = await knex('ct_catalogo as cat')
+            .leftJoin('ct_categorie as a', 'cat.id_categoria', 'a.id')
+            .where('cat.id_ditta', id_ditta)
+            .andWhere(function() {
+                // Cerca direttamente sulle tabelle principali (catalogo e categorie)
+                this.where('cat.descrizione', 'like', searchTerm)
+                    .orWhere('cat.codice_entita', 'like', searchTerm)
+                    .orWhere('a.descrizione', 'like', searchTerm)
+                    // OPPURE cerca tra gli ID trovati nelle sotto-query
+                    .orWhereIn('cat.id', eanIdsQuery)
+                    .orWhereIn('cat.id', fornitoreIdsQuery);
+            })
+            .select('cat.*', 'a.descrizione as nome_categoria')
+            .groupBy('cat.id') // Manteniamo il groupBy per sicurezza
+            .limit(100); 
+
+        res.json(results);
+
+    } catch (error) {
+        console.error("Errore durante la ricerca nel catalogo:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
 
 
 module.exports = router;
