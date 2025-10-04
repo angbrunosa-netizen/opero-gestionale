@@ -530,121 +530,119 @@ router.delete('/stati-entita/:id', verifyToken, async (req, res) => {
 // --- GET /api/catalogo/entita ---
 // --- GET /api/catalogo/entita (con TUTTI i prezzi dal listino valido) ---
 router.get('/entita', verifyToken, async (req, res) => {
+    // --- CORREZIONE: Utilizzo del pattern corretto per il backend ---
     if (!req.user.permissions || !req.user.permissions.includes('CT_VIEW')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
-    const { id_ditta } = req.user;
-    const { includeArchived } = req.query;
-
     try {
-        const currentDate = new Date().toISOString().slice(0, 10);
-
-        // Costruiamo dinamicamente la lista di campi da selezionare dal listino
-        const listinoFields = [];
-        for (let i = 1; i <= 6; i++) {
-            listinoFields.push(`l.ricarico_cessione_${i}`);
-            listinoFields.push(`l.prezzo_cessione_${i}`);
-            listinoFields.push(`l.ricarico_pubblico_${i}`);
-            listinoFields.push(`l.prezzo_pubblico_${i}`);
-        }
-
+        const { includeArchived } = req.query;
+        
         let query = knex('ct_catalogo as cat')
-            .leftJoin('ct_categorie as c', 'cat.id_categoria', 'c.id')
-            .leftJoin('ct_unita_misura as um', 'cat.id_unita_misura', 'um.id')
-            .leftJoin('iva_contabili as iva', 'cat.id_aliquota_iva', 'iva.id')
+            .leftJoin('ct_categorie as a', 'cat.id_categoria', 'a.id')
             .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
             .leftJoin('ct_listini as l', function() {
                 this.on('cat.id', '=', 'l.id_entita_catalogo')
-                    .andOn('l.data_inizio_validita', '<=', knex.raw('?', [currentDate]))
-                    .andOn(function() {
-                        this.on('l.data_fine_validita', '>=', knex.raw('?', [currentDate]))
-                            .orOnNull('l.data_fine_validita');
-                    });
+                    .andOn(knex.raw('l.data_inizio_validita <= CURDATE()'))
+                    .andOn(knex.raw('(l.data_fine_validita IS NULL OR l.data_fine_validita >= CURDATE())'));
             })
-            .where('cat.id_ditta', id_ditta)
-            .select(
-                'cat.*',
-                'c.nome_categoria',
-                'um.sigla_um',
-                'iva.aliquota as aliquota_iva_valore', // Aggiungiamo il valore dell'aliquota per i calcoli
-                'se.descrizione as stato_entita',
-                'se.codice as codice_stato',
-                ...listinoFields // Aggiungiamo tutti i campi del listino
-            );
+            .leftJoin('ct_logistica as log', 'cat.id', 'log.id_catalogo')
+            .where('cat.id_ditta', req.user.id_ditta);
 
         if (includeArchived !== 'true') {
-            const statoEliminato = await knex('ct_stati_entita').where('codice', 'DEL').first();
-            if (statoEliminato) {
-                query = query.andWhere('cat.id_stato_entita', '!=', statoEliminato.id);
-            }
+            query = query.whereNot('se.codice', 'DEL');
         }
-        
-        query = query.orderBy('cat.codice_entita', 'asc');
-        const entita = await query;
-        res.json({ success: true, data: entita });
 
+        const entita = await query.select(
+            'cat.*',
+            'a.descrizione as nome_categoria',
+            'se.descrizione as stato_entita',
+            'se.codice as codice_stato',
+            'l.prezzo_cessione_1',
+            'log.peso_lordo_pz', 'log.volume_pz', 'log.h_pz', 'log.l_pz', 'log.p_pz',
+            'log.s_im', 'log.pezzi_per_collo', 'log.colli_per_strato', 'log.strati_per_pallet'
+        ).groupBy('cat.id');
+        
+        res.json({ success: true, data: entita });
     } catch (error) {
-        console.error("Errore nel recupero del catalogo:", error);
+        console.error("Errore nel recupero delle entità del catalogo:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
-// --- PATCH /api/catalogo/entita/:id ---
+router.post('/entita', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { id_ditta, id: id_utente } = req.user;
+    
+    const {
+        codice_entita, descrizione, id_categoria, tipo_entita, id_unita_misura, id_aliquota_iva, costo_base, gestito_a_magazzino, id_stato_entita,
+        peso_lordo_pz, volume_pz, h_pz, l_pz, p_pz, s_im, pezzi_per_collo, colli_per_strato, strati_per_pallet
+    } = req.body;
+
+    const catalogoData = { id_ditta, codice_entita, descrizione, id_categoria, tipo_entita, id_unita_misura, id_aliquota_iva, costo_base, gestito_a_magazzino, id_stato_entita, created_by: id_utente };
+    const logisticaData = { id_ditta, peso_lordo_pz, volume_pz, h_pz, l_pz, p_pz, s_im, pezzi_per_collo, colli_per_strato, strati_per_pallet };
+
+    const trx = await knex.transaction();
+    try {
+        const [insertedId] = await trx('ct_catalogo').insert(catalogoData).returning('id');
+
+        if (gestito_a_magazzino) {
+            await trx('ct_logistica').insert({ ...logisticaData, id_catalogo: insertedId });
+        }
+
+        await trx.commit();
+        res.status(201).json({ success: true, message: 'Entità creata con successo.', id: insertedId });
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore nella creazione dell'entità:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// PATCH /api/catalogo/entita/:id - Modifica di un'entità (con dati logistici)
+
+// PATCH /api/catalogo/entita/:id - Modifica di un'entità (con dati logistici)
 router.patch('/entita/:id', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
     const { id } = req.params;
-    const { id_ditta, id: id_utente } = req.user;
+    const { id_ditta } = req.user;
+
+    const {
+        descrizione, id_categoria, tipo_entita, id_unita_misura, id_aliquota_iva, costo_base, gestito_a_magazzino, id_stato_entita,
+        peso_lordo_pz, volume_pz, h_pz, l_pz, p_pz, s_im, pezzi_per_collo, colli_per_strato, strati_per_pallet
+    } = req.body;
+
+    const catalogoData = { descrizione, id_categoria, tipo_entita, id_unita_misura, id_aliquota_iva, costo_base, gestito_a_magazzino, id_stato_entita };
+    const logisticaData = { id_ditta, peso_lordo_pz, volume_pz, h_pz, l_pz, p_pz, s_im, pezzi_per_collo, colli_per_strato, strati_per_pallet };
     
     const trx = await knex.transaction();
     try {
-        const entita = await trx('ct_catalogo').where({ id, id_ditta }).first();
-        if (!entita) {
-            await trx.rollback();
-            return res.status(404).json({ message: "Entità non trovata." });
+        await trx('ct_catalogo').where({ id, id_ditta }).update(catalogoData);
+
+        if (gestito_a_magazzino) {
+            const existingLogistica = await trx('ct_logistica').where('id_catalogo', id).first();
+            if (existingLogistica) {
+                await trx('ct_logistica').where('id_catalogo', id).update(logisticaData);
+            } else {
+                await trx('ct_logistica').insert({ ...logisticaData, id_catalogo: id });
+            }
+        } else {
+            await trx('ct_logistica').where('id_catalogo', id).del();
         }
-        // LASCIO LIBERA LA POSSIBITLITA' DI RIPRISTARE E MODIFICARE LO STATO ENTITA' 
-       // const statoEliminato = await trx('ct_stati_entita').where('codice', 'DEL').first();
-       // if (entita.id_stato_entita === statoEliminato?.id) {
-       //     await trx.rollback();
-       //     return res.status(403).json({ message: "Impossibile modificare un'entità archiviata." });
-       // }
-        
-        // #####################################################################
-        // ## CORREZIONE: Sanitizzazione dei dati prima dell'aggiornamento.   ##
-        // ## Creiamo un oggetto "pulito" con solo i campi della tabella      ##
-        // ## ct_catalogo, ignorando i dati extra provenienti dal frontend.   ##
-        // #####################################################################
-        const { 
-            codice_entita, descrizione, id_categoria, tipo_entita, 
-            id_unita_misura, id_aliquota_iva, costo_base, 
-            gestito_a_magazzino, id_stato_entita 
-        } = req.body;
-
-        const dataToUpdate = {
-            codice_entita, descrizione, id_categoria, tipo_entita, 
-            id_unita_misura, id_aliquota_iva, costo_base, 
-            gestito_a_magazzino, id_stato_entita
-        };
-
-        await trx('ct_catalogo').where({ id, id_ditta }).update(dataToUpdate);
-
-        await trx('log_azioni').insert({
-            id_utente,
-            id_ditta,
-            azione: 'Modifica Entità Catalogo',
-            dettagli: `Modificata entità: ${entita.codice_entita} (ID: ${id})`
-        });
 
         await trx.commit();
-        res.status(200).json({ success: true, message: 'Entità aggiornata con successo.' });
+        res.json({ success: true, message: 'Entità aggiornata con successo.' });
     } catch (error) {
         await trx.rollback();
-        console.error("Errore modifica entità:", error);
-        res.status(500).json({ success: false, message: "Errore interno del server." });
+        console.error("Errore nell'aggiornamento dell'entità:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
+
 // #################################################
 // #           API GESTIONE LISTINI                #
 // #################################################
@@ -685,6 +683,12 @@ router.post('/entita/:entitaId/listini', verifyToken, async (req, res) => {
     const { entitaId } = req.params;
     const { id_ditta, id: id_utente } = req.user;
     const listinoData = req.body;
+    const {
+        // Dati principali
+        codice_entita, descrizione, id_categoria, tipo_entita, id_unita_misura, id_aliquota_iva, costo_base, gestito_a_magazzino, id_stato_entita,
+        // Dati logistici
+        peso_lordo_pz, volume_pz, h_pz, l_pz, p_pz, s_im, pezzi_per_collo, colli_per_strato, strati_per_pallet
+    } = req.body;
 
     try {
         const [newId] = await knex('ct_listini').insert({
@@ -755,6 +759,27 @@ router.delete('/listini/:listinoId', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
+// DELETE /api/catalogo/entita/:id - Archivia un'entità (logica "soft delete")
+router.delete('/entita/:id', verifyToken, async (req, res) => {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
+        return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
+    }
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+    try {
+        const statoArchiviato = await knex('ct_stati_entita').where({ codice: 'DEL' }).first('id');
+        if (!statoArchiviato) {
+            return res.status(500).json({ success: false, message: 'Stato "Archiviato" non configurato.' });
+        }
+        await knex('ct_catalogo').where({ id, id_ditta }).update({ id_stato_entita: statoArchiviato.id });
+        res.json({ success: true, message: 'Entità archiviata con successo.' });
+    } catch (error) {
+        console.error("Errore durante l'archiviazione dell'entità:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
 
 // ===============================================
 //              API GESTIONE CODICI EAN

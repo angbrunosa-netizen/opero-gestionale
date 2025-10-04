@@ -1,0 +1,46 @@
+Giorno,Data,Giorno_Settimana,Modalita,Orario_Inizio,Orario_Fine,Ore,Docente,Disciplina
+1,10/10/2025,Venerdì,AULA,15:00,17:00,2,Francesco Ugone,Legislazione professione mediatore
+1,10/10/2025,Venerdì,AULA,17:00,20:00,3,Stefania Lavecchia,Diritto tributario
+2,13/10/2025,Lunedì,AULA,15:00,18:00,3,Francesco Ugone,Legislazione professione mediatore
+2,13/10/2025,Lunedì,AULA,18:00,20:00,2,Fortunato Tripodi,Privacy e antiriciclaggio
+3,14/10/2025,Martedì,FAD,15:00,17:00,2,Francesco Ugone,Legislazione professione mediatore
+3,14/10/2025,Martedì,FAD,17:00,20:00,3,Bruno Angelo,Organizzazione aziendale marketing
+4,15/10/2025,Mercoledì,FAD,15:00,17:00,2,Fortunato Tripodi,Privacy e antiriciclaggio
+4,15/10/2025,Mercoledì,FAD,17:00,20:00,3,Stefania Lavecchia,Titoli di credito e sistemi finanziari
+5,16/10/2025,Giovedì,FAD,15:00,17:00,2,Francesco Ugone,Legislazione professione mediatore
+5,16/10/2025,Giovedì,FAD,17:00,20:00,3,Bruno Angelo,Diritto commerciale
+6,17/10/2025,Venerdì,AULA,15:00,18:00,3,Bruno Angelo,Diritto commerciale
+6,17/10/2025,Venerdì,AULA,18:00,20:00,2,Stefania Lavecchia,Titoli di credito e sistemi finanziari
+7,20/10/2025,Lunedì,FAD,15:00,18:00,3,Francesco Ugone,Legislazione professione mediatore
+7,20/10/2025,Lunedì,FAD,18:00,20:00,2,Di Maio Fabio,Estimo e diritto urbanistico
+8,21/10/2025,Martedì,FAD,15:00,17:00,2,Fortunato Tripodi,Diritto privato
+8,21/10/2025,Martedì,FAD,17:00,20:00,3,Di Maio Fabio,Estimo e diritto urbanistico
+9,22/10/2025,Mercoledì,AULA,15:00,17:00,2,Bruno Angelo,Diritto commerciale
+9,22/10/2025,Mercoledì,AULA,17:00,20:00,3,Di Maio Fabio,Estimo e diritto urbanistico
+10,23/10/2025,Giovedì,FAD,15:00,17:00,2,Bruno Angelo,Organizzazione aziendale marketing
+10,23/10/2025,Giovedì,FAD,17:00,20:00,3,Fortunato Tripodi,Diritto civile
+11,24/10/2025,Venerdì,AULA,15:00,17:00,2,Stefania Lavecchia,Diritto tributario
+11,24/10/2025,Venerdì,AULA,17:00,20:00,3,Bruno Angelo,Organizzazione aziendale marketing
+12,27/10/2025,Lunedì,AULA,15:00,17:00,2,Bruno Angelo,Diritto commerciale
+12,27/10/2025,Lunedì,AULA,17:00,20:00,3,Fortunato Tripodi,Diritto civile
+13,28/10/2025,Martedì,AULA,15:00,18:00,3,Di Maio Fabio,Estimo e diritto urbanistico
+13,28/10/2025,Martedì,AULA,18:00,20:00,2,Fortunato Tripodi,Diritto civile
+14,29/10/2025,Mercoledì,AULA,15:00,18:00,3,Di Maio Fabio,Estimo e diritto urbanistico
+14,29/10/2025,Mercoledì,AULA,18:00,20:00,2,Stefania Lavecchia,Diritto tributario
+15,30/10/2025,Giovedì,AULA,15:00,17:00,2,Francesco Ugone,Legislazione professione mediatore
+15,30/10/2025,Giovedì,AULA,17:00,20:00,3,Bruno Angelo,Organizzazione aziendale marketing
+16,31/10/2025,Venerdì,AULA,15:00,18:00,3,Francesco Ugone,Legislazione professione mediatore
+16,31/10/2025,Venerdì,AULA,18:00,20:00,2,Fortunato Tripodi,Diritto civile
+17,03/11/2025,Lunedì,FAD,15:00,18:00,3,Francesco Ugone,Legislazione professione mediatore
+17,03/11/2025,Lunedì,FAD,18:00,20:00,2,Di Maio Fabio,Estimo e diritto urbanistico
+18,04/11/2025,Martedì,FAD,15:00,17:00,2,Francesco Ugone,Legislazione professione mediatore
+18,04/11/2025,Martedì,FAD,17:00,20:00,3,Bruno Angelo,Organizzazione aziendale marketing
+19,05/11/2025,Mercoledì,FAD,15:00,17:00,2,Bruno Angelo,Organizzazione aziendale marketing
+19,05/11/2025,Mercoledì,FAD,17:00,20:00,3,Di Maio Fabio,Estimo e diritto urbanistico
+20,06/11/2025,Giovedì,FAD,15:00,17:00,2,Bruno Angelo,Diritto commerciale
+20,06/11/2025,Giovedì,FAD,17:00,20:00,3,Fortunato Tripodi,Diritto privato
+21,07/11/2025,Venerdì,AULA,15:00,17:00,2,Francesco Ugone,Diritto privato
+21,07/11/2025,Venerdì,AULA,17:00,20:00,3,Di Maio Fabio,Estimo e diritto urbanistico
+22,10/11/2025,Lunedì,FAD,15:00,18:00,3,Fortunato Tripodi,Diritto privato
+22,10/11/2025,Lunedì,FAD,18:00,20:00,2,Di Maio Fabio,Estimo e diritto urbanistico
+23,11/11/2025,Martedì,FAD,15:

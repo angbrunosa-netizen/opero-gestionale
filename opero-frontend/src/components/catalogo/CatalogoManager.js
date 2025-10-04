@@ -1,9 +1,9 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
- * @description Manager completo per l'anagrafica del catalogo con ricerca server-side unificata e corretta.
- * - v6.3: Riorganizzati i pulsanti di azione in un gruppo funzionale con menu dropdown.
- * @date 2025-10-03
- * @version 6.3
+ * @description Manager completo per l'anagrafica del catalogo.
+ * - v6.5: Corretti errori di scope e di stato non definito.
+ * @date 2025-10-04
+ * @version 6.5
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -16,15 +16,15 @@ import ImportCsvModal from './ImportCsvModal';
 import ListiniManager from './ListiniManager';
 import CodiciFornitoreManager from './CodiciFornitoreManager';
 import EanManager from './EanManager';
-import EanMassImport from './EanMassImport'; // <-- NUOVO IMPORT
+import EanMassImport from './EanMassImport';
 
 // --- Sotto-Componente: Form di Creazione/Modifica (Modal) ---
 const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
-    // ... (codice del form modale invariato)
     const [formData, setFormData] = useState({});
 
     useEffect(() => {
         const initialState = {
+            // Dati principali
             codice_entita: '',
             descrizione: '',
             id_categoria: null,
@@ -34,7 +34,18 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
             costo_base: 0,
             gestito_a_magazzino: false,
             id_stato_entita: null,
+            // Dati logistici
+            peso_lordo_pz: 0,
+            volume_pz: 0,
+            h_pz: 0,
+            l_pz: 0,
+            p_pz: 0,
+            s_im: 0,
+            pezzi_per_collo: 0,
+            colli_per_strato: 0,
+            strati_per_pallet: 0,
         };
+        // I dati logistici arrivano con l'item e sovrascrivono lo stato iniziale
         setFormData(item ? { ...initialState, ...item } : initialState);
     }, [item]);
 
@@ -65,56 +76,106 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità Catalogo' : 'Nuova Entità Catalogo'}</h2>
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2">
-                    {/* ... (contenuto del form invariato) ... */}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
-                            <input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
-                        </div>
-                        <div>
-                            <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
-                            <input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                        </div>
-                        <div className="col-span-2">
-                            <label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
-                            <select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona --</option>
-                                {supportData.categorie && renderCategoryOptions(supportData.categorie)}
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label>
-                            <input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                        </div>
-                        <div>
-                           <label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label>
-                            <select name="id_aliquota_iva" value={formData.id_aliquota_iva || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona --</option>
-                                {supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                           <label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label>
-                            <select name="id_unita_misura" value={formData.id_unita_misura || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona --</option>
-                                {supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                           <label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label>
-                            <select name="id_stato_entita" value={formData.id_stato_entita || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                <option value="">-- Seleziona --</option>
-                                {supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}
-                            </select>
-                        </div>
-                         <div className="col-span-2 flex items-center">
-                            <input type="checkbox" id="gestito_a_magazzino" name="gestito_a_magazzino" checked={formData.gestito_a_magazzino || false} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                            <label htmlFor="gestito_a_magazzino" className="ml-2 block text-sm text-gray-900">Gestito a Magazzino</label>
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
+                    
+                    {/* --- SEZIONE DATI ANAGRAFICI --- */}
+                    <div className="p-4 border rounded-md">
+                        <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Anagrafici</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
+                                <input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
+                            </div>
+                            <div>
+                                <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
+                                <input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                            <div className="col-span-2">
+                                <label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
+                                <select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.categorie && renderCategoryOptions(supportData.categorie)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label>
+                                <input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                            <div>
+                               <label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label>
+                                <select name="id_aliquota_iva" value={formData.id_aliquota_iva || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                               <label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label>
+                                <select name="id_unita_misura" value={formData.id_unita_misura || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                               <label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label>
+                                <select name="id_stato_entita" value={formData.id_stato_entita || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}
+                                </select>
+                            </div>
+                             <div className="col-span-2 flex items-center">
+                                <input type="checkbox" id="gestito_a_magazzino" name="gestito_a_magazzino" checked={formData.gestito_a_magazzino || false} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                <label htmlFor="gestito_a_magazzino" className="ml-2 block text-sm text-gray-900">Gestito a Magazzino</label>
+                            </div>
                         </div>
                     </div>
+
+                    {/* --- SEZIONE DATI LOGISTICI (CONDIZIONALE) --- */}
+                    {formData.gestito_a_magazzino && (
+                        <div className="p-4 border rounded-md bg-gray-50">
+                            <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Logistici</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label htmlFor="peso_lordo_pz" className="block text-sm font-medium text-gray-700">Peso Lordo (Kg)</label>
+                                    <input type="number" step="0.001" name="peso_lordo_pz" value={formData.peso_lordo_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="volume_pz" className="block text-sm font-medium text-gray-700">Volume (m³)</label>
+                                    <input type="number" step="0.000001" name="volume_pz" value={formData.volume_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="s_im" className="block text-sm font-medium text-gray-700">Pz. per Sottoimballo</label>
+                                    <input type="number" name="s_im" value={formData.s_im || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="l_pz" className="block text-sm font-medium text-gray-700">Larghezza (cm)</label>
+                                    <input type="number" step="0.01" name="l_pz" value={formData.l_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="p_pz" className="block text-sm font-medium text-gray-700">Profondità (cm)</label>
+                                    <input type="number" step="0.01" name="p_pz" value={formData.p_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="h_pz" className="block text-sm font-medium text-gray-700">Altezza (cm)</label>
+                                    <input type="number" step="0.01" name="h_pz" value={formData.h_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                 <div>
+                                    <label htmlFor="pezzi_per_collo" className="block text-sm font-medium text-gray-700">Pezzi per Collo</label>
+                                    <input type="number" name="pezzi_per_collo" value={formData.pezzi_per_collo || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="colli_per_strato" className="block text-sm font-medium text-gray-700">Colli per Strato</label>
+                                    <input type="number" name="colli_per_strato" value={formData.colli_per_strato || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                                <div>
+                                    <label htmlFor="strati_per_pallet" className="block text-sm font-medium text-gray-700">Strati per Pallet</label>
+                                    <input type="number" name="strati_per_pallet" value={formData.strati_per_pallet || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="mt-6 pt-4 border-t flex justify-end gap-4">
                         <button type="button" onClick={onCancel} className="btn-secondary">Annulla</button>
                         <button type="submit" className="btn-primary">Salva</button>
@@ -127,7 +188,6 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
 
 // Hook custom per il debouncing
 const useDebounce = (value, delay) => {
-    // ... (codice hook invariato)
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -158,13 +218,14 @@ const CatalogoManager = () => {
     const [isListiniModalOpen, setIsListiniModalOpen] = useState(false);
     const [isCodiciFornitoreModalOpen, setIsCodiciFornitoreModalOpen] = useState(false);
     const [isEanModalOpen, setIsEanModalOpen] = useState(false);
+    const [isEanMassImportOpen, setIsEanMassImportOpen] = useState(false); // <-- STATO CORRETTO
     const [selectedItem, setSelectedItem] = useState(null);
-    const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false); // Stato per il nuovo menu
-    const actionsMenuRef = useRef(null); // Ref per chiudere il menu al click esterno
-        const [isEanMassImportOpen, setIsEanMassImportOpen] = useState(false); // <-- NUOVO STATO
+    const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+    const actionsMenuRef = useRef(null);
+
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     
-    // ... (tutta la logica di fetching e gestione dati rimane invariata)
+    // Effetto unificato per caricare/cercare dati per la griglia
     useEffect(() => {
         const updateGridData = async () => {
             if (!hasPermission('CT_VIEW')) return;
@@ -192,6 +253,7 @@ const CatalogoManager = () => {
         updateGridData();
     }, [debouncedSearchTerm, includeArchived, hasPermission, refreshTrigger]);
 
+    // Effetto per caricare i dati di supporto (es. categorie), solo una volta
     useEffect(() => {
         const fetchSupportData = async () => {
             try {
@@ -239,8 +301,7 @@ const CatalogoManager = () => {
         setIsFormModalOpen(true);
     }, []);
     
-    // ... (altri gestori handleSave, handleArchive, handleOpenSubManager invariati)
-     const handleSave = useCallback(async (data, itemId) => {
+    const handleSave = useCallback(async (data, itemId) => {
         try {
             if (itemId) {
                 await api.patch(`/catalogo/entita/${itemId}`, data);
@@ -272,7 +333,6 @@ const CatalogoManager = () => {
 
 
     const columns = useMemo(() => [
-        // ... (definizione colonne invariata)
         { header: 'Codice', accessorKey: 'codice_entita' },
         { header: 'Descrizione', accessorKey: 'descrizione' },
         { header: 'Categoria', accessorKey: 'nome_categoria' },
@@ -300,7 +360,7 @@ const CatalogoManager = () => {
 
     return (
         <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
+             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-xl font-bold">Anagrafica Entità Catalogo</h1>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center">
@@ -308,7 +368,6 @@ const CatalogoManager = () => {
                         <label htmlFor="includeArchived" className="ml-2 text-sm text-gray-600">Mostra Archiviati</label>
                     </div>
 
-                    {/* GRUPPO PULSANTI AZIONE */}
                     <div className="flex items-center rounded-md shadow-sm">
                         {hasPermission('CT_MANAGE') && (
                             <button
@@ -337,7 +396,6 @@ const CatalogoManager = () => {
                                                 Importa Catalogo
                                             </a>
                                         )}
-                                        {/* NUOVA VOCE DI MENU */}
                                         {hasPermission('CT_EAN_MANAGE') && (
                                             <a href="#" onClick={(e) => { e.preventDefault(); setIsEanMassImportOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                                 <QrCodeIcon className="h-5 w-5 mr-3 text-gray-400" />
@@ -366,7 +424,9 @@ const CatalogoManager = () => {
 
             {isFormModalOpen && <CatalogoFormModal item={editingItem} onSave={handleSave} onCancel={() => setIsFormModalOpen(false)} supportData={supportData} />}
             {isImportModalOpen && <ImportCsvModal onClose={() => {setIsImportModalOpen(false); forceRefresh();}} onImportSuccess={forceRefresh} />}
+            
             {isEanMassImportOpen && <EanMassImport onClose={() => setIsEanMassImportOpen(false)} onImportSuccess={forceRefresh} />}
+                              
             {isListiniModalOpen && selectedItem && <ListiniManager entita={selectedItem} onClose={() => { setIsListiniModalOpen(false); forceRefresh(); }} aliquoteIva={supportData.aliquoteIva}/>}
             {isCodiciFornitoreModalOpen && selectedItem && <CodiciFornitoreManager itemId={selectedItem.id} onClose={() => setIsCodiciFornitoreModalOpen(false)} />}
             {isEanModalOpen && selectedItem && <EanManager itemId={selectedItem.id} onClose={() => setIsEanModalOpen(false)} />}
@@ -375,4 +435,3 @@ const CatalogoManager = () => {
 };
 
 export default CatalogoManager;
-
