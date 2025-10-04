@@ -15,6 +15,7 @@ import {
     EnvelopeIcon
 } from '@heroicons/react/24/outline';
 import CatalogoModule from '../components/CatalogoModule';
+import MagazzinoModule from '../components/MagazzinoModule';
 
 // --- Definizione del Menu Laterale (per la UI) ---
 // Questo array è l'unica fonte di verità per le voci del menu laterale.
@@ -64,6 +65,13 @@ export const modules = [
         icon: ClipboardDocumentListIcon,
         permission: 'CT_VIEW'
     },
+     {
+        // ## NUOVA E UNICA VOCE PER catalogo ##
+        key: 'MG_VIEW', 
+        label: 'MAGAZZINO', // Etichetta chiara come da richiesta
+        icon: ClipboardDocumentListIcon,
+        permission: 'MG_VIEW'
+    },
     {
         key: 'MAIL_MODULE',
         label: 'Mail',
@@ -83,6 +91,7 @@ const AdminPanel = React.lazy(() => import('../components/AdminPanel'));
 const BeniStrumentaliModule = React.lazy(() => import('../components/BeniStrumentaliModule'));
 const PPASisModule = React.lazy(() => import('../components/PPASisModule')); // Il nostro nuovo modulo
 const CatalogoModule = React.lazy(() => import('../components/CatalogoModule'));
+const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
 // Questa mappa collega la 'key' definita sopra al componente React da caricare.
 export const componentMap = {
   DASHBOARD: Dashboard,
@@ -95,4 +104,5 @@ export const componentMap = {
   MAIL_MODULE: MailModule,
   ADMIN_PANEL: AdminPanel,
   CT_VIEW: CatalogoModule,
+  MG_VIEW: MagazzinoModule,
 };
