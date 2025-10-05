@@ -1186,7 +1186,8 @@ router.get('/', verifyToken, async (req, res) => {
 // (es. CT_SEARCH). La logica è che questa API sarà invocata da componenti frontend
 // che hanno già i propri controlli di accesso (es. un utente in una schermata di
 // creazione fattura ha già il permesso di accedere a tali dati).
-router.get('/search', verifyToken, async (req, res) => {
+router.get('/search', async (req, res) => {
+    
     const { id_ditta } = req.user;
     const { term } = req.query;
 
@@ -1236,7 +1237,4 @@ router.get('/search', verifyToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
-
-
 module.exports = router;
-

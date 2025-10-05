@@ -235,7 +235,7 @@ const CatalogoManager = () => {
                 let response;
                 if (debouncedSearchTerm.length >= 2) {
                     console.log(`[CatalogoManager] Eseguo ricerca per: "${debouncedSearchTerm}"`);
-                    response = await api.get(`/catalogo/search?term=${debouncedSearchTerm}`);
+                    response = await api.get(`/catalogo/search/?term=${debouncedSearchTerm}`);
                     setDisplayedData(response.data || []);
                 } else {
                     console.log("[CatalogoManager] Carico lista completa...");
