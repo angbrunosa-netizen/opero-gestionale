@@ -19,6 +19,7 @@ import UnitaMisuraManager from './catalogo/UnitaMisuraManager';
 import StatiEntitaManager from './catalogo/StatiEntitaManager';
 import CatalogoManager from './catalogo/CatalogoManager';
 import MagazzinoModule from './MagazzinoModule';
+import EanManager from './catalogo/EanManager';
 
 
 // --- Sotto-componente per la vista "Tabelle di Supporto" ---
@@ -31,7 +32,9 @@ const TabelleSupportoView = () => {
         { key: 'iva', label: 'Aliquote IVA', component: IvaManager, permission: 'CT_IVA_VIEW' }, // Anche se non usiamo il view, lo teniamo per coerenza
         { key: 'um', label: 'Unità di Misura', component: UnitaMisuraManager, permission: 'CT_VIEW' }, // Simile, la vista è libera
         { key: 'stati', label: 'Stati Entità', component: StatiEntitaManager, permission: 'CT_VIEW' },
-          ];
+        
+        { key: 'ean', label: 'Ean Entità', component: EanManager, permission: 'CT_VIEW' }
+    ];
 
     const renderContent = () => {
         const activeItem = menuItems.find(item => item.key === activeSubTab);
