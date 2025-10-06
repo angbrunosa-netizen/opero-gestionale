@@ -20,6 +20,7 @@ router.use(verifyToken);
 
 // MODIFICATO: routes/attivita.js
 
+
 router.get('/mie-future', async (req, res) => {
     const { id: utenteId } = req.user;
     const oggi = new Date().toISOString().split('T')[0];
@@ -105,40 +106,106 @@ router.get('/ditta/future', checkRole([1, 2]), async (req, res) => {
 });
 
 // --- GET (Lista attivita per Mese) ---
-router.get('/', async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    const { anno, mese } = req.query;
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
 
-    if (!anno || !mese) {
-        return res.status(400).json({ success: false, message: 'Anno e mese sono richiesti.' });
-    }
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+// GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+   /* * ==============================================================================
+         * MAPPA DELLA QUERY PER DEBUG
+         * ==============================================================================
+         * Questa query recupera le attività PPA "in corso" per un dato utente.
+         * Di seguito la mappatura delle tabelle e dei campi utilizzati:
+         * * Tabella 'ppa_istanzeazioni' (alias: ia)
+         * - ia.ID                    -> id univoco dell'istanza azione
+         * - ia.Note                  -> Descrizione/note dell'attività
+         * - ia.DataScadenza          -> Data di scadenza
+         * - ia.ID_IstanzaProcedura   -> Chiave per join con 'ppa_istanzeprocedure'
+         * - ia.ID_Azione             -> Chiave per join con 'ppa_azioni'
+         * - ia.ID_Stato              -> Chiave per join con 'ppa_stati_azione'
+         * - ia.ID_UtenteResponsabile -> ID_UtenteAssegnatoUtente a cui è assegnata l'attività
+         *
+         * Tabella 'ppa_istanzeprocedure' (alias: ip)
+         * - ip.ID                    -> id univoco dell'istanza procedura
+         * - ip.ID_Procedura          -> Chiave per join con 'ppa_procedureditta'
+         * * Tabella 'ppa_azioni' (alias: az)
+         * - az.ID                    -> id univoco dell'azione
+         * - az.NomeAzione            -> Nome dell'azione
+         * * Tabella 'ppa_procedureditta' (alias: pd)
+         * - pd.ID                    -> id univoco della procedura per la ditta
+         * - pd.NomePersonalizzato    -> Nome visualizzato della procedura
+         * - pd.id_ditta              -> Ditta di appartenenza (usato nel WHERE)
+         *
+         * Tabella 'ppa_stati_azione' (alias: sa)
+         * - sa.ID                    -> id univoco dello stato
+         * - sa.NomeStato             -> Nome dello stato (es. 'in_corso')
+         * * Tabella 'utenti' (alias: u_resp)
+         * - u_resp.id                -> id univoco dell'utente
+         * - u_resp.nome              -> Nome dell'utente responsabile
+         * - u_resp.cognome           -> Cognome dell'utente responsabile
+         * ==============================================================================
+        */
+   // GET /api/attivita - Recupera le attività per il mese e anno correnti o specificati
+router.get('/', verifyToken, async (req, res) => {
+    const { id_ditta, id: id_utente } = req.user;
+    const anno = req.query.anno || new Date().getFullYear();
+    const mese = req.query.mese || new Date().getMonth() + 1;
 
     try {
-        const startDate = new Date(anno, mese, 1);
-        const endDate = new Date(anno, parseInt(mese) + 1, 0);
-
+        /* * ==============================================================================
+         * MAPPA DELLA QUERY (VERSIONE DEFINITIVA CORRETTA)
+         * ==============================================================================
+         * L'errore finale era nella join tra 'ppa_istanzeprocedure' e 'ppa_procedureditta'.
+         * Il campo corretto in 'ppa_istanzeprocedure' è 'ID_ProceduraDitta'.
+         * ==============================================================================
+        */
         const query = `
             SELECT 
-                i.id, 
-                i.titolo, 
-                i.data_scadenza, 
-                i.stato, 
-                u_assegnato.nome as assegnato_a_nome, 
-                u_assegnato.cognome as assegnato_a_cognome,
-                u_creatore.nome as creatore_nome,
-                u_creatore.cognome as creatore_cognome
-            FROM attivita i
-            JOIN utenti u_assegnato ON i.id_utente_assegnato = u_assegnato.id
-            JOIN utenti u_creatore ON i.id_utente_creatore = u_creatore.id
-            WHERE i.id_ditta = ? AND i.data_scadenza BETWEEN ? AND ?
-            ORDER BY i.data_scadenza
+                ia.ID AS id,
+                ia.Note AS descrizione, 
+                sa.NomeStato AS stato,
+                ia.DataScadenza AS data_scadenza,
+                pd.NomePersonalizzato AS nome_procedura,
+                az.NomeAzione AS nome_azione,
+                ip.ID AS id_istanza_procedura,
+                u_resp.nome AS nome_responsabile,
+                u_resp.cognome AS cognome_responsabile
+            FROM 
+                ppa_istanzeazioni AS ia
+            JOIN 
+                ppa_istanzeprocedure AS ip ON ia.ID_IstanzaProcedura = ip.ID
+            JOIN 
+                ppa_procedureditta AS pd ON ip.ID_ProceduraDitta = pd.ID
+            JOIN 
+                ppa_azioni AS az ON ia.ID_Azione = az.ID
+            JOIN
+                ppa_stati_azione as sa ON ia.ID_Stato = sa.ID
+            JOIN 
+                utenti AS u_resp ON ia.ID_UtenteAssegnato = u_resp.id
+            WHERE 
+                pd.id_ditta = ? 
+                AND ia.ID_UtenteAssegnato = ? 
+                AND sa.NomeStato = 'in_corso'
+                AND YEAR(ia.DataScadenza) = ? 
+                AND MONTH(ia.DataScadenza) = ?
+            ORDER BY 
+                ia.DataScadenza ASC
         `;
-        const [attivita] = await dbPool.query(query, [dittaId, startDate, endDate]);
-        res.json({ success: true, data: attivita });
+
+        const [attivita] = await dbPool.query(query, [id_ditta, id_utente, anno, mese]);
+        res.json({ success: true, attivita });
+
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+        console.error("Errore nel recupero delle attività:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante il recupero delle attività.' });
     }
 });
+
 
 // --- POST (Crea Nuovo Incarico) ---
 router.post('/', async (req, res) => {

@@ -22,7 +22,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import ShortcutSettingsModal from './ShortcutSettingsModal'; 
 // ++ NUOVI IMPORT PER LE ICONE ++
-import { Cog6ToothIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon,ChevronLeftIcon,ChevronRightIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import AttivitaPPA from './AttivitaPPA';
 import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
@@ -30,7 +30,7 @@ import PPASisModule from './PPASisModule';
 import { Outlet, useLocation } from 'react-router-dom'; // NUOVI IMPORT
 import CatalogoModule from './CatalogoModule';
 import MagazzinoModule from './MagazzinoModule';
-ModuleRegistry.registerModules([AllCommunityModule]);
+//ModuleRegistry.registerModules([AllCommunityModule]);
 
 
 
@@ -84,107 +84,56 @@ const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
     );
 };
 
-// --- Componente Calendario e Attività ---
-const CalendarWidget = () => {
-    const [date, setDate] = useState(new Date());
-    const [attivita, setAttivita] = useState([]);
-    const [selectedDay, setSelectedDay] = useState(new Date());
-    const [isModalOpen, setIsModalOpen] = useState(false);
+const CalendarWidget = ({ attivita, onDateChange }) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
 
-    const fetchAttivita = useCallback(async (currentDate) => {
-        try {
-            const anno = currentDate.getFullYear();
-            const mese = currentDate.getMonth();
-            const { data } = await api.get(`/attivita?anno=${anno}&mese=${mese}`);
-            if (data.success) {
-                setAttivita(data.data);
-            }
-        } catch (error) {
-            console.error("Errore nel caricamento delle attività");
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchAttivita(date);
-    }, [date, fetchAttivita]);
-
-    const changeMonth = (offset) => {
-        setDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() + offset, 1));
-    };
-    
-    const handleSaveAttivita = async (attivitaData) => {
-        try {
-            const { data } = await api.post('/attivita', attivitaData);
-            if(data.success) {
-                setIsModalOpen(false);
-                fetchAttivita(date);
-            } else {
-                alert(data.message);
-            }
-        } catch (error) {
-            alert('Errore durante la creazione dell\'attività.');
-        }
-    };
-
-    const attivitaPerGiorno = attivita.reduce((acc, curr) => {
-        const day = new Date(curr.data_scadenza).getDate();
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+    const today = new Date();
+        // --- FIX: Se 'attivita' è undefined, viene trattato come un array vuoto ---
+    const eventsByDay = (attivita || []).reduce((acc, event) => {
+        const day = new Date(event.data_scadenza).getDate();
         if (!acc[day]) acc[day] = [];
-        acc[day].push(curr);
+        acc[day].push(event);
         return acc;
     }, {});
 
-    const attivitaDelGiornoSelezionato = attivita.filter(inc => 
-        new Date(inc.data_scadenza).toDateString() === selectedDay.toDateString()
-    );
-
-    const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const changeMonth = (offset) => {
+        const newDate = new Date(currentDate.setMonth(currentDate.getMonth() + offset));
+        setCurrentDate(newDate);
+        if (typeof onDateChange === 'function') {
+            onDateChange(newDate);
+        }
+    };
 
     return (
-        <div className="p-2 flex flex-col h-full">
-            {isModalOpen && <AttivitaModal onSave={handleSaveAttivita} onCancel={() => setIsModalOpen(false)} selectedDate={selectedDay} />}
-            <div className="bg-slate-700 rounded-lg shadow-inner border border-slate-600 p-3">
-                <div className="flex items-center justify-between mb-2">
-                    <button onClick={() => changeMonth(-1)} className="text-slate-300 hover:text-white">&lt;</button>
-                    <h3 className="font-semibold text-sm text-white">{monthNames[month]} {year}</h3>
-                    <button onClick={() => changeMonth(1)} className="text-slate-300 hover:text-white">&gt;</button>
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                    {["Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa"].map(d => <div key={d} className="font-bold text-slate-400">{d}</div>)}
-                    {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`}></div>)}
-                    {Array.from({ length: daysInMonth }).map((_, i) => {
-                        const day = i + 1;
-                        const currentDate = new Date(year, month, day);
-                        const isSelected = currentDate.toDateString() === selectedDay.toDateString();
-                        return (
-                            <button key={day} onClick={() => setSelectedDay(currentDate)} className={`relative p-1 rounded-full focus:outline-none ${isSelected ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-600'}`}>
-                                {day}
-                                {attivitaPerGiorno[day] && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full"></span>}
-                            </button>
-                        );
-                    })}
-                </div>
+        <div className="bg-white p-3 rounded-lg">
+            <div className="flex justify-between items-center mb-3">
+                <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-gray-100">
+                    <ChevronLeftIcon className="h-5 w-5 text-gray-500" />
+                </button>
+                <h4 className="font-semibold text-sm text-gray-700">{currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</h4>
+                <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-gray-100">
+                    <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                </button>
             </div>
-            <div className="flex-grow mt-4 bg-slate-700 rounded-lg shadow-inner border border-slate-600 p-3 overflow-y-auto">
-                <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-bold text-sm text-white">Attività del {selectedDay.toLocaleDateString()}</h4>
-                    <button onClick={() => setIsModalOpen(true)} className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-blue-600">+</button>
-                </div>
-                <ul className="space-y-2">
-                    {attivitaDelGiornoSelezionato.length > 0 ? attivitaDelGiornoSelezionato.map(att => (
-                        <li key={att.id} className="text-xs p-2 bg-slate-600 rounded-md">
-                            <p className="font-semibold text-white">{att.titolo}</p>
-                            <p className="text-slate-300">Assegnato a: {att.assegnato_a_nome}</p>
-                        </li>
-                    )) : <p className="text-xs text-slate-400">Nessuna attività per oggi.</p>}
-                </ul>
+            <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                {['D', 'L', 'M', 'M', 'G', 'V', 'S'].map(day => <div key={day} className="font-semibold text-gray-400">{day}</div>)}
+                {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
+                {Array.from({ length: daysInMonth }).map((_, day) => {
+                    const isToday = day + 1 === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
+                    return (
+                        <div key={day} className={`p-1 rounded-full relative flex items-center justify-center h-7 w-7 ${isToday ? 'bg-blue-600 text-white' : eventsByDay[day + 1] ? 'bg-blue-100 text-blue-800' : 'text-gray-600'}`}>
+                            {day + 1}
+                            {eventsByDay[day + 1] && !isToday && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
 };
+
 // --- Componente: Editor Documenti Office con AG Grid ---
 const DocumentEditor = () => {
     const [fileType, setFileType] = useState(null);

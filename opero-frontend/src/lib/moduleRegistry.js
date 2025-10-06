@@ -14,9 +14,6 @@ import {
     ClipboardDocumentListIcon,
     EnvelopeIcon
 } from '@heroicons/react/24/outline';
-import CatalogoModule from '../components/CatalogoModule';
-import MagazzinoModule from '../components/MagazzinoModule';
-
 // --- Definizione del Menu Laterale (per la UI) ---
 // Questo array è l'unica fonte di verità per le voci del menu laterale.
 export const modules = [
@@ -83,7 +80,6 @@ export const modules = [
 // --- Mappatura dei Componenti (per la logica di caricamento) ---
 const Dashboard = React.lazy(() => import('../components/Dashboard'));
 const ContSmartModule = React.lazy(() => import('../components/ContSmartModule'));
-// ## VECCHIO PPAModule RIMOSSO DAGLI IMPORT ##
 const FinanzeModule = React.lazy(() => import('../components/FinanzeModule'));
 const MailModule = React.lazy(() => import('../components/MailModule'));
 const AmministrazioneModule = React.lazy(() => import('../components/AmministrazioneModule'));
@@ -93,6 +89,7 @@ const PPASisModule = React.lazy(() => import('../components/PPASisModule')); // 
 const CatalogoModule = React.lazy(() => import('../components/CatalogoModule'));
 const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
 // Questa mappa collega la 'key' definita sopra al componente React da caricare.
+
 export const componentMap = {
   DASHBOARD: Dashboard,
   AMMINISTRAZIONE_MODULE: AmministrazioneModule,
