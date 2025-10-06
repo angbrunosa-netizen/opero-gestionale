@@ -9,7 +9,7 @@ const { knex } = require('../config/db');
 
 const express = require('express');
 const { dbPool } = require('../config/db');
-const { verifyToken } = require('../utils/auth');
+const { verifyToken,checkPermission } = require('../utils/auth');
 // ## FIX DEFINITIVO: Importiamo l'intero modulo 'crypto' ##
 // Questo è il modo più stabile per garantire che tutte le funzioni siano disponibili.
 const crypto = require('crypto');
@@ -1039,6 +1039,155 @@ router.get('/fornitori', verifyToken, async (req, res) => {
     } catch (error) {
         console.error(`Errore nel recupero dei fornitori per la ditta ${id_ditta}:`, error);
         res.status(500).json({ success: false, message: "Errore interno del server durante il recupero dei fornitori." });
+    }
+});
+
+// --- GESTIONE TIPI PAGAMENTO ---
+
+/**
+ * GET /api/amministrazione/tipi-pagamento
+ * Recupera tutti i tipi di pagamento per la ditta dell'utente loggato.
+ * Protetta da permesso ANAGRAFICHE_VIEW.
+ */
+router.get('/tipi-pagamento', verifyToken, checkPermission('ANAGRAFICHE_VIEW'), async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const tipiPagamento = await knex('tipi_pagamento')
+            .where({ id_ditta })
+            .orderBy('codice', 'asc');
+        res.json(tipiPagamento);
+    } catch (error) {
+        console.error("Errore nel recupero dei tipi di pagamento:", error);
+        res.status(500).json({ message: 'Errore del server.' });
+    }
+});
+
+/**
+ * POST /api/amministrazione/tipi-pagamento
+ * Crea un nuovo tipo di pagamento.
+ * Protetta da permesso ANAGRAFICHE_MANAGE.
+ */
+router.post('/tipi-pagamento', verifyToken, checkPermission('ANAGRAFICHE_MANAGE'), async (req, res) => {
+    const { id_ditta, id: id_utente, nome, cognome } = req.user;
+    const { codice, descrizione, gg_dilazione } = req.body;
+
+    if (!codice || !descrizione) {
+        return res.status(400).json({ message: 'Codice e descrizione sono obbligatori.' });
+    }
+
+    try {
+        const result = await knex.transaction(async (trx) => {
+            const [newId] = await trx('tipi_pagamento').insert({
+                id_ditta,
+                codice,
+                descrizione,
+                gg_dilazione: gg_dilazione || 0
+            });
+
+            await trx('log_azioni').insert({
+                id_utente,
+                id_ditta,
+                azione: 'CREAZIONE',
+                dettagli: `L'utente ${nome} ${cognome} ha creato il tipo di pagamento: ${descrizione}`
+            });
+
+            const newItem = await trx('tipi_pagamento').where('id', newId).first();
+            return newItem;
+        });
+        res.status(201).json(result);
+    } catch (error) {
+        console.error("Errore nella creazione del tipo di pagamento:", error);
+        res.status(500).json({ message: 'Errore del server durante la creazione.' });
+    }
+});
+
+/**
+ * PUT /api/amministrazione/tipi-pagamento/:id
+ * Aggiorna un tipo di pagamento esistente.
+ * Protetta da permesso ANAGRAFICHE_MANAGE.
+ */
+router.put('/tipi-pagamento/:id', verifyToken, checkPermission('ANAGRAFICHE_MANAGE'), async (req, res) => {
+    const { id_ditta, id: id_utente, nome, cognome } = req.user;
+    const { id } = req.params;
+    const { codice, descrizione, gg_dilazione } = req.body;
+
+    if (!codice || !descrizione) {
+        return res.status(400).json({ message: 'Codice e descrizione sono obbligatori.' });
+    }
+
+    try {
+        const result = await knex.transaction(async (trx) => {
+            const count = await trx('tipi_pagamento')
+                .where({ id, id_ditta })
+                .update({
+                    codice,
+                    descrizione,
+                    gg_dilazione
+                });
+            
+            if (count === 0) {
+                // L'uso di trx.rollback() qui non è necessario perché se lanciamo un errore, la transazione lo farà automaticamente.
+                throw new Error('Tipo di pagamento non trovato o non appartenente alla tua ditta.');
+            }
+
+            await trx('log_azioni').insert({
+                id_utente,
+                id_ditta,
+                azione: 'MODIFICA',
+                dettagli: `L'utente ${nome} ${cognome} ha modificato il tipo di pagamento: ${descrizione}`
+            });
+
+            const updatedItem = await trx('tipi_pagamento').where('id', id).first();
+            return updatedItem;
+        });
+
+        if (!result) {
+             return res.status(404).json({ message: 'Tipo di pagamento non trovato.' });
+        }
+        res.json(result);
+
+    } catch (error) {
+        console.error("Errore nell'aggiornamento del tipo di pagamento:", error);
+        if (error.message.includes('non trovato')) {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(500).json({ message: 'Errore del server durante l\'aggiornamento.' });
+    }
+});
+
+/**
+ * DELETE /api/amministrazione/tipi-pagamento/:id
+ * Elimina un tipo di pagamento.
+ * Protetta da permesso ANAGRAFICHE_MANAGE.
+ */
+router.delete('/tipi-pagamento/:id', verifyToken, checkPermission('ANAGRAFICHE_MANAGE'), async (req, res) => {
+    const { id_ditta, id: id_utente, nome, cognome } = req.user;
+    const { id } = req.params;
+
+    try {
+        await knex.transaction(async (trx) => {
+            const toDelete = await trx('tipi_pagamento').where({ id, id_ditta }).first();
+
+            if (!toDelete) {
+                 throw new Error('Tipo di pagamento non trovato o non appartenente alla tua ditta.');
+            }
+
+            await trx('tipi_pagamento').where({ id }).del();
+
+            await trx('log_azioni').insert({
+                id_utente,
+                id_ditta,
+                azione: 'ELIMINAZIONE',
+                dettagli: `L'utente ${nome} ${cognome} ha eliminato il tipo di pagamento: ${toDelete.descrizione}`
+            });
+        });
+        res.status(200).json({ message: 'Tipo di pagamento eliminato con successo.' });
+    } catch (error) {
+        console.error("Errore nell'eliminazione del tipo di pagamento:", error);
+         if (error.message.includes('non trovato')) {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(500).json({ message: 'Errore del server durante l\'eliminazione.' });
     }
 });
 

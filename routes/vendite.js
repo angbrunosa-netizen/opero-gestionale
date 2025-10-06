@@ -260,111 +260,72 @@ router.delete('/gruppi/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), 
  */
 router.get('/matrici-sconti', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
     try {
-        const data = await knex('va_matrici_sconti').where({ id_ditta: req.user.id_ditta });
-        res.json(data);
+        const matrici = await knex('va_matrici_sconti').where('id_ditta', req.user.id_ditta);
+        res.json(matrici);
     } catch (error) {
-        res.status(500).json({ message: "Errore del server." });
+        res.status(500).json({ message: 'Errore recupero matrici', error: error.message });
     }
 });
 
-/**
- * POST /api/vendite/matrici-sconti
- * Crea una nuova testata di matrice sconti.
- * Protetta da permesso VA_CLIENTI_MANAGE.
- */
 router.post('/matrici-sconti', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { codice, descrizione } = req.body;
+    let newId;
     try {
         await knex.transaction(async trx => {
-            const [id] = await trx('va_matrici_sconti').insert({ ...req.body, id_ditta: req.user.id_ditta });
-             await trx('log_azioni').insert({
-                id_utente: req.user.id_utente,
-                id_ditta: req.user.id_ditta,
-                azione: 'CREAZIONE',
-                dettagli: `Creata matrice sconti: ${req.body.descrizione}`,
-                //tabella_riferimento: 'va_matrici_sconti',
-                //id_record_riferimento: id
+            const [insertedId] = await trx('va_matrici_sconti').insert({ codice, descrizione, id_ditta: req.user.id_ditta });
+            newId = insertedId;
+            await trx('log_azioni').insert({
+                id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'CREAZIONE',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha creato la matrice sconti: ${descrizione}`
             });
-            res.status(201).json({ id });
         });
+        res.status(201).json({ id: newId, message: 'Matrice creata' });
     } catch (error) {
-        res.status(500).json({ message: "Errore del server." });
+        res.status(500).json({ message: 'Errore creazione matrice', error: error.message });
     }
 });
+
 /**
  * PUT /api/vendite/matrici-sconti/:id
  * Aggiorna una testata di matrice sconti.
  * Protetta da permesso VA_CLIENTI_MANAGE.
  */
 router.put('/matrici-sconti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
-    const { id_ditta, id: id_utente } = req.user;
     const { id } = req.params;
     const { codice, descrizione } = req.body;
-
-    if (!descrizione) {
-        return res.status(400).json({ message: 'La descrizione della matrice è obbligatoria.' });
-    }
-
-    const trx = await knex.transaction();
-    try {
-        const count = await trx('va_matrici_sconti')
-            .where({ id, id_ditta })
-            .update({
-                codice,
-                descrizione,
-                updated_at: knex.fn.now()
-            });
-
-        if (count === 0) {
-            await trx.rollback();
-            return res.status(404).json({ message: 'Matrice non trovata o non appartenente alla tua ditta.' });
-        }
-        
-        await trx('log_accessi').insert({
-             id_utente: req.user.id, // Corretto
-            id_ditta,
-            azione: 'AGGIORNAMENTO',
-            dettagli: `L'utente ${id_utente} ha aggiornato la matrice sconti ID ${id} (${descrizione}).`
-        });
-
-        await trx.commit();
-        const updatedMatrice = await knex('va_matrici_sconti').where({ id }).first();
-        res.json(updatedMatrice);
-    } catch (error) {
-        await trx.rollback();
-        console.error("Errore nell'aggiornamento della matrice sconti:", error);
-        res.status(500).json({ message: 'Errore del server.' });
-    }
-});
-
-/**
- * DELETE /api/vendite/matrici-sconti/:id
- * Elimina una testata di matrice sconti e le sue righe (ON DELETE CASCADE).
- * Protetta da permesso VA_CLIENTI_MANAGE.
- */
-router.delete('/matrici-sconti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
     try {
         await knex.transaction(async trx => {
-            const item = await trx('va_matrici_sconti').where({ id: req.params.id, id_ditta: req.user.id_ditta }).first();
-            if (!item) return res.status(404).json({ message: 'Record non trovato.' });
-            
-            await trx('va_matrici_sconti_righe').where({ id_matrice: req.params.id }).del(); // Elimina righe collegate
-            await trx('va_matrici_sconti').where({ id: req.params.id }).del();
-            
+            const count = await trx('va_matrici_sconti').where({ id, id_ditta: req.user.id_ditta }).update({ codice, descrizione });
+            if(count === 0) throw new Error('Matrice non trovata');
             await trx('log_azioni').insert({
-                id_utente: req.user.id_utente,
-                id_ditta: req.user.id_ditta,
-                azione: 'CANCELLAZIONE',
-                dettagli: `Cancellata matrice sconti: ${item.descrizione}`,
-                //tabella_riferimento: 'va_matrici_sconti',
-                ////id_record_riferimento: req.params.id
+                id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'MODIFICA',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha modificato la matrice sconti ID: ${id}`
             });
-            res.json({ message: 'Record eliminato.' });
         });
+        res.json({ message: 'Matrice aggiornata' });
     } catch (error) {
-        res.status(500).json({ message: "Errore del server." });
+        res.status(error.message === 'Matrice non trovata' ? 404 : 500).json({ message: error.message });
     }
 });
 
+router.delete('/matrici-sconti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        await knex.transaction(async trx => {
+            const toDelete = await trx('va_matrici_sconti').where({ id, id_ditta: req.user.id_ditta }).first();
+            if(!toDelete) throw new Error('Matrice non trovata');
+            await trx('va_matrici_sconti_righe').where({ id_matrice: id }).del();
+            await trx('va_matrici_sconti').where({ id }).del();
+            await trx('log_azioni').insert({
+                id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'ELIMINAZIONE',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha eliminato la matrice sconti: ${toDelete.descrizione}`
+            });
+        });
+        res.json({ message: 'Matrice eliminata' });
+    } catch (error) {
+        res.status(error.message === 'Matrice non trovata' ? 404 : 500).json({ message: error.message });
+    }
+});
 
 // --- GESTIONE RIGHE MATRICI SCONTI ---
 
@@ -373,72 +334,48 @@ router.delete('/matrici-sconti/:id', verifyToken, checkPermission('VA_CLIENTI_MA
  * Recupera tutte le righe di una specifica matrice sconti.
  * Protetta da permesso VA_CLIENTI_VIEW.
  */
-router.get('/matrici-sconti/:idMatrice/righe', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
-    const { id_ditta } = req.user;
-    const { idMatrice } = req.params;
 
+router.get('/matrici-sconti/:idMatrice/righe', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
+    const { idMatrice } = req.params;
     try {
         // Verifica che la matrice appartenga alla ditta dell'utente
-        const matrice = await knex('va_matrici_sconti').where({ id: idMatrice, id_ditta }).first();
+        const matrice = await knex('va_matrici_sconti').where({ id: idMatrice, id_ditta: req.user.id_ditta }).first();
         if (!matrice) {
-            return res.status(404).json({ message: 'Matrice sconti non trovata.' });
+            return res.status(404).json({ message: 'Matrice non trovata.' });
         }
-
-        const righe = await knex('va_matrici_sconti_righe')
-            .where({ id_matrice: idMatrice })
-            .orderBy('riga', 'asc');
-        
+        const righe = await knex('va_matrici_sconti_righe').where({ id_matrice: idMatrice });
         res.json(righe);
     } catch (error) {
-        console.error("Errore nel recupero delle righe della matrice:", error);
-        res.status(500).json({ message: 'Errore del server.' });
+        res.status(500).json({ message: 'Errore recupero righe', error: error.message });
     }
 });
 
-/**
- * POST /api/vendite/matrici-sconti/:idMatrice/righe/salva-tutto
- * Sostituisce tutte le righe di una matrice sconti con un nuovo set di righe.
- * Ideale per salvare lo stato di una griglia modificata.
- * Protetta da permesso VA_CLIENTI_MANAGE.
- */
 router.post('/matrici-sconti/:idMatrice/righe/salva-tutto', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
     const { idMatrice } = req.params;
-    const { righe } = req.body;
-    const { id_ditta, id_utente } = req.user;
-
+    const { righe } = req.body; // Array di oggetti riga
     try {
         await knex.transaction(async trx => {
-            await trx('va_matrici_sconti_righe').where({ id_matrice: idMatrice, id_ditta }).del();
-
+            const matrice = await trx('va_matrici_sconti').where({ id: idMatrice, id_ditta: req.user.id_ditta }).first();
+            if (!matrice) throw new Error('Matrice non trovata');
+            
+            await trx('va_matrici_sconti_righe').where({ id_matrice: idMatrice }).del();
+            
             if (righe && righe.length > 0) {
-                const righeDaInserire = righe.map(riga => ({
-                    id_matrice: idMatrice,
-                    id_ditta,
-                    riga: riga.riga,
-                    sconto_1: riga.sconto_1,
-                    sconto_2: riga.sconto_2,
-                    sconto_3: riga.sconto_3,
-                    sconto_4: riga.sconto_4,
-                    sconto_5: riga.sconto_5,
-                }));
-                await trx('va_matrici_sconti_righe').insert(righeDaInserire);
+                const righeToInsert = righe.map(r => ({ id_matrice: idMatrice, ...r }));
+                await trx('va_matrici_sconti_righe').insert(righeToInsert);
             }
             
             await trx('log_azioni').insert({
-                 id_utente: req.user.id, // Corretto
-                id_ditta,
-                azione: 'MODIFICA',
-                dettagli: `Aggiornate righe per matrice sconti ID: ${idMatrice}`,
-                //tabella_riferimento: 'va_matrici_sconti_righe',
-                //id_record_riferimento: idMatrice
+                id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'MODIFICA',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha modificato le righe della matrice sconti: ${matrice.descrizione}`
             });
         });
-        res.status(200).json({ message: 'Righe della matrice salvate con successo.' });
+        res.json({ message: 'Righe salvate con successo' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Errore durante il salvataggio delle righe.' });
+        res.status(error.message === 'Matrice non trovata' ? 404 : 500).json({ message: error.message });
     }
 });
+
 
 // --- GESTIONE TRASPORTATORI ---
 

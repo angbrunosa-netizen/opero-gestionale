@@ -84,56 +84,52 @@ const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
     );
 };
 
-const CalendarWidget = ({ attivita, onDateChange }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const CalendarWidget = () => {
+        const days = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+        const today = new Date();
+        const currentDay = today.getDate();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-    const today = new Date();
-        // --- FIX: Se 'attivita' è undefined, viene trattato come un array vuoto ---
-    const eventsByDay = (attivita || []).reduce((acc, event) => {
-        const day = new Date(event.data_scadenza).getDate();
-        if (!acc[day]) acc[day] = [];
-        acc[day].push(event);
-        return acc;
-    }, {});
-
-    const changeMonth = (offset) => {
-        const newDate = new Date(currentDate.setMonth(currentDate.getMonth() + offset));
-        setCurrentDate(newDate);
-        if (typeof onDateChange === 'function') {
-            onDateChange(newDate);
+        // Calcola gli spazi vuoti per il primo giorno del mese
+        let blanks = [];
+        // L'output di getDay() è 0 per Domenica, 1 per Lunedì, etc. Adattiamolo
+        const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
+        for (let i = 0; i < startDay; i++) {
+            blanks.push(<div key={`blank-${i}`}></div>);
         }
+
+        let daysOfMonth = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            daysOfMonth.push(
+                <div key={`day-${d}`} className={`flex items-center justify-center h-8 w-8 rounded-full ${d === currentDay ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
+                    {d}
+                </div>
+            );
+        }
+
+        const totalSlots = [...blanks, ...daysOfMonth];
+
+        return (
+            <div className="bg-white p-4 rounded-lg shadow mt-4">
+                <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-semibold text-gray-800">{today.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</h4>
+                </div>
+                <div className="grid grid-cols-7 text-center text-xs text-gray-500">
+                    {/* ########## SOLUZIONE ########## */}
+                    {/* Aggiungiamo l'indice per creare una chiave univoca */}
+                    {days.map((day, index) => (
+                        <div key={`${day}-${index}`} className="font-semibold">{day}</div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7 mt-2 text-sm">
+                    {totalSlots.map((slot, index) => <div key={index}>{slot}</div>)}
+                </div>
+            </div>
+        );
     };
-
-    return (
-        <div className="bg-white p-3 rounded-lg">
-            <div className="flex justify-between items-center mb-3">
-                <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-gray-100">
-                    <ChevronLeftIcon className="h-5 w-5 text-gray-500" />
-                </button>
-                <h4 className="font-semibold text-sm text-gray-700">{currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</h4>
-                <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-gray-100">
-                    <ChevronRightIcon className="h-5 w-5 text-gray-500" />
-                </button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                {['D', 'L', 'M', 'M', 'G', 'V', 'S'].map(day => <div key={day} className="font-semibold text-gray-400">{day}</div>)}
-                {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
-                {Array.from({ length: daysInMonth }).map((_, day) => {
-                    const isToday = day + 1 === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
-                    return (
-                        <div key={day} className={`p-1 rounded-full relative flex items-center justify-center h-7 w-7 ${isToday ? 'bg-blue-600 text-white' : eventsByDay[day + 1] ? 'bg-blue-100 text-blue-800' : 'text-gray-600'}`}>
-                            {day + 1}
-                            {eventsByDay[day + 1] && !isToday && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>}
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-};
-
 // --- Componente: Editor Documenti Office con AG Grid ---
 const DocumentEditor = () => {
     const [fileType, setFileType] = useState(null);
