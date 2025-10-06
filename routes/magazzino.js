@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { knex } = require('../config/db');
 const { verifyToken } = require('../utils/auth'); // Importato il nostro middleware!
+const { checkPermission } = require('../utils/auth');
 
 // #####################################################################
 // #                        ANAGRAFICHE DI BASE                        #
@@ -131,6 +132,46 @@ router.patch('/causali/:id', verifyToken, async (req, res) => {
         res.status(500).json({ message: "Errore del server durante l'aggiornamento della causale." });
     }
 });
+// #####################################################################
+// #                        giacenze magazzino                         #
+// #####################################################################
+
+
+
+/**
+ * @route   GET /api/magazzino/giacenze
+ * @desc    Recupera le giacenze attuali da tutti i magazzini.
+ * @access  Privato (richiede permesso MG_GIACENZE_VIEW)
+ */
+
+router.get('/giacenze', verifyToken,checkPermission('MG_GIACENZE_VIEW'), async (req, res) => {
+  const { id_ditta } = req.user;
+
+  try {
+    const giacenze = await knex('mg_giacenze as g')
+      .join('ct_catalogo as c', 'g.id_catalogo', 'c.id')
+      .join('mg_magazzini as m', 'g.id_magazzino', 'm.id')
+      .select(
+        'g.id',
+        'g.id_magazzino',
+        'm.codice as codice_magazzino',
+        'm.descrizione as descrizione_magazzino',
+        'g.id_catalogo',
+        'c.codice_entita as codice_articolo',
+        'c.descrizione as descrizione_articolo',
+        'g.giacenza_attuale'
+      )
+      .where('g.id_ditta', id_ditta);
+
+    res.json(giacenze);
+  } catch (error) {
+    console.error('Errore nel recupero delle giacenze:', error);
+    res.status(500).json({ msg: 'Errore del server' });
+  }
+});
+
+
+
 
 
 // #####################################################################
@@ -155,97 +196,126 @@ router.patch('/causali/:id', verifyToken, async (req, res) => {
  * lotti?: [{ codice_lotto: string, quantita: number, data_scadenza?: string }]
  * }
  */
-router.post('/movimenti', verifyToken, async (req, res) => {
-    const { id_ditta, id: id_utente } = req.user;
-    const {
+
+/**
+ * @route   POST /api/magazzino/movimenti
+ * @desc    Crea un nuovo movimento di magazzino, gestisce i lotti e aggiorna la giacenza consolidata.
+ * @access  Privato (richiede permesso MG_MOVIMENTI_CREATE)
+ */
+router.post('/movimenti', verifyToken,checkPermission('MG_MOVIMENTI_CREATE'), async (req, res) => {
+  // Estrae id_ditta e id_utente dal token per maggiore sicurezza
+  const { id_ditta, id: id_utente } = req.user;
+  
+  const {
+    id_magazzino,
+    id_catalogo,
+    id_causale,
+    quantita,
+    data_movimento,
+    note,
+    valore_unitario,
+    riferimento_doc,
+    id_riferimento_doc,
+    lotti
+  } = req.body;
+
+  // Validazione di base dei dati in input
+  if (!id_magazzino || !id_catalogo || !quantita || !id_causale || !data_movimento) {
+    return res.status(400).json({ msg: 'Per favore, fornisci tutti i campi obbligatori.' });
+  }
+
+  try {
+    // ---- INIZIO TRANSAZIONE OBBLIGATORIA ----
+    await knex.transaction(async (trx) => {
+      // 1. Inserisci il movimento principale nella tabella cronologica (il "diario")
+      const [id_movimento] = await trx('mg_movimenti').insert({
+        id_ditta,
         id_magazzino,
         id_catalogo,
-        id_causale,
         quantita,
+        id_causale,
         data_movimento,
         note,
+        id_utente_inserimento: id_utente,
         valore_unitario,
         riferimento_doc,
-        id_riferimento_doc,
-        lotti
-    } = req.body;
+        id_riferimento_doc
+      });
 
-    // Validazione base
-    if (!id_magazzino || !id_catalogo || !id_causale || !quantita || !data_movimento) {
-        return res.status(400).json({ message: "Campi obbligatori mancanti." });
-    }
+      let tabelleInteressate = 'mg_movimenti, mg_giacenze';
 
-    // Iniziamo la transazione
-    const trx = await knex.transaction();
+      // 2. Gestisci i lotti, se presenti
+      if (lotti && lotti.length > 0) {
+        tabelleInteressate += ', mg_lotti, mg_movimenti_lotti';
+        for (const lotto of lotti) {
+          let lottoRecord = await trx('mg_lotti')
+            .where({ id_ditta, id_catalogo, codice_lotto: lotto.codice_lotto })
+            .first();
+          
+          let id_lotto;
+          if (lottoRecord) {
+            id_lotto = lottoRecord.id;
+          } else {
+            const [newLottoId] = await trx('mg_lotti').insert({
+              id_ditta,
+              id_catalogo,
+              codice_lotto: lotto.codice_lotto,
+              data_scadenza: lotto.data_scadenza || null
+            });
+            id_lotto = newLottoId;
+          }
 
-    try {
-        // 1. Inserisci il movimento principale
-        const [id_movimento] = await trx('mg_movimenti').insert({
-            id_ditta,
-            id_magazzino,
-            id_catalogo,
-            id_causale,
-            quantita,
-            data_movimento,
-            id_utente,
-            note,
-            valore_unitario,
-            riferimento_doc,
-            id_riferimento_doc
-        });
-
-        // 2. Gestisci i lotti, se presenti
-        if (lotti && lotti.length > 0) {
-            for (const lotto of lotti) {
-                // Cerca se il lotto esiste già per questo articolo
-                let lottoRecord = await trx('mg_lotti')
-                    .where({ id_ditta, id_catalogo, codice_lotto: lotto.codice_lotto })
-                    .first();
-                
-                let id_lotto;
-                if (lottoRecord) {
-                    // Lotto esistente
-                    id_lotto = lottoRecord.id;
-                } else {
-                    // Crea un nuovo lotto
-                    const [newLottoId] = await trx('mg_lotti').insert({
-                        id_ditta,
-                        id_catalogo,
-                        codice_lotto: lotto.codice_lotto,
-                        data_scadenza: lotto.data_scadenza || null
-                    });
-                    id_lotto = newLottoId;
-                }
-
-                // 3. Collega il movimento al lotto con la quantità specifica
-                await trx('mg_movimenti_lotti').insert({
-                    id_movimento,
-                    id_lotto,
-                    quantita: lotto.quantita
-                });
-            }
+          // Collega il movimento al lotto con la quantità specifica
+          await trx('mg_movimenti_lotti').insert({
+            id_movimento,
+            id_lotto,
+            quantita: lotto.quantita
+          });
         }
+      }
 
-        // Se tutto è andato bene, conferma la transazione
-        await trx.commit();
-        
-        // Logga l'azione (Esempio base, da migliorare con una funzione helper)
-        await knex('log_azioni').insert({
-            id_utente,
-            id_ditta,
-            azione: 'Creazione Movimento Magazzino',
-            tipo_entita: 'mg_movimenti',
-            id_entita: id_movimento
+      // 3. Aggiorna (o inserisci) la giacenza nella tabella dei saldi
+      const giacenzaEsistente = await trx('mg_giacenze')
+        .where({
+          id_ditta,
+          id_magazzino,
+          id_catalogo,
+        })
+        .first();
+
+      if (giacenzaEsistente) {
+        // Se esiste già, aggiorna la giacenza
+        await trx('mg_giacenze')
+          .where({ id: giacenzaEsistente.id })
+          .increment('giacenza_attuale', quantita);
+      } else {
+        // Altrimenti, crea un nuovo record
+        await trx('mg_giacenze').insert({
+          id_ditta,
+          id_magazzino,
+          id_catalogo,
+          giacenza_attuale: quantita,
         });
+      }
+      
+      // 4. (Obbligatorio) Registra l'operazione nel log degli accessi
+      await trx('log_accessi').insert({
+          id_utente,
+          id_ditta,
+          azione: 'Creazione movimento magazzino con lotti',
+          tabella_interessata: tabelleInteressate,
+          id_record_interessato: id_movimento
+      });
 
-        res.status(201).json({ id: id_movimento, message: "Movimento registrato con successo." });
+    });
+    // ---- FINE TRANSAZIONE ----
 
-    } catch (error) {
-        // In caso di errore, annulla tutte le operazioni
-        await trx.rollback();
-        console.error("Errore nella creazione del movimento:", error);
-        res.status(500).json({ message: "Errore del server durante la registrazione del movimento." });
-    }
+    res.status(201).json({ msg: 'Movimento creato e giacenza aggiornata con successo.' });
+
+  } catch (error) {
+    console.error("Errore durante la creazione del movimento:", error);
+    res.status(500).json({ msg: 'Errore del server durante la creazione del movimento.' });
+  }
 });
 
 
@@ -285,40 +355,6 @@ router.get('/movimenti/articolo/:id_catalogo', verifyToken, async (req, res) => 
     }
 });
 
-/**
- * @route GET /api/magazzino/giacenze
- * @description Calcola e restituisce la giacenza attuale per tutti gli articoli
- * in tutti i magazzini. La giacenza è calcolata in tempo reale.
- * @access Privato - Richiede autenticazione.
- */
-router.get('/giacenze', verifyToken, async (req, res) => {
-    try {
-        const { id_ditta } = req.user;
-
-        // Query potente che calcola la giacenza
-        const giacenze = await knex('mg_movimenti as mov')
-            .join('mg_causali_movimento as caus', 'mov.id_causale', 'caus.id')
-            .join('ct_catalogo as cat', 'mov.id_catalogo', 'cat.id')
-            .join('mg_magazzini as mag', 'mov.id_magazzino', 'mag.id')
-            .where('mov.id_ditta', id_ditta)
-            .groupBy('mov.id_catalogo', 'mov.id_magazzino')
-            .select(
-                'cat.id as id_catalogo',
-                'cat.codice_entita',
-                'cat.descrizione',
-                'mag.id as id_magazzino',
-                'mag.descrizione as nome_magazzino',
-                // Somma algebrica delle quantità: positive per 'carico', negative per 'scarico'
-                knex.raw('SUM(CASE WHEN caus.tipo = "carico" THEN mov.quantita ELSE -mov.quantita END) as giacenza')
-            );
-        
-        res.json(giacenze);
-    } catch (error) {
-        console.error("Errore nel calcolare le giacenze:", error);
-        res.status(500).json({ message: "Errore del server durante il calcolo delle giacenze." });
-    }
-});
 
 
 module.exports = router;
-

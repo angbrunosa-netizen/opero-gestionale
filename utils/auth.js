@@ -53,6 +53,16 @@ const checkRole = (allowedRoles) => {
  */
 const checkPermission = (requiredPermission) => {
     return (req, res, next) => {
+        console.log('--- CHECKPERMISSION ATTIVATO ---');
+        console.log('Permesso Richiesto:', requiredPermission);
+        if (req.user && req.user.permissions) {
+            console.log('Permessi dell\'Utente (nel token):', req.user.permissions);
+            console.log('Il permesso è incluso?', req.user.permissions.includes(requiredPermission));
+        } else {
+            console.log('req.user o req.user.permissions non trovati!');
+        }
+        console.log('------------------------------');
+        // --- FINE CODICE DI DEBUG --
         // req.user viene popolato dal middleware 'authenticate'
         // l'array req.user.permissions contiene tutti i codici funzione associati al ruolo dell'utente
         if (!req.user || !req.user.permissions || !req.user.permissions.includes(requiredPermission)) {

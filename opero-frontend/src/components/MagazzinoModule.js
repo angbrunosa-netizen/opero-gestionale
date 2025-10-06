@@ -11,6 +11,7 @@ import CatalogoManager from './catalogo/CatalogoManager';
 import GiacenzeManager from './magazzino/GiacenzeManager';
 import ConfigurazioneView from './magazzino/ConfigurazioneView';
 import MovimentiManager from './magazzino/MovimentiManager';
+const TabelleVenditeManager = React.lazy(() => import('./vendite/TabelleVenditeManager'));
 
 const MagazzinoModule = () => {
     const [activeTab, setActiveTab] = useState('giacenze');
@@ -28,6 +29,7 @@ const MagazzinoModule = () => {
         { id: 'movimenti', label: 'Movimenti', permission: 'MG_MOVIMENTI_MANAGE' },
         { id: 'anagrafica', label: 'Anagrafica Articoli', permission: 'CT_VIEW' },
         { id: 'configurazione', label: 'Configurazione Magazzino', permission: 'MG_CONFIG_MANAGE' },
+         { id: 'tabelle_vendite', label: 'Tabelle_Vendite', permission: 'VA_CLIENTI_VIEW' },
     ];
 
     const renderContent = () => {
@@ -42,6 +44,12 @@ const MagazzinoModule = () => {
                 return <ConfigurazioneView />;
             default:
                 return <div>Seleziona una scheda</div>;
+            case 'tabelle_vendite':
+                return (
+                    <React.Suspense fallback={<div>Caricamento...</div>}>
+                        <TabelleVenditeManager />
+                    </React.Suspense>
+                );
         }
     };
 
