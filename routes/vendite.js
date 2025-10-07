@@ -643,7 +643,268 @@ router.delete('/clienti/:idCliente/punti-consegna/:idPunto', verifyToken, checkP
     } catch (error) { res.status(500).json({ message: "Errore del server." }); }
 });
 
+// --- GESTIONE TIPI DOCUMENTO ---
 
+// GET /api/vendite/tipi-documento - Recupera tutti i tipi di documento
+router.get('/tipi-documento', verifyToken, checkPermission('VA_TIPI_DOC_VIEW'), async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const tipiDocumento = await knex('va_tipi_documento').where({ id_ditta });
+        res.json(tipiDocumento);
+    } catch (error) {
+        console.error("Errore nel recupero dei tipi documento:", error);
+        res.status(500).json({ message: "Errore interno del server." });
+    }
+});
+
+// POST /api/vendite/tipi-documento - Crea un nuovo tipo di documento
+router.post('/tipi-documento', verifyToken, checkPermission('VA_TIPI_DOC_MANAGE'), async (req, res) => {
+    const { id_ditta, id: id_utente, nome, cognome } = req.user;
+    const { codice_doc, nome_documento, tipo, gen_mov, tipo_movimento, ditta_rif } = req.body;
+
+    if (!codice_doc || !nome_documento) {
+        return res.status(400).json({ message: 'Codice e Nome documento sono obbligatori.' });
+    }
+
+    try {
+        await knex.transaction(async (trx) => {
+            const [newId] = await trx('va_tipi_documento').insert({
+                id_ditta,
+                codice_doc,
+                nome_documento,
+                tipo,
+                gen_mov,
+                tipo_movimento: gen_mov === 'S' ? tipo_movimento : null,
+                ditta_rif
+            });
+
+            await trx('log_azioni').insert({
+                id_utente: req.user.id,
+                id_ditta,
+                azione: 'CREAZIONE',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha creato il tipo documento: ${nome_documento} (${codice_doc})`
+            });
+
+            const newItem = await trx('va_tipi_documento').where({ id: newId }).first();
+            res.status(201).json(newItem);
+        });
+    } catch (error) {
+        console.error("Errore nella creazione del tipo documento:", error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: 'Un tipo di documento con questo codice esiste già.' });
+        }
+        res.status(500).json({ message: "Errore interno del server." });
+    }
+});
+
+// PUT /api/vendite/tipi-documento/:id - Aggiorna un tipo di documento
+router.put('/tipi-documento/:id', verifyToken, checkPermission('VA_TIPI_DOC_MANAGE'), async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta, id: id_utente, nome, cognome } = req.user;
+    const { codice_doc, nome_documento, tipo, gen_mov, tipo_movimento, ditta_rif } = req.body;
+
+    try {
+        await knex.transaction(async (trx) => {
+            const updated = await trx('va_tipi_documento')
+                .where({ id, id_ditta })
+                .update({
+                    codice_doc,
+                    nome_documento,
+                    tipo,
+                    gen_mov,
+                    tipo_movimento: gen_mov === 'S' ? tipo_movimento : null,
+                    ditta_rif
+                });
+            
+            if (updated === 0) {
+                return res.status(404).json({ message: 'Tipo documento non trovato.' });
+            }
+
+            await trx('log_azioni').insert({
+                id_utente: req.user.id,
+                id_ditta,
+                azione: 'MODIFICA',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha modificato il tipo documento ID: ${id}`
+            });
+            
+            const updatedItem = await trx('va_tipi_documento').where({ id }).first();
+            res.json(updatedItem);
+        });
+    } catch (error) {
+        console.error("Errore nell'aggiornamento del tipo documento:", error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: 'Un tipo di documento con questo codice esiste già.' });
+        }
+        res.status(500).json({ message: 'Errore interno del server.' });
+    }
+});
+
+// DELETE /api/vendite/tipi-documento/:id - Elimina un tipo di documento
+router.delete('/tipi-documento/:id', verifyToken, checkPermission('VA_TIPI_DOC_MANAGE'), async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta, id: id_utente, nome, cognome } = req.user;
+
+    try {
+        await knex.transaction(async (trx) => {
+            const itemToDelete = await trx('va_tipi_documento').where({ id, id_ditta }).first();
+
+            if (!itemToDelete) {
+                return res.status(404).json({ message: 'Tipo documento non trovato.' });
+            }
+
+            await trx('va_tipi_documento').where({ id, id_ditta }).del();
+
+            await trx('log_azioni').insert({
+                id_utente: req.user.id,
+                id_ditta,
+                azione: 'ELIMINAZIONE',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha eliminato il tipo documento: ${itemToDelete.nome_documento}`
+            });
+            
+            res.status(200).json({ message: 'Tipo documento eliminato con successo.' });
+        });
+    } catch (error) {
+        console.error("Errore nell'eliminazione del tipo documento:", error);
+        res.status(500).json({ message: 'Errore interno del server.' });
+    }
+});
+
+// --- GESTIONE ANAGRAFICA CLIENTI ---
+
+// GET /api/vendite/clienti - Recupera la lista dei clienti
+router.get('/clienti', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const clienti = await knex('ditte as d')
+            .leftJoin('va_clienti_anagrafica as vca', 'd.id', 'vca.id_ditta')
+            .where('d.id_ditta_proprietaria', id_ditta)
+            .whereIn('d.codice_relazione', ['C', 'E'])
+            .select(
+                'd.id', 
+                'd.ragione_sociale', 
+                'd.p_iva', 
+                'd.codice_fiscale',
+                'd.citta',
+                'd.provincia',
+                'vca.stato'
+            );
+        res.json(clienti);
+    } catch (error) {
+        console.error("Errore nel recupero dei clienti:", error);
+        res.status(500).json({ message: "Errore interno del server." });
+    }
+});
+
+// GET /api/vendite/clienti/:id - Recupera i dettagli di un singolo cliente
+router.get('/clienti/:id', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+
+    try {
+        const cliente = await knex('ditte as d')
+            .leftJoin('va_clienti_anagrafica as vca', 'd.id', 'vca.id_ditta')
+            .leftJoin('va_categorie_clienti as cat', 'vca.id_categoria_cliente', 'cat.id')
+            .leftJoin('va_gruppi_clienti as grp', 'vca.id_gruppo_cliente', 'grp.id')
+            .leftJoin('tipi_pagamento as tp', 'vca.id_tipo_pagamento', 'tp.id')
+            .where('d.id', id)
+            .andWhere('d.id_ditta_proprietaria', id_ditta)
+            .select(
+                'd.*', // Tutti i campi da ditte
+                'vca.*', // Tutti i campi da va_clienti_anagrafica
+                'cat.nome_categoria as nome_categoria_cliente',
+                'grp.descrizione as descrizione_gruppo_cliente',
+                'tp.descrizione as descrizione_tipo_pagamento'
+            )
+            .first();
+
+        if (!cliente) {
+            return res.status(404).json({ message: 'Cliente non trovato.' });
+        }
+        res.json(cliente);
+    } catch (error) {
+        console.error("Errore nel recupero del dettaglio cliente:", error);
+        res.status(500).json({ message: "Errore interno del server." });
+    }
+});
+
+
+// PUT /api/vendite/clienti/:id - Aggiorna i dati del cliente
+router.put('/clienti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+    const { ...allData } = req.body;
+
+    try {
+        await knex.transaction(async (trx) => {
+            // Separa i dati per le due tabelle
+            const ditteData = {
+                ragione_sociale: allData.ragione_sociale,
+                indirizzo: allData.indirizzo,
+                citta: allData.citta,
+                provincia: allData.provincia,
+                cap: allData.cap,
+                p_iva: allData.p_iva,
+                codice_fiscale: allData.codice_fiscale,
+                tel1: allData.tel1,
+                email: allData.email,
+                pec: allData.pec,
+                sdi: allData.sdi,
+            };
+
+            const anagraficaData = {
+                id_ditta: id,
+                listino_cessione: allData.listino_cessione,
+                listino_pubblico: allData.listino_pubblico,
+                id_matrice_sconti: allData.id_matrice_sconti,
+                riga_matrice_sconti: allData.riga_matrice_sconti,
+                id_categoria_cliente: allData.id_categoria_cliente,
+                id_gruppo_cliente: allData.id_gruppo_cliente,
+                id_referente: allData.id_referente,
+                id_agente: allData.id_agente,
+                id_tipo_pagamento: allData.id_tipo_pagamento,
+                stato: allData.stato,
+                sito_web: allData.sito_web,
+                pagina_facebook: allData.pagina_facebook,
+                pagina_instagram: allData.pagina_instagram,
+                url_link :allData.url_link,
+                google_maps :allData.google_maps,
+                concorrenti: allData.concorrenti,
+                foto_url: allData.foto_url,
+                fatturato_anno_pr:allData.fatturato_anno_pr,
+                fatturato_anno_cr:allData.fatturato_anno_cr,
+                id_contratto : allData.id_contratto,
+                id_trasportatore_assegnato: allData.id_trasportatore_assegnato
+                // ... aggiungi tutti gli altri campi di va_clienti_anagrafica
+            };
+            
+            // Aggiorna la tabella ditte
+            await trx('ditte').where({ id, id_ditta_proprietaria: id_ditta }).update(ditteData);
+
+            // Controlla se esiste già un record in va_clienti_anagrafica
+            const anagraficaExists = await trx('va_clienti_anagrafica').where({ id_ditta: id }).first();
+
+            if (anagraficaExists) {
+                // Aggiorna
+                await trx('va_clienti_anagrafica').where({ id_ditta: id }).update(anagraficaData);
+            } else {
+                // Inserisci
+                await trx('va_clienti_anagrafica').insert(anagraficaData);
+            }
+
+            await trx('log_azioni').insert({
+                id_utente: req.user.id,
+                id_ditta,
+                azione: 'MODIFICA',
+                dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha modificato l'anagrafica cliente ID: ${id}`
+            });
+            
+            res.status(200).json({ message: 'Cliente aggiornato con successo.' });
+        });
+    } catch (error) {
+        console.error("Errore nell'aggiornamento del cliente:", error);
+        res.status(500).json({ message: "Errore interno del server." });
+    }
+});
 module.exports = router;
 
 

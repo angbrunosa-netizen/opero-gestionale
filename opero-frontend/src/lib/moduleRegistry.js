@@ -12,7 +12,8 @@ import {
     BuildingOffice2Icon,
     ArchiveBoxIcon,
     ClipboardDocumentListIcon,
-    EnvelopeIcon
+    EnvelopeIcon,
+    CurrencyDollarIcon 
 } from '@heroicons/react/24/outline';
 // --- Definizione del Menu Laterale (per la UI) ---
 // Questo array è l'unica fonte di verità per le voci del menu laterale.
@@ -74,6 +75,12 @@ export const modules = [
         label: 'Mail',
         icon: EnvelopeIcon,
         permission: 'MAIL_MODULE_VIEW'
+    },
+    {
+        key: 'VA_CLIENTI_VIEW',
+        label: 'VENDITE',
+        icon: EnvelopeIcon,
+        permission: 'VA_CLIENTI_VIEW', // Usiamo il permesso di base per vedere i clienti
     }
 ];
 
@@ -88,6 +95,8 @@ const BeniStrumentaliModule = React.lazy(() => import('../components/BeniStrumen
 const PPASisModule = React.lazy(() => import('../components/PPASisModule')); // Il nostro nuovo modulo
 const CatalogoModule = React.lazy(() => import('../components/CatalogoModule'));
 const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
+const VenditeModule = React.lazy(() => import('../components/VenditeModule'));
+
 // Questa mappa collega la 'key' definita sopra al componente React da caricare.
 
 export const componentMap = {
@@ -102,4 +111,6 @@ export const componentMap = {
   ADMIN_PANEL: AdminPanel,
   CT_VIEW: CatalogoModule,
   MG_VIEW: MagazzinoModule,
+    VA_CLIENTI_VIEW: VenditeModule,
+
 };

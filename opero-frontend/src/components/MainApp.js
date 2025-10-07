@@ -30,6 +30,7 @@ import PPASisModule from './PPASisModule';
 import { Outlet, useLocation } from 'react-router-dom'; // NUOVI IMPORT
 import CatalogoModule from './CatalogoModule';
 import MagazzinoModule from './MagazzinoModule';
+import VenditeModule from './VenditeModule';
 //ModuleRegistry.registerModules([AllCommunityModule]);
 
 
@@ -475,6 +476,7 @@ const MainApp = () => {
             case 'PPA SIS': return <PPASisModule />;
             case 'CT_VIEW': return <CatalogoModule />;
             case 'MG_VIEW': return <MagazzinoModule />;
+            case 'VA_CLIENTI_VIEW': return <VenditeModule />;
             default: return <div className="p-6">Seleziona un modulo per iniziare.</div>;
         }
     };
