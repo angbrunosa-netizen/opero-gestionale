@@ -379,92 +379,152 @@ router.post('/matrici-sconti/:idMatrice/righe/salva-tutto', verifyToken, checkPe
 
 // --- GESTIONE TRASPORTATORI ---
 
+// #####################################################################
+// # REFACTORED: Gestione Anagrafica Trasportatori
+// #####################################################################
+
 /**
- * GET /api/vendite/trasportatori
- * Recupera l'anagrafica dei trasportatori per la ditta loggata.
- * Protetta da permesso VA_CLIENTI_VIEW.
+ * @route   GET /api/vendite/fornitori-selezionabili
+ * @desc    NUOVA: Ottiene un elenco di anagrafiche (fornitori) che possono essere designate come trasportatori.
+ * @access  Private (Permesso: VA_CLIENTI_MANAGE)
+ */
+router.get('/fornitori-selezionabili', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { id_ditta: id_ditta_proprietaria } = req.user;
+    try {
+        const fornitori = await knex('ditte as d')
+            .join('relazioni_ditta as rd', 'd.tipo_relazione', 'rd.id')
+            .where('d.id_ditta_proprietaria', id_ditta_proprietaria)
+            .andWhere(function() {
+                this.where('rd.tipo', 'F').orWhere('rd.tipo', 'E'); // Fornitori o Entrambi
+            })
+            .select('d.id', 'd.ragione_sociale')
+            .orderBy('d.ragione_sociale', 'asc');
+        res.json(fornitori);
+    } catch (error) {
+        console.error("Errore API [GET /fornitori-selezionabili]:", error);
+        res.status(500).json({ message: "Errore interno del server durante il recupero dei fornitori." });
+    }
+});
+
+
+/**
+ * @route   GET /api/vendite/trasportatori
+ * @desc    MODIFICATA: Recupera l'elenco dei trasportatori con dati anagrafici joinati.
+ * @access  Private (Permesso: VA_CLIENTI_VIEW)
  */
 router.get('/trasportatori', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
-    const { id_ditta } = req.user;
+    const { id_ditta: id_ditta_proprietaria } = req.user;
     try {
-        const trasportatori = await knex('va_trasportatori')
-            .where({ id_ditta })
-            .select('id', 'ragione_sociale', 'referente', 'telefono');
+        const trasportatori = await knex('va_trasportatori as vt')
+            .join('ditte as d', 'vt.id_ditta', 'd.id')
+            .leftJoin('utenti as u', 'vt.id_utente_referente', 'u.id')
+            .where('vt.id_ditta_proprietaria', id_ditta_proprietaria)
+            .select(
+                'vt.id', // ID della riga in va_trasportatori
+                'd.id as id_ditta', // ID dell'anagrafica
+                'd.ragione_sociale',
+                'd.telefono',
+                'u.id as id_utente_referente',
+                knex.raw("CONCAT(u.nome, ' ', u.cognome) as referente_nome_cognome")
+            );
         res.json(trasportatori);
     } catch (error) {
-        console.error("Errore nel recupero dei trasportatori:", error);
-        res.status(500).json({ message: 'Errore del server' });
+        console.error("Errore API [GET /trasportatori]:", error);
+        res.status(500).json({ message: "Errore interno del server durante il recupero dei trasportatori." });
     }
 });
 
 /**
- * POST /api/vendite/trasportatori
- * Crea un nuovo trasportatore.
- * Protetta da permesso VA_CLIENTI_MANAGE.
+ * @route   POST /api/vendite/trasportatori
+ * @desc    MODIFICATA: Crea una nuova associazione trasportatore-ditta.
+ * @access  Private (Permesso: VA_CLIENTI_MANAGE)
  */
 router.post('/trasportatori', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { id_ditta: id_ditta_proprietaria } = req.user;
+    const { id_ditta, id_utente_referente } = req.body;
+
+    if (!id_ditta) {
+        return res.status(400).json({ message: "L'ID della ditta trasportatore è obbligatorio." });
+    }
+
     try {
-        await knex.transaction(async trx => {
-            const [id] = await trx('va_trasportatori').insert({ ...req.body, id_ditta: req.user.id_ditta });
-            await trx('log_azioni').insert({
-                id_utente: req.user.id_utente,
-                id_ditta: req.user.id_ditta,
-                azione: 'CREAZIONE',
-                dettagli: `Creato trasportatore: ${req.body.ragione_sociale}`,
-                //tabella_riferimento: 'va_trasportatori',
-                //id_record_riferimento: id
-            });
-            res.status(201).json({ id });
+        // Controllo duplicati
+        const existing = await knex('va_trasportatori')
+            .where({ id_ditta_proprietaria, id_ditta })
+            .first();
+        if (existing) {
+            return res.status(409).json({ message: "Questo fornitore è già stato impostato come trasportatore." });
+        }
+
+        const [newId] = await knex('va_trasportatori').insert({
+            id_ditta_proprietaria,
+            id_ditta,
+            id_utente_referente: id_utente_referente || null
         });
-    } catch (error) { res.status(500).json({ message: "Errore del server." }); }
+        res.status(201).json({ id: newId, message: 'Trasportatore creato con successo.' });
+    } catch (error) {
+        console.error("Errore API [POST /trasportatori]:", error);
+        res.status(500).json({ message: "Errore interno del server durante la creazione del trasportatore." });
+    }
 });
 
 /**
- * PUT /api/vendite/trasportatori/:id
- * Aggiorna un trasportatore esistente.
- * Protetta da permesso VA_CLIENTI_MANAGE.
+ * @route   PUT /api/vendite/trasportatori/:id
+ * @desc    MODIFICATA: Aggiorna solo il referente di un trasportatore.
+ * @access  Private (Permesso: VA_CLIENTI_MANAGE)
  */
 router.put('/trasportatori/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { id_ditta: id_ditta_proprietaria } = req.user;
+    const { id } = req.params;
+    const { id_utente_referente } = req.body;
+
     try {
-        await knex.transaction(async trx => {
-            const updated = await trx('va_trasportatori').where({ id: req.params.id, id_ditta: req.user.id_ditta }).update(req.body);
-            if (!updated) return res.status(404).json({ message: 'Record non trovato.' });
-            await trx('log_azioni').insert({
-                id_utente: req.user.id_utente,
-                id_ditta: req.user.id_ditta,
-                azione: 'MODIFICA',
-                dettagli: `Modificato trasportatore: ${req.body.ragione_sociale}`,
-                //tabella_riferimento: 'va_trasportatori',
-                ////id_record_riferimento: req.params.id
+        const updated = await knex('va_trasportatori')
+            .where({ id, id_ditta_proprietaria })
+            .update({
+                id_utente_referente: id_utente_referente || null
             });
-            res.json({ message: 'Record aggiornato.' });
-        });
-    } catch (error) { res.status(500).json({ message: "Errore del server." }); }
+
+        if (updated) {
+            res.json({ message: 'Referente aggiornato con successo.' });
+        } else {
+            res.status(404).json({ message: 'Trasportatore non trovato.' });
+        }
+    } catch (error) {
+        console.error("Errore API [PUT /trasportatori/:id]:", error);
+        res.status(500).json({ message: "Errore interno del server durante l'aggiornamento del trasportatore." });
+    }
 });
 
+
 /**
- * DELETE /api/vendite/trasportatori/:id
- * Elimina un trasportatore.
- * Protetta da permesso VA_CLIENTI_MANAGE.
+ * @route   DELETE /api/vendite/trasportatori/:id
+ * @desc    MODIFICATA: Elimina un'associazione trasportatore.
+ * @access  Private (Permesso: VA_CLIENTI_MANAGE)
  */
 router.delete('/trasportatori/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
+    const { id_ditta: id_ditta_proprietaria } = req.user;
+    const { id } = req.params;
+
     try {
-        await knex.transaction(async trx => {
-            const item = await trx('va_trasportatori').where({ id: req.params.id, id_ditta: req.user.id_ditta }).first();
-            if (!item) return res.status(404).json({ message: 'Record non trovato.' });
-            await trx('va_trasportatori').where({ id: req.params.id }).del();
-            await trx('log_azioni').insert({
-                id_utente: req.user.id_utente,
-                id_ditta: req.user.id_ditta,
-                azione: 'CANCELLAZIONE',
-                dettagli: `Cancellato trasportatore: ${item.ragione_sociale}`,
-                //tabella_riferimento: 'va_trasportatori',
-                ////id_record_riferimento: req.params.id
-            });
-            res.json({ message: 'Record eliminato.' });
-        });
-    } catch (error) { res.status(500).json({ message: "Errore del server." }); }
+        const deleted = await knex('va_trasportatori')
+            .where({ id, id_ditta_proprietaria })
+            .del();
+
+        if (deleted) {
+            res.json({ message: 'Trasportatore eliminato con successo.' });
+        } else {
+            res.status(404).json({ message: 'Trasportatore non trovato.' });
+        }
+    } catch (error) {
+        console.error("Errore API [DELETE /trasportatori/:id]:", error);
+        res.status(500).json({ message: "Errore interno del server durante l'eliminazione del trasportatore." });
+    }
 });
+
+
+
+
 
 // --- GESTIONE CONTRATTI ---
 

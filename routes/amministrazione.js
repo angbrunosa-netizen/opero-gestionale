@@ -1192,4 +1192,29 @@ router.delete('/tipi-pagamento/:id', verifyToken, checkPermission('ANAGRAFICHE_M
 });
 
 
+/**
+ * GET /api/amministrazione/utenti-esterni
+ * Recupera un elenco di utenti con Codice_Tipo_Utente = 2 (Utente Esterno)
+ * appartenenti alla ditta dell'utente loggato.
+ * Protetta da token.
+ */
+router.get('/utenti-esterni', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
+    try {
+        const utentiEsterni = await knex('utenti')
+            .where({
+                id_ditta: id_ditta,
+                Codice_Tipo_Utente: 2 // Filtra per "Utente Esterno"
+            })
+            .select('id', 'nome', 'cognome')
+            .orderBy('cognome', 'asc')
+            .orderBy('nome', 'asc');
+
+        res.json(utentiEsterni);
+    } catch (error) {
+        console.error("Errore nel recupero degli utenti esterni:", error);
+        res.status(500).json({ message: "Errore nel recupero degli utenti esterni." });
+    }
+});
+
 module.exports = router;
