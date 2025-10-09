@@ -388,141 +388,184 @@ router.post('/matrici-sconti/:idMatrice/righe/salva-tutto', verifyToken, checkPe
  * @desc    NUOVA: Ottiene un elenco di anagrafiche (fornitori) che possono essere designate come trasportatori.
  * @access  Private (Permesso: VA_CLIENTI_MANAGE)
  */
-router.get('/fornitori-selezionabili', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
-    const { id_ditta: id_ditta_proprietaria } = req.user;
+// ####################################################################
+// ### NUOVA API - FORNITORI SELEZIONABILI COME TRASPORTATORI       ###
+// ####################################################################
+/**
+ * GET /api/vendite/fornitori-selezionabili
+ * Recupera un elenco di anagrafiche (fornitori o esterni) che possono essere
+ * configurate come trasportatori.
+ * Restituisce i dati formattati per i componenti di selezione (ID, name).
+ */
+router.get('/fornitori-selezionabili', verifyToken, async (req, res) => {
+    const { id_ditta } = req.user;
     try {
-        const fornitori = await knex('ditte as d')
-            .join('relazioni_ditta as rd', 'd.tipo_relazione', 'rd.id')
-            .where('d.id_ditta_proprietaria', id_ditta_proprietaria)
-            .andWhere(function() {
-                this.where('rd.tipo', 'F').orWhere('rd.tipo', 'E'); // Fornitori o Entrambi
-            })
-            .select('d.id', 'd.ragione_sociale')
-            .orderBy('d.ragione_sociale', 'asc');
-        res.json(fornitori);
+        const ditteSelezionabili = await knex('ditte')
+            .where({ id_ditta_proprietaria: id_ditta })
+            .whereIn('codice_relazione', ['F', 'E'])
+            .select('id', 'ragione_sociale') // Il frontend mapperà 'ragione_sociale' in 'name'
+            .orderBy('ragione_sociale', 'asc');
+        
+        res.json(ditteSelezionabili);
     } catch (error) {
-        console.error("Errore API [GET /fornitori-selezionabili]:", error);
-        res.status(500).json({ message: "Errore interno del server durante il recupero dei fornitori." });
+        console.error("Errore nel recupero delle anagrafiche per trasportatori:", error);
+        res.status(500).json({ message: "Errore del server." });
     }
 });
 
 
+
+// ####################################################################
+// ### API ESISTENTE MODIFICATA - ELENCO TRASPORTATORI              ###
+// ####################################################################
 /**
- * @route   GET /api/vendite/trasportatori
- * @desc    MODIFICATA: Recupera l'elenco dei trasportatori con dati anagrafici joinati.
- * @access  Private (Permesso: VA_CLIENTI_VIEW)
+ * GET /api/vendite/trasportatori
+ * Recupera l'elenco dei trasportatori configurati per la ditta corrente.
+ * La logica è stata aggiornata per riflettere la nuova struttura DB,
+ * unendo va_trasportatori con ditte per ottenere i dettagli anagrafici.
  */
-router.get('/trasportatori', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
-    const { id_ditta: id_ditta_proprietaria } = req.user;
+router.get('/trasportatori', verifyToken, checkPermission('VA_TRASPORTATORI_VIEW'), async (req, res) => {
+    const { id_ditta } = req.user;
     try {
         const trasportatori = await knex('va_trasportatori as vt')
-            .join('ditte as d', 'vt.id_ditta', 'd.id')
-            .leftJoin('utenti as u', 'vt.id_utente_referente', 'u.id')
-            .where('vt.id_ditta_proprietaria', id_ditta_proprietaria)
+            .join('ditte as d', 'vt.id_ditta', '=', 'd.id')
+            .leftJoin('utenti as u', 'vt.id_utente_referente', '=', 'u.id')
+            .where('vt.id_ditta_proprietaria', id_ditta)
             .select(
-                'vt.id', // ID della riga in va_trasportatori
-                'd.id as id_ditta', // ID dell'anagrafica
+                'vt.id',
                 'd.ragione_sociale',
-                'd.telefono',
-                'u.id as id_utente_referente',
-                knex.raw("CONCAT(u.nome, ' ', u.cognome) as referente_nome_cognome")
-            );
+                'd.tel1 as telefono',
+                'vt.id_ditta',
+                'vt.id_utente_referente',
+                knex.raw("CONCAT(u.nome, ' ', u.cognome) as referente")
+            )
+            .orderBy('d.ragione_sociale', 'asc');
+        
         res.json(trasportatori);
+
     } catch (error) {
-        console.error("Errore API [GET /trasportatori]:", error);
-        res.status(500).json({ message: "Errore interno del server durante il recupero dei trasportatori." });
+        console.error(`Errore nel recupero dei trasportatori per la ditta ${id_ditta}:`, error);
+        res.status(500).json({ message: "Errore interno del server." });
     }
 });
 
 /**
- * @route   POST /api/vendite/trasportatori
- * @desc    MODIFICATA: Crea una nuova associazione trasportatore-ditta.
- * @access  Private (Permesso: VA_CLIENTI_MANAGE)
+/**
+ * POST /api/vendite/trasportatori
+ * Crea un nuovo trasportatore associandolo a un'anagrafica esistente.
  */
-router.post('/trasportatori', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
-    const { id_ditta: id_ditta_proprietaria } = req.user;
-    const { id_ditta, id_utente_referente } = req.body;
+router.post('/trasportatori', verifyToken, checkPermission('VA_TRASPORTATORI_MANAGE'), async (req, res) => {
+    const { id_ditta: id_ditta_da_associare, id_utente_referente } = req.body;
+    // ### CORREZIONE: Usiamo la stessa logica delle altre rotte per recuperare l'id della ditta ###
+    const { id_ditta, id: id_utente } = req.user;
 
-    if (!id_ditta) {
-        return res.status(400).json({ message: "L'ID della ditta trasportatore è obbligatorio." });
+    if (!id_ditta_da_associare) {
+        return res.status(400).json({ message: "L'anagrafica da associare è obbligatoria." });
     }
 
     try {
-        // Controllo duplicati
+        // Controlla se il trasportatore esiste già per questa ditta
         const existing = await knex('va_trasportatori')
-            .where({ id_ditta_proprietaria, id_ditta })
+            .where({ 
+                id_ditta_proprietaria: id_ditta,
+                id_ditta: id_ditta_da_associare 
+            })
             .first();
-        if (existing) {
-            return res.status(409).json({ message: "Questo fornitore è già stato impostato come trasportatore." });
-        }
 
-        const [newId] = await knex('va_trasportatori').insert({
-            id_ditta_proprietaria,
-            id_ditta,
-            id_utente_referente: id_utente_referente || null
+        if (existing) {
+            return res.status(409).json({ message: "Questa anagrafica è già configurata come trasportatore." });
+        }
+        
+        await knex.transaction(async (trx) => {
+            const [newId] = await trx('va_trasportatori').insert({
+                // ### CORREZIONE: Mappiamo esplicitamente la variabile corretta al campo del DB ###
+                id_ditta_proprietaria: id_ditta,
+                id_ditta: id_ditta_da_associare,
+                id_utente_referente: id_utente_referente || null
+            });
+            
+            await trx('log_azioni').insert({
+                id_utente,
+                id_ditta: id_ditta,
+                azione: 'CREAZIONE_TRASPORTATORE',
+                dettagli: `Creato nuovo trasportatore (ID: ${newId}) associato all'anagrafica ID: ${id_ditta_da_associare}.`
+            });
         });
-        res.status(201).json({ id: newId, message: 'Trasportatore creato con successo.' });
+
+        res.status(201).json({ message: 'Trasportatore creato con successo' });
+
     } catch (error) {
-        console.error("Errore API [POST /trasportatori]:", error);
-        res.status(500).json({ message: "Errore interno del server durante la creazione del trasportatore." });
+        console.error("Errore nella creazione del trasportatore:", error);
+        res.status(500).json({ message: 'Errore del server' });
     }
 });
 
 /**
- * @route   PUT /api/vendite/trasportatori/:id
- * @desc    MODIFICATA: Aggiorna solo il referente di un trasportatore.
- * @access  Private (Permesso: VA_CLIENTI_MANAGE)
+ * PUT /api/vendite/trasportatori/:id
+ * Aggiorna il referente di un trasportatore.
  */
-router.put('/trasportatori/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
-    const { id_ditta: id_ditta_proprietaria } = req.user;
+router.put('/trasportatori/:id', verifyToken, checkPermission('VA_TRASPORTATORI_MANAGE'), async (req, res) => {
     const { id } = req.params;
+    const { id_ditta_proprietaria } = req.user;
     const { id_utente_referente } = req.body;
 
     try {
-        const updated = await knex('va_trasportatori')
+        const count = await knex('va_trasportatori')
             .where({ id, id_ditta_proprietaria })
             .update({
                 id_utente_referente: id_utente_referente || null
             });
 
-        if (updated) {
-            res.json({ message: 'Referente aggiornato con successo.' });
-        } else {
-            res.status(404).json({ message: 'Trasportatore non trovato.' });
+        if (count === 0) {
+            return res.status(404).json({ message: 'Trasportatore non trovato.' });
         }
+        
+        await knex('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta: id_ditta_proprietaria,
+            azione: 'AGGIORNAMENTO_TRASPORTATORE',
+            dettagli: `Aggiornato trasportatore ID ${id}.`
+        });
+
+        res.json({ message: 'Trasportatore aggiornato con successo.' });
+
     } catch (error) {
-        console.error("Errore API [PUT /trasportatori/:id]:", error);
-        res.status(500).json({ message: "Errore interno del server durante l'aggiornamento del trasportatore." });
+        console.error(`Errore nell'aggiornamento del trasportatore ${id}:`, error);
+        res.status(500).json({ message: 'Errore interno del server.' });
     }
 });
 
 
 /**
- * @route   DELETE /api/vendite/trasportatori/:id
- * @desc    MODIFICATA: Elimina un'associazione trasportatore.
- * @access  Private (Permesso: VA_CLIENTI_MANAGE)
+ * DELETE /api/vendite/trasportatori/:id
+ * Elimina un trasportatore. L'anagrafica sottostante non viene toccata.
  */
-router.delete('/trasportatori/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), async (req, res) => {
-    const { id_ditta: id_ditta_proprietaria } = req.user;
+router.delete('/trasportatori/:id', verifyToken, checkPermission('VA_TRASPORTATORI_MANAGE'), async (req, res) => {
     const { id } = req.params;
+    const { id_ditta } = req.user;
 
     try {
-        const deleted = await knex('va_trasportatori')
-            .where({ id, id_ditta_proprietaria })
+        const count = await knex('va_trasportatori')
+            .where({ id, id_ditta_proprietaria: id_ditta })
             .del();
 
-        if (deleted) {
-            res.json({ message: 'Trasportatore eliminato con successo.' });
-        } else {
-            res.status(404).json({ message: 'Trasportatore non trovato.' });
+        if (count === 0) {
+            return res.status(404).json({ message: 'Trasportatore non trovato o non appartenente alla tua ditta.' });
         }
+        
+        await knex('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta,
+            azione: 'ELIMINAZIONE_TRASPORTATORE',
+            dettagli: `Eliminato trasportatore ID: ${id}.`
+        });
+
+        res.status(200).json({ message: 'Trasportatore eliminato con successo.' });
     } catch (error) {
-        console.error("Errore API [DELETE /trasportatori/:id]:", error);
-        res.status(500).json({ message: "Errore interno del server durante l'eliminazione del trasportatore." });
+        console.error(`Errore durante l'eliminazione del trasportatore ${id}:`, error);
+        res.status(500).json({ message: 'Errore interno del server.' });
     }
 });
-
-
 
 
 
