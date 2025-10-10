@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import ClientiManager from './vendite/ClientiManager';
 import TabelleVenditeManager from './vendite/TabelleVenditeManager';
-
+import CondizioniAcquistiManager from './acquisti/CondizioniAcquistiManager';
 const VenditeModule = () => {
     const [currentView, setCurrentView] = useState('clienti'); // 'clienti' o 'tabelle'
 
@@ -16,8 +16,10 @@ const VenditeModule = () => {
                 return <ClientiManager onNavigateToTabelle={() => setCurrentView('tabelle')} />;
             case 'tabelle':
                 return <TabelleVenditeManager onBack={() => setCurrentView('clienti')} />;
+        
             default:
                 return <ClientiManager onNavigateToTabelle={() => setCurrentView('tabelle')} />;
+
         }
     };
 

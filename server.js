@@ -29,6 +29,7 @@ const beniStrumentaliRoutes = require('./routes/beniStrumentali');
 const catalogoRoutes = require('./routes/catalogo'); // <-- NUOVA INTEGRAZIONE
 const magazzinoRoutes = require('./routes/magazzino');
 const venditeRoutes = require('./routes/vendite'); // <-- NUOVA INTEGRAZIONE
+const AcquistiRoutes = require('./routes/acquisti'); // <-- NUOVA INTEGRAZIONE
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
@@ -89,6 +90,7 @@ app.use('/api/benistrumentali', verifyToken, beniStrumentaliRoutes);
 app.use('/api/catalogo', verifyToken, catalogoRoutes); // <-- NUOVA INTEGRAZIONE
 app.use('/api/magazzino', magazzinoRoutes); // <-- NUOVA RIGA DA AGGIUNGERE
 app.use('/api/vendite', venditeRoutes); // <-- AGGIUNGI QUESTA RIGA
+app.use('/api/acquisti', AcquistiRoutes); // <-- AGGIUNGI QUESTA RIGA
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
 if (process.env.NODE_ENV === 'production') {

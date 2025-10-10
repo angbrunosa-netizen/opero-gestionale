@@ -15,6 +15,7 @@ import ContrattiManager from './ContrattiManager';
 import TipiDocumentoManager from './TipiDocumentoManager';
 import { ArrowLeftIcon } from '@heroicons/react/24/solid';
 import { useAuth } from '../../context/AuthContext';
+import CondizioniAcquistiManager from '../acquisti/CondizioniAcquistiManager';
 
 // --- Componente Principale con Tabs ---
 const TabelleVenditeManager = ({ onBack }) => {
@@ -30,6 +31,7 @@ const TabelleVenditeManager = ({ onBack }) => {
         { id: 'trasportatori', label: 'Trasportatori', permission: 'VA_TRASPORTATORI_VIEW' },
         { id: 'contratti', label: 'Contratti' },
         { id: 'documenti', label: 'Tipi Documento' },
+        { id: 'condizioni', label: 'Condizioni Acquisti', permission: 'AC_VIEW' }
     ];
 
     // Filtra i tab in base ai permessi dell'utente
@@ -75,6 +77,7 @@ const TabelleVenditeManager = ({ onBack }) => {
                     {activeTab === 'trasportatori' && <TrasportatoriManager />}
                     {activeTab === 'contratti' && <ContrattiManager />}
                     {activeTab === 'documenti' && <TipiDocumentoManager />}
+                    {activeTab === 'condizioni' && <CondizioniAcquistiManager />}
                 </div>
             </div>
         </div>
