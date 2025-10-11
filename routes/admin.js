@@ -7,7 +7,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { dbPool } = require('../config/db');
-const { verifyToken, checkRole } = require('../utils/auth');
+const { verifyToken, checkRole,checkPermission } = require('../utils/auth');
+
 
 
 // Middleware per i ruoli
@@ -316,6 +317,198 @@ router.get('/ruoli', [verifyToken, isDittaAdmin], async (req, res) => {
     } catch (error) {
         console.error("Errore nel recupero dei ruoli:", error);
         res.status(500).json({ success: false, message: 'Errore nel recupero dei ruoli.' });
+    }
+});
+
+// ====================================================================\\
+// API GESTIONE FUNZIONI (Accesso Esclusivo per System Admin)
+// ====================================================================\\
+
+// GET: Ottiene tutte le funzioni definite nel sistema
+router.get('/funzioni', [verifyToken, isSystemAdmin, checkPermission('ADMIN_FUNZIONI_VIEW')], async (req, res) => {
+    try {
+        const [funzioni] = await dbPool.query('SELECT * FROM funzioni ORDER BY codice');
+        res.json({ success: true, funzioni });
+    } catch (error) {
+        console.error("Errore nel recupero delle funzioni:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// POST: Crea una nuova funzione
+router.post('/funzioni', [verifyToken, isSystemAdmin, checkPermission('ADMIN_FUNZIONI_MANAGE')], async (req, res) => {
+    const { codice, descrizione, chiave_componente_modulo } = req.body;
+    if (!codice || !descrizione) {
+        return res.status(400).json({ success: false, message: 'Codice e descrizione sono obbligatori.' });
+    }
+
+    try {
+        const [result] = await dbPool.query(
+            'INSERT INTO funzioni (codice, descrizione, chiave_componente_modulo) VALUES (?, ?, ?)',
+            [codice.toUpperCase(), descrizione, chiave_componente_modulo]
+        );
+        // LOG AZIONE
+        await dbPool.query('INSERT INTO log_azioni (id_utente, azione) VALUES (?, ?)', [req.user.id, `Creazione funzione: ${codice.toUpperCase()}`]);
+        res.status(201).json({ success: true, message: 'Funzione creata con successo.', id: result.insertId });
+    } catch (error) {
+        console.error("Errore nella creazione della funzione:", error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ success: false, message: 'Codice funzione già esistente.' });
+        }
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// GET: Ottiene gli ID delle funzioni associate a una ditta
+router.get('/funzioni-ditta/:id_ditta', [verifyToken, isSystemAdmin, checkPermission('ADMIN_FUNZIONI_VIEW')], async (req, res) => {
+    const { id_ditta } = req.params;
+    try {
+        const [funzioni] = await dbPool.query('SELECT id_funzione FROM funzioni_ditte WHERE id_ditta = ?', [id_ditta]);
+        res.json({ success: true, funzioni: funzioni.map(f => f.id_funzione) });
+    } catch (error) {
+        console.error("Errore nel recupero delle funzioni per ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// POST per associare funzioni a una ditta (solo System Admin)
+router.post('/funzioni-ditta', [verifyToken, isSystemAdmin], async (req, res) => {
+    console.log('--- RICEVUTA RICHIESTA POST /api/admin/funzioni-ditta ---');
+    console.log('Body ricevuto:', JSON.stringify(req.body, null, 2));
+
+    const { id_ditta, funzioni } = req.body;
+
+    if (!id_ditta || !Array.isArray(funzioni)) {
+        console.error('Validazione fallita: id_ditta o array funzioni mancanti.');
+        return res.status(400).json({ success: false, message: 'ID ditta e array di funzioni sono richiesti.' });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        await connection.query('DELETE FROM funzioni_ditte WHERE id_ditta = ?', [id_ditta]);
+
+        if (funzioni.length > 0) {
+            const values = funzioni.map(id_funzione => [id_ditta, id_funzione]);
+            await connection.query('INSERT INTO funzioni_ditte (id_ditta, id_funzione) VALUES ?', [values]);
+        }
+
+        await connection.commit();
+        console.log('Salvataggio completato con successo.');
+        res.json({ success: true, message: 'Associazioni funzioni-ditta aggiornate.' });
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore durante l'aggiornamento delle associazioni funzioni-ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore del server.' });
+    } finally {
+        connection.release();
+    }
+});
+
+
+// ====================================================================\\
+// API GESTIONE RUOLI E PERMESSI (Per Amministratori di Ditta)
+// ====================================================================\\
+
+// GET per le funzioni abilitate per la ditta dell'utente loggato (Ditta Admin)
+router.get('/ditta/funzioni', [verifyToken, isDittaAdmin], async (req, res) => {
+    try {
+        const id_ditta = req.user.id_ditta;
+        const [funzioni] = await dbPool.query(
+            `SELECT f.id, f.codice, f.descrizione, f.chiave_componente_modulo
+             FROM funzioni f
+             JOIN funzioni_ditte fd ON f.id = fd.id_funzione
+             WHERE fd.id_ditta = ?
+             ORDER BY f.chiave_componente_modulo, f.codice`,
+            [id_ditta]
+        );
+        res.json({ success: true, funzioni });
+    } catch (error) {
+        console.error("Errore recupero funzioni per la ditta:", error);
+        res.status(500).json({ success: false, message: "Errore del server." });
+    }
+});
+// POST: Crea un nuovo ruolo specifico per la ditta
+router.post('/ditta/ruoli', [verifyToken, isDittaAdmin, checkPermission('ADMIN_RUOLI_MANAGE')], async (req, res) => {
+    const { tipo, livello } = req.body;
+    const { id_ditta, livello: userLevel } = req.user;
+
+    if (livello >= userLevel) {
+        return res.status(403).json({ success: false, message: 'Non puoi creare un ruolo con un livello uguale o superiore al tuo.' });
+    }
+
+    try {
+        const [result] = await dbPool.query(
+            'INSERT INTO ruoli (tipo, livello, id_ditta) VALUES (?, ?, ?)',
+            [tipo, livello, id_ditta]
+        );
+        // LOG AZIONE
+        await dbPool.query('INSERT INTO log_azioni (id_utente, azione) VALUES (?, ?)', [req.user.id, `Creazione ruolo di ditta: ${tipo}`]);
+        res.status(201).json({ success: true, message: 'Ruolo creato con successo.', id: result.insertId });
+    } catch (error) {
+        console.error("Errore nella creazione del ruolo di ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// GET per i permessi (funzioni) di un ruolo specifico della ditta
+router.get('/ditta/permessi/:id_ruolo', [verifyToken, isDittaAdmin], async (req, res) => {
+    try {
+        const { id_ruolo } = req.params;
+        const [permessi] = await dbPool.query(
+            'SELECT id_funzione FROM ruoli_funzioni WHERE id_ruolo = ?',
+            [id_ruolo]
+        );
+        res.json({ success: true, permessi: permessi.map(p => p.id_funzione) });
+    } catch(error){
+        console.error("Errore nel recupero dei permessi del ruolo", error);
+        res.status(500).json({ success: false, message: 'Errore del server' });
+    }
+});
+
+
+// POST per salvare i permessi di un ruolo (Ditta Admin)
+router.post('/ditta/permessi', [verifyToken, isDittaAdmin, checkPermission('ADMIN_RUOLI_MANAGE')], async (req, res) => {
+    const { id_ruolo, permessi } = req.body; // permessi è un array di id_funzione
+    const id_ditta = req.user.id_ditta;
+
+    if (!id_ruolo || !Array.isArray(permessi)) {
+        return res.status(400).json({ success: false, message: 'ID ruolo e array di permessi sono richiesti.' });
+    }
+    
+    const connection = await dbPool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Sicurezza: Verifico che tutte le funzioni che si sta cercando di assegnare
+        // siano effettivamente state abilitate per la ditta.
+        const [funzioniAbilitate] = await connection.query('SELECT id_funzione FROM funzioni_ditte WHERE id_ditta = ?', [id_ditta]);
+        const setFunzioniAbilitate = new Set(funzioniAbilitate.map(f => f.id_funzione));
+        
+        for (const id_permesso of permessi) {
+            if (!setFunzioniAbilitate.has(id_permesso)) {
+                await connection.rollback();
+                return res.status(403).json({ success: false, message: `Tentativo di assegnare il permesso ${id_permesso} non abilitato per questa ditta.` });
+            }
+        }
+        
+        // Procedo con il salvataggio
+        await connection.query('DELETE FROM ruoli_funzioni WHERE id_ruolo = ?', [id_ruolo]);
+        if (permessi.length > 0) {
+            const values = permessi.map(id_funzione => [id_ruolo, id_funzione]);
+            await connection.query('INSERT INTO ruoli_funzioni (id_ruolo, id_funzione) VALUES ?', [values]);
+        }
+        
+        await connection.commit();
+        res.json({ success: true, message: 'Permessi del ruolo aggiornati con successo.' });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Errore durante il salvataggio dei permessi del ruolo:", error);
+        res.status(500).json({ success: false, message: 'Errore del server.' });
+    } finally {
+        connection.release();
     }
 });
 

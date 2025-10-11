@@ -2,54 +2,53 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = async function(knex) {
-  // Questo file di migrazione è un'azione correttiva per risolvere una discrepanza nello schema del DB.
-  // L'errore "Unknown column 'id_riga'" indica che la tabella `ac_sconti_dettaglio`
-  // non ha la struttura corretta richiesta dall'applicazione.
-  // Questo script assicura che la tabella abbia la colonna `id_riga` e rimuove quella obsoleta.
-
-  const tableName = 'ac_sconti_dettaglio';
-
-  // Verifica se la colonna corretta 'id_riga' esiste già.
-  const hasRigaColumn = await knex.schema.hasColumn(tableName, 'id_riga');
-  
-  if (hasRigaColumn) {
-    // Se la colonna esiste già, lo schema potrebbe essere corretto. Non facciamo nulla.
-    console.log(`La colonna 'id_riga' esiste già in '${tableName}'. Nessuna azione richiesta.`);
-    return;
-  }
-
-  // Se siamo qui, 'id_riga' manca. La aggiungiamo.
-  console.log(`Aggiunta della colonna 'id_riga' a '${tableName}'...`);
-  await knex.schema.alterTable(tableName, (table) => {
-    table.integer('id_riga').unsigned().notNullable().references('id').inTable('ac_condizioni_righe').onDelete('CASCADE');
-  });
-
-  // Ora, procediamo con la pulizia della vecchia e incorretta colonna 'id_condizione', se esiste.
-  const hasCondizioneColumn = await knex.schema.hasColumn(tableName, 'id_condizione');
-  if (hasCondizioneColumn) {
-    console.log(`Rimozione della colonna obsoleta 'id_condizione' da '${tableName}'...`);
-    await knex.schema.alterTable(tableName, (table) => {
-      // Questo tenterà di eliminare la colonna. Potrebbe fallire se esiste una foreign key con un nome non standard.
-      // Data la migrazione di refactoring precedente, questa colonna non dovrebbe più avere una FK valida.
-      table.dropColumn('id_condizione');
+exports.up = function(knex) {
+  return knex.schema
+    // 1. Rimuoviamo le vecchie tabelle in ordine inverso di dipendenza
+    .dropTableIfExists('ac_sconti_dettaglio')
+    .dropTableIfExists('ac_condizioni_sconto')
+    .dropTableIfExists('ac_listini_fornitori')
+    // 2. Creiamo la nuova struttura
+    .createTable('ac_condizioni_testata', function(table) {
+      table.increments('id').primary();
+      table.integer('id_ditta').unsigned().notNullable().references('id').inTable('ditte').onDelete('CASCADE');
+      table.integer('id_fornitore').unsigned().notNullable().references('id').inTable('ditte').onDelete('CASCADE');
+      table.string('descrizione', 255).notNullable();
+      table.date('data_inizio_validita').notNullable();
+      table.date('data_fine_validita').nullable();
+      table.boolean('attiva').defaultTo(true);
+      table.timestamps(true, true);
+      table.index(['id_ditta', 'id_fornitore']);
+    })
+    .createTable('ac_condizioni_righe', function(table) {
+        table.increments('id').primary();
+        table.integer('id_testata').unsigned().notNullable().references('id').inTable('ac_condizioni_testata').onDelete('CASCADE');
+        table.integer('id_articolo').unsigned().notNullable().references('id').inTable('ct_catalogo').onDelete('CASCADE');
+        table.decimal('prezzo_listino', 10, 4).notNullable();
+        table.timestamps(true, true);
+        table.index(['id_testata', 'id_articolo']);
+    })
+    // La tabella sconti ora si lega direttamente alla riga della condizione
+    .createTable('ac_sconti_dettaglio', function(table) {
+        table.increments('id').primary();
+        // <span style="color:green;">// CORRETTO: Il nome della colonna ora è 'id_riga'.</span>
+        table.integer('id_riga').unsigned().notNullable().references('id').inTable('ac_condizioni_righe').onDelete('CASCADE');
+        table.integer('ordine_applicazione').notNullable();
+        table.enum('tipo_sconto', ['percentuale', 'importo']).notNullable();
+        table.decimal('valore_sconto', 10, 4).notNullable();
+        table.enum('tipo_esigibilita', ['immediata', 'differita']).notNullable();
+        table.text('note').nullable();
+        table.index('id_riga');
     });
-  }
 };
 
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = async function(knex) {
-  // Questa migrazione 'down' annulla la correzione.
-  const tableName = 'ac_sconti_dettaglio';
-  
-  await knex.schema.alterTable(tableName, (table) => {
-    table.dropColumn('id_riga');
-  });
-
-  await knex.schema.alterTable(tableName, (table) => {
-    table.integer('id_condizione').unsigned();
-  });
+exports.down = function(knex) {
+  return knex.schema
+    .dropTableIfExists('ac_sconti_dettaglio')
+    .dropTableIfExists('ac_condizioni_righe')
+    .dropTableIfExists('ac_condizioni_testata');
 };

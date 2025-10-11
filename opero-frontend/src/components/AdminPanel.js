@@ -10,6 +10,9 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
 import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon } from '@heroicons/react/24/outline';
+// ❗ 1. AGGIUNTA DEGLI IMPORT PER I NUOVI COMPONENTI
+import GestioneFunzioni from './admin/GestioneFunzioni';
+import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -627,21 +630,40 @@ const PrivacyDittaManager = () => {
 };
 
 
+
+
+
 // ====================================================================\
 // Componente Principale: AdminPanel
 // ====================================================================\
 function AdminPanel() {
-    const { user } = useAuth();
+    // ❗ FIX: Aggiunto hasPermission
+    const { user, hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('utenti');
 
+    // ❗ FIX STRUTTURALE: I componenti delle tab vengono "memoizzati" qui.
+    // Questo previene che vengano ricreati ad ogni render, conservando il loro stato interno.
+    // Questa è la correzione principale per l'errore di stato e l'avviso di eslint.
+    const tabComponents = useMemo(() => ({
+        utenti: <GestioneUtenti />,
+        moduli: <AssociaModuliDitta />,
+        funzioni: <GestioneFunzioni />,
+        permessi: <GestioneRuoliPermessi />,
+        privacy: <PrivacyDittaManager />,
+    }), []); // L'array vuoto [] assicura che questa operazione venga eseguita una sola volta.
+
+    // Il check di caricamento deve avvenire DOPO che gli hooks sono stati chiamati.
     if (!user) {
         return <div className="p-4">Caricamento...</div>;
     }
-
+    
+    // L'oggetto TABS ora referenzia le istanze stabili e include le nuove tab
     const TABS = {
-        utenti: { label: 'Gestione Utenti', component: <GestioneUtenti /> },
-        moduli: { label: 'Associa Moduli', component: <AssociaModuliDitta />, adminOnly: true },
-        privacy: { label: 'Privacy Policy', component: <PrivacyDittaManager />, adminOnly: false },
+        utenti: { label: 'Gestione Utenti', component: tabComponents.utenti },
+        moduli: { label: 'Associa Moduli', component: tabComponents.moduli, adminOnly: true },
+        funzioni: { label: 'Gestione Funzioni', component: tabComponents.funzioni, permission: 'ADMIN_FUNZIONI_VIEW' },
+        permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
+        privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: false },
     };
 
     return (
@@ -651,9 +673,18 @@ function AdminPanel() {
                 <div className="flex gap-2 mt-4 border-b">
                     {Object.entries(TABS).map(([key, tab]) => {
                         const isSystemAdmin = user.ruolo === 'Amministratore_sistema';
+                        
+                        // Logica di visualizzazione aggiornata per includere i permessi
+                        let isVisible = true;
                         if (tab.adminOnly && !isSystemAdmin) {
-                            return null;
+                            isVisible = false;
                         }
+                        if (tab.permission && !hasPermission(tab.permission)) {
+                            isVisible = false;
+                        }
+
+                        if (!isVisible) return null;
+
                         return (
                             <button
                                 key={key}
@@ -667,7 +698,7 @@ function AdminPanel() {
                 </div>
             </div>
             <div className="flex-grow bg-gray-50 overflow-y-auto">
-                {TABS[activeTab].component}
+                {TABS[activeTab] && TABS[activeTab].component}
             </div>
         </div>
     );
