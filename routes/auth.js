@@ -4,8 +4,8 @@
  * - Esegue la query corretta per recuperare il nome del ruolo.
  * - Include l'elenco dei permessi nel payload del token JWT.
  * - Risolve sia l'errore 500 nel modulo Posta sia l'errore 403 nel modulo Catalogo.
- * @date 2025-09-29
- * @version 8.0 (stabile)
+ * @date 2025-10-13
+ * @version 9.0 (stabile con permessi utente)
  */
 
 const express = require('express');
@@ -49,10 +49,34 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
         }
 
+        // --- NUOVA LOGICA DI COSTRUZIONE PERMESSI PERSONALIZZATI ---
+
+        // 1. Ottieni i permessi base dal ruolo
         const permissionsQuery = `SELECT f.codice FROM funzioni f JOIN ruoli_funzioni rf ON f.id = rf.id_funzione WHERE rf.id_ruolo = ?`;
         const [permissionRows] = await connection.query(permissionsQuery, [user.id_ruolo]);
-        const permissions = permissionRows.map(p => p.codice);
+        const permissionsSet = new Set(permissionRows.map(p => p.codice));
 
+        // 2. Ottieni gli override specifici dell'utente dalla nuova tabella
+        const overrideQuery = `
+            SELECT f.codice, ufo.azione 
+            FROM utenti_funzioni_override as ufo
+            JOIN funzioni as f ON ufo.id_funzione = f.id
+            WHERE ufo.id_utente = ?`;
+        const [overrides] = await connection.query(overrideQuery, [user.id]);
+
+        // 3. Applica gli override al Set di permessi
+        for (const override of overrides) {
+            if (override.azione === 'allow') {
+                permissionsSet.add(override.codice);
+            } else if (override.azione === 'deny') {
+                permissionsSet.delete(override.codice);
+            }
+        }
+        
+        // 4. Crea l'array finale dei permessi
+        const permissions = Array.from(permissionsSet);
+
+        // Recupero moduli e info ditta
         const modulesQuery = `SELECT m.codice, m.descrizione, m.chiave_componente FROM ditte_moduli dm JOIN moduli m ON dm.codice_modulo = m.codice WHERE dm.id_ditta = ?`;
         const [moduleRows] = await connection.query(modulesQuery, [user.id_ditta]);
 
@@ -62,15 +86,16 @@ router.post('/login', async (req, res) => {
             LEFT JOIN tipo_ditta td ON d.id_tipo_ditta = td.id
             WHERE d.id = ?`;
         const [dittaRows] = await connection.query(dittaQuery, [user.id_ditta]);
-
-        // ## TOKEN "ARRICCHITO" CON I PERMESSI ##
+         const ditta = dittaRows[0] || null; 
+        // ## TOKEN "ARRICCHITO" CON I PERMESSI PERSONALIZZATI ##
         const token = jwt.sign(
             { 
                 id: user.id, 
                 id_ditta: user.id_ditta, 
                 id_ruolo: user.id_ruolo, 
                 livello: user.livello,
-                permissions: permissions 
+                permissions: permissions, // Usa l'array di permessi personalizzato
+                ditta: ditta
             },
             JWT_SECRET,
             { expiresIn: '8h' }
@@ -90,7 +115,7 @@ router.post('/login', async (req, res) => {
                 livello: user.livello
             },
             ditta: dittaRows[0] || null,
-            permissions,
+            permissions, // Invia al frontend l'array di permessi personalizzato
             modules: moduleRows,
         });
 
@@ -127,7 +152,7 @@ router.get('/me', verifyToken, async (req, res) => {
             LEFT JOIN tipo_ditta td ON d.id_tipo_ditta = td.id
             WHERE d.id = ?`;
         const [dittaRows] = await connection.query(dittaQuery, [dittaId]);
-
+       
         const modulesQuery = `SELECT m.codice, m.descrizione, m.chiave_componente FROM ditte_moduli dm JOIN moduli m ON dm.codice_modulo = m.codice WHERE dm.id_ditta = ?`;
         const [moduleRows] = await connection.query(modulesQuery, [dittaId]);
 
@@ -149,4 +174,3 @@ router.get('/me', verifyToken, async (req, res) => {
 
 
 module.exports = router;
-

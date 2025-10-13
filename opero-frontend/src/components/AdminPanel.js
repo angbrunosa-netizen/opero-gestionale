@@ -1,6 +1,8 @@
 // #####################################################################
-// # Componente AdminPanel - v15.0 (Fix PDF e Permessi Ditta Admin)
+// # Componente AdminPanel - v15.5 (Fix Definitivo Visualizzazione Permessi)
 // # File: opero-frontend/src/components/AdminPanel.js
+// # Risolve il problema dello "stato stantio" che impediva la visualizzazione
+// # del pulsante dei permessi.
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -10,18 +12,18 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
 import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon } from '@heroicons/react/24/outline';
-// ❗ 1. AGGIUNTA DEGLI IMPORT PER I NUOVI COMPONENTI
+import { ShieldCheck } from 'lucide-react';
 import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
-
+import GestionePermessiUtenteModal from './admin/GestionePermessiUtenteModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
 
 
-// ====================================================================\
+// ====================================================================
 // Utility Functions per Export
-// ====================================================================\
+// ====================================================================
 
 const exportToCSV = (data, fileName) => {
     const csv = Papa.unparse(data);
@@ -40,10 +42,9 @@ const exportToPDF = (data, columns, fileName, ditta) => {
     const doc = new jsPDF();
     const tableHeaders = columns.map(col => col.label);
     const tableData = data.map(item => columns.map(col => item[col.key]));
-    const startY = 50; // Aumentato per fare spazio all'intestazione
+    const startY = 50; 
 
     const generatePdf = (logoImgData = null) => {
-        // Aggiungi Logo (con aspect ratio corretto)
         if (logoImgData) {
             const imgProps = doc.getImageProperties(logoImgData);
             const logoWidth = 40;
@@ -51,7 +52,6 @@ const exportToPDF = (data, columns, fileName, ditta) => {
             doc.addImage(logoImgData, 'PNG', 15, 10, logoWidth, logoHeight);
         }
 
-        // Aggiungi Dati Ditta
         if (ditta) {
             const xPos = 60;
             doc.setFontSize(14);
@@ -64,17 +64,14 @@ const exportToPDF = (data, columns, fileName, ditta) => {
             doc.text(`P.IVA: ${ditta.p_iva || ''}`, xPos, 31);
         }
         
-        // Aggiungi Titolo Documento
         doc.setFontSize(12);
         doc.text(`Elenco Utenti`, 15, startY - 5);
 
-        // Aggiungi Tabella e Footer
         autoTable(doc, {
             head: [tableHeaders],
             body: tableData,
             startY: startY,
             didDrawPage: (data) => {
-                // Footer
                 doc.setFontSize(8);
                 doc.setTextColor(150);
                 doc.text(
@@ -111,9 +108,9 @@ const exportToPDF = (data, columns, fileName, ditta) => {
 };
 
 
-// ====================================================================\
+// ====================================================================
 // Sotto-componente: Form di Creazione/Modifica Utente (Modal)
-// ====================================================================\
+// ====================================================================
 const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }) => {
     const { user: currentUser } = useAuth();
     const [formData, setFormData] = useState({});
@@ -190,9 +187,9 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
 };
 
 
-// ====================================================================\
+// ====================================================================
 // Sotto-componente: Gestione Utenti
-// ====================================================================\
+// ====================================================================
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
     const [ditte, setDitte] = useState([]);
@@ -203,6 +200,9 @@ const GestioneUtenti = () => {
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
+
+    // ❗ 1. INTEGRAZIONE: Stato per il modale dei permessi
+    const [editingPermissionsForUser, setEditingPermissionsForUser] = useState(null);
 
     const logAction = useCallback(async (azione, dettagli = '') => {
         try {
@@ -229,9 +229,6 @@ const GestioneUtenti = () => {
                     const ditteRes = await api.get('/admin/ditte');
                     setDitte(ditteRes.data.ditte);
                 } else {
-                    // --- FIX: Ripristinata logica per Amministratore Ditta ---
-                    // Un Ditta Admin vede solo i suoi utenti. Usiamo l'ID dal contesto
-                    // per attivare il caricamento.
                     setDitte([ditta]); 
                     setSelectedDittaId(ditta.id);
                 }
@@ -267,7 +264,7 @@ const GestioneUtenti = () => {
         setIsModalOpen(true);
     };
 
-    const handleEditUser = async (userId) => {
+    const handleEditUser = useCallback(async (userId) => {
         try {
             const response = await api.get(`/admin/utenti/${userId}`);
             setEditingUser(response.data.utente);
@@ -275,9 +272,9 @@ const GestioneUtenti = () => {
         } catch (error) {
             console.error(`Errore nel caricamento dei dati dell'utente ${userId}:`, error);
         }
-    };
+    }, []);
     
-    const handleDeleteUser = async (userId) => {
+    const handleDeleteUser = useCallback(async (userId) => {
         if (window.confirm('Sei sicuro di voler eliminare questo utente?')) {
             try {
                 const userToDelete = utenti.find(u => u.id === userId);
@@ -290,7 +287,7 @@ const GestioneUtenti = () => {
                 console.error(`Errore durante l'eliminazione dell'utente ${userId}:`, error);
             }
         }
-    };
+    }, [utenti, logAction]);
 
     const handleSaveUser = async (userData) => {
         try {
@@ -356,6 +353,17 @@ const GestioneUtenti = () => {
                 <div className="flex space-x-2">
                     {hasPermission('UTENTI_EDIT') && <button onClick={() => handleEditUser(row.original.id)} className="text-blue-600 hover:text-blue-800"><PencilIcon className="h-5 w-5" /></button>}
                     {hasPermission('UTENTI_EDIT') && <button onClick={() => handleDeleteUser(row.original.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>}
+                    
+                    {/* ❗ 2. INTEGRAZIONE: Pulsante per gestire i permessi */}
+                    {hasPermission('ADMIN_USER_PERMISSIONS_MANAGE') && (
+                        <button 
+                            onClick={() => setEditingPermissionsForUser(row.original)} 
+                            className="p-1 text-gray-500 hover:text-green-600"
+                            title="Gestisci permessi personalizzati"
+                        >
+                            <ShieldCheck size={18} />
+                        </button>
+                    )}
                 </div>
             ),
         },
@@ -392,14 +400,22 @@ const GestioneUtenti = () => {
                 </>
             )}
             {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => setIsModalOpen(false)} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
+            
+            {/* ❗ 3. INTEGRAZIONE: Render del modale dei permessi */}
+            {editingPermissionsForUser && (
+                <GestionePermessiUtenteModal 
+                    utente={editingPermissionsForUser}
+                    onClose={() => setEditingPermissionsForUser(null)}
+                />
+            )}
         </div>
     );
 };
 
 
-// ====================================================================\
+// ====================================================================
 // Sotto-componente: Associa Moduli Ditta
-// ====================================================================\
+// ====================================================================
 const AssociaModuliDitta = () => {
     const [ditte, setDitte] = useState([]);
     const [moduli, setModuli] = useState([]);
@@ -497,9 +513,9 @@ const AssociaModuliDitta = () => {
 };
 
 
-// ====================================================================\
+// ====================================================================
 // Sotto-componente: Gestione Privacy per Ditta
-// ====================================================================\
+// ====================================================================
 const PrivacyDittaManager = () => {
     const { user, ditta } = useAuth();
     const [ditte, setDitte] = useState([]);
@@ -509,7 +525,6 @@ const PrivacyDittaManager = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Carica i dati iniziali (ditte per sysadmin o imposta ditta per ditta-admin)
     useEffect(() => {
         const loadInitialData = async () => {
             if (!user) return;
@@ -527,7 +542,6 @@ const PrivacyDittaManager = () => {
         loadInitialData();
     }, [user, ditta]);
 
-    // Carica i dati specifici (utenti e policy) quando una ditta è selezionata
     useEffect(() => {
         const fetchDataForDitta = async () => {
             if (!selectedDittaId) {
@@ -630,40 +644,35 @@ const PrivacyDittaManager = () => {
 };
 
 
-
-
-
-// ====================================================================\
+// ====================================================================
 // Componente Principale: AdminPanel
-// ====================================================================\
+// ====================================================================
 function AdminPanel() {
-    // ❗ FIX: Aggiunto hasPermission
     const { user, hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('utenti');
 
-    // ❗ FIX STRUTTURALE: I componenti delle tab vengono "memoizzati" qui.
-    // Questo previene che vengano ricreati ad ogni render, conservando il loro stato interno.
-    // Questa è la correzione principale per l'errore di stato e l'avviso di eslint.
+    // ❗ FIX DEFINITIVO: Aggiunto 'user' alle dipendenze di useMemo.
+    // Questo forza React a ricreare i componenti delle schede ogni volta che l'utente
+    // (e i suoi permessi) vengono caricati, risolvendo il problema dello stato "stantio".
     const tabComponents = useMemo(() => ({
         utenti: <GestioneUtenti />,
         moduli: <AssociaModuliDitta />,
         funzioni: <GestioneFunzioni />,
         permessi: <GestioneRuoliPermessi />,
         privacy: <PrivacyDittaManager />,
-    }), []); // L'array vuoto [] assicura che questa operazione venga eseguita una sola volta.
+    }), [user]); // L'array di dipendenze ora reagisce al cambio dell'utente.
 
-    // Il check di caricamento deve avvenire DOPO che gli hooks sono stati chiamati.
     if (!user) {
         return <div className="p-4">Caricamento...</div>;
     }
     
-    // L'oggetto TABS ora referenzia le istanze stabili e include le nuove tab
     const TABS = {
         utenti: { label: 'Gestione Utenti', component: tabComponents.utenti },
         moduli: { label: 'Associa Moduli', component: tabComponents.moduli, adminOnly: true },
         funzioni: { label: 'Gestione Funzioni', component: tabComponents.funzioni, permission: 'ADMIN_FUNZIONI_VIEW' },
-        permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
+              permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
         privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: false },
+    
     };
 
     return (
@@ -674,7 +683,6 @@ function AdminPanel() {
                     {Object.entries(TABS).map(([key, tab]) => {
                         const isSystemAdmin = user.ruolo === 'Amministratore_sistema';
                         
-                        // Logica di visualizzazione aggiornata per includere i permessi
                         let isVisible = true;
                         if (tab.adminOnly && !isSystemAdmin) {
                             isVisible = false;

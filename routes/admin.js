@@ -1,13 +1,13 @@
 // #####################################################################
-// # Rotte di Amministrazione Sistema - v7.3 (Fix Definitivo Variabile DB)
+// # Rotte di Amministrazione Sistema - v8.0 (Fix Definitivo con 'knex')
 // # File: opero/routes/admin.js
-// # Corregge l'utilizzo di 'knex' al posto di 'dbPool' per il query builder.
+// # Utilizza 'knex' per tutte le operazioni di query builder, risolvendo il TypeError.
 // #####################################################################
 
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-// ❗ FIX DEFINITIVO: Importiamo 'knex' per il query builder, non 'dbPool'.
+// ❗ FIX DEFINITIVO: Importiamo e usiamo 'knex' per il query builder.
 const { knex } = require('../config/db'); 
 const { verifyToken, checkRole, checkPermission } = require('../utils/auth');
 
@@ -387,7 +387,6 @@ router.delete('/funzioni/:id', [verifyToken, isSystemAdmin, checkPermission('FUN
 // API GESTIONE ASSOCIAZIONI DITTA-FUNZIONE (Solo System Admin)
 // ====================================================================
 
-// ❗ FIX: Aggiunta la rotta GET /funzioni-ditta/:id_ditta che era stata omessa
 router.get('/funzioni-ditta/:id_ditta', [verifyToken, isSystemAdmin], async (req, res) => {
     try {
         const { id_ditta } = req.params;
@@ -398,7 +397,6 @@ router.get('/funzioni-ditta/:id_ditta', [verifyToken, isSystemAdmin], async (req
         res.status(500).json({ success: false, message: 'Errore nel recupero delle funzioni associate.' });
     }
 });
-
 
 router.post('/funzioni-ditta', [verifyToken, isSystemAdmin], async (req, res) => {
     const { id_ditta, funzioni } = req.body;
@@ -510,6 +508,113 @@ router.post('/ditta/permessi', [verifyToken, isDittaAdmin, checkPermission('ADMI
     }
 });
 
-module.exports = router;
+// ====================================================================
+// API GESTIONE PERMESSI PERSONALIZZATI UTENTE (Ditta/System Admin)
+// ====================================================================
 
+// GET: Ottiene lo stato completo dei permessi per un singolo utente
+router.get('/utenti/:id/permissions', [verifyToken, isDittaAdmin, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
+    const { id: id_utente_target } = req.params;
+    const requester = req.user;
+
+    try {
+        const utenteTarget = await knex('utenti').where({ id: id_utente_target }).select('id_ditta', 'id_ruolo').first();
+        if (!utenteTarget) {
+            return res.status(404).json({ message: 'Utente non trovato.' });
+        }
+
+        // Sicurezza: Un Admin Ditta può gestire solo utenti della propria ditta
+        if (requester.id_ruolo === 2 && utenteTarget.id_ditta !== requester.id_ditta) {
+            return res.status(403).json({ message: 'Non autorizzato a gestire i permessi di questo utente.' });
+        }
+
+        // 1. Prendi tutte le funzioni abilitate per la ditta
+        const funzioniAbilitate = await knex('funzioni as f')
+            .join('funzioni_ditte as fd', 'f.id', 'fd.id_funzione')
+            .where('fd.id_ditta', utenteTarget.id_ditta)
+            .select('f.id', 'f.codice', 'f.descrizione', 'f.chiave_componente_modulo');
+
+        // 2. Prendi i permessi base del ruolo dell'utente
+        const permessiRuolo = await knex('ruoli_funzioni').where({ id_ruolo: utenteTarget.id_ruolo }).pluck('id_funzione');
+        const setPermessiRuolo = new Set(permessiRuolo);
+
+        // 3. Prendi gli override specifici dell'utente
+        const overrides = await knex('utenti_funzioni_override').where({ id_utente: id_utente_target });
+        const mapOverrides = new Map(overrides.map(o => [o.id_funzione, o.azione]));
+
+        // 4. Combina i dati per il frontend
+        const response = funzioniAbilitate.map(funzione => {
+            let stato = 'default'; // Ereditato dal ruolo
+            if (mapOverrides.has(funzione.id)) {
+                stato = mapOverrides.get(funzione.id); // 'allow' o 'deny'
+            }
+            return {
+                ...funzione,
+                abilitato_da_ruolo: setPermessiRuolo.has(funzione.id),
+                stato_override: stato
+            };
+        });
+
+        res.json(response);
+
+    } catch (error) {
+        console.error("Errore nel recupero dei permessi utente:", error);
+        res.status(500).json({ message: 'Errore del server.' });
+    }
+});
+
+// POST: Salva gli override dei permessi per un utente
+router.post('/utenti/:id/permissions', [verifyToken, isDittaAdmin, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
+    const { id: id_utente_target } = req.params;
+    const { overrides } = req.body; // Array di { id_funzione, azione }
+    const requester = req.user;
+    const id_utente_loggato = requester.id_utente;
+
+    try {
+        const utenteTarget = await knex('utenti').where({ id: id_utente_target }).select('id_ditta').first();
+        if (!utenteTarget) {
+            return res.status(404).json({ message: 'Utente non trovato.' });
+        }
+
+        // Sicurezza: Un Admin Ditta può gestire solo utenti della propria ditta
+        if (requester.id_ruolo === 2 && utenteTarget.id_ditta !== requester.id_ditta) {
+            return res.status(403).json({ message: 'Non autorizzato a gestire i permessi di questo utente.' });
+        }
+
+        await knex.transaction(async trx => {
+            // 1. Cancella i vecchi override per questo utente
+            await trx('utenti_funzioni_override').where({ id_utente: id_utente_target }).del();
+
+            // 2. Inserisci i nuovi override, se ce ne sono
+            if (overrides && overrides.length > 0) {
+                const dataToInsert = overrides.map(o => ({
+                    id_utente: id_utente_target,
+                    id_funzione: o.id_funzione,
+                    azione: o.azione
+                }));
+                await trx('utenti_funzioni_override').insert(dataToInsert);
+            }
+
+            // 3. Logga l'azione
+            if (id_utente_loggato) {
+                await trx('log_azioni').insert({
+                    id_utente: id_utente_loggato,
+                    tipo_azione: 'PERMISSIONS_UPDATE',
+                    descrizione: `L'utente ha modificato i permessi personalizzati per l'utente ID: ${id_utente_target}`,
+                    tabella_riferimento: 'utenti',
+                    id_riferimento: id_utente_target
+                });
+            }
+        });
+
+        res.json({ message: 'Permessi utente aggiornati con successo.' });
+
+    } catch (error) {
+        console.error("Errore nel salvataggio dei permessi utente:", error);
+        res.status(500).json({ message: 'Errore del server.' });
+    }
+});
+
+
+module.exports = router;
 
