@@ -540,11 +540,12 @@ router.get('/entita', verifyToken, async (req, res) => {
         let query = knex('ct_catalogo as cat')
             .leftJoin('ct_categorie as a', 'cat.id_categoria', 'a.id')
             .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
-            .leftJoin('ct_listini as l', function() {
+          /*  .leftJoin('ct_listini as l', function() {
                 this.on('cat.id', '=', 'l.id_entita_catalogo')
                     .andOn(knex.raw('l.data_inizio_validita <= CURDATE()'))
                     .andOn(knex.raw('(l.data_fine_validita IS NULL OR l.data_fine_validita >= CURDATE())'));
             })
+            */
             .leftJoin('ct_logistica as log', 'cat.id', 'log.id_catalogo')
             .where('cat.id_ditta', req.user.id_ditta);
 
@@ -557,7 +558,17 @@ router.get('/entita', verifyToken, async (req, res) => {
             'a.descrizione as nome_categoria',
             'se.descrizione as stato_entita',
             'se.codice as codice_stato',
-            'l.prezzo_cessione_1',
+            knex.raw(`(
+                SELECT l.prezzo_cessione_1 
+                FROM ct_listini as l
+                WHERE l.id_entita_catalogo = cat.id
+                  AND l.data_inizio_validita <= CURDATE()
+                  AND (l.data_fine_validita IS NULL OR l.data_fine_validita >= CURDATE())
+                ORDER BY l.data_inizio_validita DESC
+                LIMIT 1
+            ) as prezzo_cessione_1`),
+            // --- FINE MODIFICA ---
+            //'l.prezzo_cessione_1',
             'log.peso_lordo_pz', 'log.volume_pz', 'log.h_pz', 'log.l_pz', 'log.p_pz',
             'log.s_im', 'log.pezzi_per_collo', 'log.colli_per_strato', 'log.strati_per_pallet'
         ).groupBy('cat.id');
