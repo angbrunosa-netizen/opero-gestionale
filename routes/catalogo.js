@@ -726,8 +726,24 @@ router.patch('/listini/:listinoId', verifyToken, async (req, res) => {
     }
     const { listinoId } = req.params;
     const { id_ditta, id: id_utente } = req.user;
-    const dataToUpdate = req.body;
+        // --- INIZIO DELLA CORREZIONE ---
+    // 1. Separiamo le date e il resto dei dati dal corpo della richiesta
+    const { data_inizio_validita, data_fine_validita, ...otherData } = req.body;
 
+    // 2. Creiamo un nuovo oggetto per l'aggiornamento con i dati non-data
+    const dataToUpdate = { ...otherData };
+
+    // 3. Formattiamo le date solo se sono presenti nel formato corretto (YYYY-MM-DD)
+    if (data_inizio_validita) {
+        dataToUpdate.data_inizio_validita = new Date(data_inizio_validita).toISOString().split('T')[0];
+    }
+    
+    if (data_fine_validita) {
+        dataToUpdate.data_fine_validita = new Date(data_fine_validita).toISOString().split('T')[0];
+    } else if (req.body.hasOwnProperty('data_fine_validita')) {
+        // Se il campo è presente ma vuoto (es. ""), lo impostiamo a NULL
+        dataToUpdate.data_fine_validita = null;
+    }
     try {
         const updated = await knex('ct_listini').where({ id: listinoId, id_ditta }).update(dataToUpdate);
         if (updated === 0) {
