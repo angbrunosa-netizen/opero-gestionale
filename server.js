@@ -25,7 +25,7 @@ const publicRoutes = require('./routes/public');
 const trackRoutes = require('./routes/track');
 
 const reportRoutes = require('./routes/reports');
-const beniStrumentaliRoutes = require('./routes/beniStrumentali');
+const beniStrumentaliRoutes = require('./routes/benistrumentali');
 const catalogoRoutes = require('./routes/catalogo'); // <-- NUOVA INTEGRAZIONE
 const magazzinoRoutes = require('./routes/magazzino');
 const venditeRoutes = require('./routes/vendite'); // <-- NUOVA INTEGRAZIONE
