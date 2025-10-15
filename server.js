@@ -47,7 +47,7 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // In sviluppo, abbiamo bisogno di una configurazione CORS robusta
   // per permettere la comunicazione tra il frontend (es. porta 3000) e il backend (es. porta 3001).
-  const allowedOrigins = ['http://localhost:3000', 'http://localhost:3003'];
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost:3003','http://192.168.1.80','http://192.168.1.80:8080' ];
   const corsOptions = {
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
