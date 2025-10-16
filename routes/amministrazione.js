@@ -73,9 +73,7 @@ async function findNextAvailableSottoconto(dittaId, idPadre, connection) {
     const { mastro } = req.params;
     // =================================================================
         // ## ALTRO BLOCCO DI DEBUG ##
-        console.log(`Query eseguita. Numero di anagrafiche trovate nel database: ${rows.length}`);
-        console.log('--- DEBUG: Fine richiesta ---');
-        // =================================================================
+       
 
     if (!dittaId || !mastro) {
         return res.status(400).json({ success: false, message: 'ID ditta e codice mastro sono richiesti.' });
@@ -402,9 +400,7 @@ router.get('/utenti', verifyToken, async (req, res) => {
         
         // =================================================================
         // ## ALTRO BLOCCO DI DEBUG ##
-        console.log(`Query eseguita. Numero di utenti trovati nel database: ${users.length}`);
-        console.log('--- DEBUG: Fine richiesta ---');
-        // =================================================================
+      
 
         res.json({ success: true, data: users });
     } catch (error) {

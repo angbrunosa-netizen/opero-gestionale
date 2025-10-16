@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+                <html lang="it">
+                <head>
+                    <meta charset="UTF-8"><title>20251016_PianoIniziale.html</title>
+                    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f4f7f6; 
+            color: #333; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        .container { 
+            max-width: 900px; 
+            margin: auto; 
+            background-color: #fff; 
+            padding: 25px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+        }
+        h1, h2, h3 { 
+            color: #005a9c; 
+            border-bottom: 2px solid #eef2f5; 
+            padding-bottom: 10px; 
+        }
+        h1 { text-align: center; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #555; }
+        input[type="date"], textarea { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 1rem; 
+            box-sizing: border-box; 
+        }
+        textarea { min-height: 120px; resize: vertical; }
+        .form-check { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 8px; 
+            padding: 5px; 
+            border-radius: 4px; 
+            background-color: #f9f9f9; 
+        }
+        .form-check input[type="checkbox"] { 
+            width: auto; 
+            margin-right: 10px; 
+            height: 1.2em; 
+            width: 1.2em; 
+        }
+        .form-check label { margin-bottom: 0; font-weight: normal; }
+        .btn { 
+            display: block; 
+            width: 100%; 
+            padding: 12px; 
+            background-color: #005a9c; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            font-size: 1.1rem; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: background-color 0.3s; 
+        }
+        .btn:hover { background-color: #004170; }
+        #output { 
+            margin-top: 30px; 
+            padding: 20px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            background-color: #fdfdfd; 
+        }
+        .output-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+        }
+        .output-header-buttons { display: flex; flex-wrap: wrap; }
+        .action-btn { 
+            padding: 8px 15px; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin-left: 10px; 
+            margin-top: 5px; 
+            font-weight: bold; 
+        }
+        .print-btn { background-color: #007bff; }
+        .save-btn { background-color: #17a2b8; }
+        .final-btn { background-color: #28a745; }
+        
+        .objectives-list { list-style: none; padding: 0; }
+        .objective-item { 
+            border: 1px solid #eee; 
+            padding: 15px; 
+            margin-bottom: 10px; 
+            border-radius: 5px; 
+            background: #fafafa; 
+        }
+        .objective-text { margin: 0 0 10px 0; }
+        .status-options label { margin-right: 15px; font-weight: normal; }
+        .status-options input { margin-right: 5px; }
+
+        @media print {
+            body { padding: 0; background-color: #fff; }
+            .container { box-shadow: none; padding: 0; }
+            .form-container, .btn, .action-btn { display: none; }
+            #output { display: block !important; margin: 0; padding: 0; border: none; }
+            .print-mode-initial .status-options { display: none; }
+            .print-mode-initial .objective-item { border: none; padding: 5px 0; }
+        }
+    </style>
+                </head>
+                <body><div class="container">
+                <div class="output-header">
+                    <h2>Prospetto del 16 ottobre 2025</h2>
+                    
+                </div>
+
+                <h3>1. Stato Iniziale</h3>
+                <ul>
+                    <li><strong>Repository:</strong> ✔️ Confermato.</li>
+                    <li><strong>Database:</strong> ✔️ Confermato.</li>
+                    <li><strong>Backend Routes:</strong> ✔️ Confermato.</li>
+                </ul>
+
+                <h3>2. Obiettivi e Stato di Avanzamento</h3>
+                <div id="objectives-container"><ul class="objectives-list">
+                    <li class="objective-item" style="border: none; padding: 5px 0px;">
+                        <p class="objective-text">implementazione ditte x utente</p>
+                        
+                    </li>
+                </ul></div>
+                
+                <h3>3. Attività di Sviluppo</h3>
+                <h4>Nuovo Codice / Modifiche:</h4><pre><code>dovremmo poter gessitre per ogni utente più ditte e quindi la possibilità di scegliere la ditta con cui oerare al momento del login</code></pre>
+                <h4>File di Migrazione Knex:</h4><pre><code>sarà necessario creare una nuova tabella utenti ditta di tipo uno a molti in cui ad ogni utente potremo associare diverse ditte.</code></pre>
+
+                <h3>4. Note e Decisioni Rilevanti</h3>
+                <p>non prevediamo che l'utente possa scegliere di cambiare durante la fase di login la ditta ma dovrà necessariamente effettuare il logouat e loggarsi nuovamente per una politica di controllo delle connessioni attive e perchè un utente interno di una ditta può essere esterno nell'altra</p>
+            </div></body>
+                </html>

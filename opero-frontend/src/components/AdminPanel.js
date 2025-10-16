@@ -1,8 +1,8 @@
 // #####################################################################
-// # Componente AdminPanel - v15.5 (Fix Definitivo Visualizzazione Permessi)
+// # Componente AdminPanel - v16.1 (Corretto con Logica di Sblocco Utente)
 // # File: opero-frontend/src/components/AdminPanel.js
-// # Risolve il problema dello "stato stantio" che impediva la visualizzazione
-// # del pulsante dei permessi.
+// # Corregge la logica per basarsi sul nuovo campo `stato` ('attivo'/'bloccato')
+// # e garantisce la visualizzazione corretta del pulsante di sblocco.
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -11,7 +11,7 @@ import 'react-quill/dist/quill.snow.css';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
-import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon } from '@heroicons/react/24/outline';
 import { ShieldCheck } from 'lucide-react';
 import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
@@ -19,10 +19,10 @@ import GestionePermessiUtenteModal from './admin/GestionePermessiUtenteModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-
+import { toast } from 'react-toastify'; // Assicurati che react-toastify sia installato
 
 // ====================================================================
-// Utility Functions per Export
+// Utility Functions per Export (invariate)
 // ====================================================================
 
 const exportToCSV = (data, fileName) => {
@@ -42,7 +42,7 @@ const exportToPDF = (data, columns, fileName, ditta) => {
     const doc = new jsPDF();
     const tableHeaders = columns.map(col => col.label);
     const tableData = data.map(item => columns.map(col => item[col.key]));
-    const startY = 50; 
+    const startY = 50;
 
     const generatePdf = (logoImgData = null) => {
         if (logoImgData) {
@@ -109,7 +109,7 @@ const exportToPDF = (data, columns, fileName, ditta) => {
 
 
 // ====================================================================
-// Sotto-componente: Form di Creazione/Modifica Utente (Modal)
+// Sotto-componente: Form di Creazione/Modifica Utente (Modal) (invariato)
 // ====================================================================
 const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }) => {
     const { user: currentUser } = useAuth();
@@ -188,7 +188,7 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
 
 
 // ====================================================================
-// Sotto-componente: Gestione Utenti
+// Sotto-componente: Gestione Utenti (CON LOGICA DI SBLOCCO CORRETTA)
 // ====================================================================
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
@@ -200,13 +200,11 @@ const GestioneUtenti = () => {
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
-
-    // ❗ 1. INTEGRAZIONE: Stato per il modale dei permessi
     const [editingPermissionsForUser, setEditingPermissionsForUser] = useState(null);
 
     const logAction = useCallback(async (azione, dettagli = '') => {
         try {
-            await api.post('/track/log-action', {
+            await api.post('//log-action', {
                 azione,
                 dettagli,
                 modulo: 'Admin',
@@ -215,6 +213,23 @@ const GestioneUtenti = () => {
         } catch (error) {
             console.error("Errore durante la registrazione dell'azione:", error);
         }
+    }, []);
+
+    const fetchUtentiForDitta = useCallback(async (dittaId) => {
+        if (!dittaId) {
+            setUtenti([]);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const response = await api.get(`/admin/utenti/ditta/${dittaId}`);
+            setUtenti(response.data.utenti);
+        } catch (error) {
+            toast.error("Impossibile caricare l'elenco degli utenti.");
+            console.error(`Errore nel caricamento degli utenti per la ditta ${dittaId}:`, error);
+            setUtenti([]);
+        }
+        setIsLoading(false);
     }, []);
 
     useEffect(() => {
@@ -241,23 +256,8 @@ const GestioneUtenti = () => {
     }, [user, ditta]);
 
     useEffect(() => {
-        if (!selectedDittaId) {
-            setUtenti([]);
-            return;
-        }
-        const fetchUtenti = async () => {
-            setIsLoading(true);
-            try {
-                const response = await api.get(`/admin/utenti/ditta/${selectedDittaId}`);
-                setUtenti(response.data.utenti);
-            } catch (error) {
-                console.error(`Errore nel caricamento degli utenti per la ditta ${selectedDittaId}:`, error);
-                setUtenti([]);
-            }
-            setIsLoading(false);
-        };
-        fetchUtenti();
-    }, [selectedDittaId, logAction]);
+        fetchUtentiForDitta(selectedDittaId);
+    }, [selectedDittaId, fetchUtentiForDitta]);
 
     const handleNewUser = () => {
         setEditingUser(null);
@@ -289,6 +289,20 @@ const GestioneUtenti = () => {
         }
     }, [utenti, logAction]);
 
+    const handleUnlockUser = useCallback(async (userId) => {
+        if (window.confirm("Sei sicuro di voler sbloccare questo utente?")) {
+            try {
+                const { data } = await api.post(`/admin/utenti/${userId}/sblocca`);
+                toast.success(data.message);
+                logAction('Sblocco utente', `Sbloccato utente ID: ${userId}`);
+                fetchUtentiForDitta(selectedDittaId);
+            } catch (error) {
+                toast.error(error.response?.data?.message || "Errore durante lo sblocco dell'utente.");
+                console.error(error);
+            }
+        }
+    }, [selectedDittaId, fetchUtentiForDitta, logAction]);
+
     const handleSaveUser = async (userData) => {
         try {
             await api.post('/admin/utenti', userData);
@@ -297,8 +311,7 @@ const GestioneUtenti = () => {
             logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
             
             setIsModalOpen(false);
-            const response = await api.get(`/admin/utenti/ditta/${selectedDittaId}`);
-            setUtenti(response.data.utenti);
+            fetchUtentiForDitta(selectedDittaId);
         } catch (error) {
             console.error('Errore durante il salvataggio dell\'utente:', error);
         }
@@ -346,28 +359,49 @@ const GestioneUtenti = () => {
                 return ruolo ? ruolo.ruolo : 'N/D';
             }
         },
+        // ++ COLONNA CORRETTA: Visualizzazione stato utente basata su `stato` ++
+        {
+            header: 'Stato',
+            accessorKey: 'stato',
+            cell: info => (
+                info.getValue() === 'bloccato' ?
+                <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Bloccato</span> :
+                <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Attivo</span>
+            ),
+        },
         {
             id: 'actions',
             header: 'Azioni',
-            cell: ({ row }) => (
+            // ++ SINTASSI CORRETTA (info) PER LA CELLA AZIONI ++
+            cell: (info) => (
                 <div className="flex space-x-2">
-                    {hasPermission('UTENTI_EDIT') && <button onClick={() => handleEditUser(row.original.id)} className="text-blue-600 hover:text-blue-800"><PencilIcon className="h-5 w-5" /></button>}
-                    {hasPermission('UTENTI_EDIT') && <button onClick={() => handleDeleteUser(row.original.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>}
+                    {hasPermission('UTENTI_EDIT') && <button onClick={() => handleEditUser(info.row.original.id)} className="text-blue-600 hover:text-blue-800"><PencilIcon className="h-5 w-5" /></button>}
+                    {hasPermission('UTENTI_EDIT') && <button onClick={() => handleDeleteUser(info.row.original.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>}
                     
-                    {/* ❗ 2. INTEGRAZIONE: Pulsante per gestire i permessi */}
                     {hasPermission('ADMIN_USER_PERMISSIONS_MANAGE') && (
                         <button 
-                            onClick={() => setEditingPermissionsForUser(row.original)} 
+                            onClick={() => setEditingPermissionsForUser(info.row.original)} 
                             className="p-1 text-gray-500 hover:text-green-600"
                             title="Gestisci permessi personalizzati"
                         >
                             <ShieldCheck size={18} />
                         </button>
                     )}
+                    
+                    {/* ++ LOGICA DI VISUALIZZAZIONE CORRETTA ++ */}
+                    {info.row.original.stato === 'bloccato' && hasPermission('ADMIN_UTENTI_SBLOCCA') && (
+                        <button 
+                            onClick={() => handleUnlockUser(info.row.original.id)}
+                            className="p-1 text-gray-500 hover:text-blue-600"
+                            title="Sblocca utente"
+                        >
+                            <LockOpenIcon className="h-5 w-5" />
+                        </button>
+                    )}
                 </div>
             ),
         },
-    ], [ruoli, hasPermission, handleEditUser, handleDeleteUser]);
+    ], [ruoli, hasPermission, handleEditUser, handleDeleteUser, handleUnlockUser]);
 
     return (
         <div className="p-4">
@@ -401,7 +435,6 @@ const GestioneUtenti = () => {
             )}
             {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => setIsModalOpen(false)} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
             
-            {/* ❗ 3. INTEGRAZIONE: Render del modale dei permessi */}
             {editingPermissionsForUser && (
                 <GestionePermessiUtenteModal 
                     utente={editingPermissionsForUser}
@@ -414,7 +447,7 @@ const GestioneUtenti = () => {
 
 
 // ====================================================================
-// Sotto-componente: Associa Moduli Ditta
+// Sotto-componente: Associa Moduli Ditta (invariato)
 // ====================================================================
 const AssociaModuliDitta = () => {
     const [ditte, setDitte] = useState([]);
@@ -472,10 +505,10 @@ const AssociaModuliDitta = () => {
         setIsSaving(true);
         try {
             await api.post('/admin/salva-associazioni', { id_ditta: selectedDittaId, moduli: moduliAssociati });
-            alert('Associazioni salvate con successo!');
+            toast.success('Associazioni salvate con successo!');
         } catch (error) {
             console.error('Errore durante il salvataggio:', error);
-            alert('Si è verificato un errore durante il salvataggio.');
+            toast.error('Si è verificato un errore durante il salvataggio.');
         }
         setIsSaving(false);
     };
@@ -514,7 +547,7 @@ const AssociaModuliDitta = () => {
 
 
 // ====================================================================
-// Sotto-componente: Gestione Privacy per Ditta
+// Sotto-componente: Gestione Privacy per Ditta (invariato)
 // ====================================================================
 const PrivacyDittaManager = () => {
     const { user, ditta } = useAuth();
@@ -576,10 +609,10 @@ const PrivacyDittaManager = () => {
                 id_ditta: selectedDittaId,
                 ...privacyData
             });
-            alert('Privacy policy salvata con successo!');
+            toast.success('Privacy policy salvata con successo!');
         } catch (error) {
             console.error('Errore durante il salvataggio:', error);
-            alert('Si è verificato un errore durante il salvataggio.');
+            toast.error('Si è verificato un errore durante il salvataggio.');
         }
         setIsSaving(false);
     };
@@ -645,22 +678,19 @@ const PrivacyDittaManager = () => {
 
 
 // ====================================================================
-// Componente Principale: AdminPanel
+// Componente Principale: AdminPanel (invariato)
 // ====================================================================
 function AdminPanel() {
     const { user, hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('utenti');
 
-    // ❗ FIX DEFINITIVO: Aggiunto 'user' alle dipendenze di useMemo.
-    // Questo forza React a ricreare i componenti delle schede ogni volta che l'utente
-    // (e i suoi permessi) vengono caricati, risolvendo il problema dello stato "stantio".
     const tabComponents = useMemo(() => ({
         utenti: <GestioneUtenti />,
         moduli: <AssociaModuliDitta />,
         funzioni: <GestioneFunzioni />,
         permessi: <GestioneRuoliPermessi />,
         privacy: <PrivacyDittaManager />,
-    }), [user]); // L'array di dipendenze ora reagisce al cambio dell'utente.
+    }), [user]);
 
     if (!user) {
         return <div className="p-4">Caricamento...</div>;
@@ -670,7 +700,7 @@ function AdminPanel() {
         utenti: { label: 'Gestione Utenti', component: tabComponents.utenti },
         moduli: { label: 'Associa Moduli', component: tabComponents.moduli, adminOnly: true },
         funzioni: { label: 'Gestione Funzioni', component: tabComponents.funzioni, permission: 'ADMIN_FUNZIONI_VIEW' },
-              permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
+        permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
         privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: false },
     
     };

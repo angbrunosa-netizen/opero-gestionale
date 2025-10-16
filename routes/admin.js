@@ -10,7 +10,7 @@ const bcrypt = require('bcrypt');
 // ❗ FIX DEFINITIVO: Importiamo e usiamo 'knex' per il query builder.
 const { knex } = require('../config/db'); 
 const { verifyToken, checkRole, checkPermission } = require('../utils/auth');
-
+const { dbPool } = require('../config/db');
 // Middleware per i ruoli
 const isSystemAdmin = checkRole([1]); 
 const isDittaAdmin = checkRole([1, 2]);
@@ -62,7 +62,7 @@ router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, r
 
     try {
         const utenti = await knex('utenti')
-            .select('id', knex.raw('CONCAT(nome, " ", cognome) as username'), 'email', 'id_ruolo')
+            .select('id', knex.raw('CONCAT(nome, " ", cognome) as username'), 'email', 'id_ruolo','stato')
             .where({ id_ditta });
         res.json({ success: true, utenti });
     } catch (error) {
@@ -615,6 +615,73 @@ router.post('/utenti/:id/permissions', [verifyToken, isDittaAdmin, checkPermissi
     }
 });
 
+// ## NOVITÀ: ROTTA PER SBLOCCARE UN UTENTE ##
+// Questa rotta è protetta e accessibile solo da chi ha il permesso 'ADMIN_UTENTI_SBLOCCA'.
+// ## NOVITÀ: ROTTA PER SBLOCCARE UN UTENTE ##
+// Questa rotta è protetta e accessibile solo da chi ha il permesso 'ADMIN_UTENTI_SBLOCCA'.
+router.post('/utenti/:id/sblocca', verifyToken, checkPermission('ADMIN_UTENTI_SBLOCCA'), async (req, res) => {
+    const { id } = req.params; // ID dell'utente da sbloccare
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+
+        // Esegue l'aggiornamento per riattivare l'utente e azzerare i tentativi
+        const [updateResult] = await connection.query(
+            "UPDATE utenti SET stato = 'attivo', tentativi_falliti = 0 WHERE id = ? AND id_ditta = ?",
+            [id, req.user.id_ditta] // Aggiunto controllo su id_ditta per sicurezza
+        );
+
+        if (updateResult.affectedRows === 0) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Utente non trovato o non appartenente a questa ditta.' });
+        }
+        
+        // Logga l'azione di sblocco (come da requisiti di progetto)
+        await connection.query(
+            'INSERT INTO log_azioni (id_utente, id_ditta, azione, dettagli) VALUES (?, ?, ?, ?)',
+            [req.user.id, req.user.id_ditta, 'SBLOCCO_UTENTE', `L'utente ${req.user.id} ha sbloccato l'account ID: ${id}`]
+        );
+
+        await connection.commit();
+        res.json({ success: true, message: 'Utente sbloccato con successo.' });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error("Errore durante lo sblocco dell'utente:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+
+router.get('/utenti/ditta/:dittaId', verifyToken, checkPermission('UTENTI_VIEW'), async (req, res) => {
+    const { dittaId } = req.params;
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [utenti] = await connection.query(
+            `SELECT 
+                u.id, 
+                u.nome, 
+                u.cognome, 
+                u.email, 
+                u.id_ruolo, 
+                r.tipo as nome_ruolo, 
+                u.stato  -- Assicura che questo campo venga selezionato
+             FROM utenti u 
+             LEFT JOIN ruoli r ON u.id_ruolo = r.id 
+             WHERE u.id_ditta = ?`,
+            [dittaId]
+        );
+        res.json({ success: true, utenti });
+    } catch (error) {
+        console.error("Errore nel recuperare gli utenti:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
 
 module.exports = router;
 
