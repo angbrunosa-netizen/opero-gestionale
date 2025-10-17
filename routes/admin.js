@@ -48,6 +48,45 @@ router.post('/ditte', [verifyToken, isSystemAdmin], async (req, res) => {
     }
 });
 
+// ++ INIZIO NUOVO CODICE: API PER MODIFICARE UNA DITTA (ES. CAMBIO STATO) ++
+router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
+    const { id } = req.params;
+    const { stato } = req.body; // Estraiamo solo i campi che ci aspettiamo
+
+    // Validazione minima
+    if (stato === undefined || (stato !== 0 && stato !== 1)) {
+        return res.status(400).json({ success: false, message: "Il campo 'stato' è obbligatorio e può essere solo 0 o 1." });
+    }
+
+    try {
+        const ditta = await knex('ditte').where({ id }).first();
+
+        if (!ditta) {
+            return res.status(404).json({ success: false, message: 'Ditta non trovata.' });
+        }
+
+        await knex('ditte')
+            .where({ id })
+            .update({ stato });
+
+        // Log dell'azione
+        const statoLabel = stato === 1 ? 'attivata' : 'sospesa';
+        await knex('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta: req.user.id_ditta, // L'admin di sistema opera sulla sua ditta
+            azione: 'Modifica Stato Ditta',
+            dettagli: `La ditta '${ditta.ragione_sociale}' (ID: ${id}) è stata ${statoLabel}.`
+        });
+
+        res.json({ success: true, message: 'Stato della ditta aggiornato con successo.' });
+
+    } catch (error) {
+        console.error("Errore durante l'aggiornamento della ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante l\'aggiornamento della ditta.' });
+    }
+});
+
+
 // ====================================================================
 // API GESTIONE UTENTI (Accesso per Amministratori di Ditta)
 // ====================================================================
@@ -680,6 +719,137 @@ router.get('/utenti/ditta/:dittaId', verifyToken, checkPermission('UTENTI_VIEW')
     } catch (error) {
         console.error("Errore nel recuperare gli utenti:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+
+// ===================================================================
+// NUOVE API DI MONITORAGGIO (Accesso con Permessi Specifici)
+// ===================================================================
+
+/**
+ * @route GET /api/admin/logs/azioni
+ * @description Recupera i log delle azioni effettuate nel sistema.
+ * @access Privato, Permesso: ADMIN_LOGS_VIEW
+ */
+router.get('/logs/azioni', [verifyToken, checkPermission('ADMIN_LOGS_VIEW')], async (req, res) => {
+    try {
+        const logAzioni = await knex('log_azioni as la')
+            .join('utenti as u', 'la.id_utente', 'u.id')
+            .join('ditte as d', 'la.id_ditta', 'd.id')
+            .select('la.id', 'la.timestamp', 'u.email', 'd.ragione_sociale', 'la.azione', 'la.dettagli')
+            .orderBy('la.timestamp', 'desc');
+        res.json({ success: true, data: logAzioni });
+    } catch (error) {
+        console.error("Errore nel recupero dei log delle azioni:", error);
+        res.status(500).json({ success: false, message: "Errore durante il recupero dei log." });
+    }
+});
+
+/**
+ * @route GET /api/admin/logs/accessi
+ * @description Recupera i log degli accessi al sistema.
+ * @access Privato, Permesso: ADMIN_LOGS_VIEW
+ */
+router.get('/logs/accessi', [verifyToken, checkPermission('ADMIN_LOGS_VIEW')], async (req, res) => {
+    try {
+        const logAccessi = await knex('log_accessi as la')
+            .join('utenti as u', 'la.id_utente', 'u.id')
+            .select('la.id', 'la.data_ora_accesso', 'u.email', 'la.indirizzo_ip', 'la.dettagli_azione')
+            .orderBy('la.data_ora_accesso', 'desc');
+        res.json({ success: true, data: logAccessi });
+    } catch (error) {
+        console.error("Errore nel recupero dei log di accesso:", error);
+        res.status(500).json({ success: false, message: "Errore durante il recupero dei log." });
+    }
+});
+
+/**
+ * @route GET /api/admin/logs/sessioni-attive
+ * @description Recupera le sessioni utente attualmente attive.
+ * @access Privato, Permesso: ADMIN_SESSIONS_VIEW
+ */
+router.get('/logs/sessioni-attive', [verifyToken, checkPermission('ADMIN_SESSIONS_VIEW')], async (req, res) => {
+    try {
+        const sessioni = await knex('utenti_sessioni_attive as usa')
+            .join('utenti as u', 'usa.id_utente', 'u.id')
+            .join('ditte as d', 'usa.id_ditta_attiva', 'd.id')
+            .select(
+                'u.email',
+                'u.nome',
+                'u.cognome',
+                'd.ragione_sociale as ditta_attiva',
+                'usa.login_timestamp',
+                'usa.last_heartbeat_timestamp'
+            );
+        res.json({ success: true, data: sessioni });
+    } catch (error) {
+        console.error("Errore nel recupero delle sessioni attive:", error);
+        res.status(500).json({ success: false, message: "Errore durante il recupero delle sessioni." });
+    }
+});
+
+
+// ===================================================================
+// NUOVA API CREAZIONE DITTA PROPRIETARIA (Accesso System Admin)
+// ===================================================================
+
+/**
+ * @route POST /api/admin/setup-ditta-proprietaria
+ * @description Crea una nuova ditta proprietaria e il suo primo utente amministratore.
+ * @access Privato, Ruolo: System Admin
+ */
+router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (req, res) => {
+    const { dittaData, utenteData } = req.body;
+
+    // Validazione di base
+    if (!dittaData || !utenteData || !utenteData.email || !utenteData.password) {
+        return res.status(400).json({ success: false, message: "Dati della ditta e dell'utente (email, password) sono obbligatori." });
+    }
+
+    const trx = await knex.transaction();
+    try {
+        // 1. Crea la Ditta
+        const [dittaId] = await trx('ditte').insert({
+            ragione_sociale: dittaData.ragione_sociale,
+            id_tipo_ditta: 1, // 1 = Proprietaria (come da convenzione)
+            stato: 'attivo', // La ditta è attiva di default
+            // Aggiungi altri campi da dittaData se necessario
+            indirizzo: dittaData.indirizzo,
+            citta: dittaData.citta,
+            provincia: dittaData.provincia,
+            cap: dittaData.cap,
+            p_iva: dittaData.p_iva,
+            cod_fiscale: dittaData.cod_fiscale
+        });
+
+        // 2. Crea l'Utente Amministratore per la nuova ditta
+        const hashedPassword = await bcrypt.hash(utenteData.password, 10);
+        await trx('utenti').insert({
+            email: utenteData.email,
+            password: hashedPassword,
+            nome: utenteData.nome,
+            cognome: utenteData.cognome,
+            id_ditta: dittaId,
+            id_ruolo: 2, // 2 = Ditta Admin (come da convenzione)
+            stato: 'attivo'
+        });
+
+        // 3. Logga l'azione
+        await trx('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta: req.user.id_ditta, // L'admin di sistema opera sulla sua ditta
+            azione: 'CREAZIONE_DITTA_PROPRIETARIA',
+            dettagli: `Creata ditta '${dittaData.ragione_sociale}' (ID: ${dittaId}) e admin '${utenteData.email}'.`
+        });
+
+        await trx.commit();
+        res.status(201).json({ success: true, message: 'Ditta proprietaria e utente admin creati con successo.', id_ditta: dittaId });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore durante la creazione della ditta proprietaria:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante la creazione.' });
     }
 });
 

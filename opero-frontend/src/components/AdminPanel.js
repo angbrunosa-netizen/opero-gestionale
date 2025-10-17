@@ -1,8 +1,8 @@
 // #####################################################################
-// # Componente AdminPanel - v16.1 (Corretto con Logica di Sblocco Utente)
+// # Componente AdminPanel - v17.0 (con Gestione Ditte e Monitoraggio)
 // # File: opero-frontend/src/components/AdminPanel.js
-// # Corregge la logica per basarsi sul nuovo campo `stato` ('attivo'/'bloccato')
-// # e garantisce la visualizzazione corretta del pulsante di sblocco.
+// # Aggiunge le sezioni "Gestione Ditte" e "Monitoraggio Sistema" come nuovi componenti a schede,
+// # preservando la struttura e le funzionalità esistenti.
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -16,15 +16,24 @@ import { ShieldCheck } from 'lucide-react';
 import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
 import GestionePermessiUtenteModal from './admin/GestionePermessiUtenteModal';
+// ++ NUOVI IMPORT ++
+import AdminDitte from './admin/AdminDitte';
+import AdminMonitoraggio from './admin/AdminMonitoraggio';
+// FINE NUOVI IMPORT
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { toast } from 'react-toastify'; // Assicurati che react-toastify sia installato
+import { toast } from 'react-toastify';
+
+// ====================================================================
+// ICONE (Aggiunta Icona Monitoraggio)
+// ====================================================================
+const MonitorIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
+
 
 // ====================================================================
 // Utility Functions per Export (invariate)
 // ====================================================================
-
 const exportToCSV = (data, fileName) => {
     const csv = Papa.unparse(data);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -188,7 +197,7 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
 
 
 // ====================================================================
-// Sotto-componente: Gestione Utenti (CON LOGICA DI SBLOCCO CORRETTA)
+// Sotto-componente: Gestione Utenti (invariato)
 // ====================================================================
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
@@ -204,7 +213,7 @@ const GestioneUtenti = () => {
 
     const logAction = useCallback(async (azione, dettagli = '') => {
         try {
-            await api.post('//log-action', {
+            await api.post('/track/azione', {
                 azione,
                 dettagli,
                 modulo: 'Admin',
@@ -359,7 +368,6 @@ const GestioneUtenti = () => {
                 return ruolo ? ruolo.ruolo : 'N/D';
             }
         },
-        // ++ COLONNA CORRETTA: Visualizzazione stato utente basata su `stato` ++
         {
             header: 'Stato',
             accessorKey: 'stato',
@@ -372,7 +380,6 @@ const GestioneUtenti = () => {
         {
             id: 'actions',
             header: 'Azioni',
-            // ++ SINTASSI CORRETTA (info) PER LA CELLA AZIONI ++
             cell: (info) => (
                 <div className="flex space-x-2">
                     {hasPermission('UTENTI_EDIT') && <button onClick={() => handleEditUser(info.row.original.id)} className="text-blue-600 hover:text-blue-800"><PencilIcon className="h-5 w-5" /></button>}
@@ -388,7 +395,6 @@ const GestioneUtenti = () => {
                         </button>
                     )}
                     
-                    {/* ++ LOGICA DI VISUALIZZAZIONE CORRETTA ++ */}
                     {info.row.original.stato === 'bloccato' && hasPermission('ADMIN_UTENTI_SBLOCCA') && (
                         <button 
                             onClick={() => handleUnlockUser(info.row.original.id)}
@@ -676,20 +682,213 @@ const PrivacyDittaManager = () => {
     );
 };
 
+// ====================================================================
+// ++ NUOVO Sotto-componente: Gestione Ditte ++
+// ====================================================================
+const GestioneDitte = () => {
+    const [ditte, setDitte] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    const fetchDitte = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await api.get('/admin/ditte');
+            setDitte(response.data.ditte);
+        } catch (error) {
+            toast.error("Errore nel caricamento delle ditte.");
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchDitte();
+    }, [fetchDitte]);
+
+    const handleToggleStato = useCallback(async (ditta) => {
+        const nuovoStato = ditta.stato === 'attivo' ? 'sospeso' : 'attivo';
+        if (window.confirm(`Sei sicuro di voler impostare lo stato di "${ditta.ragione_sociale}" a "${nuovoStato}"?`)) {
+            try {
+                await api.patch(`/admin/ditte/${ditta.id}`, { stato: nuovoStato });
+                toast.success(`Stato della ditta aggiornato a "${nuovoStato}".`);
+                fetchDitte();
+            } catch (error) {
+                toast.error("Errore durante l'aggiornamento dello stato della ditta.");
+                console.error(error);
+            }
+        }
+    }, [fetchDitte]);
+
+    const columns = useMemo(() => [
+        { header: 'ID', accessorKey: 'id', size: 90 },
+        { header: 'Ragione Sociale', accessorKey: 'ragione_sociale', size: 300 },
+        { header: 'P.IVA', accessorKey: 'p_iva', size: 150 },
+        {
+            header: 'Stato',
+            accessorKey: 'stato',
+            size: 120,
+            cell: info => (
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${info.getValue() === 'attivo' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {info.getValue()}
+                </span>
+            ),
+        },
+        { header: 'Tipo', accessorKey: 'tipo_ditta_nome', size: 150 },
+        {
+            id: 'actions',
+            header: 'Azioni',
+            cell: ({ row }) => (
+                <div className="flex space-x-2">
+                    <button 
+                        onClick={() => handleToggleStato(row.original)}
+                        className={`p-1 rounded ${row.original.stato === 'attivo' ? 'text-yellow-600 hover:text-yellow-800' : 'text-green-600 hover:text-green-800'}`}
+                        title={row.original.stato === 'attivo' ? 'Sospendi Ditta' : 'Attiva Ditta'}
+                    >
+                        {/* Semplice icona per il toggle */}
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                    </button>
+                    {/* Altre azioni come modifica in futuro */}
+                </div>
+            )
+        }
+    ], [handleToggleStato]);
+
+    return (
+        <AdvancedDataGrid
+            title="Elenco Ditte"
+            columns={columns}
+            data={ditte}
+            isLoading={loading}
+            onRefresh={fetchDitte}
+            canAdd={true} 
+            onAddClick={() => toast.info("Modale per creare ditta in sviluppo.")}
+        />
+    );
+};
 
 // ====================================================================
-// Componente Principale: AdminPanel (invariato)
+// ++ NUOVO Sotto-componente: Monitoraggio Sistema ++
+// ====================================================================
+const MonitoraggioSistema = () => {
+    const { hasPermission } = useAuth();
+    const [subTab, setSubTab] = useState('log_azioni');
+    const [logAzioni, setLogAzioni] = useState([]);
+    const [logAccessi, setLogAccessi] = useState([]);
+    const [sessioniAttive, setSessioniAttive] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    const fetchLogAzioni = useCallback(async () => {
+        if (!hasPermission('ADMIN_LOGS_VIEW')) return;
+        setLoading(true);
+        try {
+            const response = await api.get('/admin/logs/azioni');
+            setLogAzioni(response.data.data);
+        } catch (error) { toast.error("Errore caricamento log azioni."); } 
+        finally { setLoading(false); }
+    }, [hasPermission]);
+
+    const fetchLogAccessi = useCallback(async () => {
+        if (!hasPermission('ADMIN_LOGS_VIEW')) return;
+        setLoading(true);
+        try {
+            const response = await api.get('/admin/logs/accessi');
+            setLogAccessi(response.data.data);
+        } catch (error) { toast.error("Errore caricamento log accessi."); }
+        finally { setLoading(false); }
+    }, [hasPermission]);
+
+    const fetchSessioniAttive = useCallback(async () => {
+        if (!hasPermission('ADMIN_SESSIONS_VIEW')) return;
+        setLoading(true);
+        try {
+            const response = await api.get('/admin/logs/sessioni-attive');
+            setSessioniAttive(response.data.data);
+        } catch (error) { toast.error("Errore caricamento sessioni."); }
+        finally { setLoading(false); }
+    }, [hasPermission]);
+
+    useEffect(() => {
+        if (subTab === 'log_azioni') fetchLogAzioni();
+        if (subTab === 'log_accessi') fetchLogAccessi();
+        if (subTab === 'sessioni') fetchSessioniAttive();
+    }, [subTab, fetchLogAzioni, fetchLogAccessi, fetchSessioniAttive]);
+
+    const logAzioniColumns = useMemo(() => [
+        { header: 'ID', accessorKey: 'id', size: 90 },
+        { header: 'Data/Ora', accessorKey: 'timestamp', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+        { header: 'Utente', accessorKey: 'email' },
+        { header: 'Ditta', accessorKey: 'ragione_sociale' },
+        { header: 'Azione', accessorKey: 'azione' },
+        { header: 'Dettagli', accessorKey: 'dettagli', size: 400 },
+    ], []);
+    
+    const logAccessiColumns = useMemo(() => [
+        { header: 'ID', accessorKey: 'id', size: 90 },
+        { header: 'Data/Ora', accessorKey: 'data_ora_accesso', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+        { header: 'Utente', accessorKey: 'email' },
+        { header: 'Indirizzo IP', accessorKey: 'indirizzo_ip' },
+        { header: 'Esito', accessorKey: 'dettagli_azione' },
+    ], []);
+
+    const sessioniColumns = useMemo(() => [
+        { header: 'Utente', accessorKey: 'email' },
+        { header: 'Nome', accessorKey: 'nome' },
+        { header: 'Cognome', accessorKey: 'cognome' },
+        { header: 'Ditta Attiva', accessorKey: 'ditta_attiva' },
+        { header: 'Login', accessorKey: 'login_timestamp', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+        { header: 'Ultima Attività', accessorKey: 'last_heartbeat_timestamp', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+    ], []);
+
+    const SubTabButton = ({ active, onClick, children }) => (
+        <button
+            onClick={onClick}
+            className={`px-3 py-1.5 text-sm font-medium rounded ${
+                active ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+        >
+            {children}
+        </button>
+    );
+
+    return (
+        <div className="p-4">
+            <div className="flex space-x-2 mb-4 border-b pb-2">
+                 {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_azioni'} onClick={() => setSubTab('log_azioni')}>Log Azioni</SubTabButton>}
+                 {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_accessi'} onClick={() => setSubTab('log_accessi')}>Log Accessi</SubTabButton>}
+                 {hasPermission('ADMIN_SESSIONS_VIEW') && <SubTabButton active={subTab === 'sessioni'} onClick={() => setSubTab('sessioni')}>Sessioni Attive</SubTabButton>}
+            </div>
+            {subTab === 'log_azioni' && hasPermission('ADMIN_LOGS_VIEW') && (
+                <AdvancedDataGrid title="Log delle Azioni" columns={logAzioniColumns} data={logAzioni} isLoading={loading} onRefresh={fetchLogAzioni} />
+            )}
+            {subTab === 'log_accessi' && hasPermission('ADMIN_LOGS_VIEW') && (
+                 <AdvancedDataGrid title="Log degli Accessi" columns={logAccessiColumns} data={logAccessi} isLoading={loading} onRefresh={fetchLogAccessi} />
+            )}
+            {subTab === 'sessioni' && hasPermission('ADMIN_SESSIONS_VIEW') && (
+                 <AdvancedDataGrid title="Sessioni Utente Attive" columns={sessioniColumns} data={sessioniAttive} isLoading={loading} onRefresh={fetchSessioniAttive} />
+            )}
+        </div>
+    );
+};
+
+
+// ====================================================================
+// Componente Principale: AdminPanel (MODIFICATO per includere nuove schede)
 // ====================================================================
 function AdminPanel() {
     const { user, hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('utenti');
 
     const tabComponents = useMemo(() => ({
+        ditte: <AdminDitte />, // ++ NUOVO ++
         utenti: <GestioneUtenti />,
         moduli: <AssociaModuliDitta />,
         funzioni: <GestioneFunzioni />,
         permessi: <GestioneRuoliPermessi />,
         privacy: <PrivacyDittaManager />,
+        monitoraggio: <AdminMonitoraggio />, // ++ NUOVO ++
     }), [user]);
 
     if (!user) {
@@ -697,19 +896,20 @@ function AdminPanel() {
     }
     
     const TABS = {
+        ditte: { label: 'Gestione Ditte', component: tabComponents.ditte, adminOnly: true }, // ++ NUOVO ++
         utenti: { label: 'Gestione Utenti', component: tabComponents.utenti },
         moduli: { label: 'Associa Moduli', component: tabComponents.moduli, adminOnly: true },
         funzioni: { label: 'Gestione Funzioni', component: tabComponents.funzioni, permission: 'ADMIN_FUNZIONI_VIEW' },
         permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
         privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: false },
-    
+        monitoraggio: { label: 'Monitoraggio', component: tabComponents.monitoraggio, permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW'] } // ++ NUOVO ++
     };
 
     return (
         <div className="flex flex-col h-full">
             <div className="flex-shrink-0 bg-white border-b p-4">
                 <h2 className="text-xl font-bold">Pannello Amministratore</h2>
-                <div className="flex gap-2 mt-4 border-b">
+                <div className="flex gap-2 mt-4 border-b overflow-x-auto">
                     {Object.entries(TABS).map(([key, tab]) => {
                         const isSystemAdmin = user.ruolo === 'Amministratore_sistema';
                         
@@ -717,8 +917,18 @@ function AdminPanel() {
                         if (tab.adminOnly && !isSystemAdmin) {
                             isVisible = false;
                         }
-                        if (tab.permission && !hasPermission(tab.permission)) {
-                            isVisible = false;
+                        if (tab.permission) {
+                            if (Array.isArray(tab.permission)) {
+                                // Se è un array, l'utente deve avere almeno uno dei permessi
+                                if (!tab.permission.some(p => hasPermission(p))) {
+                                    isVisible = false;
+                                }
+                            } else {
+                                // Se è una stringa singola
+                                if (!hasPermission(tab.permission)) {
+                                    isVisible = false;
+                                }
+                            }
                         }
 
                         if (!isVisible) return null;
@@ -727,7 +937,7 @@ function AdminPanel() {
                             <button
                                 key={key}
                                 onClick={() => setActiveTab(key)}
-                                className={`py-2 px-4 text-sm font-medium text-center border-b-2 ${activeTab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                                className={`py-2 px-4 text-sm font-medium text-center border-b-2 whitespace-nowrap ${activeTab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
                             >
                                 {tab.label}
                             </button>
@@ -743,4 +953,5 @@ function AdminPanel() {
 }
 
 export default AdminPanel;
+
 
