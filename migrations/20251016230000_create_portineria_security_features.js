@@ -4,14 +4,14 @@
  * - Aggiunge i limiti delle licenze alla tabella 'ditte'.
  * - Aggiunge i campi per la protezione da brute-force alla tabella 'utenti'.
  * - Crea la tabella 'utenti_sessioni_attive' per il tracciamento delle sessioni.
- * @date 2025-10-16
- * @version 4.0 (Correzione Definitiva: Tipi di dato specifici per Foreign Keys)
+ * @date 2025-10-17
+ * @version 5.0 (Correzione Definitiva: Foreign Keys Atomiche)
  */
 
-// ########## VERSIONE 4.0 (DEFINITIVA) ##########
-// La funzione 'up' è stata corretta per usare `specificType` e garantire che le colonne
-// per le foreign key corrispondano ESATTAMENTE al tipo delle colonne di riferimento (es. INT(10) UNSIGNED),
-// risolvendo l'errore "errno: 150".
+// ########## VERSIONE 5.0 (DEFINITIVA) ##########
+// La funzione 'up' è stata corretta per definire le foreign key contestualmente
+// alla creazione della tabella (`createTable`), garantendo un'operazione atomica
+// e risolvendo definitivamente l'errore "errno: 150".
 exports.up = async function(knex) {
   // 1. Modifica alla tabella 'ditte' per aggiungere i limiti delle licenze
   const ditteHasLicenze = await knex.schema.hasColumn('ditte', 'max_utenti_interni');
@@ -33,7 +33,7 @@ exports.up = async function(knex) {
     });
   }
 
-  // 3. Creazione della tabella 'utenti_sessioni_attive' con i tipi di dato corretti
+  // 3. Creazione della tabella 'utenti_sessioni_attive' con i tipi di dato e vincoli corretti
   const sessioniExists = await knex.schema.hasTable('utenti_sessioni_attive');
   if (!sessioniExists) {
     console.log("Creo la struttura della tabella utenti_sessioni_attive...");
@@ -46,19 +46,17 @@ exports.up = async function(knex) {
       
       table.timestamp('login_timestamp').defaultTo(knex.fn.now());
       table.timestamp('last_heartbeat_timestamp').defaultTo(knex.fn.now());
-    });
-    
-    // 4. AGGIUNTA DEI VINCOLI (FOREIGN KEYS) - questa parte ora funzionerà
-    console.log("Aggiungo i vincoli di foreign key a utenti_sessioni_attive...");
-    await knex.schema.alterTable('utenti_sessioni_attive', function(table) {
-        table.foreign('id_utente').references('id').inTable('utenti').onDelete('CASCADE');
-        table.foreign('id_ditta_attiva').references('id').inTable('ditte').onDelete('CASCADE');
+
+      // ========= MODIFICA CHIAVE =========
+      // I vincoli vengono definiti QUI, all'interno del createTable.
+      console.log("Aggiungo i vincoli di foreign key a utenti_sessioni_attive...");
+      table.foreign('id_utente').references('id').inTable('utenti').onDelete('CASCADE');
+      table.foreign('id_ditta_attiva').references('id').inTable('ditte').onDelete('CASCADE');
     });
   }
 };
 
-
-// La funzione 'down' rimane sequenziale e sicura.
+// La funzione 'down' rimane invariata.
 exports.down = async function(knex) {
   // 1. Rimuove la tabella 'utenti_sessioni_attive'
   await knex.schema.dropTableIfExists('utenti_sessioni_attive');
@@ -83,4 +81,3 @@ exports.down = async function(knex) {
     });
   }
 };
-
