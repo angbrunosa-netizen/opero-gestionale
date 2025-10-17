@@ -51,38 +51,51 @@ router.post('/ditte', [verifyToken, isSystemAdmin], async (req, res) => {
 // ++ INIZIO NUOVO CODICE: API PER MODIFICARE UNA DITTA (ES. CAMBIO STATO) ++
 router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
     const { id } = req.params;
-    const { stato } = req.body; // Estraiamo solo i campi che ci aspettiamo
+    const {
+        ragione_sociale,
+        p_iva,
+        codice_fiscale,
+        indirizzo,
+        citta,
+        provincia,
+        cap,
+        tel1,
+        email_gen, // Assicurati che il nome corrisponda
+        pec,
+        id_tipo_ditta,
+        stato,
+        max_utenti_interni, // ++ CAMPO AGGIUNTO ++
+        max_utenti_esterni  // ++ CAMPO AGGIUNTO ++
+    } = req.body;
 
-    // Validazione minima
-    if (stato === undefined || (stato !== 0 && stato !== 1)) {
-        return res.status(400).json({ success: false, message: "Il campo 'stato' è obbligatorio e può essere solo 0 o 1." });
-    }
-
+    // Costruiamo l'oggetto solo con i campi definiti per evitare di passare 'undefined'
+    const dittaData = {};
+    if (ragione_sociale !== undefined) dittaData.ragione_sociale = ragione_sociale;
+    if (p_iva !== undefined) dittaData.p_iva = p_iva;
+    if (codice_fiscale !== undefined) dittaData.codice_fiscale = codice_fiscale;
+    if (indirizzo !== undefined) dittaData.indirizzo = indirizzo;
+    if (citta !== undefined) dittaData.citta = citta;
+    if (provincia !== undefined) dittaData.provincia = provincia;
+    if (cap !== undefined) dittaData.cap = cap;
+    if (tel1 !== undefined) dittaData.tel1 = tel1;
+    if (email_gen !== undefined) dittaData.email = email_gen; // Nota: il campo nel DB è 'email'
+    if (pec !== undefined) dittaData.pec = pec;
+    if (id_tipo_ditta !== undefined) dittaData.id_tipo_ditta = id_tipo_ditta;
+    if (stato !== undefined) dittaData.stato = stato;
+    // ++ INCLUDIAMO I CAMPI UTENTI NELL'AGGIORNAMENTO ++
+    if (max_utenti_interni !== undefined) dittaData.max_utenti_interni = max_utenti_interni;
+    if (max_utenti_esterni !== undefined) dittaData.max_utenti_esterni = max_utenti_esterni;
+    
     try {
-        const ditta = await knex('ditte').where({ id }).first();
-
-        if (!ditta) {
-            return res.status(404).json({ success: false, message: 'Ditta non trovata.' });
+        const result = await knex('ditte').where({ id }).update(dittaData);
+        if (result) {
+            res.json({ success: true, message: 'Ditta aggiornata con successo.' });
+        } else {
+            res.status(404).json({ success: false, message: 'Ditta non trovata.' });
         }
-
-        await knex('ditte')
-            .where({ id })
-            .update({ stato });
-
-        // Log dell'azione
-        const statoLabel = stato === 1 ? 'attivata' : 'sospesa';
-        await knex('log_azioni').insert({
-            id_utente: req.user.id,
-            id_ditta: req.user.id_ditta, // L'admin di sistema opera sulla sua ditta
-            azione: 'Modifica Stato Ditta',
-            dettagli: `La ditta '${ditta.ragione_sociale}' (ID: ${id}) è stata ${statoLabel}.`
-        });
-
-        res.json({ success: true, message: 'Stato della ditta aggiornato con successo.' });
-
     } catch (error) {
         console.error("Errore durante l'aggiornamento della ditta:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server durante l\'aggiornamento della ditta.' });
+        res.status(500).json({ success: false, message: "Errore interno del server." });
     }
 });
 

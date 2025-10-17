@@ -1,19 +1,24 @@
 /**
  * File: opero-frontend/src/components/admin/AdminDitte.js
- * Versione: 1.1
- * Descrizione: Componente corretto per la gestione delle ditte. Ora interpreta correttamente lo stato (1=attivo, 0/null=sospeso)
- * per la visualizzazione dei colori (semaforo) e per la logica dell'azione di attivazione/sospensione.
+ * Versione: 1.2
+ * Descrizione: Componente aggiornato per integrare il modale di creazione e modifica ditta (`DittaFormModal`).
+ * Gestisce lo stato del modale e le chiamate API per salvare i dati.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-import { PlusIcon, PowerIcon, PlayIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PowerIcon, PlayIcon, PencilIcon } from '@heroicons/react/24/outline';
+import DittaFormModal from './DittaFormModal'; // ++ IMPORTIAMO IL NUOVO MODALE ++
 
 const AdminDitte = () => {
     const [ditte, setDitte] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [filtroTipo, setFiltroTipo] = useState('tutte'); // 'tutte', 'proprietarie', 'clienti'
+    const [filtroTipo, setFiltroTipo] = useState('tutte');
+    
+    // ++ STATI PER LA GESTIONE DEL MODALE ++
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingDitta, setEditingDitta] = useState(null);
 
     const fetchDitte = useCallback(async () => {
         setLoading(true);
@@ -33,30 +38,58 @@ const AdminDitte = () => {
     }, [fetchDitte]);
 
     const handleToggleStato = useCallback(async (ditta) => {
-        // Logica Corretta: 1 -> 0, 0/null -> 1
         const nuovoStato = ditta.stato === 1 ? 0 : 1;
         const nuovoStatoLabel = nuovoStato === 1 ? 'attivo' : 'sospeso';
 
         if (window.confirm(`Sei sicuro di voler impostare lo stato di "${ditta.ragione_sociale}" a "${nuovoStatoLabel}"?`)) {
             try {
-                // L'API si aspetta 'stato' nel body della patch
                 await api.patch(`/admin/ditte/${ditta.id}`, { stato: nuovoStato });
                 toast.success(`Stato della ditta aggiornato a "${nuovoStatoLabel}".`);
-                fetchDitte(); // Ricarica i dati per riflettere la modifica
+                fetchDitte();
             } catch (error) {
                 toast.error("Errore durante l'aggiornamento dello stato della ditta.");
-                console.error(error);
             }
         }
     }, [fetchDitte]);
 
+    // ++ FUNZIONI PER GESTIRE IL MODALE ++
+    const handleNewDitta = () => {
+        setEditingDitta(null); // Nessuna ditta in modifica = creazione
+        setIsModalOpen(true);
+    };
+
+    const handleEditDitta = (ditta) => {
+        setEditingDitta(ditta);
+        setIsModalOpen(true);
+    };
+    
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingDitta(null);
+    };
+
+    const handleSaveDitta = async (formData) => {
+        try {
+            if (formData.id) {
+                // Modalità Modifica
+                await api.patch(`/admin/ditte/${formData.id}`, formData);
+                toast.success('Ditta aggiornata con successo!');
+            } else {
+                // Modalità Creazione
+                await api.post('/admin/setup-ditta-proprietaria', formData);
+                toast.success('Ditta e amministratore creati con successo!');
+            }
+            handleCloseModal();
+            fetchDitte(); // Ricarica la lista
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Si è verificato un errore.');
+            console.error('Errore salvataggio ditta:', error);
+        }
+    };
+
     const ditteFiltrate = useMemo(() => {
-        if (filtroTipo === 'proprietarie') {
-            return ditte.filter(d => d.id_tipo_ditta === 1);
-        }
-        if (filtroTipo === 'clienti') {
-            return ditte.filter(d => d.id_tipo_ditta === 2);
-        }
+        if (filtroTipo === 'proprietarie') return ditte.filter(d => d.id_tipo_ditta === 1);
+        if (filtroTipo === 'clienti') return ditte.filter(d => d.id_tipo_ditta === 2);
         return ditte;
     }, [ditte, filtroTipo]);
 
@@ -69,9 +102,7 @@ const AdminDitte = () => {
             accessorKey: 'stato',
             size: 120,
             cell: info => {
-                const stato = info.getValue();
-                // ++ LOGICA CORRETTA: 1 è attivo (verde), altrimenti sospeso (giallo) ++
-                const isAttivo = stato === 1;
+                const isAttivo = info.getValue() === 1;
                 return (
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isAttivo ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {isAttivo ? 'Attivo' : 'Sospeso'}
@@ -85,11 +116,14 @@ const AdminDitte = () => {
             header: 'Azioni',
             cell: ({ row }) => {
                 const ditta = row.original;
-                // ++ LOGICA CORRETTA: L'azione è l'inverso dello stato attuale ++
                 const isAttivo = ditta.stato === 1;
-                
                 return (
                     <div className="flex space-x-2">
+                        {/* Pulsante Modifica */}
+                        <button onClick={() => handleEditDitta(ditta)} className="p-1 text-blue-600 hover:text-blue-800" title="Modifica Ditta">
+                            <PencilIcon className="h-5 w-5" />
+                        </button>
+                        {/* Pulsante Attiva/Sospendi */}
                         <button 
                             onClick={() => handleToggleStato(ditta)}
                             className={`p-1 rounded ${isAttivo ? 'text-yellow-600 hover:text-yellow-800' : 'text-green-600 hover:text-green-800'}`}
@@ -120,7 +154,8 @@ const AdminDitte = () => {
                     <FiltroButton label="Proprietarie" tipo="proprietarie" attivo={filtroTipo === 'proprietarie'} />
                     <FiltroButton label="Clienti" tipo="clienti" attivo={filtroTipo === 'clienti'} />
                 </div>
-                 <button onClick={() => toast.info("Funzionalità 'Nuova Ditta' in sviluppo.")} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                 {/* ++ IL PULSANTE ORA APRE IL MODALE ++ */}
+                 <button onClick={handleNewDitta} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
                     <PlusIcon className="h-5 w-5" />
                     <span>Nuova Ditta</span>
                 </button>
@@ -130,8 +165,18 @@ const AdminDitte = () => {
                 data={ditteFiltrate}
                 isLoading={loading}
             />
+
+            {/* ++ RENDERIZZAZIONE CONDIZIONALE DEL MODALE ++ */}
+            {isModalOpen && (
+                <DittaFormModal
+                    ditta={editingDitta}
+                    onSave={handleSaveDitta}
+                    onCancel={handleCloseModal}
+                />
+            )}
         </div>
     );
 };
 
 export default AdminDitte;
+
