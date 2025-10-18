@@ -823,57 +823,95 @@ router.get('/logs/sessioni-attive', [verifyToken, checkPermission('ADMIN_SESSION
  * @description Crea una nuova ditta proprietaria e il suo primo utente amministratore.
  * @access Privato, Ruolo: System Admin
  */
+// POST /api/admin/setup-ditta-proprietaria
+// Crea una nuova ditta "proprietaria" e il suo utente amministratore.
+// POST /api/admin/setup-ditta-proprietaria
+// Crea la ditta e invia automaticamente il link di registrazione all'admin.
 router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (req, res) => {
-    const { dittaData, utenteData } = req.body;
+    
+    // Separiamo l'email dell'admin dal resto dei dati della ditta
+    const { email_amministratore, ...dittaBody } = req.body;
 
-    // Validazione di base
-    if (!dittaData || !utenteData || !utenteData.email || !utenteData.password) {
-        return res.status(400).json({ success: false, message: "Dati della ditta e dell'utente (email, password) sono obbligatori." });
+    const dittaData = {
+        ragione_sociale: dittaBody.ragione_sociale,
+        p_iva: dittaBody.p_iva,
+        codice_fiscale: dittaBody.codice_fiscale,
+        indirizzo: dittaBody.indirizzo,
+        cap: dittaBody.cap,
+        citta: dittaBody.citta,
+        provincia: dittaBody.provincia,
+        tel1: dittaBody.tel1,
+        mail_1: dittaBody.mail_1,
+        id_tipo_ditta: 1, 
+        stato: 1, 
+        max_utenti_interni: dittaBody.max_utenti_interni,
+        max_utenti_esterni: dittaBody.max_utenti_esterni
+    };
+
+    if (!dittaData.ragione_sociale || !dittaData.p_iva) {
+        return res.status(400).json({ success: false, message: 'Ragione sociale e Partita IVA sono obbligatorie.' });
     }
 
     const trx = await knex.transaction();
+    let dittaId;
+
     try {
-        // 1. Crea la Ditta
-        const [dittaId] = await trx('ditte').insert({
-            ragione_sociale: dittaData.ragione_sociale,
-            id_tipo_ditta: 1, // 1 = Proprietaria (come da convenzione)
-            stato: 'attivo', // La ditta è attiva di default
-            // Aggiungi altri campi da dittaData se necessario
-            indirizzo: dittaData.indirizzo,
-            citta: dittaData.citta,
-            provincia: dittaData.provincia,
-            cap: dittaData.cap,
-            p_iva: dittaData.p_iva,
-            cod_fiscale: dittaData.cod_fiscale
-        });
+        [dittaId] = await trx('ditte').insert(dittaData);
 
-        // 2. Crea l'Utente Amministratore per la nuova ditta
-        const hashedPassword = await bcrypt.hash(utenteData.password, 10);
-        await trx('utenti').insert({
-            email: utenteData.email,
-            password: hashedPassword,
-            nome: utenteData.nome,
-            cognome: utenteData.cognome,
-            id_ditta: dittaId,
-            id_ruolo: 2, // 2 = Ditta Admin (come da convenzione)
-            stato: 'attivo'
-        });
-
-        // 3. Logga l'azione
         await trx('log_azioni').insert({
             id_utente: req.user.id,
-            id_ditta: req.user.id_ditta, // L'admin di sistema opera sulla sua ditta
+            id_ditta: req.user.id_ditta,
             azione: 'CREAZIONE_DITTA_PROPRIETARIA',
-            dettagli: `Creata ditta '${dittaData.ragione_sociale}' (ID: ${dittaId}) e admin '${utenteData.email}'.`
+            dettagli: `Creata anagrafica ditta '${dittaData.ragione_sociale}' (ID: ${dittaId}).`
         });
 
         await trx.commit();
-        res.status(201).json({ success: true, message: 'Ditta proprietaria e utente admin creati con successo.', id_ditta: dittaId });
-
+        
     } catch (error) {
         await trx.rollback();
-        console.error("Errore durante la creazione della ditta proprietaria:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server durante la creazione.' });
+        console.error('Errore durante la creazione della ditta:', error);
+        return res.status(500).json({ success: false, message: 'Errore interno del server.', error: error.message });
+    }
+
+    // --- Invio Automatico Email di Registrazione (dopo il commit) ---
+    if (email_amministratore && dittaId) {
+        try {
+            const token = uuidv4();
+            const scadenza = new Date();
+            scadenza.setDate(scadenza.getDate() + 7);
+
+            await knex('registration_tokens').insert({
+                id_ditta: dittaId,
+                token: token,
+                scadenza: scadenza
+            });
+
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const registrationLink = `${frontendUrl}/register/${token}`;
+
+            // Assumiamo che esista una funzione nel mailer per inviare l'invito
+            await mailer.sendRegistrationInvite(email_amministratore, registrationLink, dittaData.ragione_sociale);
+
+            return res.status(201).json({ 
+                success: true, 
+                message: `Ditta creata. Il link di registrazione è stato inviato a ${email_amministratore}.`, 
+                id_ditta: dittaId
+            });
+
+        } catch (emailError) {
+            console.error("Errore durante la generazione token o invio email:", emailError);
+            return res.status(207).json({ // 207 Multi-Status
+                success: true, 
+                message: `Ditta creata con successo, ma l'invio automatico dell'email è fallito. Generare il link manualmente.`,
+                id_ditta: dittaId
+            });
+        }
+    } else {
+        return res.status(201).json({ 
+            success: true, 
+            message: 'Ditta creata. Nessun invito inviato perché non è stata fornita un\'email per l\'admin.', 
+            id_ditta: dittaId
+        });
     }
 });
 

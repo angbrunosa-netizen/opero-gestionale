@@ -633,19 +633,41 @@ router.post('/mail-accounts/test', [verifyToken, checkMailPermission], async (re
 // ====================================================================
 
 // --- NUOVA ROTTA: POST (Genera Link di Registrazione per un Nuovo Utente) ---
+// POST /api/amministrazione/utenti/genera-link-registrazione
+// Genera un link di auto-registrazione per una ditta.
+// Un System Admin può specificare l'id_ditta, altrimenti usa quella dell'utente.
 router.post('/utenti/genera-link-registrazione', verifyToken, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
+    const { id_ruolo, id_ditta: dittaUtenteLoggato } = req.user;
+    const { id_ditta: dittaTarget } = req.body; // id_ditta dal corpo della richiesta
 
+    let dittaId;
+
+    // Un System Admin può generare un link per qualsiasi ditta.
+    if (id_ruolo === 1 && dittaTarget) {
+        dittaId = dittaTarget;
+    } else {
+        // Altrimenti, si usa la ditta dell'utente che fa la richiesta.
+        dittaId = dittaUtenteLoggato;
+    }
+
+    if (!dittaId) {
+        return res.status(400).json({ success: false, message: 'ID ditta non specificato o non valido.' });
+    }
+    
     try {
         const token = uuidv4();
         const scadenza = new Date();
         scadenza.setDate(scadenza.getDate() + 7); // Il link scade tra 7 giorni
 
-        const query = 'INSERT INTO registration_tokens (id_ditta, token, scadenza) VALUES (?, ?, ?)';
-        await dbPool.query(query, [dittaId, token, scadenza]);
+        await knex('registration_tokens').insert({
+            id_ditta: dittaId,
+            token: token,
+            scadenza: scadenza
+        });
 
-        // Assicurati che l'URL del frontend sia corretto
-        const registrationLink = `http://localhost:3003/register/${token}`;
+        // Utilizza una variabile d'ambiente per l'URL del frontend, con un fallback per lo sviluppo.
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const registrationLink = `${frontendUrl}/register/${token}`;
 
         res.json({ success: true, link: registrationLink });
 
@@ -654,6 +676,8 @@ router.post('/utenti/genera-link-registrazione', verifyToken, async (req, res) =
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
+
+
 // --- GET (Dettaglio Singolo Utente - Potenziata) ---
 router.get('/utenti/:id', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
