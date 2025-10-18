@@ -86,6 +86,7 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
     if (max_utenti_interni !== undefined) dittaData.max_utenti_interni = max_utenti_interni;
     if (max_utenti_esterni !== undefined) dittaData.max_utenti_esterni = max_utenti_esterni;
     
+
     try {
         const result = await knex('ditte').where({ id }).update(dittaData);
         if (result) {
@@ -93,6 +94,16 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
         } else {
             res.status(404).json({ success: false, message: 'Ditta non trovata.' });
         }
+           // Log dell'azione (opzionale ma consigliato)
+        const dettagliLog = `Stato: ${stato}, Utenti Interni: ${max_utenti_interni}, Utenti Esterni: ${max_utenti_esterni}`;
+        await knex('log_azioni').insert({
+            id_utente: req.user.id,
+            id_ditta: req.user.id_ditta,
+            azione: 'AGGIORNAMENTO_DITTA',
+            descrizione: `L'utente admin ${req.user.id} ha modificato la ditta ID ${id}. Dettagli: ${dettagliLog}`,
+            modulo: 'Admin'
+        });
+        
     } catch (error) {
         console.error("Errore durante l'aggiornamento della ditta:", error);
         res.status(500).json({ success: false, message: "Errore interno del server." });

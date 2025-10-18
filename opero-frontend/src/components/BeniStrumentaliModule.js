@@ -22,7 +22,7 @@ const BeniStrumentaliModule = () => {
     const auth = useAuth();
 
     const menuItems = [
-        { key: 'elenco_beni', label: 'Elenco Beni', icon: ArchiveBoxIcon, requiredPermission: 'BS_VIEW_BENI' },
+        { key: 'elenco_beni', label: 'ElenFco Beni', icon: ArchiveBoxIcon, requiredPermission: 'BS_VIEW_BENI' },
         { key: 'categorie', label: 'Categorie', icon: TagIcon, requiredPermission: 'BS_MANAGE_CATEGORIE' },
        { key: 'scadenze', label: 'Scadenze', icon: CalendarDaysIcon, requiredPermission: 'BS_VIEW_SCADENZE' },
         { key: 'tipi_scadenze', label: 'Tipi Scadenze', icon: CogIcon, requiredPermission: 'BS_MANAGE_TIPI_SCADENZE' },

@@ -91,7 +91,7 @@ const BeniManager = () => {
             
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            doc.text(`Elenco Beni Strumentali - ${auth.ditta?.ragione_sociale || ''}`, 14, 20);
+            doc.text(`Elenco Beni StrumDentali - ${auth.ditta?.ragione_sociale || ''}`, 14, 20);
             doc.autoTable({
                 // <span style="color:orange;">// MODIFICATO: Utilizza 'label' e 'key' per coerenza</span>
                 head: [columns.map(c => c.label)],
