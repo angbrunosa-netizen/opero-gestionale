@@ -19,6 +19,8 @@ import RegistrationPage from './components/RegistrationPage';
 import StandaloneModule from './components/StandaloneModule';
 import IstanzaDetailView from './components/ppa/IstanzaDetailView';
 
+
+
 // Componente "Guardiano" per proteggere le rotte (invariato)
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -41,6 +43,16 @@ const AppLayout = () => (
 );
 
 function App() {
+  
+  const { isAuthenticated, loading } = useAuth();
+
+  // DEBUG: Logga lo stato di autenticazione ad ogni render
+  console.log(`[App.js] Render. Loading: ${loading}, IsAuthenticated: ${isAuthenticated}`);
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen">Caricamento in corso...</div>;
+  }
+  
   return (
     <AuthProvider>
       <BrowserRouter>

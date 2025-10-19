@@ -11,7 +11,7 @@ import 'react-quill/dist/quill.snow.css';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
-import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon ,UserPlusIcon} from '@heroicons/react/24/outline';
 import { ShieldCheck } from 'lucide-react';
 import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
@@ -24,6 +24,54 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
 import { toast } from 'react-toastify';
+
+import InvitaUtenteModal from '../shared/InvitaUtenteModal';
+
+// --- Componente Interno per la Gestione Utenti ---
+const UserManager = () => {
+    const { hasPermission } = useAuth();
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+    // Qui andrebbe la logica per caricare e mostrare la lista degli utenti
+    // Per ora, ci concentriamo sulla funzionalità di invito.
+
+    const handleInviteSuccess = () => {
+        setIsInviteModalOpen(false);
+        // Qui potresti voler ricaricare la lista degli utenti
+        // fetchUtenti(); 
+    };
+
+    return (
+        <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Gestione Utenti</h2>
+                {hasPermission('ADMIN_USERS_CREATE') && (
+                    <button
+                        onClick={() => setIsInviteModalOpen(true)}
+                        className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                        <UserPlusIcon className="h-5 w-5" />
+                        <span>Invita Nuovo Utente</span>
+                    </button>
+                )}
+            </div>
+            
+            {/* Qui verrebbe renderizzata la tabella con la lista degli utenti */}
+            <div className="bg-white p-4 rounded-md shadow">
+                <p className="text-gray-500">Elenco degli utenti del sistema.</p>
+                {/* Esempio: <AdvancedDataGrid data={utenti} columns={userColumns} /> */}
+            </div>
+
+            <InvitaUtenteModal 
+                isOpen={isInviteModalOpen}
+                onClose={() => setIsInviteModalOpen(false)}
+                onInviteSent={handleInviteSuccess}
+                id_ruolo={3} // Invita come "Utente Esterno" (ID 3)
+            />
+        </div>
+    );
+};
+
 
 // ====================================================================
 // ICONE (Aggiunta Icona Monitoraggio)
@@ -197,7 +245,7 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
 
 
 // ====================================================================
-// Sotto-componente: Gestione Utenti (invariato)
+// Sotto-componente: Gestione Utenti (MODIFICATO per includere invito)
 // ====================================================================
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
@@ -210,6 +258,9 @@ const GestioneUtenti = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [editingPermissionsForUser, setEditingPermissionsForUser] = useState(null);
+
+    // ++ NUOVO STATO PER MODALE INVITO ++
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
     const logAction = useCallback(async (azione, dettagli = '') => {
         try {
@@ -268,11 +319,18 @@ const GestioneUtenti = () => {
         fetchUtentiForDitta(selectedDittaId);
     }, [selectedDittaId, fetchUtentiForDitta]);
 
-    const handleNewUser = () => {
-        setEditingUser(null);
-        setIsModalOpen(true);
+    // La funzione handleNewUser ora apre il modale di invito
+    const handleInviteUser = () => {
+        setIsInviteModalOpen(true);
     };
 
+    // ++ NUOVA FUNZIONE PER GESTIRE IL SUCCESSO DELL'INVITO ++
+    const handleInviteSuccess = () => {
+        setIsInviteModalOpen(false);
+        toast.info("Invito inviato. L'elenco utenti si aggiornerà quando l'utente completerà la registrazione.");
+        // Non è necessario ricaricare subito la lista, l'utente non è ancora stato creato.
+    };
+    
     const handleEditUser = useCallback(async (userId) => {
         try {
             const response = await api.get(`/admin/utenti/${userId}`);
@@ -429,9 +487,10 @@ const GestioneUtenti = () => {
                                 <PrinterIcon className="h-5 w-5 text-slate-600" />
                             </button>
                             {hasPermission('UTENTI_CREATE') && (
-                                <button onClick={handleNewUser} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                                    <PlusIcon className="h-5 w-5" />
-                                    <span>Nuovo Utente</span>
+                                // ++ MODIFICA: Il pulsante ora apre il modale di invito ++
+                                <button onClick={handleInviteUser} className="flex items-center gap-2 bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
+                                    <UserPlusIcon className="h-5 w-5" />
+                                    <span>Invita Utente</span>
                                 </button>
                             )}
                         </div>
@@ -447,10 +506,17 @@ const GestioneUtenti = () => {
                     onClose={() => setEditingPermissionsForUser(null)}
                 />
             )}
+            
+            {/* ++ NUOVO: Aggiunta del modale di invito al JSX ++ */}
+            <InvitaUtenteModal 
+                isOpen={isInviteModalOpen}
+                onClose={() => setIsInviteModalOpen(false)}
+                onInviteSent={handleInviteSuccess}
+                id_ruolo={3} // Invita come "Utente Esterno"
+            />
         </div>
     );
 };
-
 
 // ====================================================================
 // Sotto-componente: Associa Moduli Ditta (invariato)
@@ -901,7 +967,7 @@ function AdminPanel() {
         moduli: { label: 'Associa Moduli', component: tabComponents.moduli, adminOnly: true },
         funzioni: { label: 'Gestione Funzioni', component: tabComponents.funzioni, permission: 'ADMIN_FUNZIONI_VIEW' },
         permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
-        privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: false },
+        privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: true },
         monitoraggio: { label: 'Monitoraggio', component: tabComponents.monitoraggio, permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW'] } // ++ NUOVO ++
     };
 

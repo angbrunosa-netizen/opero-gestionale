@@ -60,53 +60,61 @@ router.get('/register/:token', async (req, res) => {
 // --- POST (Completa la registrazione utente) ---
 // --- POST (Completa la registrazione utente) ---
 // --- POST (Completa la registrazione utente) ---
+// --- POST (Completa la registrazione dell'utente) ---
 router.post('/register/:token', async (req, res) => {
     const { token } = req.params;
-    const userData = req.body;
-
+    const { nome, cognome, email, password, privacy, ...altriDati } = req.body;
     let connection;
+
+    if (!nome || !cognome || !email || !password || !privacy) {
+        return res.status(400).json({ success: false, message: 'Tutti i campi obbligatori devono essere compilati.' });
+    }
+
     try {
-        connection = await dbPool.getConnection();
+        connection = await knex.client.acquireConnection();
         await connection.beginTransaction();
 
-        const [tokenRows] = await connection.query('SELECT * FROM registration_tokens WHERE token = ? AND utilizzato = 0 AND scadenza > NOW()', [token]);
+        const [tokenRows] = await connection.execute('SELECT * FROM registration_tokens WHERE token = ? AND utilizzato = 0 AND scadenza > NOW()', [token]);
         if (tokenRows.length === 0) {
             throw new Error('Link di registrazione non valido o scaduto.');
         }
-        const dittaId = tokenRows[0].id_ditta;
+        const tokenRow = tokenRows[0];
+        const { id_ditta, id_ruolo } = tokenRow; // <-- LETTURA DINAMICA DEL RUOLO
 
-        const [existingUser] = await connection.query('SELECT id FROM utenti WHERE email = ?', [userData.email]);
-        if (existingUser.length > 0) {
+        if (!id_ruolo) {
+            throw new Error('Il link di invito non è configurato correttamente. Contattare l\'amministratore.');
+        }
+
+        const [existingUsers] = await connection.execute('SELECT id FROM utenti WHERE email = ?', [email]);
+        if (existingUsers.length > 0) {
             throw new Error('Un utente con questa email esiste già.');
         }
 
-        const hashedPassword = await bcrypt.hash(userData.password, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // ++ FIX: Usa la colonna corretta 'privacy' invece di 'privacy_accettata' ++
-        const query = `
-            INSERT INTO utenti 
-            (nome, cognome, email, password, id_ditta, id_ruolo, stato, codice_fiscale, telefono, indirizzo, citta, cap, privacy) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const values = [
-            userData.nome, userData.cognome, userData.email, hashedPassword,
-            dittaId,
-            2, // Ruolo di default: Ditta Admin (ID 2)
-            'attivo',
-            userData.codice_fiscale || null,
-            userData.telefono || null,
-            userData.indirizzo || null,
-            userData.citta || null,
-            userData.cap || null,
-            userData.privacy === true // Assicura che sia un booleano per il DB
-        ];
+        const newUser = {
+            nome, cognome, email, password: hashedPassword,
+            id_ditta,
+            id_ruolo, // <-- ASSEGNAZIONE DINAMICA DEL RUOLO
+            stato: 'attivo',
+            privacy: privacy ? 1 : 0,
+            ...altriDati
+        };
+        
+        await connection.execute(
+            `INSERT INTO utenti (nome, cognome, email, password, id_ditta, id_ruolo, stato, privacy, codice_fiscale, telefono, indirizzo, citta, cap) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                newUser.nome, newUser.cognome, newUser.email, newUser.password, newUser.id_ditta,
+                newUser.id_ruolo, newUser.stato, newUser.privacy, newUser.codice_fiscale || null,
+                newUser.telefono || null, newUser.indirizzo || null, newUser.citta || null, newUser.cap || null
+            ]
+        );
 
-        await connection.query(query, values);
-
-        await connection.query('UPDATE registration_tokens SET utilizzato = 1 WHERE token = ?', [token]);
+        await connection.execute('UPDATE registration_tokens SET utilizzato = 1 WHERE token = ?', [token]);
 
         await connection.commit();
-        res.status(201).json({ success: true, message: 'Registrazione completata con successo! Verrai reindirizzato al login.' });
+        res.status(201).json({ success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' });
 
     } catch (error) {
         if (connection) await connection.rollback();

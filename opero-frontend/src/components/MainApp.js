@@ -513,11 +513,6 @@ const MainApp = () => {
                                 Dashboard
                             </button>
                         </li>
-                        <li>
-                            <button onClick={() => setActiveModule('MY_PPA_TASKS')} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === 'MY_PPA_TASKS' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-                                Le Mie Attività PPA
-                            </button>
-                        </li>
                         {modules.map(module => (
                             /*<li key={module.codice}>
                                 <button onClick={() => setActiveModule(module.chiave_componente)} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>

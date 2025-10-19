@@ -91,10 +91,33 @@ async function sendNewDittaNotification(emailDitta, nomeDitta, emailAmministrato
     return sendSystemEmail(emailDitta, subject, htmlContent);
 }
 
+/**
+ * Invia una notifica a un utente esistente che è stato aggiunto a una nuova ditta.
+ * Utilizza la funzione 'sendSystemEmail' per l'invio.
+ * @param {string} userEmail - L'email dell'utente a cui è stato aggiunto il ruolo.
+ * @param {string} nomeDitta - Il nome della ditta a cui è stato associato.
+ * @param {string} userName - Il nome dell'utente.
+ */
+async function sendAddedToDittaNotification(emailDitta, nomeDitta, userEmail) {
+    const subject = `Sei stato aggiunto a ${nomeDitta} su Opero!`;
+    const htmlContent = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+            <h2>Ciao </h2>
+            <p>Siamo lieti di informarti che sei stato aggiunto alla ditta <strong>${nomeDitta}</strong> sulla piattaforma Opero.</p>
+            <p>Ora puoi accedere al tuo account per visualizzare i nuovi permessi e collaborare.</p>
+            <br>
+            <p>A presto,<br>Il team di Opero</p>
+        </div>
+    `;
+    return sendSystemEmail(userEmail, subject, htmlContent);
+}
+
+
 // Esportiamo sia la vecchia che le nuove funzioni per massima compatibilità
 module.exports = {
     sendSystemEmail,
     sendRegistrationInvite,
-    sendNewDittaNotification
+    sendNewDittaNotification,
+    sendAddedToDittaNotification
 };
 

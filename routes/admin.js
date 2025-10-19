@@ -878,6 +878,7 @@ router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (re
                 // ++ FIX: Calcoliamo la scadenza direttamente nel DB ++
                 await knex('registration_tokens').insert({
                     id_ditta: dittaId,
+                    id_ruolo: 2, // <-- FIX: SPECIFICA IL RUOLO DI DITTA ADMIN
                     token: token,
                     scadenza: knex.raw('DATE_ADD(NOW(), INTERVAL 7 DAY)'),
                 });
@@ -916,5 +917,11 @@ router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (re
         res.status(500).json({ success: false, message: 'Errore interno del server durante la creazione della ditta.' });
     }
 });
+
+
+
+
+
+
 module.exports = router;
 

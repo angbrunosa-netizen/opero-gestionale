@@ -9,7 +9,7 @@ const { knex } = require('../config/db');
 
 const express = require('express');
 const { dbPool } = require('../config/db');
-const { verifyToken,checkPermission } = require('../utils/auth');
+const { verifyToken,checkPermission ,checkRole} = require('../utils/auth');
 // ## FIX DEFINITIVO: Importiamo l'intero modulo 'crypto' ##
 // Questo è il modo più stabile per garantire che tutte le funzioni siano disponibili.
 const crypto = require('crypto');
@@ -22,6 +22,7 @@ const checkLevel = (req, res, next) => {
     }
     next();
 };
+const mailer = require('../utils/mailer'); // ++ FIX: Aggiunto import mancante ++
 const { v4: uuidv4 } = require('uuid'); // Per generare token unici
 // --- Configurazione Cifratura (dal tuo .env) ---
 // ## FIX: Garantiamo che la chiave sia sempre di 32 byte ##
@@ -36,6 +37,7 @@ const canManageAdminSettings = (req, res, next) => {
     }
     next();
 };
+const isDittaAdmin = checkRole([1, 2]); // 1: Amministratore_sistema, 2: Ditta Admin
 
 function encrypt(text) {
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -1234,6 +1236,97 @@ router.get('/utenti-esterni', verifyToken, async (req, res) => {
     } catch (error) {
         console.error("Errore nel recupero degli utenti esterni:", error);
         res.status(500).json({ message: "Errore nel recupero degli utenti esterni." });
+    }
+});
+
+
+// ====================================================================
+// ++ NUOVA API DI INVITO UTENTE UNIFICATA ++
+// ====================================================================
+// ====================================================================
+// ++ NUOVA API DI INVITO UTENTE UNIFICATA ++
+// ====================================================================
+/**
+ * @file opero/routes/amministrazione.js
+ * @description Rotta per invitare un utente o associarne uno esistente alla ditta.
+ * @date 2025-10-19
+ * @version 2.0 (Logica Multi-Ditta)
+ * - Se l'utente invitato esiste già, lo associa alla ditta corrente.
+ * - Se l'utente non esiste, crea un nuovo invito con token di registrazione.
+ * - Aggiunto il campo `Codice_Tipo_Utente` alla richiesta.
+ */
+// Nel tuo file routes/amministrazione.js
+
+router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
+    const { email, id_ruolo, Codice_Tipo_Utente } = req.body;
+    const { id_ditta, ditta } = req.user;
+
+    if (!email || !id_ruolo || !Codice_Tipo_Utente) {
+        return res.status(400).json({ success: false, message: 'Email, ruolo e tipo utente sono obbligatori.' });
+    }
+
+    // --- AGGIUNGI QUESTO CONTROLLO DI VALIDAZIONE ---
+    // Regex semplice per la validazione dell'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ success: false, message: 'Il formato dell\'email non è valido.' });
+    }
+
+    try {
+        // ... il resto del tuo codice rimane esattamente uguale ...
+        const existingUser = await knex('utenti').where({ email }).first();
+
+        if (existingUser) {
+            const existingAssociation = await knex('ad_utenti_ditte')
+                .where({ id_utente: existingUser.id, id_ditta: id_ditta })
+                .first();
+
+            if (existingAssociation) {
+                return res.status(409).json({ success: false, message: 'Questo utente è già associato alla tua ditta.' });
+            }
+
+            await knex('ad_utenti_ditte').insert({
+                id_utente: existingUser.id,
+                id_ditta: id_ditta,
+                id_ruolo: id_ruolo,
+                Codice_Tipo_Utente: Codice_Tipo_Utente,
+                stato: 'attivo'
+            });
+            
+            res.status(200).json({ success: true, message: `L'utente ${email} è stato associato con successo alla ditta.` });
+
+            mailer.sendAddedToDittaNotification(email, ditta.ragione_sociale, existingUser.nome)
+                .then(() => console.log(`Email di notifica inviata in background a: ${email}`))
+                .catch(err => console.error(`ERRORE: Invio email di notifica fallito per ${email}:`, err));
+
+        } else {
+            const token = uuidv4();
+            const registrationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register/${token}`;
+
+            await knex('registration_tokens').insert({
+                id_ditta,
+                token,
+                scadenza: knex.raw('DATE_ADD(NOW(), INTERVAL 7 DAY)'),
+                id_ruolo,
+                Codice_Tipo_Utente: Codice_Tipo_Utente 
+            });
+
+            res.status(200).json({ 
+                success: true, 
+                message: 'Invito per nuovo utente creato. Invio email in corso...', 
+                link: registrationLink 
+            });
+
+            mailer.sendRegistrationInvite(email, ditta.ragione_sociale, registrationLink)
+                .then(() => console.log(`Email di invito inviata con successo in background a: ${email}`))
+                .catch(err => console.error(`ERRORE: Invio email di invito in background fallito per ${email}:`, err));
+        }
+
+    } catch (error) {
+        console.error("Errore durante la creazione dell'invito:", error);
+        if (!res.headersSent) {
+             res.status(500).json({ success: false, message: 'Errore interno del server.' });
+        }
     }
 });
 
