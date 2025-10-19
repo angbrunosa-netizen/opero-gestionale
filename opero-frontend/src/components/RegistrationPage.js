@@ -1,132 +1,177 @@
 // #####################################################################
-// # Pagina di Registrazione Pubblica per Nuovi Utenti
+// # Componente RegistrationPage - v2.3 (Fix Campo Privacy)
 // # File: opero-frontend/src/components/RegistrationPage.js
+// # Corregge il nome del campo inviato al backend da 'privacy_accettata'
+// # a 'privacy' per allinearsi alla struttura del database 'utenti'.
 // #####################################################################
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { toast } from 'react-toastify';
 
 const RegistrationPage = () => {
     const { token } = useParams();
-    const [privacyPolicy, setPrivacyPolicy] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const navigate = useNavigate();
+
+    // Stati per la gestione del flusso e dei dati
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [step, setStep] = useState(1); // 1: Privacy, 2: Form, 3: Successo/Errore finale
-    const [privacyAccepted, setPrivacyAccepted] = useState(false);
+    const [pageData, setPageData] = useState(null);
+    const [step, setStep] = useState(1);
+    
     const [formData, setFormData] = useState({
-        nome: '', cognome: '', codice_fiscale: '', telefono: '', indirizzo: '',
-        citta: '', cap: '', note: '', email: '', password: ''
+        nome: '',
+        cognome: '',
+        email: '',
+        password: '',
+        conferma_password: '',
+        codice_fiscale: '',
+        telefono: '',
+        indirizzo: '',
+        citta: '',
+        cap: ''
     });
-    const [finalMessage, setFinalMessage] = useState('');
+    const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
     useEffect(() => {
-        const verifyTokenAndFetchPrivacy = async () => {
+        const fetchData = async () => {
+            setLoading(true);
+            setError('');
             try {
-                const { data } = await api.get(`/public/register/${token}`);
-                if (data.success) {
-                    setPrivacyPolicy(data.privacy);
+                const response = await api.get(`/public/register/${token}`);
+                if (response.data && response.data.success) {
+                    setPageData(response.data);
                 } else {
-                    setError(data.message);
-                    setStep(3); // Va direttamente al messaggio di errore finale
-                    setFinalMessage(data.message);
+                    throw new Error(response.data.message || 'Dati non validi ricevuti dal server.');
                 }
             } catch (err) {
-                const errMsg = err.response?.data?.message || 'Link non valido o scaduto.';
-                setError(errMsg);
+                const errorMessage = err.response?.data?.message || err.message || 'Impossibile caricare i dati. Il link potrebbe essere scaduto o non valido.';
+                setError(errorMessage);
                 setStep(3);
-                setFinalMessage(errMsg);
             } finally {
-                setIsLoading(false);
+                setLoading(false);
             }
         };
-        verifyTokenAndFetchPrivacy();
+        fetchData();
     }, [token]);
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const handleChange = (e) => {
+        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleRegistrationSubmit = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsLoading(true);
+        if (formData.password !== formData.conferma_password) {
+            return toast.error('Le password non coincidono.');
+        }
+        
         try {
-            const { data } = await api.post(`/public/register/${token}`, formData);
-            if (data.success) {
-                setStep(3);
-                setFinalMessage(data.message);
-            } else {
-                setError(data.message);
-            }
+            // ++ FIX: Usa 'privacy' invece di 'privacy_accettata' ++
+            const payload = { ...formData, privacy: true };
+            await api.post(`/public/register/${token}`, payload);
+            toast.success('Registrazione completata con successo! Ora puoi effettuare il login.');
+            navigate('/login');
         } catch (err) {
-            setError(err.response?.data?.message || 'Errore durante la registrazione.');
-        } finally {
-            setIsLoading(false);
+            const errorMessage = err.response?.data?.message || 'Si è verificato un errore durante la registrazione.';
+            setError(errorMessage);
+            toast.error(errorMessage);
+            setStep(3);
         }
     };
-
-    if (isLoading) {
-        return <div className="text-center p-10">Caricamento...</div>;
+    
+    if (loading) {
+        return <div className="flex justify-center items-center h-screen bg-gray-100"><p className="text-xl text-gray-700">Caricamento...</p></div>;
     }
 
     if (step === 3) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-100">
-                <div className="w-full max-w-xl p-8 text-center bg-white rounded-lg shadow-md">
-                    <h2 className={`text-2xl font-bold ${error ? 'text-red-600' : 'text-green-600'}`}>
-                        {error ? 'Errore' : 'Registrazione Inviata'}
-                    </h2>
-                    <p className="mt-4">{finalMessage}</p>
-                </div>
+            <div className="flex flex-col justify-center items-center h-screen bg-gray-100 text-center p-4">
+                <h2 className="text-2xl font-bold text-red-600 mb-4">Errore di Registrazione</h2>
+                <p className="text-lg text-gray-800">{error}</p>
+                <button onClick={() => navigate('/login')} className="mt-6 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700">
+                    Torna al Login
+                </button>
             </div>
         );
     }
 
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-            <div className="w-full max-w-4xl p-8 space-y-6 bg-white rounded-lg shadow-md">
-                {step === 1 && privacyPolicy && (
-                    <div>
-                        <h2 className="text-2xl font-bold text-center text-gray-800">Informativa sulla Privacy</h2>
-                        <div className="mt-4 p-4 border rounded-md max-h-96 overflow-y-auto" dangerouslySetInnerHTML={{ __html: privacyPolicy.corpo_lettera }}></div>
-                        <p className="mt-4 text-right font-semibold">Responsabile del Trattamento: {privacyPolicy.responsabile_trattamento}</p>
-                        <div className="mt-6 flex items-center">
-                            <input type="checkbox" id="privacy" checked={privacyAccepted} onChange={() => setPrivacyAccepted(!privacyAccepted)} className="h-4 w-4" />
-                            <label htmlFor="privacy" className="ml-2 block text-sm text-gray-900">Dichiaro di aver letto e accettato l'informativa sulla privacy.</label>
-                        </div>
-                        <button onClick={() => setStep(2)} disabled={!privacyAccepted} className="mt-4 w-full px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-300">
-                            Continua con la Registrazione
-                        </button>
-                    </div>
-                )}
+    if (!pageData) {
+        return <div className="flex justify-center items-center h-screen bg-gray-100"><p className="text-xl text-red-600">Impossibile visualizzare la pagina.</p></div>;
+    }
 
-                {step === 2 && (
-                    <div>
-                        <h2 className="text-2xl font-bold text-center text-gray-800">Completa la Registrazione</h2>
-                        <form onSubmit={handleRegistrationSubmit} className="mt-6 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input name="nome" placeholder="Nome" onChange={handleInputChange} required className="w-full p-2 border rounded-md" />
-                                <input name="cognome" placeholder="Cognome" onChange={handleInputChange} required className="w-full p-2 border rounded-md" />
-                                <input name="codice_fiscale" placeholder="Codice Fiscale" onChange={handleInputChange} className="w-full p-2 border rounded-md" />
-                                <input name="telefono" placeholder="Telefono" onChange={handleInputChange} className="w-full p-2 border rounded-md" />
-                                <input name="indirizzo" placeholder="Indirizzo" onChange={handleInputChange} className="w-full p-2 border rounded-md" />
-                                <input name="citta" placeholder="Città" onChange={handleInputChange} className="w-full p-2 border rounded-md" />
-                                <input name="cap" placeholder="CAP" onChange={handleInputChange} className="w-full p-2 border rounded-md" />
-                                <input name="email" type="email" placeholder="Email" onChange={handleInputChange} required className="w-full p-2 border rounded-md" />
-                                <input name="password" type="password" placeholder="Password" onChange={handleInputChange} required className="w-full p-2 border rounded-md" />
+    return (
+        <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+             <div className="sm:mx-auto sm:w-full sm:max-w-3xl">
+                <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    Crea il tuo account per {pageData.ragioneSociale}
+                </h2>
+            </div>
+            
+            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-3xl">
+                <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+
+                    {step === 1 && (
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-medium text-gray-900">Informativa sulla Privacy</h3>
+                            <div className="prose prose-sm max-w-none h-64 overflow-y-auto border p-4 rounded-md bg-gray-50"
+                                dangerouslySetInnerHTML={{ __html: pageData.privacyPolicy.corpo_lettera }}
+                            />
+                            <div className="flex items-center">
+                                <input id="privacy" name="privacy" type="checkbox" checked={privacyAccepted} onChange={(e) => setPrivacyAccepted(e.target.checked)} className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                <label htmlFor="privacy" className="ml-2 block text-sm text-gray-900">
+                                    Dichiaro di aver letto e accettato l'informativa sulla privacy.
+                                </label>
                             </div>
-                            <textarea name="note" placeholder="Note aggiuntive..." onChange={handleInputChange} className="w-full p-2 border rounded-md"></textarea>
-                            {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-                            <button type="submit" className="w-full px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700">
-                                Registrati
+                            <button onClick={() => setStep(2)} disabled={!privacyAccepted} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                Continua
                             </button>
+                        </div>
+                    )}
+
+                    {step === 2 && (
+                         <form className="space-y-6" onSubmit={handleSubmit}>
+                            <fieldset className="border p-4 rounded-md">
+                                <legend className="text-lg font-semibold px-2">Dati di Accesso</legend>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <input name="nome" type="text" required value={formData.nome} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Nome *" />
+                                    <input name="cognome" type="text" required value={formData.cognome} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Cognome *" />
+                                </div>
+                                <div className="mt-6">
+                                    <input name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Indirizzo Email *" />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                                    <input name="password" type="password" required value={formData.password} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Password *" />
+                                    <input name="conferma_password" type="password" required value={formData.conferma_password} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Conferma Password *" />
+                                </div>
+                            </fieldset>
+
+                            <fieldset className="border p-4 rounded-md">
+                                <legend className="text-lg font-semibold px-2">Dati Anagrafici</legend>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <input name="codice_fiscale" type="text" value={formData.codice_fiscale} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Codice Fiscale" />
+                                    <input name="telefono" type="tel" value={formData.telefono} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Telefono" />
+                                    <input name="indirizzo" type="text" value={formData.indirizzo} onChange={handleChange} className="p-3 border rounded-md w-full md:col-span-2" placeholder="Indirizzo (Via, Piazza...)" />
+                                    <input name="citta" type="text" value={formData.citta} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="Città" />
+                                    <input name="cap" type="text" value={formData.cap} onChange={handleChange} className="p-3 border rounded-md w-full" placeholder="CAP" />
+                                </div>
+                            </fieldset>
+                            
+                            <div>
+                                <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Completa Registrazione
+                                </button>
+                                <button type="button" onClick={() => setStep(1)} className="mt-4 w-full flex justify-center py-2 px-4 text-sm font-medium text-gray-700">
+                                    Torna alla Privacy Policy
+                                </button>
+                            </div>
                         </form>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );
 };
 
 export default RegistrationPage;
+

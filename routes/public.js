@@ -21,109 +21,101 @@ router.get('/register/:token', async (req, res) => {
         }
         const dittaId = tokenRows[0].id_ditta;
 
-        const [privacyRows] = await dbPool.query('SELECT corpo_lettera, responsabile_trattamento FROM privacy_policies WHERE id_ditta = ?', [dittaId]);
+        // ++ NUOVA LOGICA CONDIZIONALE ++
+        // 1. Controlla se esistono già amministratori per questa ditta
+        const [adminCountRows] = await dbPool.query('SELECT COUNT(*) as adminCount FROM utenti WHERE id_ditta = ? AND id_ruolo = 2', [dittaId]);
+        const isAdminRegistration = adminCountRows[0].adminCount === 0;
+
+        // 2. Scegli quale ID ditta usare per la privacy policy
+        const privacyDittaId = isAdminRegistration ? 1 : dittaId;
+        // ++ FINE NUOVA LOGICA ++
+
+        const [privacyRows] = await dbPool.query('SELECT corpo_lettera, responsabile_trattamento FROM privacy_policies WHERE id_ditta = ?', [privacyDittaId]);
+        
         if (privacyRows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Privacy policy non trovata per questa ditta.' });
+            const errorMessage = isAdminRegistration 
+                ? 'Privacy policy master non configurata.' 
+                : 'Privacy policy non trovata per questa ditta.';
+            return res.status(404).json({ success: false, message: errorMessage });
         }
 
-        res.json({ success: true, privacy: privacyRows[0] });
+        const [dittaRows] = await dbPool.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [dittaId]);
+        if (dittaRows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Ditta associata al link non trovata.' });
+        }
+
+        res.json({
+            success: true,
+            privacyPolicy: privacyRows[0],
+            ragioneSociale: dittaRows[0].ragione_sociale
+        });
 
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Errore del server.' });
+        console.error("Errore nel recupero dei dati di registrazione:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
 
-// --- POST (Registra un nuovo utente) ---
+
+// --- POST (Completa la registrazione utente) ---
+// --- POST (Completa la registrazione utente) ---
+// --- POST (Completa la registrazione utente) ---
 router.post('/register/:token', async (req, res) => {
     const { token } = req.params;
-    const { email, password, ...userData } = req.body;
+    const userData = req.body;
 
-    const connection = await dbPool.getConnection();
+    let connection;
     try {
+        connection = await dbPool.getConnection();
         await connection.beginTransaction();
 
         const [tokenRows] = await connection.query('SELECT * FROM registration_tokens WHERE token = ? AND utilizzato = 0 AND scadenza > NOW()', [token]);
         if (tokenRows.length === 0) {
-            throw new Error('Link non valido o scaduto.');
+            throw new Error('Link di registrazione non valido o scaduto.');
         }
         const dittaId = tokenRows[0].id_ditta;
 
-        // Recupera il nome della ditta che ha invitato l'utente
-        const [dittaRows] = await connection.query('SELECT ragione_sociale FROM ditte WHERE id = ?', [dittaId]);
-        const nomeDittaInvitante = dittaRows.length > 0 ? dittaRows[0].ragione_sociale : 'una nostra azienda partner';
+        const [existingUser] = await connection.query('SELECT id FROM utenti WHERE email = ?', [userData.email]);
+        if (existingUser.length > 0) {
+            throw new Error('Un utente con questa email esiste già.');
+        }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const verificationToken = uuidv4();
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-        const newUser = {
-            ...userData,
-            email,
-            password: hashedPassword,
-            id_ditta: dittaId,
-            id_ruolo: 4, 
-            livello: 1,
-            Codice_Tipo_Utente: 2,
-            privacy: 0,
-            attivo: 1,
-            verification_token: verificationToken
-        };
+        // ++ FIX: Usa la colonna corretta 'privacy' invece di 'privacy_accettata' ++
+        const query = `
+            INSERT INTO utenti 
+            (nome, cognome, email, password, id_ditta, id_ruolo, stato, codice_fiscale, telefono, indirizzo, citta, cap, privacy) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const values = [
+            userData.nome, userData.cognome, userData.email, hashedPassword,
+            dittaId,
+            2, // Ruolo di default: Ditta Admin (ID 2)
+            'attivo',
+            userData.codice_fiscale || null,
+            userData.telefono || null,
+            userData.indirizzo || null,
+            userData.citta || null,
+            userData.cap || null,
+            userData.privacy === true // Assicura che sia un booleano per il DB
+        ];
 
-        await connection.query('INSERT INTO utenti SET ?', newUser);
+        await connection.query(query, values);
+
         await connection.query('UPDATE registration_tokens SET utilizzato = 1 WHERE token = ?', [token]);
 
-        // Configurazione del transporter di Nodemailer
-        const transporter = nodemailer.createTransport({
-            host: process.env.MAIL_HOST,
-            port: process.env.MAIL_PORT,
-            secure: process.env.MAIL_PORT == 465,
-            auth: {
-                user: process.env.MAIL_USER,
-                pass: process.env.MAIL_PASS,
-            },
-            tls: {
-                rejectUnauthorized: false
-            }
-        });
-        
-        const verificationLink = `http://localhost:3001/api/public/verify-email/${verificationToken}`;
-        
-        // ## NUOVO CORPO DELL'EMAIL ##
-        await transporter.sendMail({
-            from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
-            to: email,
-            subject: 'Benvenuto in Opero! Conferma la tua registrazione',
-            html: `
-                <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-                    <h2>Benvenuto nella Community del Gestionale Opero!</h2>
-                    <p>Ciao ${userData.nome},</p>
-                    <p>Sei stato invitato da <strong>${nomeDittaInvitante}</strong>. Dopo la conferma del link qui sotto, potrai accedere ai servizi che ha attivato per te.</p>
-                    <p>Ricordati che Opero ha una serie di servizi gratuiti per tutti i suoi utenti e altri ne saranno inseriti ogni giorno. Salva i tuoi dati di accesso ed il nostro sito <a href="http://www.operogo.it">www.operogo.it</a> tra i tuoi preferiti e resta in contatto!</p>
-                    
-                    <div style="background-color: #f2f2f2; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                        <h3 style="margin-top: 0;">I tuoi dati di accesso:</h3>
-                        <p><strong>Email:</strong> ${email}</p>
-                        <p><strong>Password:</strong> ${password}</p>
-                    </div>
-
-                    <p>Per completare la registrazione e attivare il tuo account, clicca sul pulsante qui sotto:</p>
-                    <a href="${verificationLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px;">Conferma la tua Email</a>
-                    <p style="font-size: 0.9em; color: #666;">Se il pulsante non funziona, copia e incolla questo link nel tuo browser: ${verificationLink}</p>
-                </div>
-            `
-        });
-
         await connection.commit();
-        res.status(201).json({ success: true, message: 'Registrazione completata. Controlla la tua email per confermare.' });
+        res.status(201).json({ success: true, message: 'Registrazione completata con successo! Verrai reindirizzato al login.' });
 
     } catch (error) {
-        await connection.rollback();
+        if (connection) await connection.rollback();
         console.error("Errore durante la registrazione:", error);
         res.status(500).json({ success: false, message: error.message || 'Errore durante la registrazione.' });
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 });
-
 // --- GET (Verifica Email e attiva Privacy) ---
 router.get('/verify-email/:token', async (req, res) => {
     const { token } = req.params;

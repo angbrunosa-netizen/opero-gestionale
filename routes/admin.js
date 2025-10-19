@@ -15,6 +15,9 @@ const { dbPool } = require('../config/db');
 const isSystemAdmin = checkRole([1]); 
 const isDittaAdmin = checkRole([1, 2]);
 
+const { v4: uuidv4 } = require('uuid');
+const mailer = require('../utils/mailer');
+
 // ====================================================================
 // API GESTIONE DITTE (Accesso Esclusivo per System Admin)
 // ====================================================================
@@ -279,7 +282,7 @@ router.get('/privacy-ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, 
     }
 
     try {
-        const privacy = await knex("privacy_ditta")
+        const privacy = await knex("privacy_policies")
             .select('responsabile_trattamento', 'corpo_lettera')
             .where({ id_ditta })
             .first();
@@ -306,7 +309,7 @@ router.post('/privacy-ditta', [verifyToken, isDittaAdmin], async (req, res) => {
     };
 
     try {
-        await knex('privacy_ditta').insert(data).onConflict('id_ditta').merge();
+        await knex('privacy_policies').insert(data).onConflict('id_ditta').merge();
         res.json({ success: true, message: 'Privacy policy salvata con successo.' });
     } catch (error) {
         console.error("Errore salvataggio privacy policy:", error);
@@ -823,97 +826,95 @@ router.get('/logs/sessioni-attive', [verifyToken, checkPermission('ADMIN_SESSION
  * @description Crea una nuova ditta proprietaria e il suo primo utente amministratore.
  * @access Privato, Ruolo: System Admin
  */
-// POST /api/admin/setup-ditta-proprietaria
-// Crea una nuova ditta "proprietaria" e il suo utente amministratore.
-// POST /api/admin/setup-ditta-proprietaria
-// Crea la ditta e invia automaticamente il link di registrazione all'admin.
+/**
+ * POST /api/admin/setup-ditta-proprietaria
+ * Crea una nuova ditta e invia automaticamente un link di registrazione 
+ * all'email dell'amministratore specificata.
+ * Richiede ruolo System Admin.
+ */
 router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (req, res) => {
+    const { email_amministratore, ...dittaData } = req.body;
     
-    // Separiamo l'email dell'admin dal resto dei dati della ditta
-    const { email_amministratore, ...dittaBody } = req.body;
-
-    const dittaData = {
-        ragione_sociale: dittaBody.ragione_sociale,
-        p_iva: dittaBody.p_iva,
-        codice_fiscale: dittaBody.codice_fiscale,
-        indirizzo: dittaBody.indirizzo,
-        cap: dittaBody.cap,
-        citta: dittaBody.citta,
-        provincia: dittaBody.provincia,
-        tel1: dittaBody.tel1,
-        mail_1: dittaBody.mail_1,
-        id_tipo_ditta: 1, 
-        stato: 1, 
-        max_utenti_interni: dittaBody.max_utenti_interni,
-        max_utenti_esterni: dittaBody.max_utenti_esterni
-    };
-
-    if (!dittaData.ragione_sociale || !dittaData.p_iva) {
-        return res.status(400).json({ success: false, message: 'Ragione sociale e Partita IVA sono obbligatorie.' });
+    // Validazione base
+    if (!dittaData.ragione_sociale || !email_amministratore) {
+        return res.status(400).json({ success: false, message: 'Ragione sociale e email amministratore sono obbligatori.' });
     }
 
     const trx = await knex.transaction();
-    let dittaId;
-
     try {
-        [dittaId] = await trx('ditte').insert(dittaData);
+        // 1. Crea la Ditta
+        const [dittaId] = await trx('ditte').insert({
+            ragione_sociale: dittaData.ragione_sociale,
+            p_iva: dittaData.p_iva,
+            codice_fiscale: dittaData.codice_fiscale,
+            indirizzo: dittaData.indirizzo,
+            cap: dittaData.cap,
+            citta: dittaData.citta,
+            provincia: dittaData.provincia,
+            tel1: dittaData.tel1,
+            mail_1: dittaData.mail_1,
+            id_tipo_ditta: dittaData.id_tipo_ditta,
+            stato: dittaData.stato,
+            max_utenti_interni: dittaData.max_utenti_interni,
+            max_utenti_esterni: dittaData.max_utenti_esterni,
+        });
 
+        // 2. Logga l'azione
         await trx('log_azioni').insert({
             id_utente: req.user.id,
             id_ditta: req.user.id_ditta,
-            azione: 'CREAZIONE_DITTA_PROPRIETARIA',
-            dettagli: `Creata anagrafica ditta '${dittaData.ragione_sociale}' (ID: ${dittaId}).`
+            azione: 'CREAZIONE_DITTA',
+            dettagli: `Creata ditta '${dittaData.ragione_sociale}' (ID: ${dittaId}).`
         });
 
         await trx.commit();
         
-    } catch (error) {
-        await trx.rollback();
-        console.error('Errore durante la creazione della ditta:', error);
-        return res.status(500).json({ success: false, message: 'Errore interno del server.', error: error.message });
-    }
+        // 3. Genera token e invia email (dopo il commit della transazione)
+        let emailSent = false;
+        if (email_amministratore) {
+            try {
+                const token = uuidv4();
+                
+                // ++ FIX: Calcoliamo la scadenza direttamente nel DB ++
+                await knex('registration_tokens').insert({
+                    id_ditta: dittaId,
+                    token: token,
+                    scadenza: knex.raw('DATE_ADD(NOW(), INTERVAL 7 DAY)'),
+                });
 
-    // --- Invio Automatico Email di Registrazione (dopo il commit) ---
-    if (email_amministratore && dittaId) {
-        try {
-            const token = uuidv4();
-            const scadenza = new Date();
-            scadenza.setDate(scadenza.getDate() + 7);
+                const registrationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register/${token}`;
 
-            await knex('registration_tokens').insert({
-                id_ditta: dittaId,
-                token: token,
-                scadenza: scadenza
-            });
+                await mailer.sendRegistrationInvite(email_amministratore, dittaData.ragione_sociale, registrationLink);
+                emailSent = true;
+                
+                if (dittaData.mail_1) {
+                    await mailer.sendNewDittaNotification(dittaData.mail_1, dittaData.ragione_sociale, email_amministratore);
+                }
 
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-            const registrationLink = `${frontendUrl}/register/${token}`;
-
-            // Assumiamo che esista una funzione nel mailer per inviare l'invito
-            await mailer.sendRegistrationInvite(email_amministratore, registrationLink, dittaData.ragione_sociale);
-
-            return res.status(201).json({ 
+            } catch (emailError) {
+                console.error("Errore durante la generazione token o invio email:", emailError);
+            }
+        }
+        
+        if (!emailSent) {
+            return res.status(207).json({ 
                 success: true, 
-                message: `Ditta creata. Il link di registrazione è stato inviato a ${email_amministratore}.`, 
-                id_ditta: dittaId
-            });
-
-        } catch (emailError) {
-            console.error("Errore durante la generazione token o invio email:", emailError);
-            return res.status(207).json({ // 207 Multi-Status
-                success: true, 
-                message: `Ditta creata con successo, ma l'invio automatico dell'email è fallito. Generare il link manualmente.`,
-                id_ditta: dittaId
+                message: "Ditta creata con successo, ma l'invio automatico dell'email è fallito. Generare il link manualmente.",
+                id_ditta: dittaId 
             });
         }
-    } else {
-        return res.status(201).json({ 
+
+        res.status(201).json({ 
             success: true, 
-            message: 'Ditta creata. Nessun invito inviato perché non è stata fornita un\'email per l\'admin.', 
-            id_ditta: dittaId
+            message: 'Ditta creata e link di registrazione inviato con successo.', 
+            id_ditta: dittaId 
         });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore durante la creazione della ditta:", error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante la creazione della ditta.' });
     }
 });
-
 module.exports = router;
 
