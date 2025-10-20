@@ -111,8 +111,12 @@ async function _buildPermissions(connection, id_utente, id_ruolo, id_ditta) {
 }
 
 // STEP 1: AUTENTICAZIONE INIZIALE
-// STEP 1: AUTENTICAZIONE INIZIALE
-// STEP 1: AUTENTICAZIONE INIZIALE
+// --- FUNZIONI HELPER (INVARIATE) ---
+// ... (le tue funzioni _buildPermissions e finalizzaLogin rimangono invariate) ...
+
+
+// --- NUOVO FLUSSO DI LOGIN A STEP (MODIFICATO) ---
+
 // STEP 1: AUTENTICAZIONE INIZIALE
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -154,9 +158,9 @@ router.post('/login', async (req, res) => {
 
         // 3. Raccogli tutte le associazioni ditta
         const ditteAssociateQuery = `
-            (SELECT d.id, d.ragione_sociale, d.logo_url FROM ad_utenti_ditte aud JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
+            (SELECT d.id, d.ragione_sociale AS denominazione, d.logo_url FROM ad_utenti_ditte aud JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
             UNION
-            (SELECT d.id, d.ragione_sociale, d.logo_url FROM utenti u JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL)
+            (SELECT d.id, d.ragione_sociale AS denominazione, d.logo_url FROM utenti u JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL)
         `;
         const [ditteRows] = await connection.query(ditteAssociateQuery, [user.id, user.id]);
 
@@ -167,7 +171,7 @@ router.post('/login', async (req, res) => {
 
         // 4. Determina il prossimo passo
         if (ditteRows.length === 1) {
-            // CASO A: Utente con una sola ditta -> Login diretto
+            // CASO A: Utente con una sola ditta -> Login diretto (logica invariata)
             const id_ditta_scelta = ditteRows[0].id;
 
             const [associazioneRows] = await connection.query('SELECT id_ruolo, Codice_Tipo_Utente FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"', [user.id, id_ditta_scelta]);
@@ -199,24 +203,21 @@ router.post('/login', async (req, res) => {
 
         } else {
             // CASO B: Utente con più ditte -> Chiedi selezione
-            const tempTokenPayload = { id: user.id, type: 'ditta-selection' };
-            const tempToken = jwt.sign(tempTokenPayload, JWT_SECRET, { expiresIn: '5m' });
-
+            // --- MODIFICA 1: Inviato la proprietà 'needsDittaSelection' come si aspetta il frontend ---
+            // --- MODIFICA 2: Rimosso il temp_token, non necessario per questo flusso ---
             delete user.password;
-            
-            // --- CORREZIONE: Arricchiamo l'oggetto user per coerenza con `finalizzaLogin` ---
             const userForFrontend = {
                 ...user,
-                ruolo: user.nome_ruolo // Aggiungiamo il campo 'ruolo' che il frontend si aspetta
+                ruolo: user.nome_ruolo
             };
 
             await connection.commit();
             res.json({ 
                 success: true, 
-                multi_ditta: true, 
+                needsDittaSelection: true, // <-- CAMBIATO DA 'multi_ditta'
                 ditte: ditteRows, 
-                temp_token: tempToken,
-                user: userForFrontend // Inviamo l'oggetto arricchito e consistente
+                user: userForFrontend
+                // temp_token rimosso
             });
         }
     } catch (error) {
@@ -229,15 +230,14 @@ router.post('/login', async (req, res) => {
 });
 
 
-// --- NUOVA ROTTA: /select-ditta ---
-
 // STEP 2: SELEZIONE DELLA DITTA (per utenti multi-ditta)
-router.post('/select-ditta', verifyToken, async (req, res) => {
-    const { id_ditta_scelta } = req.body;
-    const { id: userId, type } = req.user; // da token temporaneo
+// --- MODIFICA 3: Rimuoviamo il middleware 'verifyToken' ---
+// --- MODIFICA 4: La rotta ora si aspetta email, password e id_ditta_scelta nel body ---
+router.post('/select-ditta', async (req, res) => {
+    const { email, password, id_ditta_scelta } = req.body;
 
-    if (type !== 'ditta-selection' || !id_ditta_scelta) {
-        return res.status(400).json({ success: false, message: 'Richiesta non valida o token errato.' });
+    if (!email || !password || !id_ditta_scelta) {
+        return res.status(400).json({ success: false, message: 'Email, password e la selezione di una ditta sono obbligatori.' });
     }
 
     let connection;
@@ -245,17 +245,22 @@ router.post('/select-ditta', verifyToken, async (req, res) => {
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
 
-        const userQuery = `SELECT id, nome, cognome, email, password, id_ditta, id_ruolo, id_tipo_utente FROM utenti WHERE id = ?`;
-        const [userRows] = await connection.query(userQuery, [userId]);
+        // --- MODIFICA 5: Riautentichiamo l'utente usando email e password ---
+        const userQuery = `SELECT id, nome, cognome, email, password, id_ditta, id_ruolo, Codice_Tipo_Utente FROM utenti WHERE email = ?`;
+        const [userRows] = await connection.query(userQuery, [email]);
+        if (userRows.length === 0 || !await bcrypt.compare(password, userRows[0].password)) {
+            await connection.rollback();
+            return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
+        }
         const user = userRows[0];
 
-        // Logica di fallback per trovare l'associazione corretta
+        // --- Da qui in poi, la logica è molto simile a quella della rotta originale ---
         let associazione = null;
         const [associazioneRows] = await connection.query('SELECT id_ruolo, Codice_Tipo_Utente FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"', [user.id, id_ditta_scelta]);
         if (associazioneRows.length > 0) {
             associazione = associazioneRows[0];
         } else if (parseInt(user.id_ditta, 10) === parseInt(id_ditta_scelta, 10)) {
-            associazione = { id_ruolo: user.id_ruolo, Codice_Tipo_Utente: user.id_tipo_utente };
+            associazione = { id_ruolo: user.id_ruolo, Codice_Tipo_Utente: user.Codice_Tipo_Utente };
         }
 
         if (!associazione) {
@@ -266,7 +271,6 @@ router.post('/select-ditta', verifyToken, async (req, res) => {
         const { id_ruolo, Codice_Tipo_Utente } = associazione;
         const [ruoloInfo] = await connection.query('SELECT tipo FROM ruoli WHERE id = ?', [id_ruolo]);
         
-        // Esegui la portineria per il numero di connessioni
         const [dittaInfoRows] = await connection.query('SELECT max_utenti_interni, max_utenti_esterni FROM ditte WHERE id = ?', [id_ditta_scelta]);
         const { max_utenti_interni, max_utenti_esterni } = dittaInfoRows[0];
         const isUtenteInterno = (Codice_Tipo_Utente === 1);
@@ -276,7 +280,7 @@ router.post('/select-ditta', verifyToken, async (req, res) => {
             FROM utenti_sessioni_attive usa
             LEFT JOIN ad_utenti_ditte aud ON usa.id_utente = aud.id_utente AND usa.id_ditta_attiva = aud.id_ditta
             LEFT JOIN utenti u ON usa.id_utente = u.id
-            WHERE usa.id_ditta_attiva = ? AND COALESCE(aud.Codice_Tipo_Utente, u.id_tipo_utente) = ?`;
+            WHERE usa.id_ditta_attiva = ? AND COALESCE(aud.Codice_Tipo_Utente, u.Codice_Tipo_Utente) = ?`;
         const [countRows] = await connection.query(countQuery, [id_ditta_scelta, Codice_Tipo_Utente]);
         const sessioniAttivePerTipo = countRows[0].sessioni_attive;
 
@@ -299,7 +303,6 @@ router.post('/select-ditta', verifyToken, async (req, res) => {
         if (connection) connection.release();
     }
 });
-
 // --- ESISTENTI ROTTE /logout, /heartbeat, /me (INVARIATE) ---
 
 router.post('/logout', verifyToken, async (req, res) => {

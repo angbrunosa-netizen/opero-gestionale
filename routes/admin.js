@@ -117,7 +117,37 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
 // ====================================================================
 // API GESTIONE UTENTI (Accesso per Amministratori di Ditta)
 // ====================================================================
+
+// --- NUOVA ROTTA ---
+// GET: Ottiene l'elenco delle ditte associate a un singolo utente
+router.get('/utenti/:id/ditte', [verifyToken, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
+    const { id: id_utente_target } = req.params;
+
+    try {
+        // La query UNION combina i risultati da entrambe le fonti (moderna e legacy)
+        // ed elimina i duplicati automaticamente.
+        const ditteAssociateQuery = `
+            (SELECT d.id, d.ragione_sociale FROM ad_utenti_ditte aud JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
+            UNION
+            (SELECT d.id, d.ragione_sociale FROM utenti u JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL)
+        `;
+        const [ditteRows] = await dbPool.query(ditteAssociateQuery, [id_utente_target, id_utente_target]);
+        
+        res.json(ditteRows);
+
+    } catch (error) {
+        console.error("Errore nel recupero delle ditte associate all'utente:", error);
+        res.status(500).json({ message: 'Errore del server.' });
+    }
+});
+
+
+
 // rotta utenti ditta id_ditta aggiornata nuova logica 20/10
+
+
+
+
 router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, res) => {
     const { id_ditta } = req.params;
     const requester = req.user;
@@ -677,49 +707,52 @@ router.post('/ditta/permessi', [verifyToken, isDittaAdmin, checkPermission('ADMI
 // ====================================================================
 // API GESTIONE PERMESSI PERSONALIZZATI UTENTE (Ditta/System Admin)
 // ====================================================================
-
-// GET: Ottiene lo stato completo dei permessi per un singolo utente
-router.get('/utenti/:id/permissions', [verifyToken, isDittaAdmin, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
+// GET: Ottiene lo stato completo dei permessi per un utente su una SPECIFICA ditta
+router.get('/utenti/:id/permissions', [verifyToken, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
     const { id: id_utente_target } = req.params;
+    const { id_ditta } = req.query; // <-- MODIFICA: Riceviamo l'id_ditta dalla query string
     const requester = req.user;
 
+    if (!id_ditta) {
+        return res.status(400).json({ message: 'ID Ditta non specificato.' });
+    }
+
     try {
-        const utenteTarget = await knex('utenti').where({ id: id_utente_target }).select('id_ditta', 'id_ruolo').first();
+        // Sicurezza: Un Admin Ditta (ruolo 2) può agire solo sulla propria ditta
+        if (requester.id_ruolo === 2 && parseInt(requester.id_ditta, 10) !== parseInt(id_ditta, 10)) {
+            return res.status(403).json({ message: 'Non autorizzato a visualizzare i permessi per questa ditta.' });
+        }
+
+        // Troviamo il ruolo dell'utente per la ditta specificata
+        const associazione = await knex('ad_utenti_ditte')
+            .where({ id_utente: id_utente_target, id_ditta: id_ditta })
+            .first();
+
+        const utenteTarget = associazione ? { id_ruolo: associazione.id_ruolo, id_ditta: associazione.id_ditta } : 
+                               await knex('utenti').where({ id: id_utente_target }).select('id_ditta', 'id_ruolo').first();
+        
         if (!utenteTarget) {
-            return res.status(404).json({ message: 'Utente non trovato.' });
+            return res.status(404).json({ message: 'Utente non trovato o non associato a questa ditta.' });
         }
 
-        // Sicurezza: Un Admin Ditta può gestire solo utenti della propria ditta
-        if (requester.id_ruolo === 2 && utenteTarget.id_ditta !== requester.id_ditta) {
-            return res.status(403).json({ message: 'Non autorizzato a gestire i permessi di questo utente.' });
-        }
-
-        // 1. Prendi tutte le funzioni abilitate per la ditta
-        const funzioniAbilitate = await knex('funzioni as f')
-            .join('funzioni_ditte as fd', 'f.id', 'fd.id_funzione')
-            .where('fd.id_ditta', utenteTarget.id_ditta)
-            .select('f.id', 'f.codice', 'f.descrizione', 'f.chiave_componente_modulo');
-
-        // 2. Prendi i permessi base del ruolo dell'utente
-        const permessiRuolo = await knex('ruoli_funzioni').where({ id_ruolo: utenteTarget.id_ruolo }).pluck('id_funzione');
+        const [funzioniAbilitate, permessiRuolo, overrides] = await Promise.all([
+            knex('funzioni as f')
+                .join('funzioni_ditte as fd', 'f.id', 'fd.id_funzione')
+                .where('fd.id_ditta', id_ditta)
+                .select('f.id', 'f.codice', 'f.descrizione', 'f.chiave_componente_modulo'),
+            knex('ruoli_funzioni').where({ id_ruolo: utenteTarget.id_ruolo }).pluck('id_funzione'),
+            // MODIFICA: Filtriamo gli override anche per ditta
+            knex('utenti_funzioni_override').where({ id_utente: id_utente_target, id_ditta: id_ditta })
+        ]);
+        
         const setPermessiRuolo = new Set(permessiRuolo);
-
-        // 3. Prendi gli override specifici dell'utente
-        const overrides = await knex('utenti_funzioni_override').where({ id_utente: id_utente_target });
         const mapOverrides = new Map(overrides.map(o => [o.id_funzione, o.azione]));
 
-        // 4. Combina i dati per il frontend
-        const response = funzioniAbilitate.map(funzione => {
-            let stato = 'default'; // Ereditato dal ruolo
-            if (mapOverrides.has(funzione.id)) {
-                stato = mapOverrides.get(funzione.id); // 'allow' o 'deny'
-            }
-            return {
-                ...funzione,
-                abilitato_da_ruolo: setPermessiRuolo.has(funzione.id),
-                stato_override: stato
-            };
-        });
+        const response = funzioniAbilitate.map(funzione => ({
+            ...funzione,
+            abilitato_da_ruolo: setPermessiRuolo.has(funzione.id),
+            stato_override: mapOverrides.get(funzione.id) || 'default'
+        }));
 
         res.json(response);
 
@@ -729,57 +762,50 @@ router.get('/utenti/:id/permissions', [verifyToken, isDittaAdmin, checkPermissio
     }
 });
 
-// POST: Salva gli override dei permessi per un utente
-router.post('/utenti/:id/permissions', [verifyToken, isDittaAdmin, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
+
+// POST: Salva gli override dei permessi per un utente su una SPECIFICA ditta
+router.post('/utenti/:id/permissions', [verifyToken, checkPermission('ADMIN_USER_PERMISSIONS_MANAGE')], async (req, res) => {
     const { id: id_utente_target } = req.params;
-    const { overrides } = req.body; // Array di { id_funzione, azione }
+    // --- MODIFICA: Riceviamo id_ditta e overrides dal body ---
+    const { overrides, id_ditta } = req.body;
     const requester = req.user;
-    const id_utente_loggato = requester.id_utente;
+
+    if (!id_ditta || !Array.isArray(overrides)) {
+        return res.status(400).json({ message: 'Dati mancanti o malformattati (id_ditta e overrides sono richiesti).' });
+    }
 
     try {
-        const utenteTarget = await knex('utenti').where({ id: id_utente_target }).select('id_ditta').first();
-        if (!utenteTarget) {
-            return res.status(404).json({ message: 'Utente non trovato.' });
+        // Sicurezza: Un Admin Ditta (ruolo 2) può agire solo sulla propria ditta
+        if (requester.id_ruolo === 2 && parseInt(requester.id_ditta, 10) !== parseInt(id_ditta, 10)) {
+            return res.status(403).json({ message: 'Non autorizzato a modificare i permessi per questa ditta.' });
         }
 
-        // Sicurezza: Un Admin Ditta può gestire solo utenti della propria ditta
-        if (requester.id_ruolo === 2 && utenteTarget.id_ditta !== requester.id_ditta) {
-            return res.status(403).json({ message: 'Non autorizzato a gestire i permessi di questo utente.' });
-        }
-
-        await knex.transaction(async trx => {
-            // 1. Cancella i vecchi override per questo utente
-            await trx('utenti_funzioni_override').where({ id_utente: id_utente_target }).del();
+        await knex.transaction(async (trx) => {
+            // 1. Cancella solo gli override dell'utente per la ditta specifica
+            await trx('utenti_funzioni_override')
+                .where({ id_utente: id_utente_target, id_ditta: id_ditta })
+                .del();
 
             // 2. Inserisci i nuovi override, se ce ne sono
-            if (overrides && overrides.length > 0) {
+            if (overrides.length > 0) {
                 const dataToInsert = overrides.map(o => ({
                     id_utente: id_utente_target,
                     id_funzione: o.id_funzione,
-                    azione: o.azione
+                    azione: o.azione,
+                    id_ditta: id_ditta // Aggiungiamo l'ID della ditta
                 }));
                 await trx('utenti_funzioni_override').insert(dataToInsert);
             }
-
-            // 3. Logga l'azione
-            if (id_utente_loggato) {
-                await trx('log_azioni').insert({
-                    id_utente: id_utente_loggato,
-                    tipo_azione: 'PERMISSIONS_UPDATE',
-                    descrizione: `L'utente ha modificato i permessi personalizzati per l'utente ID: ${id_utente_target}`,
-                    tabella_riferimento: 'utenti',
-                    id_riferimento: id_utente_target
-                });
-            }
         });
 
-        res.json({ message: 'Permessi utente aggiornati con successo.' });
+        res.json({ success: true, message: 'Permessi aggiornati con successo.' });
 
     } catch (error) {
-        console.error("Errore nel salvataggio dei permessi utente:", error);
+        console.error("Errore nel salvataggio dei permessi:", error);
         res.status(500).json({ message: 'Errore del server.' });
     }
 });
+
 
 // ## NOVITÀ: ROTTA PER SBLOCCARE UN UTENTE ##
 // Questa rotta è protetta e accessibile solo da chi ha il permesso 'ADMIN_UTENTI_SBLOCCA'.
