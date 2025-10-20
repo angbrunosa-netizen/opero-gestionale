@@ -33,7 +33,7 @@ const TabelleSupportoView = () => {
         { key: 'um', label: 'Unità di Misura', component: UnitaMisuraManager, permission: 'CT_VIEW' }, // Simile, la vista è libera
         { key: 'stati', label: 'Stati Entità', component: StatiEntitaManager, permission: 'CT_VIEW' },
         
-        { key: 'ean', label: 'Ean Entità', component: EanManager, permission: 'CT_VIEW' }
+        //{ key: 'ean', label: 'Ean Entità', component: EanManager, permission: 'CT_VIEW' }
     ];
 
     const renderContent = () => {

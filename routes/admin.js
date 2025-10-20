@@ -117,19 +117,30 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
 // ====================================================================
 // API GESTIONE UTENTI (Accesso per Amministratori di Ditta)
 // ====================================================================
-
+// rotta utenti ditta id_ditta aggiornata nuova logica 20/10
 router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, res) => {
     const { id_ditta } = req.params;
     const requester = req.user;
 
+    // Sicurezza: Un Ditta Admin può vedere solo gli utenti della propria ditta.
     if (requester.id_ruolo === 2 && parseInt(id_ditta, 10) !== requester.id_ditta) {
         return res.status(403).json({ success: false, message: 'Accesso non autorizzato.' });
     }
 
     try {
-        const utenti = await knex('utenti')
-            .select('id', knex.raw('CONCAT(nome, " ", cognome) as username'), 'email', 'id_ruolo','stato')
-            .where({ id_ditta });
+        const utenti = await knex('ad_utenti_ditte as aud')
+            .join('utenti as u', 'aud.id_utente', 'u.id')
+            .join('ruoli as r', 'aud.id_ruolo', 'r.id')
+            .where('aud.id_ditta', id_ditta)
+            .select(
+                'u.id as id', // *** CORREZIONE CRUCIALE per compatibilità frontend ***
+                'aud.id as id_associazione',
+                knex.raw('CONCAT(u.nome, " ", u.cognome) as username'),
+                'u.email',
+                'aud.id_ruolo',
+                'r.tipo as nome_ruolo',
+                'aud.stato'
+            );
         res.json({ success: true, utenti });
     } catch (error) {
         console.error(`Errore recupero utenti per ditta ${id_ditta}:`, error);
@@ -137,39 +148,116 @@ router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, r
     }
 });
 
+
+
 router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => {
+    // Il 'id' si riferisce a utenti.id per mantenere la compatibilità con il frontend
     const { id, password, ...userData } = req.body;
     const requester = req.user;
-    
-    if (requester.id_ruolo === 2) {
-        if (parseInt(userData.id_ditta, 10) !== requester.id_ditta) {
-            return res.status(403).json({ success: false, message: 'Non autorizzato a gestire utenti di altre ditte.' });
+    const id_ditta_operativa = userData.id_ditta || requester.id_ditta;
+
+    // --- Controlli di Sicurezza ---
+    if (requester.id_ruolo === 2) { // Se è un Ditta Admin
+        if (parseInt(id_ditta_operativa, 10) !== requester.id_ditta) {
+            return res.status(403).json({ success: false, message: 'Non autorizzato a gestire utenti per altre ditte.' });
         }
-        if (parseInt(userData.id_ruolo, 10) <= 2) {
+        if (userData.id_ruolo && parseInt(userData.id_ruolo, 10) <= 2) {
             return res.status(403).json({ success: false, message: 'Non autorizzato ad assegnare ruoli di amministratore.' });
         }
     }
 
-    try {
-        if (password) {
-            userData.password = await bcrypt.hash(password, 10);
-        }
+    const datiAnagrafici = {
+        nome: userData.nome,
+        cognome: userData.cognome,
+        email: userData.email,
+    };
 
-        if (id) { 
-            await knex('utenti').where({id}).update(userData);
+    if (password) {
+        datiAnagrafici.password = await bcrypt.hash(password, 10);
+    }
+
+    const trx = await knex.transaction(); // Avvia la transazione
+    try {
+        if (id) { // --- LOGICA DI AGGIORNAMENTO ---
+            // 1. Aggiorna dati anagrafici in 'utenti' (se ce ne sono)
+            if (Object.keys(datiAnagrafici).some(key => datiAnagrafici[key] !== undefined)) {
+                 await trx('utenti').where({ id }).update(datiAnagrafici);
+            }
+
+            // 2. Aggiorna dati di associazione in 'ad_utenti_ditte'
+            const datiAssociazione = {
+                id_ruolo: userData.id_ruolo,
+                Codice_Tipo_Utente: userData.Codice_Tipo_Utente,
+                stato: userData.stato
+            };
+            // Rimuovi chiavi non definite per non sovrascrivere con 'null'
+            Object.keys(datiAssociazione).forEach(key => datiAssociazione[key] === undefined && delete datiAssociazione[key]);
+
+            if (Object.keys(datiAssociazione).length > 0) {
+                 await trx('ad_utenti_ditte')
+                    .where({ id_utente: id, id_ditta: requester.id_ditta }) // Aggiorna l'associazione nel contesto della ditta corrente
+                    .update(datiAssociazione);
+            }
+            
+            await trx('log_azioni').insert({
+                id_utente: requester.id,
+                azione: `Aggiornamento utente ${id} per ditta ${requester.id_ditta}`,
+                dettagli: JSON.stringify(userData)
+            });
+
+            await trx.commit();
             res.json({ success: true, message: 'Utente aggiornato con successo.' });
-        } else { 
-            await knex('utenti').insert(userData);
-            res.status(201).json({ success: true, message: 'Utente creato con successo.' });
+
+        } else { // --- LOGICA DI CREAZIONE ---
+            let targetUserId;
+            const utenteEsistente = await trx('utenti').where('email', userData.email).first();
+
+            if (utenteEsistente) {
+                targetUserId = utenteEsistente.id;
+                const associazioneEsistente = await trx('ad_utenti_ditte')
+                    .where({ id_utente: targetUserId, id_ditta: userData.id_ditta })
+                    .first();
+                if (associazioneEsistente) {
+                    await trx.rollback();
+                    return res.status(409).json({ success: false, message: 'Questo utente è già associato a questa ditta.' });
+                }
+            } else {
+                if (!password) {
+                    await trx.rollback();
+                    return res.status(400).json({ success: false, message: 'La password è obbligatoria per i nuovi utenti.' });
+                }
+                const [newUserId] = await trx('utenti').insert(datiAnagrafici).returning('id');
+                targetUserId = newUserId;
+            }
+
+            const datiNuovaAssociazione = {
+                id_utente: targetUserId,
+                id_ditta: userData.id_ditta,
+                id_ruolo: userData.id_ruolo,
+                Codice_Tipo_Utente: userData.Codice_Tipo_Utente,
+                stato: userData.stato || 'attivo'
+            };
+            await trx('ad_utenti_ditte').insert(datiNuovaAssociazione);
+            
+            await trx('log_azioni').insert({
+                id_utente: requester.id,
+                azione: `Creazione associazione utente ${targetUserId} a ditta ${userData.id_ditta}`,
+                dettagli: JSON.stringify(datiNuovaAssociazione)
+            });
+
+            await trx.commit();
+            res.status(201).json({ success: true, message: 'Utente creato e associato con successo.' });
         }
     } catch (error) {
+        await trx.rollback();
         console.error("Errore salvataggio utente:", error);
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 'ER_DUP_ENTRY' && error.message.includes('utenti.email_unique')) {
             return res.status(409).json({ success: false, message: 'L\'email fornita è già in uso.' });
         }
         res.status(500).json({ success: false, message: 'Errore durante il salvataggio dell\'utente.' });
     }
 });
+
 
 router.delete('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
     const { id } = req.params;
@@ -199,28 +287,40 @@ router.delete('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
     }
 });
 
+// rotta utenti ditta id_ditta aggiornata nuova logica 20/10
 router.get('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
-    const { id } = req.params;
+    const { id: id_utente } = req.params; // L'ID nell'URL è l'id_utente
     const requester = req.user;
 
     try {
-        const utente = await knex('utenti')
-            .select('id', 'nome', 'cognome', 'email', 'id_ditta', 'id_ruolo')
-            .where({ id })
+        // La query cerca l'associazione specifica tra l'utente richiesto e la ditta dell'admin.
+        const utente = await knex('ad_utenti_ditte as aud')
+            .join('utenti as u', 'aud.id_utente', 'u.id')
+            .select(
+                'u.id as id_utente',
+                'u.nome',
+                'u.cognome',
+                'u.email',
+                'aud.id as id_associazione',
+                'aud.id_ditta',
+                'aud.id_ruolo',
+                'aud.Codice_Tipo_Utente',
+                'aud.stato'
+            )
+            .where('aud.id_utente', id_utente)
+            .andWhere('aud.id_ditta', requester.id_ditta) // Filtra per la ditta del richiedente
             .first();
 
         if (!utente) {
-            return res.status(404).json({ success: false, message: 'Utente non trovato.' });
+            // Se non c'è un'associazione per quella ditta, l'utente non viene trovato (corretto e sicuro).
+            return res.status(404).json({ success: false, message: 'Utente non trovato in questa ditta.' });
         }
 
-        if (requester.id_ruolo === 2 && utente.id_ditta !== requester.id_ditta) {
-            return res.status(403).json({ success: false, message: 'Accesso non autorizzato.' });
-        }
-
+        // Il vecchio controllo di sicurezza non è più necessario perché è gestito dalla query.
         res.json({ success: true, utente });
 
     } catch (error) {
-        console.error(`Errore nel recupero dell'utente ${id}:`, error);
+        console.error(`Errore nel recupero dell'utente ${id_utente}:`, error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });

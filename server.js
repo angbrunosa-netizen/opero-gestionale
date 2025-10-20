@@ -117,7 +117,10 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // --- AVVIO IN SVILUPPO SU PORTA DI RETE ---
   const PORT = process.env.PORT || 3001;
+ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`💻 Server Opero in SVILUPPO avviato e in ascolto sulla porta: ${PORT}`);
   });
 }
+}
+module.exports = app;
