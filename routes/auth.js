@@ -384,6 +384,141 @@ router.get('/me', verifyToken, async (req, res) => {
     }
 });
 
+// --- NUOVE ROTTE PER RECUPERO PASSWORD (FLUSSO UTENTE) ---
+
+// 1. Richiesta di Reset Password
+router.post('/request-password-reset', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'Indirizzo email mancante.' });
+    }
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [userRows] = await connection.query('SELECT id, nome, cognome FROM utenti WHERE email = ?', [email]);
+
+        if (userRows.length > 0) {
+            const user = userRows[0];
+            const token = crypto.randomBytes(32).toString('hex'); // Token sicuro
+            const hashedToken = await bcrypt.hash(token, 10); // Hash del token per il DB
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // Scadenza tra 1 ora
+
+            // Salva il token hashato nel DB
+            await connection.query(
+                'INSERT INTO password_reset_tokens (id_utente, token, expires_at) VALUES (?, ?, ?)',
+                [user.id, hashedToken, expiresAt]
+            );
+
+            const resetLink = `${process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`; 
+            const mailSubject = 'Opero - Richiesta Reset Password';
+            const mailBody = `...`; // Email HTML come prima
+
+            // --- CORREZIONE CHIAMATA MAILER ---
+            // Usa sendSystemEmail invece di sendMail
+            await sendSystemEmail(email, mailSubject, mailBody);
+
+             console.log(`[AUTH] Inviata email di reset password a ${email}. Link: ${resetLink}`);
+        } else {
+             console.log(`[AUTH] Richiesta reset per email non trovata: ${email}`);
+        }
+
+        res.json({ success: true, message: 'Se l\'indirizzo email è registrato, riceverai un link per il reset della password.' });
+
+    } catch (error) {
+        console.error('Errore durante la richiesta di reset password:', error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+
+// 2. Reset Effettivo della Password
+router.post('/reset-password', async (req, res) => {
+    // ... logica invariata ...
+    const { token, newPassword } = req.body;
+    console.log('--- Richiesta /reset-password ricevuta ---'); // LOG 1
+    console.log('Token ricevuto:', token);                   // LOG 2
+    console.log('Password ricevuta (lunghezza):', newPassword?.length); // LOG 3
+
+    if (!token || !newPassword) {
+        return res.status(400).json({ success: false, message: 'Token e nuova password sono obbligatori.' });
+    }
+    if (newPassword.length < 8) {
+         return res.status(400).json({ success: false, message: 'La password deve contenere almeno 8 caratteri.' });
+    }
+
+    let connection;
+    try {
+        console.log('Ottenimento connessione al DB...'); // LOG 4
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+
+        // --- CORREZIONE: Usa confronto diretto del token nella query ---
+        const [tokenRows] = await connection.query(
+            'SELECT id, id_utente FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
+            [token] // Confronto diretto token in chiaro
+        );
+        // --- RIMUOVI IL CICLO E BCRYPT.COMPARE (come suggerito precedentemente) ---
+        /*
+        let foundTokenData = null;
+        for (const row of tokenRows) {
+             if (await bcrypt.compare(token, row.token)) { // ERRATO
+                 foundTokenData = row;
+                 break;
+             }
+        }
+             */
+        
+        const foundTokenData = tokenRows[0]; // Prendi la prima (e unica) riga se trovata
+
+        if (!foundTokenData) {
+            await connection.rollback();
+            // Chiudi la connessione anche in caso di errore prima di return
+            if (connection) connection.release();
+            return res.status(400).json({ success: false, message: 'Token non valido o scaduto.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await connection.query('UPDATE utenti SET password = ? WHERE id = ?', [hashedPassword, foundTokenData.id_utente]);
+        await connection.query('DELETE FROM password_reset_tokens WHERE id = ?', [foundTokenData.id]);
+
+        // Esegui il commit
+        await connection.commit();
+
+        // --- MODIFICA CHIAVE: Invia la risposta di successo QUI ---
+        res.json({ success: true, message: 'Password aggiornata con successo.' });
+        // Ora il frontend ha ricevuto la risposta corretta.
+
+        // Il rilascio della connessione avverrà nel blocco finally.
+
+    } catch (error) {
+        // Se si verifica un errore DURANTE la transazione, fai il rollback
+        if (connection) {
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error('Errore durante il rollback:', rollbackError);
+            }
+        }
+        console.error('Errore durante il reset della password:', error);
+        // Evita di inviare una seconda risposta se `res.json` è già stato chiamato
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: 'Errore interno del server.' });
+        }
+    } finally {
+        // --- MODIFICA CHIAVE: Sposta release() qui dentro un try...catch ---
+        if (connection) {
+            try {
+                connection.release(); // Rilascia sempre la connessione
+            } catch (releaseError) {
+                console.error('Errore durante il rilascio della connessione:', releaseError);
+                // Non fare nulla qui, perché la risposta è già stata inviata (o un errore è stato inviato nel catch principale)
+            }
+        }
+    }
+});
 module.exports = router;
 
 

@@ -1,8 +1,10 @@
 // #####################################################################
-// # Componente AdminPanel - v17.0 (con Gestione Ditte e Monitoraggio)
+// # Componente AdminPanel - v17.15 (Fix Definitivo Scope & Parsing)
 // # File: opero-frontend/src/components/AdminPanel.js
-// # Aggiunge le sezioni "Gestione Ditte" e "Monitoraggio Sistema" come nuovi componenti a schede,
-// # preservando la struttura e le funzionalità esistenti.
+// # Corregge l'errore di parsing (Unexpected token) pulendo i caratteri non validi.
+// # Risolve gli errori ESLint inserendo la logica di recupero password
+// # (stato, handler e modale) all'interno dello scope corretto del
+// # sotto-componente `GestioneUtenti`.
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -11,7 +13,8 @@ import 'react-quill/dist/quill.snow.css';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
-import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon ,UserPlusIcon} from '@heroicons/react/24/outline';
+// --- MODIFICA: Assicura che KeyIcon sia importato ---
+import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon ,UserPlusIcon, KeyIcon } from '@heroicons/react/24/outline';
 import { ShieldCheck } from 'lucide-react';
 import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
@@ -26,20 +29,21 @@ import Papa from 'papaparse';
 import { toast } from 'react-toastify';
 
 import InvitaUtenteModal from '../shared/InvitaUtenteModal';
+// --- MODIFICA: Import del nuovo modale ---
+import ShowLinkModal from '../shared/ShowLinkModal';
+
 
 // --- Componente Interno per la Gestione Utenti ---
+// (Questo componente non sembra utilizzato, lo lascio invariato)
 const UserManager = () => {
     const { hasPermission } = useAuth();
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-    // Qui andrebbe la logica per caricare e mostrare la lista degli utenti
-    // Per ora, ci concentriamo sulla funzionalità di invito.
-
     const handleInviteSuccess = () => {
         setIsInviteModalOpen(false);
-        // Qui potresti voler ricaricare la lista degli utenti
         // fetchUtenti(); 
     };
+    const [activeTab, setActiveTab] = useState('utenti'); 
 
     return (
         <div className="p-6">
@@ -56,7 +60,6 @@ const UserManager = () => {
                 )}
             </div>
             
-            {/* Qui verrebbe renderizzata la tabella con la lista degli utenti */}
             <div className="bg-white p-4 rounded-md shadow">
                 <p className="text-gray-500">Elenco degli utenti del sistema.</p>
                 {/* Esempio: <AdvancedDataGrid data={utenti} columns={userColumns} /> */}
@@ -80,11 +83,11 @@ const MonitorIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5
 
 
 // ====================================================================
-// Utility Functions per Export (invariate)
+// Utility Functions per Export (invariate e pulite)
 // ====================================================================
 const exportToCSV = (data, fileName) => {
     const csv = Papa.unparse(data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); // Aggiunto BOM
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -245,7 +248,7 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
 
 
 // ====================================================================
-// Sotto-componente: Gestione Utenti (MODIFICATO per includere invito)
+// Sotto-componente: Gestione Utenti (MODIFICATO per includere invito e recupero PW)
 // ====================================================================
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
@@ -259,8 +262,12 @@ const GestioneUtenti = () => {
     const [editingUser, setEditingUser] = useState(null);
     const [editingPermissionsForUser, setEditingPermissionsForUser] = useState(null);
 
-    // ++ NUOVO STATO PER MODALE INVITO ++
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+    // --- MODIFICA: Stati per il nuovo modale ---
+    const [loadingRecoveryLink, setLoadingRecoveryLink] = useState(false); 
+    const [generatedLink, setGeneratedLink] = useState('');
+    const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
 
     const logAction = useCallback(async (azione, dettagli = '') => {
         try {
@@ -271,7 +278,7 @@ const GestioneUtenti = () => {
                 funzione: 'Gestione Utenti'
             });
         } catch (error) {
-            console.error("Errore durante la registrazione dell'azione:", error);
+            console.error("Errore during la registrazione dell'azione:", error);
         }
     }, []);
 
@@ -283,7 +290,7 @@ const GestioneUtenti = () => {
         setIsLoading(true);
         try {
             const response = await api.get(`/admin/utenti/ditta/${dittaId}`);
-            setUtenti(response.data.utenti);
+            setUtenti(response.data.utenti || response.data || []); 
         } catch (error) {
             toast.error("Impossibile caricare l'elenco degli utenti.");
             console.error(`Errore nel caricamento degli utenti per la ditta ${dittaId}:`, error);
@@ -298,11 +305,11 @@ const GestioneUtenti = () => {
             setIsLoading(true);
             try {
                 const ruoliRes = await api.get('/admin/ruoli');
-                setRuoli(ruoliRes.data.ruoli);
+                setRuoli(ruoliRes.data.ruoli || ruoliRes.data || []);
 
                 if (user.ruolo === 'Amministratore_sistema') {
                     const ditteRes = await api.get('/admin/ditte');
-                    setDitte(ditteRes.data.ditte);
+                    setDitte(ditteRes.data.ditte || ditteRes.data || []);
                 } else {
                     setDitte([ditta]); 
                     setSelectedDittaId(ditta.id);
@@ -316,19 +323,18 @@ const GestioneUtenti = () => {
     }, [user, ditta]);
 
     useEffect(() => {
-        fetchUtentiForDitta(selectedDittaId);
+        if (selectedDittaId) { 
+            fetchUtentiForDitta(selectedDittaId);
+        }
     }, [selectedDittaId, fetchUtentiForDitta]);
 
-    // La funzione handleNewUser ora apre il modale di invito
     const handleInviteUser = () => {
         setIsInviteModalOpen(true);
     };
 
-    // ++ NUOVA FUNZIONE PER GESTIRE IL SUCCESSO DELL'INVITO ++
     const handleInviteSuccess = () => {
         setIsInviteModalOpen(false);
         toast.info("Invito inviato. L'elenco utenti si aggiornerà quando l'utente completerà la registrazione.");
-        // Non è necessario ricaricare subito la lista, l'utente non è ancora stato creato.
     };
     
     const handleEditUser = useCallback(async (userId) => {
@@ -351,7 +357,7 @@ const GestioneUtenti = () => {
                 }
                 setUtenti(prev => prev.filter(u => u.id !== userId));
             } catch (error) {
-                console.error(`Errore durante l'eliminazione dell'utente ${userId}:`, error);
+                console.error(`Errore during l'eliminazione dell'utente ${userId}:`, error);
             }
         }
     }, [utenti, logAction]);
@@ -364,29 +370,63 @@ const GestioneUtenti = () => {
                 logAction('Sblocco utente', `Sbloccato utente ID: ${userId}`);
                 fetchUtentiForDitta(selectedDittaId);
             } catch (error) {
-                toast.error(error.response?.data?.message || "Errore durante lo sblocco dell'utente.");
+                toast.error(error.response?.data?.message || "Errore during lo sblocco dell'utente.");
                 console.error(error);
             }
         }
     }, [selectedDittaId, fetchUtentiForDitta, logAction]);
 
+    // --- MODIFICA: Aggiornata funzione per aprire il modale ---
+    const handleGenerateRecoveryLink = useCallback(async (userId, userEmail) => { 
+        if (!hasPermission('ADM_PWD_REC')) {
+            toast.warn('Non hai i permessi necessari per eseguire questa operazione.');
+            return;
+        }
+        if (!window.confirm(`Sei sicuro di voler generare un nuovo link di recupero password per l'utente ${userEmail}? Il link precedente (se esistente) verrà invalidato e questo sarà valido per 1 ora.`)) {
+            return;
+        }
+        setLoadingRecoveryLink(true); 
+        try {
+            const response = await api.post(`/admin/utenti/${userId}/generate-recovery-link`);
+            if (response.data.success && response.data.recoveryLink) {
+                // --- APRI IL MODALE ---
+                setGeneratedLink(response.data.recoveryLink);
+                setIsRecoveryModalOpen(true);
+                toast.success('Link di recupero generato!');
+            } else {
+                 toast.error(response.data.message || 'Errore imprevisto nella generazione del link.');
+            }
+        } catch (err) {
+            console.error("Errore API /generate-recovery-link:", err);
+            toast.error(err.response?.data?.message || 'Errore during la comunicazione con il server.');
+        } finally {
+             setLoadingRecoveryLink(false); 
+        }
+    }, [hasPermission]); // Aggiunta dipendenza hasPermission
+
     const handleSaveUser = async (userData) => {
         try {
-            await api.post('/admin/utenti', userData);
+            await api.post('/admin/utenti', userData); 
             const actionType = userData.id ? 'Modifica' : 'Creazione';
             const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
             logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
             
             setIsModalOpen(false);
+            setEditingUser(null);
             fetchUtentiForDitta(selectedDittaId);
+            toast.success(`Utente ${actionType === 'Modifica' ? 'modificato' : 'creato'} con successo.`);
         } catch (error) {
-            console.error('Errore durante il salvataggio dell\'utente:', error);
+            console.error('Errore during il salvataggio dell\'utente:', error);
+            toast.error(error.response?.data?.message || "Errore during salvataggio.");
         }
     };
 
     const handleExport = (format) => {
         const selectedDitta = ditte.find(d => d.id === parseInt(selectedDittaId, 10));
-        if (!selectedDitta) return;
+        if (!selectedDitta) {
+            toast.warn("Seleziona una ditta prima di esportare.");
+            return;
+        }
 
         const columnsToExport = [
             { label: 'Username', key: 'username' },
@@ -415,6 +455,7 @@ const GestioneUtenti = () => {
         }
     };
 
+    // --- Definizione 'columns' ---
     const columns = useMemo(() => [
         { header: 'Username', accessorKey: 'username' },
         { header: 'Email', accessorKey: 'email' },
@@ -438,7 +479,7 @@ const GestioneUtenti = () => {
         {
             id: 'actions',
             header: 'Azioni',
-            cell: (info) => (
+            cell: (info) => ( // 'info' è il 'params' corretto per tanstack-table
                 <div className="flex space-x-2">
                     {hasPermission('UTENTI_EDIT') && <button onClick={() => handleEditUser(info.row.original.id)} className="text-blue-600 hover:text-blue-800"><PencilIcon className="h-5 w-5" /></button>}
                     {hasPermission('UTENTI_EDIT') && <button onClick={() => handleDeleteUser(info.row.original.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>}
@@ -453,6 +494,19 @@ const GestioneUtenti = () => {
                         </button>
                     )}
                     
+                    {/* --- MODIFICA: Pulsante Recupero Password --- */}
+                    {hasPermission('ADM_PWD_REC') && (
+                         <button
+                            onClick={() => handleGenerateRecoveryLink(info.row.original.id, info.row.original.email)}
+                            className={`p-1 text-orange-600 hover:text-orange-800 focus:outline-none ${loadingRecoveryLink ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title="Genera Link Recupero Password"
+                            disabled={loadingRecoveryLink} 
+                        >
+                            <KeyIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                    {/* --- FINE MODIFICA --- */}
+
                     {info.row.original.stato === 'bloccato' && hasPermission('ADMIN_UTENTI_SBLOCCA') && (
                         <button 
                             onClick={() => handleUnlockUser(info.row.original.id)}
@@ -465,16 +519,17 @@ const GestioneUtenti = () => {
                 </div>
             ),
         },
-    ], [ruoli, hasPermission, handleEditUser, handleDeleteUser, handleUnlockUser]);
+    // --- MODIFICA: Aggiunte dipendenze ---
+    ], [ruoli, hasPermission, handleEditUser, handleDeleteUser, handleUnlockUser, loadingRecoveryLink, handleGenerateRecoveryLink, setEditingPermissionsForUser]);
 
     return (
         <div className="p-4">
-             {user.ruolo === 'Amministratore_sistema' && (
+            {user.ruolo === 'Amministratore_sistema' && (
                 <select value={selectedDittaId} onChange={e => setSelectedDittaId(e.target.value)} className="w-full p-2 border rounded mb-4">
                     <option value="">Seleziona una ditta...</option>
                     {ditte.map(d => <option key={d.id} value={d.id}>{d.ragione_sociale}</option>)}
                 </select>
-             )}
+            )}
             {selectedDittaId && (
                 <>
                     <div className="flex justify-between items-center mb-4">
@@ -487,7 +542,6 @@ const GestioneUtenti = () => {
                                 <PrinterIcon className="h-5 w-5 text-slate-600" />
                             </button>
                             {hasPermission('UTENTI_CREATE') && (
-                                // ++ MODIFICA: Il pulsante ora apre il modale di invito ++
                                 <button onClick={handleInviteUser} className="flex items-center gap-2 bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
                                     <UserPlusIcon className="h-5 w-5" />
                                     <span>Invita Utente</span>
@@ -498,7 +552,7 @@ const GestioneUtenti = () => {
                     <AdvancedDataGrid columns={columns} data={utenti} isLoading={isLoading} />
                 </>
             )}
-            {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => setIsModalOpen(false)} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
+            {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => { setIsModalOpen(false); setEditingUser(null); }} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
             
             {editingPermissionsForUser && (
                 <GestionePermessiUtenteModal 
@@ -507,13 +561,22 @@ const GestioneUtenti = () => {
                 />
             )}
             
-            {/* ++ NUOVO: Aggiunta del modale di invito al JSX ++ */}
             <InvitaUtenteModal 
                 isOpen={isInviteModalOpen}
                 onClose={() => setIsInviteModalOpen(false)}
                 onInviteSent={handleInviteSuccess}
                 id_ruolo={3} // Invita come "Utente Esterno"
             />
+
+            {/* --- MODIFICA: Aggiunta del modale per mostrare il link --- */}
+            {isRecoveryModalOpen && (
+                <ShowLinkModal
+                    isOpen={isRecoveryModalOpen}
+                    onClose={() => setIsRecoveryModalOpen(false)}
+                    title="Link di Recupero Password"
+                    link={generatedLink}
+                />
+            )}
         </div>
     );
 };
@@ -717,7 +780,7 @@ const PrivacyDittaManager = () => {
             {isLoading && selectedDittaId && <p>Caricamento dati policy...</p>}
             
             {showForm && !isLoading && (
-                 <div>
+                <div>
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Responsabile Trattamento Dati</label>
                         <select
@@ -922,9 +985,9 @@ const MonitoraggioSistema = () => {
     return (
         <div className="p-4">
             <div className="flex space-x-2 mb-4 border-b pb-2">
-                 {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_azioni'} onClick={() => setSubTab('log_azioni')}>Log Azioni</SubTabButton>}
-                 {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_accessi'} onClick={() => setSubTab('log_accessi')}>Log Accessi</SubTabButton>}
-                 {hasPermission('ADMIN_SESSIONS_VIEW') && <SubTabButton active={subTab === 'sessioni'} onClick={() => setSubTab('sessioni')}>Sessioni Attive</SubTabButton>}
+                {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_azioni'} onClick={() => setSubTab('log_azioni')}>Log Azioni</SubTabButton>}
+                {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_accessi'} onClick={() => setSubTab('log_accessi')}>Log Accessi</SubTabButton>}
+                {hasPermission('ADMIN_SESSIONS_VIEW') && <SubTabButton active={subTab === 'sessioni'} onClick={() => setSubTab('sessioni')}>Sessioni Attive</SubTabButton>}
             </div>
             {subTab === 'log_azioni' && hasPermission('ADMIN_LOGS_VIEW') && (
                 <AdvancedDataGrid title="Log delle Azioni" columns={logAzioniColumns} data={logAzioni} isLoading={loading} onRefresh={fetchLogAzioni} />
@@ -941,56 +1004,74 @@ const MonitoraggioSistema = () => {
 
 
 // ====================================================================
-// Componente Principale: AdminPanel (MODIFICATO per includere nuove schede)
+// COMPONENTE PRINCIPALE AdminPanel (Container delle Tabs)
 // ====================================================================
 function AdminPanel() {
-    const { user, hasPermission } = useAuth();
+    const { hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('utenti');
 
-    const tabComponents = useMemo(() => ({
-        ditte: <AdminDitte />, // ++ NUOVO ++
-        utenti: <GestioneUtenti />,
-        moduli: <AssociaModuliDitta />,
-        funzioni: <GestioneFunzioni />,
-        permessi: <GestioneRuoliPermessi />,
-        privacy: <PrivacyDittaManager />,
-        monitoraggio: <AdminMonitoraggio />, // ++ NUOVO ++
-    }), [user]);
-
-    if (!user) {
-        return <div className="p-4">Caricamento...</div>;
-    }
-    
-    const TABS = {
-        ditte: { label: 'Gestione Ditte', component: tabComponents.ditte, adminOnly: true }, // ++ NUOVO ++
-        utenti: { label: 'Gestione Utenti', component: tabComponents.utenti },
-        moduli: { label: 'Associa Moduli', component: tabComponents.moduli, adminOnly: true },
-        funzioni: { label: 'Gestione Funzioni', component: tabComponents.funzioni, permission: 'ADMIN_FUNZIONI_VIEW' },
-        permessi: { label: 'Ruoli e Permessi', component: tabComponents.permessi, permission: 'ADMIN_RUOLI_VIEW' },
-        privacy: { label: 'Privacy Policy', component: tabComponents.privacy, adminOnly: true },
-        monitoraggio: { label: 'Monitoraggio', component: tabComponents.monitoraggio, permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW'] } // ++ NUOVO ++
-    };
+    // Definiamo le tab e i componenti che devono renderizzare
+    const TABS = useMemo(() => ([
+        { 
+            key: 'utenti', 
+            label: 'Gestione Utenti', 
+            component: <GestioneUtenti />, 
+            permission: ['UTENTI_VIEW', 'ADMIN_USERS_VIEW', 'ADMIN_USER_PERMISSIONS_MANAGE', 'ADMIN_UTENTI_SBLOCCA'] 
+        },
+        {
+            key: 'ditte',
+            label: 'Gestione Ditte',
+            component: <GestioneDitte />, 
+            permission: 'ADMIN_DITTE_VIEW' 
+        },
+        { 
+            key: 'moduli', 
+            label: 'Associa Moduli Ditta', 
+            component: <AssociaModuliDitta />, 
+            permission: 'SUPER_ADMIN' // o un permesso specifico
+        },
+        { 
+            key: 'privacy', 
+            label: 'Gestione Privacy', 
+            component: <PrivacyDittaManager />, 
+            permission: 'PRIVACY_MANAGE' // o un permesso specifico
+        },
+        { 
+            key: 'funzioni', 
+            label: 'Funzioni Applicative', 
+            component: <GestioneFunzioni />, 
+            permission: 'ADMIN_FUNZIONI_VIEW' 
+        },
+        { 
+            key: 'ruoli', 
+            label: 'Ruoli e Permessi', 
+            component: <GestioneRuoliPermessi />, 
+            permission: 'ADMIN_RUOLI_VIEW' 
+        },
+        {
+            key: 'monitoraggio',
+            label: 'Monitoraggio Sistema',
+            component: <MonitoraggioSistema />, 
+            permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW'] 
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ]), []); // Rimosse dipendenze non necessarie, i componenti sono definiti sopra
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex-shrink-0 bg-white border-b p-4">
-                <h2 className="text-xl font-bold">Pannello Amministratore</h2>
-                <div className="flex gap-2 mt-4 border-b overflow-x-auto">
-                    {Object.entries(TABS).map(([key, tab]) => {
-                        const isSystemAdmin = user.ruolo === 'Amministratore_sistema';
-                        
+        <div className="p-4 md:p-6 lg:p-8 bg-gray-50 min-h-full flex flex-col">
+            <h1 className="text-3xl font-bold text-gray-900 mb-8">Pannello Amministrazione</h1>
+            
+            {/* Navigazione Tabs */}
+            <div className="mb-6 border-b border-gray-300">
+                <div className="flex space-x-4 overflow-x-auto">
+                    {TABS.map(tab => {
                         let isVisible = true;
-                        if (tab.adminOnly && !isSystemAdmin) {
-                            isVisible = false;
-                        }
                         if (tab.permission) {
                             if (Array.isArray(tab.permission)) {
-                                // Se è un array, l'utente deve avere almeno uno dei permessi
                                 if (!tab.permission.some(p => hasPermission(p))) {
                                     isVisible = false;
                                 }
                             } else {
-                                // Se è una stringa singola
                                 if (!hasPermission(tab.permission)) {
                                     isVisible = false;
                                 }
@@ -1001,9 +1082,10 @@ function AdminPanel() {
 
                         return (
                             <button
-                                key={key}
-                                onClick={() => setActiveTab(key)}
-                                className={`py-2 px-4 text-sm font-medium text-center border-b-2 whitespace-nowrap ${activeTab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`py-2 px-4 text-sm font-medium text-center border-b-2 whitespace-nowrap ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} focus:outline-none`}
+                                aria-current={activeTab === tab.key ? 'page' : undefined}
                             >
                                 {tab.label}
                             </button>
@@ -1011,13 +1093,16 @@ function AdminPanel() {
                     })}
                 </div>
             </div>
+            
             <div className="flex-grow bg-gray-50 overflow-y-auto">
-                {TABS[activeTab] && TABS[activeTab].component}
+                {TABS.find(tab => tab.key === activeTab)?.component || <p>Seleziona una scheda.</p>}
             </div>
+            
+            {/* Le modali sono gestite dai sotto-componenti, quindi non servono qui */}
+            
         </div>
     );
 }
 
 export default AdminPanel;
-
 

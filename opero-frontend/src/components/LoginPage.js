@@ -13,6 +13,8 @@ import { api } from '../services/api';
 import logo from '../assets/logo_opero.jpg';
 import { useNavigate } from 'react-router-dom';
 import loginBackground from '../assets/login-background.png';
+import RequestPasswordResetModal from './RequestPasswordResetModal'; 
+
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');

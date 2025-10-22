@@ -18,6 +18,7 @@ import MainApp from './components/MainApp';
 import RegistrationPage from './components/RegistrationPage';
 import StandaloneModule from './components/StandaloneModule';
 import IstanzaDetailView from './components/ppa/IstanzaDetailView';
+import ResetPasswordPage from './components/ResetPasswordPage'; // Assicurati che l'import sia corretto
 
 
 
@@ -60,7 +61,7 @@ function App() {
           {/* Rotte pubbliche */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register/:token" element={<RegistrationPage />} />
-
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           {/* Rotta per i moduli standalone (scorciatoie) */}
           <Route 
             path="/module/:moduleKey" 
@@ -77,6 +78,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    
   );
 }
 

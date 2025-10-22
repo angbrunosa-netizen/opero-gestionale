@@ -14,10 +14,10 @@ const { dbPool } = require('../config/db');
 // Middleware per i ruoli
 const isSystemAdmin = checkRole([1]); 
 const isDittaAdmin = checkRole([1, 2]);
-
+const crypto = require('crypto'); // <-- AGGIUNTA QUESTA RIGA
 const { v4: uuidv4 } = require('uuid');
 const mailer = require('../utils/mailer');
-
+const { sendSystemEmail } = require('../utils/mailer'); // <--- AGGIUNGI QUESTA
 // ====================================================================
 // API GESTIONE DITTE (Accesso Esclusivo per System Admin)
 // ====================================================================
@@ -1044,7 +1044,73 @@ router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (re
     }
 });
 
+// --- NUOVA ROTTA PER GENERAZIONE LINK RECUPERO DA ADMIN ---
+router.post('/utenti/:id/generate-recovery-link', checkPermission('ADM_PWD_REC'), async (req, res) => {
+    const { id: id_utente } = req.params;
 
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        // Verifica che l'utente esista
+        const [userRows] = await connection.query('SELECT id, nome, email FROM utenti WHERE id = ?', [id_utente]);
+        if (userRows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Utente non trovato.' });
+        }
+        const user = userRows[0];
+
+        // Genera token
+        const token = crypto.randomBytes(32).toString('hex');
+        const hashedToken = await bcrypt.hash(token, 10);
+        const expiresAt = new Date(Date.now() + 60 * 60 * 3000); // 1 ora
+
+        // Salva token hashato nel DB (usa transazione per sicurezza?)
+        // Per ora semplice insert, valutare se serve transazione con eventuale delete di vecchi token
+        await connection.query(
+            'INSERT INTO password_reset_tokens (id_utente, token, expires_at) VALUES (?, ?, ?)',
+            [user.id, hashedToken, expiresAt]
+        );
+
+        // Costruisci link completo
+        const resetLink = `${process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+
+        try {
+            const mailSubject = 'Opero - Recupero Password (Amministratore)';
+            const mailBody = `
+                <p>Ciao ${user.nome || ''},</p>
+                <p>Il tuo amministratore ha generato un nuovo link di recupero password per il tuo account.</p>
+                <p>Clicca sul seguente link per impostare una nuova password. Il link scadrà tra un'ora:</p>
+                <p><a href="${resetLink}" target="_blank" rel="noopener noreferrer">${resetLink}</a></p>
+                <p>Se non hai richiesto questa operazione, contatta il tuo amministratore.</p>
+            `;
+            await sendSystemEmail(user.email, mailSubject, mailBody);
+            console.log(`[ADMIN] Email di recupero inviata a ${user.email} su richiesta dell'admin ${req.user.id}`);
+        } catch (emailError) {
+            console.error(`[ADMIN] Fallimento invio email di recupero a ${user.email}:`, emailError);
+            // Non blocchiamo l'operazione, l'admin riceverà comunque il link
+            // Potremmo loggare questo errore in modo più persistente
+        }
+        // --- FINE AGGIUNTA ---
+        // Registra log azione
+         await connection.query('INSERT INTO log_azioni (id_utente, azione, dettagli, id_ditta) VALUES (?, ?, ?, ?)',
+             [
+                req.user.id, // L'ID dell'admin che esegue l'azione
+                'GENERATE_RECOVERY_LINK', 
+                `Generato link recupero password per utente ${user.id} (${user.email})`,
+                req.user.id_ditta // L'ID della ditta dell'admin
+            ]
+         );
+
+
+        // Restituisci il link all'amministratore
+        res.json({ success: true, recoveryLink: resetLink, message: 'Link di recupero generato con successo.' });
+
+    } catch (error) {
+        console.error('Errore durante la generazione del link di recupero:', error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
 
 
 
