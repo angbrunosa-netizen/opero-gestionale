@@ -56,11 +56,11 @@ function ResetPasswordPage() {
             const response = await api.post('/auth/reset-password', { token, newPassword });
             
             if (response.success) {
-                setMessage(response.message || 'Password aggiornata con successo. Ora puoi effettuare il login.');
+                setMessage(response.data.message || 'Password aggiornata con successo. Ora puoi effettuare il login.');
                 setSuccess(true); // Imposta successo per cambiare UI
                 // Non reindirizzare subito, mostra il messaggio e il bottone Login
             } else {
-                 setError(response.message || 'Si è verificato un errore durante il reset della password.');
+                 setError(response.data.message || 'Si è verificato un errore durante il reset della password.');
             }
 
         } catch (err) {

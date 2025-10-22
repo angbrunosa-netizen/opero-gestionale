@@ -1045,52 +1045,83 @@ router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (re
 });
 
 // --- NUOVA ROTTA PER GENERAZIONE LINK RECUPERO DA ADMIN ---
-router.post('/utenti/:id/generate-recovery-link', checkPermission('ADM_PWD_REC'), async (req, res) => {
-    const { id: id_utente } = req.params;
+// API: Genera link recupero password per un utente (solo Admin)
+// NOTA: Questa route è stata modificata per allinearla alla validazione di auth.js
+router.post('/utenti/:id/generate-recovery-link', [verifyToken, isDittaAdmin, checkPermission('ADMIN_USERS_MANAGE')], async (req, res) => {
+    const { id } = req.params; // ID utente per cui generare il link
+    const adminId = req.user.id;
+    const adminDittaId = req.user.id_ditta;
 
-    let connection;
+    // Usiamo knex per coerenza
+    const connection = await dbPool.getConnection(); // Necessario per il log_azioni legacy
+
     try {
-        connection = await dbPool.getConnection();
-        // Verifica che l'utente esista
-        const [userRows] = await connection.query('SELECT id, nome, email FROM utenti WHERE id = ?', [id_utente]);
-        if (userRows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Utente non trovato.' });
+        // Cerca l'utente nel database
+        const user = await knex('utenti')
+            .where('id', id)
+            // Sicurezza: L'admin (ruolo 2) può resettare solo utenti della sua stessa ditta
+            // Il System Admin (ruolo 1) può resettare chiunque
+            .andWhere(function() {
+                if (req.user.id_ruolo !== 1) {
+                    this.where('id_ditta', adminDittaId);
+                }
+            })
+            .first();
+
+        if (!user) {
+            if (connection) connection.release();
+            return res.status(404).json({ success: false, message: 'Utente non trovato o non autorizzato.' });
         }
-        const user = userRows[0];
 
-        // Genera token
+        // #################################################
+        // # INIZIO MODIFICA (Sostituzione JWT con DB Token)
+        // #################################################
+
+        // 1. Genera un token sicuro (NON JWT)
         const token = crypto.randomBytes(32).toString('hex');
-        const hashedToken = await bcrypt.hash(token, 10);
-        const expiresAt = new Date(Date.now() + 60 * 60 * 3000); // 1 ora
+        
+        // 2. Imposta la scadenza (1 ora)
+        const expires_at = new Date(Date.now() + 60 * 60 * 1000); // 1 ora da ora
 
-        // Salva token hashato nel DB (usa transazione per sicurezza?)
-        // Per ora semplice insert, valutare se serve transazione con eventuale delete di vecchi token
-        await connection.query(
-            'INSERT INTO password_reset_tokens (id_utente, token, expires_at) VALUES (?, ?, ?)',
-            [user.id, hashedToken, expiresAt]
-        );
+        // 3. Salva il token nella tabella 'registration_tokens' usando knex
+        await knex('password_reset_tokens').insert({
+            id_utente: user.id,
+           // id_ditta: user.id_ditta, // Ditta dell'utente (per contesto)
+            token: token,
+           // tipo: 'PASSWORD_RECOVERY', // Tipo specifico per il reset
+            expires_at: expires_at,
+            //used: 0
+        });
 
-        // Costruisci link completo
-        const resetLink = `${process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+        // 4. Costruisci il link di reset (ora usa il token DB)
+        const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+        
+        // #################################################
+        // # FINE MODIFICA
+        // #################################################
 
+
+        // Invia email all'utente (logica invariata)
         try {
-            const mailSubject = 'Opero - Recupero Password (Amministratore)';
+            const mailSubject = 'Recupero Password - Opero Gestionale';
             const mailBody = `
-                <p>Ciao ${user.nome || ''},</p>
-                <p>Il tuo amministratore ha generato un nuovo link di recupero password per il tuo account.</p>
-                <p>Clicca sul seguente link per impostare una nuova password. Il link scadrà tra un'ora:</p>
-                <p><a href="${resetLink}" target="_blank" rel="noopener noreferrer">${resetLink}</a></p>
-                <p>Se non hai richiesto questa operazione, contatta il tuo amministratore.</p>
+                <p>È stata richiesta una procedura di recupero password per il tuo account Opero.</p>
+                <p>Se non sei stato tu, ignora questa email.</p>
+                <p>Per reimpostare la password, clicca sul seguente link (valido per 1 ora):</p>
+                <p><a href="${resetLink}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Reimposta Password</a></p>
+                <p>Se il link non funziona, copia e incolla questo URL nel tuo browser:</p>
+                <p>${resetLink}</p>
+                <br>
+                <p><i>Questa richiesta è stata generata da un amministratore.</i></p>
             `;
             await sendSystemEmail(user.email, mailSubject, mailBody);
             console.log(`[ADMIN] Email di recupero inviata a ${user.email} su richiesta dell'admin ${req.user.id}`);
         } catch (emailError) {
             console.error(`[ADMIN] Fallimento invio email di recupero a ${user.email}:`, emailError);
             // Non blocchiamo l'operazione, l'admin riceverà comunque il link
-            // Potremmo loggare questo errore in modo più persistente
         }
-        // --- FINE AGGIUNTA ---
-        // Registra log azione
+
+        // Registra log azione (logica invariata)
          await connection.query('INSERT INTO log_azioni (id_utente, azione, dettagli, id_ditta) VALUES (?, ?, ?, ?)',
              [
                 req.user.id, // L'ID dell'admin che esegue l'azione
@@ -1100,9 +1131,8 @@ router.post('/utenti/:id/generate-recovery-link', checkPermission('ADM_PWD_REC')
             ]
          );
 
-
-        // Restituisci il link all'amministratore
-        res.json({ success: true, recoveryLink: resetLink, message: 'Link di recupero generato con successo.' });
+        // Restituisci il link all'amministratore (logica invariata)
+        res.json({ success: true, recoveryLink: resetLink, message: 'Link di recupero generato e inviato all\'utente.' });
 
     } catch (error) {
         console.error('Errore durante la generazione del link di recupero:', error);
@@ -1111,8 +1141,6 @@ router.post('/utenti/:id/generate-recovery-link', checkPermission('ADM_PWD_REC')
         if (connection) connection.release();
     }
 });
-
-
 
 
 module.exports = router;
