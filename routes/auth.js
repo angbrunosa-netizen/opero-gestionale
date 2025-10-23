@@ -129,7 +129,7 @@ router.post('/login', async (req, res) => {
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
 
-        // 1. Verifica sessione attiva (Portineria)
+        // 1. Verifica sessione attiva (Portineria) - invariato
         const [userCheckRows] = await connection.query('SELECT id FROM utenti WHERE email = ?', [email]);
         if (userCheckRows.length > 0) {
             const userId = userCheckRows[0].id;
@@ -140,10 +140,10 @@ router.post('/login', async (req, res) => {
             }
         }
 
-        // 2. Autenticazione utente e recupero ruolo primario
+        // 2. Autenticazione utente e recupero ruolo primario - invariato
         const userQuery = `
-            SELECT 
-                u.id, u.nome, u.cognome, u.email, u.password, 
+            SELECT
+                u.id, u.nome, u.cognome, u.email, u.password,
                 u.id_ditta, u.id_ruolo, u.Codice_Tipo_Utente,
                 r.tipo as nome_ruolo
             FROM utenti u
@@ -156,13 +156,28 @@ router.post('/login', async (req, res) => {
         }
         const user = userRows[0];
 
-        // 3. Raccogli tutte le associazioni ditta
+        // 3. Raccogli tutte le associazioni ditta (INCLUSO IL LIVELLO)
+        // CORREZIONE: Aggiunto COALESCE(aud.livello, 50) per fornire un default
+        //             anche nella seconda parte della UNION per coerenza.
         const ditteAssociateQuery = `
-            (SELECT d.id, d.ragione_sociale AS denominazione, d.logo_url FROM ad_utenti_ditte aud JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
+            (SELECT
+                d.id, d.ragione_sociale AS denominazione, d.logo_url,
+                aud.livello  -- Recupera livello da ad_utenti_ditte
+             FROM ad_utenti_ditte aud
+             JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
             UNION
-            (SELECT d.id, d.ragione_sociale AS denominazione, d.logo_url FROM utenti u JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL)
+            (SELECT
+                d.id, d.ragione_sociale AS denominazione, d.logo_url,
+                50 as livello -- Fornisce un livello di default (es. 50) se l'associazione è solo su 'utenti'
+             FROM utenti u
+             JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL
+             -- Escludi ditte già trovate nella prima parte per evitare duplicati se un utente ha sia id_ditta che associazione
+             AND d.id NOT IN (SELECT id_ditta FROM ad_utenti_ditte WHERE id_utente = ? AND stato = 'attivo')
+            )
         `;
-        const [ditteRows] = await connection.query(ditteAssociateQuery, [user.id, user.id]);
+        // CORREZIONE: Aggiunto user.id una terza volta per la subquery NOT IN
+        const [ditteRows] = await connection.query(ditteAssociateQuery, [user.id, user.id, user.id]);
+
 
         if (ditteRows.length === 0) {
             await connection.rollback();
@@ -171,13 +186,26 @@ router.post('/login', async (req, res) => {
 
         // 4. Determina il prossimo passo
         if (ditteRows.length === 1) {
-            // CASO A: Utente con una sola ditta -> Login diretto (logica invariata)
+            // CASO A: Utente con una sola ditta
             const id_ditta_scelta = ditteRows[0].id;
+            // Il livello è GIA' presente in ditteRows[0] grazie alla query corretta
+            const livello_ditta_scelta = ditteRows[0].livello;
 
-            const [associazioneRows] = await connection.query('SELECT id_ruolo, Codice_Tipo_Utente FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"', [user.id, id_ditta_scelta]);
-            let associazione = associazioneRows.length > 0 ? associazioneRows[0] : { id_ruolo: user.id_ruolo, Codice_Tipo_Utente: user.Codice_Tipo_Utente };
-            
-            const { id_ruolo, Codice_Tipo_Utente } = associazione;
+            // Recupera id_ruolo e Codice_Tipo_Utente specifici per questa ditta da ad_utenti_ditte
+            const [associazioneRows] = await connection.query(
+                // CORREZIONE SQL: Seleziona solo i campi necessari, rimosso 'livello:50,'
+                'SELECT id_ruolo, Codice_Tipo_Utente FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"',
+                [user.id, id_ditta_scelta]
+            );
+
+            // Usa i dati specifici se esistono, altrimenti fallback ai dati su 'utenti'
+            let associazione = associazioneRows.length > 0
+                ? associazioneRows[0]
+                : { id_ruolo: user.id_ruolo, Codice_Tipo_Utente: user.Codice_Tipo_Utente };
+
+            const { id_ruolo, Codice_Tipo_Utente } = associazione; // Livello non è più qui, è in livello_ditta_scelta
+
+            // Controlli licenza (invariati)
             const [dittaInfoRows] = await connection.query('SELECT max_utenti_interni, max_utenti_esterni FROM ditte WHERE id = ?', [id_ditta_scelta]);
             const { max_utenti_interni, max_utenti_esterni } = dittaInfoRows[0];
             const isUtenteInterno = (Codice_Tipo_Utente === 1);
@@ -194,30 +222,41 @@ router.post('/login', async (req, res) => {
                 return res.status(403).json({ success: false, message: `Numero massimo di connessioni raggiunto.` });
             }
 
+            // Recupero nome ruolo (invariato)
             const [ruoloInfo] = await connection.query('SELECT tipo FROM ruoli WHERE id = ?', [associazione.id_ruolo]);
-            const userContext = { ...user, id_ditta: id_ditta_scelta, id_ruolo: associazione.id_ruolo, Codice_Tipo_Utente: associazione.Codice_Tipo_Utente, nome_ruolo: ruoloInfo[0]?.tipo };
-            
+
+            // Creazione userContext con il livello corretto
+            const userContext = {
+                ...user,
+                id_ditta: id_ditta_scelta,
+                id_ruolo: associazione.id_ruolo,
+                Codice_Tipo_Utente: associazione.Codice_Tipo_Utente,
+                livello: livello_ditta_scelta, // Usa il livello recuperato dalla query delle ditte
+                nome_ruolo: ruoloInfo[0]?.tipo
+            };
+
+            // Finalizza login (assicurati che finalizzaLogin usi userContext.livello)
             const response = await finalizzaLogin(connection, req, userContext, id_ditta_scelta);
             await connection.commit();
             res.json(response);
 
         } else {
-            // CASO B: Utente con più ditte -> Chiedi selezione
-            // --- MODIFICA 1: Inviato la proprietà 'needsDittaSelection' come si aspetta il frontend ---
-            // --- MODIFICA 2: Rimosso il temp_token, non necessario per questo flusso ---
+            // CASO B: Utente con più ditte
             delete user.password;
+            // CORREZIONE: Aggiunto 'livello' prendendolo dalla prima ditta (sarà poi aggiornato da /select-ditta)
             const userForFrontend = {
                 ...user,
-                ruolo: user.nome_ruolo
+                ruolo: user.nome_ruolo,
+                // Aggiungi il livello della prima ditta come valore temporaneo
+                livello: ditteRows[0]?.livello || 50 // Usa optional chaining e fallback
             };
 
             await connection.commit();
-            res.json({ 
-                success: true, 
-                needsDittaSelection: true, // <-- CAMBIATO DA 'multi_ditta'
-                ditte: ditteRows, 
+            res.json({
+                success: true,
+                needsDittaSelection: true,
+                ditte: ditteRows, // ditteRows contiene già il livello per ogni ditta
                 user: userForFrontend
-                // temp_token rimosso
             });
         }
     } catch (error) {
@@ -228,8 +267,6 @@ router.post('/login', async (req, res) => {
         if (connection) connection.release();
     }
 });
-
-
 // STEP 2: SELEZIONE DELLA DITTA (per utenti multi-ditta)
 // --- MODIFICA 3: Rimuoviamo il middleware 'verifyToken' ---
 // --- MODIFICA 4: La rotta ora si aspetta email, password e id_ditta_scelta nel body ---
@@ -256,7 +293,7 @@ router.post('/select-ditta', async (req, res) => {
 
         // --- Da qui in poi, la logica è molto simile a quella della rotta originale ---
         let associazione = null;
-        const [associazioneRows] = await connection.query('SELECT id_ruolo, Codice_Tipo_Utente FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"', [user.id, id_ditta_scelta]);
+        const [associazioneRows] = await connection.query('SELECT id_ruolo, Codice_Tipo_Utente ,livello FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"', [user.id, id_ditta_scelta]);
         if (associazioneRows.length > 0) {
             associazione = associazioneRows[0];
         } else if (parseInt(user.id_ditta, 10) === parseInt(id_ditta_scelta, 10)) {
@@ -289,7 +326,7 @@ router.post('/select-ditta', async (req, res) => {
              return res.status(403).json({ success: false, message: `Numero massimo di connessioni raggiunto.` });
         }
         
-        const userContext = { ...user, id_ditta: id_ditta_scelta, id_ruolo, Codice_Tipo_Utente, nome_ruolo: ruoloInfo[0]?.tipo };
+        const userContext = { ...user, id_ditta: id_ditta_scelta, id_ruolo, Codice_Tipo_Utente, nome_ruolo: ruoloInfo[0]?.tipo,livello };
         const response = await finalizzaLogin(connection, req, userContext, id_ditta_scelta);
         
         await connection.commit();
