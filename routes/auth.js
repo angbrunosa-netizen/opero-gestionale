@@ -325,8 +325,8 @@ router.post('/select-ditta', async (req, res) => {
              await connection.rollback();
              return res.status(403).json({ success: false, message: `Numero massimo di connessioni raggiunto.` });
         }
-        
-        const userContext = { ...user, id_ditta: id_ditta_scelta, id_ruolo, Codice_Tipo_Utente, nome_ruolo: ruoloInfo[0]?.tipo,livello };
+        const livelloAccessoSpecifico = associazione.livello !== undefined ? associazione.livello : 0;
+        const userContext = { ...user, id_ditta: id_ditta_scelta, id_ruolo, Codice_Tipo_Utente, nome_ruolo: ruoloInfo[0]?.tipo,livello: livelloAccessoSpecifico };
         const response = await finalizzaLogin(connection, req, userContext, id_ditta_scelta);
         
         await connection.commit();

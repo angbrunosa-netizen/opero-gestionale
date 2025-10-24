@@ -179,7 +179,7 @@ router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, r
 });
 
 
-
+/* sostituita da put utenti/id
 router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => {
     // Il 'id' si riferisce a utenti.id per mantenere la compatibilità con il frontend
     const { id, password, ...userData } = req.body;
@@ -218,7 +218,8 @@ router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => {
             const datiAssociazione = {
                 id_ruolo: userData.id_ruolo,
                 Codice_Tipo_Utente: userData.Codice_Tipo_Utente,
-                stato: userData.stato
+                stato: userData.stato,
+                livello: userData.livello
             };
             // Rimuovi chiavi non definite per non sovrascrivere con 'null'
             Object.keys(datiAssociazione).forEach(key => datiAssociazione[key] === undefined && delete datiAssociazione[key]);
@@ -265,7 +266,8 @@ router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => {
                 id_ditta: userData.id_ditta,
                 id_ruolo: userData.id_ruolo,
                 Codice_Tipo_Utente: userData.Codice_Tipo_Utente,
-                stato: userData.stato || 'attivo'
+                stato: userData.stato || 'attivo',
+                livello: userData.livello
             };
             await trx('ad_utenti_ditte').insert(datiNuovaAssociazione);
             
@@ -287,7 +289,7 @@ router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore durante il salvataggio dell\'utente.' });
     }
 });
-
+*/
 
 router.delete('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
     const { id } = req.params;
@@ -335,7 +337,9 @@ router.get('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
                 'aud.id_ditta',
                 'aud.id_ruolo',
                 'aud.Codice_Tipo_Utente',
-                'aud.stato'
+                'aud.stato',
+                'aud.livello'
+
             )
             .where('aud.id_utente', id_utente)
             .andWhere('aud.id_ditta', requester.id_ditta) // Filtra per la ditta del richiedente
@@ -1143,5 +1147,108 @@ router.post('/utenti/:id/generate-recovery-link', [verifyToken, isDittaAdmin, ch
 });
 
 
+// --- NUOVE ROTTE GESTIONE LIVELLI UTENTE (SPOSTATE QUI) ---
+
+// GET: Recupera utenti associati alla ditta corrente con il loro livello specifico
+// Accessibile solo a Admin Ditta/System Admin con permesso AM_UTE_LVL
+router.get('/utenti-ditta', [verifyToken, isDittaAdmin, checkPermission('AM_UTE_LVL')], async (req, res) => {
+    // Verifica che dittaSelezionata esista nel token decodificato
+    if (!req.user || !req.user.dittaSelezionata || !req.user.dittaSelezionata.id) {
+        return res.status(400).json({ success: false, message: 'ID ditta non trovato nel token.' });
+    }
+    const idDittaCorrente = req.user.dittaSelezionata.id;
+
+    try {
+        const utentiDitta = await knex('ad_utenti_ditte as ad')
+            .join('utenti as u', 'ad.id_utente', '=', 'u.id')
+            .where('ad.id_ditta', idDittaCorrente)
+            .andWhere('u.stato', 'attivo') // Mostra solo utenti attivi
+            .select(
+                'u.id',
+                'u.nome',
+                'u.cognome',
+                'u.email',
+                'ad.livello_accesso' // Livello specifico di questa associazione
+            )
+            .orderBy('u.cognome', 'asc')
+            .orderBy('u.nome', 'asc');
+
+        // Filtra l'utente corrente dalla lista (opzionale, ma consigliato)
+        const utentiFiltrati = utentiDitta.filter(u => u.id !== req.user.id);
+
+        res.json({ success: true, data: utentiFiltrati });
+
+    } catch (error) {
+        console.error('Errore recupero utenti per ditta:', error);
+        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+    }
+});
+
+// PUT: Aggiorna il livello di accesso di un utente specifico per la ditta corrente
+// Accessibile solo a Admin Ditta/System Admin con permesso AM_UTE_LVL
+
+// Nel tuo file routes/admin.js
+
+// In routes/admin.js
+
+// RIMUOVI O COMMENTA LA VECCHIA ROTTA POST
+// router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => { ... });
+
+// AGGIUNGI O SOSTITUISCI CON QUESTA NUOVA ROTTA PUT
+router.put('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
+    const { id } = req.params;
+    const { nome, cognome, id_ruolo, livello, Codice_Tipo_Utente, stato, id_ditta: id_ditta_from_body } = req.body;
+    const requester = req.user;
+
+    const id_ditta_operativa = id_ditta_from_body || requester.id_ditta;
+
+    if (!id_ditta_operativa) {
+        return res.status(400).json({ success: false, message: 'Impossibile determinare la ditta di operazione.' });
+    }
+
+    if (!nome || !cognome) {
+        return res.status(400).json({ success: false, message: 'Nome e cognome sono obbligatori.' });
+    }
+    if (!id_ruolo) {
+        return res.status(400).json({ success: false, message: 'Il ruolo è obbligatorio.' });
+    }
+    if (livello === undefined || livello === null || livello < 1 || livello > 80) {
+        return res.status(400).json({ success: false, message: 'Il livello è obbligatorio e deve essere compreso tra 1 e 80.' });
+    }
+
+    if (requester.id_ruolo === 2) {
+        if (parseInt(id_ditta_operativa, 10) !== requester.id_ditta) {
+            return res.status(403).json({ success: false, message: 'Non autorizzato a gestire utenti per altre ditte.' });
+        }
+        if (parseInt(id_ruolo, 10) <= 2) {
+            return res.status(403).json({ success: false, message: 'Non autorizzato ad assegnare ruoli di amministratore.' });
+        }
+    }
+
+    const datiAnagrafici = { nome, cognome };
+    const datiAssociazione = { id_ruolo, livello, Codice_Tipo_Utente, stato };
+
+    const trx = await knex.transaction();
+    try {
+        await trx('utenti').where({ id }).update(datiAnagrafici);
+        await trx('ad_utenti_ditte')
+            .where({ id_utente: id, id_ditta: id_ditta_operativa })
+            .update(datiAssociazione);
+
+        await trx('log_azioni').insert({
+            id_utente: requester.id,
+            azione: `Aggiornamento utente ${id} per ditta ${id_ditta_operativa}`,
+            dettagli: JSON.stringify({ ...datiAnagrafici, ...datiAssociazione })
+        });
+
+        await trx.commit();
+        res.json({ success: true, message: 'Utente aggiornato con successo.' });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore aggiornamento utente:", error);
+        res.status(500).json({ success: false, message: 'Errore del server durante l\'aggiornamento.' });
+    }
+});
 module.exports = router;
 

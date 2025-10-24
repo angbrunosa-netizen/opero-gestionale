@@ -1,10 +1,8 @@
 // #####################################################################
-// # Componente AdminPanel - v17.15 (Fix Definitivo Scope & Parsing)
+// # Componente AdminPanel - v17.16 (Integrazione Gestione Livelli)
 // # File: opero-frontend/src/components/AdminPanel.js
-// # Corregge l'errore di parsing (Unexpected token) pulendo i caratteri non validi.
-// # Risolve gli errori ESLint inserendo la logica di recupero password
-// # (stato, handler e modale) all'interno dello scope corretto del
-// # sotto-componente `GestioneUtenti`.
+// # Aggiunto il componente GestioneLivelliUtente sotto la tabella
+// # nella scheda Gestione Utenti, visibile solo con permesso AM_UTE_LVL.
 // #####################################################################
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -20,8 +18,10 @@ import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
 import GestionePermessiUtenteModal from './admin/GestionePermessiUtenteModal';
 // ++ NUOVI IMPORT ++
-import AdminDitte from './admin/AdminDitte';
+import AdminDitte from './admin/AdminDitte'; // Assumendo esista questo componente per Gestione Ditte
 import AdminMonitoraggio from './admin/AdminMonitoraggio';
+import GestioneLivelliUtente from './admin/GestioneLivelliUtente'; // <-- 1. IMPORTA IL COMPONENTE
+import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline'; // <-- Importa icona per la nuova tab (o scegline un'altra)
 // FINE NUOVI IMPORT
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -41,9 +41,9 @@ const UserManager = () => {
 
     const handleInviteSuccess = () => {
         setIsInviteModalOpen(false);
-        // fetchUtenti(); 
+        // fetchUtenti();
     };
-    const [activeTab, setActiveTab] = useState('utenti'); 
+    const [activeTab, setActiveTab] = useState('utenti');
 
     return (
         <div className="p-6">
@@ -59,13 +59,13 @@ const UserManager = () => {
                     </button>
                 )}
             </div>
-            
+
             <div className="bg-white p-4 rounded-md shadow">
                 <p className="text-gray-500">Elenco degli utenti del sistema.</p>
                 {/* Esempio: <AdvancedDataGrid data={utenti} columns={userColumns} /> */}
             </div>
 
-            <InvitaUtenteModal 
+            <InvitaUtenteModal
                 isOpen={isInviteModalOpen}
                 onClose={() => setIsInviteModalOpen(false)}
                 onInviteSent={handleInviteSuccess}
@@ -123,7 +123,7 @@ const exportToPDF = (data, columns, fileName, ditta) => {
             doc.text(`${ditta.cap || ''} ${ditta.citta || ''} (${ditta.provincia || ''})`, xPos, 26);
             doc.text(`P.IVA: ${ditta.p_iva || ''}`, xPos, 31);
         }
-        
+
         doc.setFontSize(12);
         doc.text(`Elenco Utenti`, 15, startY - 5);
 
@@ -144,7 +144,7 @@ const exportToPDF = (data, columns, fileName, ditta) => {
 
         doc.save(`${fileName}.pdf`);
     };
-    
+
     if (ditta && ditta.logo_url) {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
@@ -171,36 +171,45 @@ const exportToPDF = (data, columns, fileName, ditta) => {
 // ====================================================================
 // Sotto-componente: Form di Creazione/Modifica Utente (Modal) (invariato)
 // ====================================================================
-const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }) => {
+// --- MODIFICA: Aggiungi 'selectedDittaId' tra le props ---
+const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
     const { user: currentUser } = useAuth();
     const [formData, setFormData] = useState({});
     const [errors, setErrors] = useState({});
 
     useEffect(() => {
+        // --- MODIFICA: Aggiungi 'id_ditta' allo stato del form ---
         setFormData({
-            id: user ? user.id : null,
-            nome: user ? user.nome : '',
-            cognome: user ? user.cognome : '',
-            email: user ? user.email : '',
-            password: '',
-            id_ditta: user ? user.id_ditta : selectedDittaId,
-            id_ruolo: user ? user.id_ruolo : '',
+            id: user.id,
+            nome: user.nome || '',
+            cognome: user.cognome || '',
+            email: user.email || '',
+            id_ruolo: user.id_ruolo || '',
+            livello: user.livello || '',
+            Codice_Tipo_Utente: user.Codice_Tipo_Utente || '',
+            stato: user.stato || 'attivo',
+            id_ditta: user.id_ditta || selectedDittaId, // <--- AGGIUNTA QUI
         });
-    }, [user, selectedDittaId]);
-    
+    }, [user, selectedDittaId]); // Aggiungi selectedDittaId alle dipendenze
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (errors[name]) {
+            setErrors(prev => ({ ...prev, [name]: '' }));
+        }
     };
 
     const validateForm = () => {
         const newErrors = {};
         if (!formData.nome) newErrors.nome = 'Il nome è obbligatorio.';
         if (!formData.cognome) newErrors.cognome = 'Il cognome è obbligatorio.';
-        if (!formData.email) newErrors.email = 'L\'email è obbligatoria.';
-        if (!formData.id && !formData.password) newErrors.password = 'La password è obbligatoria per i nuovi utenti.';
-        if (!formData.id_ditta) newErrors.id_ditta = 'La ditta è obbligatoria.';
         if (!formData.id_ruolo) newErrors.id_ruolo = 'Il ruolo è obbligatorio.';
+        const livelloNum = parseInt(formData.livello, 10);
+        if (isNaN(livelloNum) || livelloNum < 1 || livelloNum > 80) {
+            newErrors.livello = 'Il livello deve essere un numero tra 1 e 80.';
+        }
+        
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -215,28 +224,67 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                <h3 className="text-lg font-bold mb-4">{user ? 'Modifica Utente' : 'Nuovo Utente'}</h3>
+                <h3 className="text-lg font-bold mb-4">Modifica Dati Utente</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* --- MODIFICA: Aggiungi un campo nascosto per id_ditta --- */}
+                    <input type="hidden" name="id_ditta" value={formData.id_ditta} />
+
                     <div className="grid grid-cols-2 gap-4">
-                        <input type="text" name="nome" value={formData.nome || ''} onChange={handleChange} placeholder="Nome" className="p-2 border rounded" />
-                        <input type="text" name="cognome" value={formData.cognome || ''} onChange={handleChange} placeholder="Cognome" className="p-2 border rounded" />
+                        <div>
+                            <label htmlFor="nome" className="block text-sm font-medium text-gray-700">Nome</label>
+                            <input type="text" id="nome" name="nome" value={formData.nome} onChange={handleChange} className="mt-1 p-2 border rounded w-full" />
+                            {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
+                        </div>
+                        <div>
+                            <label htmlFor="cognome" className="block text-sm font-medium text-gray-700">Cognome</label>
+                            <input type="text" id="cognome" name="cognome" value={formData.cognome} onChange={handleChange} className="mt-1 p-2 border rounded w-full" />
+                            {errors.cognome && <p className="text-red-500 text-xs mt-1">{errors.cognome}</p>}
+                        </div>
                     </div>
-                    <input type="email" name="email" value={formData.email || ''} onChange={handleChange} placeholder="Email" className="w-full p-2 border rounded" />
-                    <input type="password" name="password" value={formData.password || ''} onChange={handleChange} placeholder={user ? 'Nuova password (lascia vuoto per non cambiare)' : 'Password'} className="w-full p-2 border rounded" />
-                    
-                    {currentUser.ruolo === 'Amministratore_sistema' && (
-                        <select name="id_ditta" value={formData.id_ditta || ''} onChange={handleChange} className="w-full p-2 border rounded">
-                            <option value="">Seleziona Ditta</option>
-                            {ditte.map(d => <option key={d.id} value={d.id}>{d.ragione_sociale}</option>)}
+
+                    <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="email" name="email" value={formData.email} readOnly className="mt-1 p-2 border rounded w-full bg-gray-100 cursor-not-allowed" />
+                    </div>
+
+                    <div>
+                        <label htmlFor="livello" className="block text-sm font-medium text-gray-700">Livello (1-80)</label>
+                        <input 
+                            type="number" 
+                            id="livello" 
+                            name="livello" 
+                            value={formData.livello} 
+                            onChange={handleChange} 
+                            min="1" 
+                            max="80"
+                            className="mt-1 p-2 border rounded w-full" 
+                        />
+                        {errors.livello && <p className="text-red-500 text-xs mt-1">{errors.livello}</p>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="stato" className="block text-sm font-medium text-gray-700">Stato</label>
+                        <select id="stato" name="stato" value={formData.stato} onChange={handleChange} className="mt-1 p-2 border rounded w-full">
+                            <option value="attivo">Attivo</option>
+                            <option value="bloccato">Bloccato</option>
                         </select>
-                    )}
-                    
-                    <select name="id_ruolo" value={formData.id_ruolo || ''} onChange={handleChange} className="w-full p-2 border rounded">
-                        <option value="">Seleziona Ruolo</option>
-                        {ruoli.map(r => <option key={r.id} value={r.id}>{r.ruolo}</option>)}
-                    </select>
-                    
-                    <div className="flex justify-end gap-2">
+                    </div>
+
+                    <div>
+                        <label htmlFor="Codice_Tipo_Utente" className="block text-sm font-medium text-gray-700">Codice Tipo Utente</label>
+                        <input type="text" id="Codice_Tipo_Utente" name="Codice_Tipo_Utente" value={formData.Codice_Tipo_Utente} onChange={handleChange} className="mt-1 p-2 border rounded w-full" />
+                    </div>
+
+                    <div>
+                        <label htmlFor="id_ruolo" className="block text-sm font-medium text-gray-700">Ruolo</label>
+                        <select id="id_ruolo" name="id_ruolo" value={formData.id_ruolo} onChange={handleChange} className="mt-1 p-2 border rounded w-full">
+                            <option value="">Seleziona Ruolo</option>
+                            {ruoli.map(r => <option key={r.id} value={r.id}>{r.ruolo}</option>)}
+                        </select>
+                        {errors.id_ruolo && <p className="text-red-500 text-xs mt-1">{errors.id_ruolo}</p>}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4">
                         <button type="button" onClick={onCancel} className="btn-secondary">Annulla</button>
                         <button type="submit" className="btn-primary">Salva</button>
                     </div>
@@ -246,9 +294,8 @@ const UserFormModal = ({ user, onSave, onCancel, ditte, ruoli, selectedDittaId }
     );
 };
 
-
 // ====================================================================
-// Sotto-componente: Gestione Utenti (MODIFICATO per includere invito e recupero PW)
+// Sotto-componente: Gestione Utenti (MODIFICATO per includere invito, recupero PW e gestione livelli)
 // ====================================================================
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
@@ -257,7 +304,7 @@ const GestioneUtenti = () => {
     const [ruoli, setRuoli] = useState([]);
     const [selectedDittaId, setSelectedDittaId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [editingPermissionsForUser, setEditingPermissionsForUser] = useState(null);
@@ -265,7 +312,7 @@ const GestioneUtenti = () => {
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
     // --- MODIFICA: Stati per il nuovo modale ---
-    const [loadingRecoveryLink, setLoadingRecoveryLink] = useState(false); 
+    const [loadingRecoveryLink, setLoadingRecoveryLink] = useState(false);
     const [generatedLink, setGeneratedLink] = useState('');
     const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
 
@@ -290,7 +337,7 @@ const GestioneUtenti = () => {
         setIsLoading(true);
         try {
             const response = await api.get(`/admin/utenti/ditta/${dittaId}`);
-            setUtenti(response.data.utenti || response.data || []); 
+            setUtenti(response.data.utenti || response.data || []);
         } catch (error) {
             toast.error("Impossibile caricare l'elenco degli utenti.");
             console.error(`Errore nel caricamento degli utenti per la ditta ${dittaId}:`, error);
@@ -311,7 +358,7 @@ const GestioneUtenti = () => {
                     const ditteRes = await api.get('/admin/ditte');
                     setDitte(ditteRes.data.ditte || ditteRes.data || []);
                 } else {
-                    setDitte([ditta]); 
+                    setDitte([ditta]);
                     setSelectedDittaId(ditta.id);
                 }
             } catch (error) {
@@ -323,7 +370,7 @@ const GestioneUtenti = () => {
     }, [user, ditta]);
 
     useEffect(() => {
-        if (selectedDittaId) { 
+        if (selectedDittaId) {
             fetchUtentiForDitta(selectedDittaId);
         }
     }, [selectedDittaId, fetchUtentiForDitta]);
@@ -336,7 +383,7 @@ const GestioneUtenti = () => {
         setIsInviteModalOpen(false);
         toast.info("Invito inviato. L'elenco utenti si aggiornerà quando l'utente completerà la registrazione.");
     };
-    
+
     const handleEditUser = useCallback(async (userId) => {
         try {
             const response = await api.get(`/admin/utenti/${userId}`);
@@ -346,7 +393,7 @@ const GestioneUtenti = () => {
             console.error(`Errore nel caricamento dei dati dell'utente ${userId}:`, error);
         }
     }, []);
-    
+
     const handleDeleteUser = useCallback(async (userId) => {
         if (window.confirm('Sei sicuro di voler eliminare questo utente?')) {
             try {
@@ -377,7 +424,7 @@ const GestioneUtenti = () => {
     }, [selectedDittaId, fetchUtentiForDitta, logAction]);
 
     // --- MODIFICA: Aggiornata funzione per aprire il modale ---
-    const handleGenerateRecoveryLink = useCallback(async (userId, userEmail) => { 
+    const handleGenerateRecoveryLink = useCallback(async (userId, userEmail) => {
         if (!hasPermission('ADM_PWD_REC')) {
             toast.warn('Non hai i permessi necessari per eseguire questa operazione.');
             return;
@@ -385,7 +432,7 @@ const GestioneUtenti = () => {
         if (!window.confirm(`Sei sicuro di voler generare un nuovo link di recupero password per l'utente ${userEmail}? Il link precedente (se esistente) verrà invalidato e questo sarà valido per 1 ora.`)) {
             return;
         }
-        setLoadingRecoveryLink(true); 
+        setLoadingRecoveryLink(true);
         try {
             const response = await api.post(`/admin/utenti/${userId}/generate-recovery-link`);
             if (response.data.success && response.data.recoveryLink) {
@@ -400,17 +447,17 @@ const GestioneUtenti = () => {
             console.error("Errore API /generate-recovery-link:", err);
             toast.error(err.response?.data?.message || 'Errore during la comunicazione con il server.');
         } finally {
-             setLoadingRecoveryLink(false); 
+             setLoadingRecoveryLink(false);
         }
     }, [hasPermission]); // Aggiunta dipendenza hasPermission
 
     const handleSaveUser = async (userData) => {
         try {
-            await api.post('/admin/utenti', userData); 
+            await api.put('/admin/utenti/${id}', userData);
             const actionType = userData.id ? 'Modifica' : 'Creazione';
             const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
             logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
-            
+
             setIsModalOpen(false);
             setEditingUser(null);
             fetchUtentiForDitta(selectedDittaId);
@@ -439,7 +486,7 @@ const GestioneUtenti = () => {
             email: u.email,
             ruolo: ruoli.find(r => r.id === u.id_ruolo)?.ruolo || 'N/D'
         }));
-        
+
         const fileName = `elenco_utenti_${selectedDitta.ragione_sociale.replace(/\s/g, '_')}`;
 
         if (format === 'csv') {
@@ -481,26 +528,32 @@ const GestioneUtenti = () => {
             header: 'Azioni',
             cell: (info) => ( // 'info' è il 'params' corretto per tanstack-table
                 <div className="flex space-x-2">
-                    {hasPermission('UTENTI_EDIT') && <button onClick={() => handleEditUser(info.row.original.id)} className="text-blue-600 hover:text-blue-800"><PencilIcon className="h-5 w-5" /></button>}
+                    {hasPermission('UTENTI_EDIT') && <button
+                     onClick={() => handleEditUser(info.row.original.id)} 
+                     className="text-blue-600 hover:text-blue-800"
+                     title="modifica dati utente"   
+                     >
+                        <PencilIcon className="h-5 w-5" /></button>}
+                   
                     {hasPermission('UTENTI_EDIT') && <button onClick={() => handleDeleteUser(info.row.original.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>}
-                    
+
                     {hasPermission('ADMIN_USER_PERMISSIONS_MANAGE') && (
-                        <button 
-                            onClick={() => setEditingPermissionsForUser(info.row.original)} 
+                        <button
+                            onClick={() => setEditingPermissionsForUser(info.row.original)}
                             className="p-1 text-gray-500 hover:text-green-600"
                             title="Gestisci permessi personalizzati"
                         >
                             <ShieldCheck size={18} />
                         </button>
                     )}
-                    
+
                     {/* --- MODIFICA: Pulsante Recupero Password --- */}
                     {hasPermission('ADM_PWD_REC') && (
                          <button
                             onClick={() => handleGenerateRecoveryLink(info.row.original.id, info.row.original.email)}
                             className={`p-1 text-orange-600 hover:text-orange-800 focus:outline-none ${loadingRecoveryLink ? 'opacity-50 cursor-not-allowed' : ''}`}
                             title="Genera Link Recupero Password"
-                            disabled={loadingRecoveryLink} 
+                            disabled={loadingRecoveryLink}
                         >
                             <KeyIcon className="h-5 w-5" />
                         </button>
@@ -508,7 +561,7 @@ const GestioneUtenti = () => {
                     {/* --- FINE MODIFICA --- */}
 
                     {info.row.original.stato === 'bloccato' && hasPermission('ADMIN_UTENTI_SBLOCCA') && (
-                        <button 
+                        <button
                             onClick={() => handleUnlockUser(info.row.original.id)}
                             className="p-1 text-gray-500 hover:text-blue-600"
                             title="Sblocca utente"
@@ -550,18 +603,23 @@ const GestioneUtenti = () => {
                         </div>
                     </div>
                     <AdvancedDataGrid columns={columns} data={utenti} isLoading={isLoading} />
+
+                    {/* --- 2. INSERIMENTO NUOVO COMPONENTE --- */}
+                    {hasPermission('AM_UTE_LVL') && (
+                        <GestioneLivelliUtente />
+                    )}
                 </>
             )}
             {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => { setIsModalOpen(false); setEditingUser(null); }} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
-            
+
             {editingPermissionsForUser && (
-                <GestionePermessiUtenteModal 
+                <GestionePermessiUtenteModal
                     utente={editingPermissionsForUser}
                     onClose={() => setEditingPermissionsForUser(null)}
                 />
             )}
-            
-            <InvitaUtenteModal 
+
+            <InvitaUtenteModal
                 isOpen={isInviteModalOpen}
                 onClose={() => setIsInviteModalOpen(false)}
                 onInviteSent={handleInviteSuccess}
@@ -627,11 +685,11 @@ const AssociaModuliDitta = () => {
         };
         fetchAssociazioni();
     }, [selectedDittaId]);
-    
+
     const handleCheckboxChange = (moduloId) => {
-        setModuliAssociati(prev => 
-            prev.includes(moduloId) 
-            ? prev.filter(id => id !== moduloId) 
+        setModuliAssociati(prev =>
+            prev.includes(moduloId)
+            ? prev.filter(id => id !== moduloId)
             : [...prev, moduloId]
         );
     };
@@ -662,8 +720,8 @@ const AssociaModuliDitta = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         {moduli.map(modulo => (
                             <label key={modulo.id} className="flex items-center space-x-2">
-                                <input 
-                                    type="checkbox" 
+                                <input
+                                    type="checkbox"
                                     checked={moduliAssociati.includes(modulo.id)}
                                     onChange={() => handleCheckboxChange(modulo.id)}
                                 />
@@ -751,7 +809,7 @@ const PrivacyDittaManager = () => {
         }
         setIsSaving(false);
     };
-    
+
     const handleQuillChange = (value) => {
         setPrivacyData(prev => ({ ...prev, corpo_lettera: value }));
     };
@@ -769,7 +827,7 @@ const PrivacyDittaManager = () => {
     return (
         <div className="p-4">
             <h3 className="text-lg font-bold mb-4">Gestione Privacy Policy</h3>
-            
+
             {user?.ruolo === 'Amministratore_sistema' && (
                 <select value={selectedDittaId} onChange={e => setSelectedDittaId(e.target.value)} className="w-full p-2 border rounded mb-4">
                     <option value="">Seleziona una ditta per gestire la privacy...</option>
@@ -778,7 +836,7 @@ const PrivacyDittaManager = () => {
             )}
 
             {isLoading && selectedDittaId && <p>Caricamento dati policy...</p>}
-            
+
             {showForm && !isLoading && (
                 <div>
                     <div className="mb-4">
@@ -795,13 +853,13 @@ const PrivacyDittaManager = () => {
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Corpo della Policy</label>
-                        <ReactQuill 
-                            theme="snow" 
-                            value={privacyData.corpo_lettera || ''} 
-                            onChange={handleQuillChange} 
+                        <ReactQuill
+                            theme="snow"
+                            value={privacyData.corpo_lettera || ''}
+                            onChange={handleQuillChange}
                         />
                     </div>
-                    
+
                     <button onClick={handleSave} disabled={isSaving} className="btn-primary">
                         {isSaving ? 'Salvataggio...' : 'Salva Policy'}
                     </button>
@@ -869,7 +927,7 @@ const GestioneDitte = () => {
             header: 'Azioni',
             cell: ({ row }) => (
                 <div className="flex space-x-2">
-                    <button 
+                    <button
                         onClick={() => handleToggleStato(row.original)}
                         className={`p-1 rounded ${row.original.stato === 'attivo' ? 'text-yellow-600 hover:text-yellow-800' : 'text-green-600 hover:text-green-800'}`}
                         title={row.original.stato === 'attivo' ? 'Sospendi Ditta' : 'Attiva Ditta'}
@@ -892,7 +950,7 @@ const GestioneDitte = () => {
             data={ditte}
             isLoading={loading}
             onRefresh={fetchDitte}
-            canAdd={true} 
+            canAdd={true}
             onAddClick={() => toast.info("Modale per creare ditta in sviluppo.")}
         />
     );
@@ -915,7 +973,7 @@ const MonitoraggioSistema = () => {
         try {
             const response = await api.get('/admin/logs/azioni');
             setLogAzioni(response.data.data);
-        } catch (error) { toast.error("Errore caricamento log azioni."); } 
+        } catch (error) { toast.error("Errore caricamento log azioni."); }
         finally { setLoading(false); }
     }, [hasPermission]);
 
@@ -953,7 +1011,7 @@ const MonitoraggioSistema = () => {
         { header: 'Azione', accessorKey: 'azione' },
         { header: 'Dettagli', accessorKey: 'dettagli', size: 400 },
     ], []);
-    
+
     const logAccessiColumns = useMemo(() => [
         { header: 'ID', accessorKey: 'id', size: 90 },
         { header: 'Data/Ora', accessorKey: 'data_ora_accesso', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
@@ -1012,55 +1070,62 @@ function AdminPanel() {
 
     // Definiamo le tab e i componenti che devono renderizzare
     const TABS = useMemo(() => ([
-        { 
-            key: 'utenti', 
-            label: 'Gestione Utenti', 
-            component: <GestioneUtenti />, 
-            permission: ['UTENTI_VIEW', 'ADMIN_USERS_VIEW', 'ADMIN_USER_PERMISSIONS_MANAGE', 'ADMIN_UTENTI_SBLOCCA'] 
+        {
+            key: 'utenti',
+            label: 'Gestione Utenti',
+            component: <GestioneUtenti />,
+            permission: ['UTENTI_VIEW', 'ADMIN_USERS_VIEW', 'ADMIN_USER_PERMISSIONS_MANAGE', 'ADMIN_UTENTI_SBLOCCA']
         },
         {
             key: 'ditte',
             label: 'Gestione Ditte',
-            component: <GestioneDitte />, 
-            permission: 'ADMIN_DITTE_VIEW' 
+            component: <GestioneDitte />,
+            permission: 'ADMIN_DITTE_VIEW'
         },
-        { 
-            key: 'moduli', 
-            label: 'Associa Moduli Ditta', 
-            component: <AssociaModuliDitta />, 
+        {
+            key: 'moduli',
+            label: 'Associa Moduli Ditta',
+            component: <AssociaModuliDitta />,
             permission: 'SUPER_ADMIN' // o un permesso specifico
         },
-        { 
-            key: 'privacy', 
-            label: 'Gestione Privacy', 
-            component: <PrivacyDittaManager />, 
+        {
+            key: 'privacy',
+            label: 'Gestione Privacy',
+            component: <PrivacyDittaManager />,
             permission: 'PRIVACY_MANAGE' // o un permesso specifico
         },
-        { 
-            key: 'funzioni', 
-            label: 'Funzioni Applicative', 
-            component: <GestioneFunzioni />, 
-            permission: 'ADMIN_FUNZIONI_VIEW' 
+        {
+            key: 'funzioni',
+            label: 'Funzioni Applicative',
+            component: <GestioneFunzioni />,
+            permission: 'ADMIN_FUNZIONI_VIEW'
         },
-        { 
-            key: 'ruoli', 
-            label: 'Ruoli e Permessi', 
-            component: <GestioneRuoliPermessi />, 
-            permission: 'ADMIN_RUOLI_VIEW' 
+        {
+            key: 'ruoli',
+            label: 'Ruoli e Permessi',
+            component: <GestioneRuoliPermessi />,
+            permission: 'ADMIN_RUOLI_VIEW'
         },
         {
             key: 'monitoraggio',
             label: 'Monitoraggio Sistema',
-            component: <MonitoraggioSistema />, 
-            permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW'] 
-        }
+            component: <MonitoraggioSistema />,
+            permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW']
+        },
+        {
+             key: 'livelliUtente',
+             label: 'Livelli Utente Ditta',
+             component: <GestioneLivelliUtente />,
+             permission: 'AM_UTE_LVL',
+             isSystemAdminOnly: false
+         }, // <-- NUOVA TAB
     // eslint-disable-next-line react-hooks/exhaustive-deps
     ]), []); // Rimosse dipendenze non necessarie, i componenti sono definiti sopra
 
     return (
         <div className="p-4 md:p-6 lg:p-8 bg-gray-50 min-h-full flex flex-col">
             <h1 className="text-3xl font-bold text-gray-900 mb-8">Pannello Amministrazione</h1>
-            
+
             {/* Navigazione Tabs */}
             <div className="mb-6 border-b border-gray-300">
                 <div className="flex space-x-4 overflow-x-auto">
@@ -1093,13 +1158,13 @@ function AdminPanel() {
                     })}
                 </div>
             </div>
-            
+
             <div className="flex-grow bg-gray-50 overflow-y-auto">
                 {TABS.find(tab => tab.key === activeTab)?.component || <p>Seleziona una scheda.</p>}
             </div>
-            
+
             {/* Le modali sono gestite dai sotto-componenti, quindi non servono qui */}
-            
+
         </div>
     );
 }
