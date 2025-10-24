@@ -1195,9 +1195,14 @@ router.get('/utenti-ditta', [verifyToken, isDittaAdmin, checkPermission('AM_UTE_
 // router.post('/utenti', [verifyToken, isDittaAdmin], async (req, res) => { ... });
 
 // AGGIUNGI O SOSTITUISCI CON QUESTA NUOVA ROTTA PUT
+// In routes/admin.js
+
+// In routes/admin.js
+
 router.put('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
     const { id } = req.params;
     const { nome, cognome, id_ruolo, livello, Codice_Tipo_Utente, stato, id_ditta: id_ditta_from_body } = req.body;
+     
     const requester = req.user;
 
     const id_ditta_operativa = id_ditta_from_body || requester.id_ditta;
@@ -1227,28 +1232,41 @@ router.put('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
 
     const datiAnagrafici = { nome, cognome };
     const datiAssociazione = { id_ruolo, livello, Codice_Tipo_Utente, stato };
+// In routes/admin.js
 
-    const trx = await knex.transaction();
-    try {
-        await trx('utenti').where({ id }).update(datiAnagrafici);
-        await trx('ad_utenti_ditte')
-            .where({ id_utente: id, id_ditta: id_ditta_operativa })
-            .update(datiAssociazione);
+const trx = await knex.transaction();
+try {
+    // --- INDAGINE APPROFONDITA SU REQ.PARAMS ---
+    console.log('--- AUTOPSIA DI REQ.PARAMS ---');
+    console.log('Oggetto req.params completo:', req.params);
+    console.log("Valore di req.params.id:", req.params.id);
+    console.log("Tipo di req.params.id:", typeof req.params.id);
+    console.log("req.params.id in JSON:", JSON.stringify(req.params));
+    console.log('-----------------------------------');
 
-        await trx('log_azioni').insert({
-            id_utente: requester.id,
-            azione: `Aggiornamento utente ${id} per ditta ${id_ditta_operativa}`,
-            dettagli: JSON.stringify({ ...datiAnagrafici, ...datiAssociazione })
-        });
+    // A questo punto, sappiamo che l'ID è corrotto, quindi non ha senso continuare.
+    // Restituiamo un errore che ci dica esattamente cosa abbiamo ricevuto.
+    await trx.rollback(); // Chiudiamo la transazione
+    return res.status(400).json({ 
+        success: false, 
+        message: 'Debug: il valore di req.params.id è corrotto. Valore ricevuto: ' + JSON.stringify(req.params.id) 
+    });
 
-        await trx.commit();
-        res.json({ success: true, message: 'Utente aggiornato con successo.' });
+    // Il resto del codice non verrà eseguito
+    await trx('utenti').where({ id }).update(datiAnagrafici);
+    await trx('ad_utenti_ditte')
+        .where({ id_utente: id, id_ditta: id_ditta_operativa })
+        .update(datiAssociazione);
 
-    } catch (error) {
-        await trx.rollback();
-        console.error("Errore aggiornamento utente:", error);
-        res.status(500).json({ success: false, message: 'Errore del server durante l\'aggiornamento.' });
-    }
+    await trx.commit();
+    res.json({ success: true, message: 'Utente aggiornato con successo.' });
+
+} catch (error) {
+    await trx.rollback();
+    console.error("Errore aggiornamento utente:", error);
+    res.status(500).json({ success: false, message: 'Errore del server durante l\'aggiornamento.' });
+}
 });
-module.exports = router;
+// La riga "module.exports = router;" dovrebbe essere alla fine del file, non qui.
 
+module.exports = router;

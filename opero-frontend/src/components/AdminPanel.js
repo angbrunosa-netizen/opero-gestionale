@@ -317,8 +317,8 @@ const GestioneUtenti = () => {
     const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
 
     const logAction = useCallback(async (azione, dettagli = '') => {
-        try {
-            await api.post('/track/azione', {
+        try { 
+            await api.post('/track/log-action', {
                 azione,
                 dettagli,
                 modulo: 'Admin',
@@ -385,14 +385,18 @@ const GestioneUtenti = () => {
     };
 
     const handleEditUser = useCallback(async (userId) => {
+        console.log(`[FRONTEND] Tentativo di modifica per l'utente con ID: ${userId}`);
         try {
             const response = await api.get(`/admin/utenti/${userId}`);
+            console.log('[FRONTEND] Dati ricevuti dal backend:', response.data.utente);
             setEditingUser(response.data.utente);
             setIsModalOpen(true);
         } catch (error) {
             console.error(`Errore nel caricamento dei dati dell'utente ${userId}:`, error);
         }
-    }, []);
+    },
+    
+    []);
 
     const handleDeleteUser = useCallback(async (userId) => {
         if (window.confirm('Sei sicuro di voler eliminare questo utente?')) {
@@ -451,22 +455,39 @@ const GestioneUtenti = () => {
         }
     }, [hasPermission]); // Aggiunta dipendenza hasPermission
 
-    const handleSaveUser = async (userData) => {
+const handleSaveUser = useCallback(async (userData) => {
+        // Estrai l'ID per decidere se è una modifica o una creazione
+        const { id } = userData;
+        const isModifica = !!id;
+        const actionType = isModifica ? 'Modifica' : 'Creazione';
+
         try {
-            await api.put('/admin/utenti/${id}', userData);
-            const actionType = userData.id ? 'Modifica' : 'Creazione';
+            if (isModifica) {
+                // --- Logica di MODIFICA (PUT) ---
+                // Nota l'uso dei backtick (`) e l'ID nell'URL
+                await api.put(`/admin/utenti/${id}`, userData);
+            } else {
+                // --- Logica di CREAZIONE (POST) ---
+                await api.put(`/admin/utenti/${id}`, userData);
+            }
+            
+            // Logica di feedback e aggiornamento
             const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
             logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
-
+            
             setIsModalOpen(false);
-            setEditingUser(null);
-            fetchUtentiForDitta(selectedDittaId);
-            toast.success(`Utente ${actionType === 'Modifica' ? 'modificato' : 'creato'} con successo.`);
+            setEditingUser(null); // Pulisci l'utente in modifica
+            
+            // Ricarica gli utenti per la ditta selezionata
+            const response = await api.get(`/admin/utenti/ditta/${selectedDittaId}`);
+            setUtenti(response.data.utenti);
+
         } catch (error) {
-            console.error('Errore during il salvataggio dell\'utente:', error);
-            toast.error(error.response?.data?.message || "Errore during salvataggio.");
+            // Refuso corretto ("during" -> "durante")
+            console.error(`Errore durante il salvataggio dell'utente (${actionType}):`, error);
         }
-    };
+    // Aggiungiamo le dipendenze per useCallback
+    }, [ditte, selectedDittaId, logAction]); // Aggiungi qui le dipendenz
 
     const handleExport = (format) => {
         const selectedDitta = ditte.find(d => d.id === parseInt(selectedDittaId, 10));

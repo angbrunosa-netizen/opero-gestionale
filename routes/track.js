@@ -68,6 +68,7 @@ router.post('/log-action', verifyToken, async (req, res) => {
     const { azione, dettagli, modulo, funzione } = req.body;
     const id_utente = req.user.id;
     const id_ditta = req.user.id_ditta;
+  
 
     if (!azione) {
         return res.status(400).json({ success: false, message: 'Il campo "azione" è obbligatorio.' });
@@ -77,7 +78,7 @@ router.post('/log-action', verifyToken, async (req, res) => {
     try {
         connection = await dbPool.getConnection();
         await connection.query(
-            'INSERT INTO log_azioni (id_utente, id_ditta, azione, descrizione, modulo, funzione) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO log_azioni (id_utente, id_ditta, azione, dettagli, modulo, funzione) VALUES (?, ?, ?, ?, ?, ?)',
             [id_utente, id_ditta, azione, dettagli || '', modulo || null, funzione || null]
         );
         res.status(200).json({ success: true, message: 'Azione registrata.' });
