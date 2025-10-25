@@ -1,8 +1,12 @@
 /*
  * ======================================================================
- * File: src/components/MainApp.js (MODIFICATO)
+ * File: src/components/MainApp.js (RESPONSIVE VERSION)
  * ======================================================================
- * Descrizione: Modifichiamo la logica del click per aprire una nuova finestra.
+ * Versione: 3.0 - Menu Hamburger Mobile + Sidebar Collassabile
+ * - Aggiunto menu hamburger per dispositivi mobile
+ * - Sidebar collassabile con animazioni fluide
+ * - Icone visibili quando la sidebar è chiusa
+ * - Design responsive ottimizzato
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -21,19 +25,20 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import ShortcutSettingsModal from './ShortcutSettingsModal'; 
-// ++ NUOVI IMPORT PER LE ICONE ++
-import { Cog6ToothIcon,ChevronLeftIcon,ChevronRightIcon, PlusCircleIcon, UserGroupIcon, EnvelopeIcon, BookOpenIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import { 
+    Cog6ToothIcon, ChevronLeftIcon, ChevronRightIcon, 
+    PlusCircleIcon, UserGroupIcon, EnvelopeIcon, 
+    BookOpenIcon, ClipboardDocumentListIcon,
+    Bars3Icon, XMarkIcon, HomeIcon // Nuove icone per menu hamburger
+} from '@heroicons/react/24/outline';
 import AttivitaPPA from './AttivitaPPA';
 import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
 import PPASisModule from './PPASisModule';
-import { Outlet, useLocation } from 'react-router-dom'; // NUOVI IMPORT
+import { Outlet, useLocation } from 'react-router-dom';
 import CatalogoModule from './CatalogoModule';
 import MagazzinoModule from './MagazzinoModule';
 import VenditeModule from './VenditeModule';
-//ModuleRegistry.registerModules([AllCommunityModule]);
-
-
 
 // --- Componente Modale per Nuova Attività ---
 const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
@@ -85,52 +90,65 @@ const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
     );
 };
 
-    const CalendarWidget = () => {
-        const days = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
-        const today = new Date();
-        const currentDay = today.getDate();
-        const currentMonth = today.getMonth();
-        const currentYear = today.getFullYear();
-        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+const CalendarWidget = ({ isCollapsed }) => {
+    const days = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-        // Calcola gli spazi vuoti per il primo giorno del mese
-        let blanks = [];
-        // L'output di getDay() è 0 per Domenica, 1 per Lunedì, etc. Adattiamolo
-        const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
-        for (let i = 0; i < startDay; i++) {
-            blanks.push(<div key={`blank-${i}`}></div>);
-        }
+    let blanks = [];
+    const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
+    for (let i = 0; i < startDay; i++) {
+        blanks.push(<div key={`blank-${i}`}></div>);
+    }
 
-        let daysOfMonth = [];
-        for (let d = 1; d <= daysInMonth; d++) {
-            daysOfMonth.push(
-                <div key={`day-${d}`} className={`flex items-center justify-center h-8 w-8 rounded-full ${d === currentDay ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
-                    {d}
-                </div>
-            );
-        }
+    let daysOfMonth = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+        daysOfMonth.push(
+            <div key={`day-${d}`} className={`flex items-center justify-center h-8 w-8 rounded-full ${d === currentDay ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
+                {d}
+            </div>
+        );
+    }
 
-        const totalSlots = [...blanks, ...daysOfMonth];
+    const totalSlots = [...blanks, ...daysOfMonth];
 
+    // Se la sidebar è collassata, mostra solo il giorno corrente
+    if (isCollapsed) {
         return (
-            <div className="bg-white p-4 rounded-lg shadow mt-4">
-                <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-semibold text-gray-800">{today.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</h4>
-                </div>
-                <div className="grid grid-cols-7 text-center text-xs text-gray-500">
-                    {/* ########## SOLUZIONE ########## */}
-                    {/* Aggiungiamo l'indice per creare una chiave univoca */}
-                    {days.map((day, index) => (
-                        <div key={`${day}-${index}`} className="font-semibold">{day}</div>
-                    ))}
-                </div>
-                <div className="grid grid-cols-7 mt-2 text-sm">
-                    {totalSlots.map((slot, index) => <div key={index}>{slot}</div>)}
+            <div className="bg-white p-2 rounded-lg shadow mt-4 mx-2">
+                <div className="text-center">
+                    <div className="text-xs text-gray-500 mb-1">
+                        {today.toLocaleString('it-IT', { month: 'short' })}
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600">
+                        {currentDay}
+                    </div>
                 </div>
             </div>
         );
-    };
+    }
+
+    return (
+        <div className="bg-white p-4 rounded-lg shadow mt-4 mx-2">
+            <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold text-gray-800 text-sm">{today.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</h4>
+            </div>
+            <div className="grid grid-cols-7 text-center text-xs text-gray-500">
+                {days.map((day, index) => (
+                    <div key={`${day}-${index}`} className="font-semibold">{day}</div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 mt-2 text-sm">
+                {totalSlots.map((slot, index) => <div key={index}>{slot}</div>)}
+            </div>
+        </div>
+    );
+};
+
 // --- Componente: Editor Documenti Office con AG Grid ---
 const DocumentEditor = () => {
     const [fileType, setFileType] = useState(null);
@@ -267,18 +285,14 @@ const DocumentEditor = () => {
     );
 };
 
-
 // --- Componente Dashboard Dettagliata ---
 const Dashboard = ({ user, ditta }) => {
     const [myTasks, setMyTasks] = useState([]);
     const [companyTasks, setCompanyTasks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    console.log('--- DASHBOARD COMPONENT RENDERED ---');
-    console.log('Dati ricevuti:', { user, ditta });
     const isAdmin = user.ruolo === 'Amministratore_Azienda' || user.ruolo === 'Amministratore_sistema';
 
     useEffect(() => {
-        console.log('--- USEEFFECT IN DASHBOARD TRIGGERED ---');
         const fetchTasks = async () => {
             setIsLoading(true);
             try {
@@ -303,7 +317,7 @@ const Dashboard = ({ user, ditta }) => {
     }, [isAdmin]);
 
     return (
-        <div className="p-6">
+        <div className="p-4 md:p-6">
             <h2 className="text-2xl font-bold text-slate-800">Dashboard Principale</h2>
             <p className="text-slate-600 mt-1">Benvenuto in Opero, {user.nome}!</p>
             
@@ -380,8 +394,6 @@ const Dashboard = ({ user, ditta }) => {
     );
 };
 
-
-// ++ MODIFICA QUI: Mappatura icone più completa ++
 // Helper per mappare i codici funzione alle icone
 const getIconForFunction = (codice) => {
     switch (codice) {
@@ -391,7 +403,18 @@ const getIconForFunction = (codice) => {
         case 'PPA_SIS': return <ClipboardDocumentListIcon className="h-5 w-5" />;
         case 'RUBRICA_MANAGE': return <BookOpenIcon className="h-5 w-5" />;
         case 'AddressBookManager': return <EnvelopeIcon className="h-5 w-5" />;
-        // Aggiungi altri 'case' per le funzioni che vuoi mappare a un'icona
+        default: return <Cog6ToothIcon className="h-5 w-5" />;
+    }
+};
+
+// Helper per icone dei moduli nella sidebar
+const getModuleIcon = (chiaveComponente) => {
+    switch (chiaveComponente) {
+        case 'ADMIN_PANEL': return <Cog6ToothIcon className="h-5 w-5" />;
+        case 'AMMINISTRAZIONE': return <UserGroupIcon className="h-5 w-5" />;
+        case 'CONT_SMART': return <ClipboardDocumentListIcon className="h-5 w-5" />;
+        case 'MAIL': return <EnvelopeIcon className="h-5 w-5" />;
+        case 'RUBRICA': return <BookOpenIcon className="h-5 w-5" />;
         default: return <Cog6ToothIcon className="h-5 w-5" />;
     }
 };
@@ -403,11 +426,12 @@ const MainApp = () => {
     const [activeModule, setActiveModule] = useState('DASHBOARD');
     const [shortcuts, setShortcuts] = useState([]);
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const location = useLocation();
 
-    console.log('STATO CORRENTE AUTH CONTEXT:', authData);
     const fetchShortcuts = useCallback(async () => {
-        if (!user) return; // Non fare nulla se l'utente non è ancora caricato
+        if (!user) return;
         try {
             const { data } = await api.get('/user/shortcuts');
             if (data.success) {
@@ -416,11 +440,16 @@ const MainApp = () => {
         } catch (error) {
             console.error("Impossibile caricare le scorciatoie", error);
         }
-    }, [user]); // Dipende da 'user' per assicurarsi che venga eseguito dopo il login
+    }, [user]);
 
     useEffect(() => {
         fetchShortcuts();
     }, [fetchShortcuts]);
+
+    // Chiudi menu mobile quando si naviga
+    useEffect(() => {
+        setIsMobileMenuOpen(false);
+    }, [location]);
 
     if (loading || !user || !ditta) {
         return (
@@ -430,42 +459,27 @@ const MainApp = () => {
         );
     }
     
-  
-     const handleShortcutClick = (event, shortcut) => {
+    const handleShortcutClick = (event, shortcut) => {
         event.preventDefault();
-
         if (shortcut && shortcut.chiave_componente_modulo) {
             let url = `/module/${shortcut.chiave_componente_modulo}`;
-            
-            // ## NUOVA LOGICA: Usiamo il CODICE come chiave della vista ##
-            // Questo è il modo più robusto e programmatico per identificare la vista.
             if (shortcut.codice) {
                 url += `?view=${shortcut.codice}`;
             }
-
             window.open(url, '_blank', 'noopener,noreferrer');
-        } else {
-            console.warn("Scorciatoia cliccata ma senza una chiave modulo valida:", shortcut);
         }
     };
     
     const renderContent = () => {
-        // ## NUOVA LOGICA: Se siamo su una rotta figlia (non la root), l'Outlet ha la priorità ##
-        // Questo garantisce che la vista di dettaglio venga sempre mostrata quando l'URL corrisponde.
         if (location.pathname !== '/') {
             return <Outlet />;
         }
-        
-        // Altrimenti, usa la logica interna per mostrare il modulo attivo dalla sidebar
         return renderActiveModule();
     };
 
     const renderActiveModule = () => {
         switch (activeModule) {
-            case 'DASHBOARD':
-                return <Dashboard user={user} ditta={ditta} />;
-            //case 'MY_PPA_TASKS': 
-              //  return <AttivitaPPA />;
+            case 'DASHBOARD': return <Dashboard user={user} ditta={ditta} />;
             case 'ADMIN_PANEL': return <AdminPanel />;
             case 'AMMINISTRAZIONE': return <AmministrazioneModule />;
             case 'CONT_SMART': return <ContSmartModule />;
@@ -482,11 +496,11 @@ const MainApp = () => {
     };
 
     return (
-        <div className="flex h-screen bg-gray-100 font-sans">
+        <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
             {isShortcutModalOpen && 
                 <ShortcutSettingsModal 
                     currentShortcuts={shortcuts}
-                     isOpen={isShortcutModalOpen}
+                    isOpen={isShortcutModalOpen}
                     onClose={() => setIsShortcutModalOpen(false)}
                     onSave={() => {
                         fetchShortcuts(); 
@@ -494,73 +508,149 @@ const MainApp = () => {
                     }}
                 />
             }
-            <aside className="w-64 bg-slate-800 flex flex-col">
-                <div className="p-4 border-b border-slate-700 text-center">
-                    <h1 className="text-xl font-bold text-white">Opero</h1>
-                    <img 
-                        src={ditta.logo_url || 'https://placehold.co/100x100/FFFFFF/334155?text=Logo'} 
-                        alt="Logo Azienda" 
-                        className="w-24 h-24 rounded-full mx-auto my-4 border-2 border-slate-600"
-                        onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FFFFFF/334155?text=Logo'; }}
-                    />
-                    <p className="text-sm font-semibold text-white">{ditta.ragione_sociale}</p>
+
+            {/* Overlay per mobile quando il menu è aperto */}
+            {isMobileMenuOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                ></div>
+            )}
+
+            {/* SIDEBAR */}
+            <aside className={`
+                ${isSidebarCollapsed ? 'w-20' : 'w-64'} 
+                bg-slate-800 flex flex-col transition-all duration-300 ease-in-out
+                fixed lg:relative h-full z-40
+                ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            `}>
+                {/* Header Sidebar */}
+                <div className="p-4 border-b border-slate-700">
+                    <div className="flex items-center justify-between">
+                        {!isSidebarCollapsed && (
+                            <h1 className="text-xl font-bold text-white">Opero</h1>
+                        )}
+                        {/* Bottone chiudi per mobile */}
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="lg:hidden text-white p-1"
+                        >
+                            <XMarkIcon className="h-6 w-6" />
+                        </button>
+                    </div>
+                    
+                    {/* Logo aziendale */}
+                    <div className="text-center my-4">
+                        <img 
+                            src={ditta.logo_url || 'https://placehold.co/100x100/FFFFFF/334155?text=Logo'} 
+                            alt="Logo Azienda" 
+                            className={`${isSidebarCollapsed ? 'w-12 h-12' : 'w-24 h-24'} rounded-full mx-auto border-2 border-slate-600 transition-all duration-300`}
+                            onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FFFFFF/334155?text=Logo'; }}
+                        />
+                        {!isSidebarCollapsed && (
+                            <p className="text-sm font-semibold text-white mt-2">{ditta.ragione_sociale}</p>
+                        )}
+                    </div>
+                    
+                    {/* Bottone collapse per desktop */}
+                    <button 
+                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                        className="hidden lg:flex w-full justify-center items-center py-2 text-white hover:bg-slate-700 rounded-md transition-colors"
+                        title={isSidebarCollapsed ? "Espandi menu" : "Comprimi menu"}
+                    >
+                        {isSidebarCollapsed ? (
+                            <ChevronRightIcon className="h-5 w-5" />
+                        ) : (
+                            <ChevronLeftIcon className="h-5 w-5" />
+                        )}
+                    </button>
                 </div>
-                <nav className="p-4">
-                    <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Menu</h2>
+
+                {/* Navigation - MODIFICATO: rimosso flex-1 per permettere espansione */}
+                <nav className="p-4 overflow-y-auto">
+                    {!isSidebarCollapsed && (
+                        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Menu</h2>
+                    )}
                     <ul className="space-y-2">
                         <li>
-                            <button onClick={() => setActiveModule('DASHBOARD')} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === 'DASHBOARD' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-                                Dashboard
+                            <button 
+                                onClick={() => setActiveModule('DASHBOARD')} 
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === 'DASHBOARD' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                                title={isSidebarCollapsed ? "Dashboard" : ""}
+                            >
+                                <HomeIcon className="h-5 w-5" />
+                                {!isSidebarCollapsed && <span className="ml-3">Dashboard</span>}
                             </button>
                         </li>
                         {modules.map(module => (
-                            /*<li key={module.codice}>
-                                <button onClick={() => setActiveModule(module.chiave_componente)} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-                                    {module.descrizione}
-                                </button>
-                            </li>*/
                             <li key={module.codice}>
-        <button onClick={() => {
-            console.log('CAMBIO MODULO RICHIESTO:', module.chiave_componente);
-            setActiveModule(module.chiave_componente);
-        }} className={`w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-            {module.descrizione}
-        </button>
-    </li>
+                                <button 
+                                    onClick={() => setActiveModule(module.chiave_componente)} 
+                                    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                                    title={isSidebarCollapsed ? module.descrizione : ""}
+                                >
+                                    {getModuleIcon(module.chiave_componente)}
+                                    {!isSidebarCollapsed && <span className="ml-3">{module.descrizione}</span>}
+                                </button>
+                            </li>
                         ))}
                     </ul>
                 </nav>
-                <div className="flex-grow mt-4">
-                    <CalendarWidget />
+
+                {/* Calendario Widget - MODIFICATO: posizionato in fondo senza flex-grow */}
+                <div className="mt-auto p-2 pb-4">
+                    <CalendarWidget isCollapsed={isSidebarCollapsed} />
                 </div>
             </aside>
-            <div className="flex-1 flex flex-col">
-                <header className="bg-white border-b flex items-center justify-between p-4">
-                   <div className="flex items-center gap-2">
-                        {(shortcuts || []).map(sc => (
-                            <button 
-                                key={sc.id}
-                                // ###############################################################
-                                // ## SOLUZIONE: Passiamo 'event' alla funzione onClick         ##
-                                // ###############################################################
-                                onClick={(event) => handleShortcutClick(event, sc)}
-                                title={sc.descrizione}
-                                className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                                {getIconForFunction(sc.codice)}
-                            </button>
-                        ))}
+
+            {/* MAIN CONTENT AREA */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* HEADER */}
+                <header className="bg-white border-b flex items-center justify-between p-4 z-20">
+                    <div className="flex items-center gap-2">
+                        {/* Hamburger menu per mobile */}
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(true)}
+                            className="lg:hidden text-gray-600 hover:text-gray-900 mr-2"
+                        >
+                            <Bars3Icon className="h-6 w-6" />
+                        </button>
+
+                        {/* Scorciatoie */}
+                        <div className="hidden md:flex items-center gap-2">
+                            {(shortcuts || []).map(sc => (
+                                <button 
+                                    key={sc.id}
+                                    onClick={(event) => handleShortcutClick(event, sc)}
+                                    title={sc.descrizione}
+                                    className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    {getIconForFunction(sc.codice)}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 md:gap-4">
                         <span className="text-sm hidden md:block">Benvenuto, {user.nome} {user.cognome}</span>
-                        <button onClick={() => setIsShortcutModalOpen(true)} title="Personalizza scorciatoie">
+                        <button 
+                            onClick={() => setIsShortcutModalOpen(true)} 
+                            title="Personalizza scorciatoie"
+                            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                        >
                             <Cog6ToothIcon className="h-6 w-6 text-gray-600 hover:text-blue-600" />
                         </button>
-                        <button onClick={logout} className="text-sm font-medium text-red-600 hover:underline">Logout</button>
+                        <button 
+                            onClick={logout} 
+                            className="text-sm font-medium text-red-600 hover:underline"
+                        >
+                            Logout
+                        </button>
                     </div>
                 </header>
-                <main className="flex-1 overflow-y-auto">
+
+                {/* MAIN CONTENT */}
+                <main className="flex-1 overflow-y-auto bg-gray-100">
                     {renderContent()}
                 </main>
             </div>

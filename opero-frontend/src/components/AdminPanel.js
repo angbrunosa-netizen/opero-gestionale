@@ -172,128 +172,204 @@ const exportToPDF = (data, columns, fileName, ditta) => {
 // Sotto-componente: Form di Creazione/Modifica Utente (Modal) (invariato)
 // ====================================================================
 // --- MODIFICA: Aggiungi 'selectedDittaId' tra le props ---
+/*
+* File: /opero-frontend/src/components/AdminPanel.js
+* Revisione: 1.4 (Fix UserFormModal state initialization)
+* Descrizione: Corretto l'errore nell'inizializzazione dello stato 'formData'
+* nel componente UserFormModal.
+*/
+
+// ... (Import e altri componenti come nel file fornito) ...
+
+// ====================================================================
+// Sotto-componente: Form di Creazione/Modifica Utente (Modal) (CORRETTO)
+// ====================================================================
+// ====================================================================
+// Sotto-componente: Form di Creazione/Modifica Utente (Modal) (RIVISTO)
+// ====================================================================
 const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
     const { user: currentUser } = useAuth();
-    const [formData, setFormData] = useState({});
     const [errors, setErrors] = useState({});
 
+    // --- NUOVA LOGICA DI INIZIALIZZAZIONE ---
+    // Definiamo una funzione per creare lo stato iniziale basato sulle props.
+    // Usiamo 'useMemo' per ricalcolarlo solo se 'user' o 'selectedDittaId' cambiano DAVVERO.
+    const initialFormData = useMemo(() => {
+        // console.log("[UserFormModal] Calcolo initialFormData. User:", user); // DEBUG se necessario
+        return {
+            id: user?.id || "",
+            nome: user?.nome || '',
+            cognome: user?.cognome || '',
+            email: user?.email || '',
+            id_ruolo: user?.id_ruolo || '',
+            livello: user?.livello || '',
+            Codice_Tipo_Utente: user?.Codice_Tipo_Utente || '',
+            stato: user?.stato || 'attivo',
+            id_ditta: selectedDittaId || user?.id_ditta || '', // Priorità a selectedDittaId
+        };
+    }, [user, selectedDittaId]);
+
+    // Inizializziamo lo stato con i valori calcolati.
+    const [formData, setFormData] = useState(initialFormData);
+
+    // Questo useEffect serve ORA SOLO a sincronizzare lo stato
+    // SE le props cambiano DOPO il montaggio iniziale.
+    // È una salvaguardia, ma l'inizializzazione chiave è fatta sopra.
     useEffect(() => {
-        // --- MODIFICA: Aggiungi 'id_ditta' allo stato del form ---
-        setFormData({
-            id: user.id,
-            nome: user.nome || '',
-            cognome: user.cognome || '',
-            email: user.email || '',
-            id_ruolo: user.id_ruolo || '',
-            livello: user.livello || '',
-            Codice_Tipo_Utente: user.Codice_Tipo_Utente || '',
-            stato: user.stato || 'attivo',
-            id_ditta: user.id_ditta || selectedDittaId, // <--- AGGIUNTA QUI
-        });
-    }, [user, selectedDittaId]); // Aggiungi selectedDittaId alle dipendenze
+        // console.log("[UserFormModal] useEffect [user, selectedDittaId] triggered."); // DEBUG se necessario
+        setFormData(initialFormData); // Resetta allo stato calcolato dalle props correnti
+        setErrors({}); // Resetta errori quando l'utente cambia
+    }, [initialFormData]); // Usiamo initialFormData come dipendenza, che a sua volta dipende da user/selectedDittaId
+
+    // --- DEBUG AGGIUNTIVO: Logga lo stato DOPO ogni potenziale aggiornamento ---
+    useEffect(() => {
+        console.log('[UserFormModal] Stato formData aggiornato:', formData);
+    }, [formData]);
+    // --- FINE DEBUG AGGIUNTIVO ---
+
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
         if (errors[name]) {
-            setErrors(prev => ({ ...prev, [name]: '' }));
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[name];
+                return newErrors;
+            });
         }
     };
 
     const validateForm = () => {
-        const newErrors = {};
+        // ... (Logica di validazione invariata) ...
+         const newErrors = {};
         if (!formData.nome) newErrors.nome = 'Il nome è obbligatorio.';
         if (!formData.cognome) newErrors.cognome = 'Il cognome è obbligatorio.';
-        if (!formData.id_ruolo) newErrors.id_ruolo = 'Il ruolo è obbligatorio.';
-        const livelloNum = parseInt(formData.livello, 10);
-        if (isNaN(livelloNum) || livelloNum < 1 || livelloNum > 80) {
-            newErrors.livello = 'Il livello deve essere un numero tra 1 e 80.';
+        if (formData.id_ruolo === undefined || formData.id_ruolo === '' || formData.id_ruolo === null) {
+             newErrors.id_ruolo = 'Il ruolo è obbligatorio.';
         }
-        
+
+
+        let maxLevel = 80;
+        if (currentUser?.id_ruolo === 2) maxLevel = 90;
+        else if (currentUser?.id_ruolo === 1) maxLevel = 100;
+
+        const livelloNum = parseInt(formData.livello, 10);
+        if (isNaN(livelloNum) || livelloNum < 1 || livelloNum > maxLevel) {
+            newErrors.livello = `Il livello deve essere un numero tra 1 e ${maxLevel}.`;
+        }
+        if (currentUser?.id_ruolo === 2) {
+            if (livelloNum > 90) {
+                 newErrors.livello = 'Come Amministratore Ditta, non puoi impostare un livello superiore a 90.';
+            }
+            if (formData.id_ruolo && parseInt(formData.id_ruolo, 10) <= 2) {
+                newErrors.id_ruolo = 'Non puoi assegnare ruoli di Amministratore.';
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = (e) => {
-        e.preventDefault();
+        // ... (Logica handleSubmit invariata) ...
+         e.preventDefault();
         if (validateForm()) {
-            onSave(formData);
+            const dataToSave = { ...formData, id_ditta: selectedDittaId };
+            onSave(dataToSave);
+        } else {
+             console.log('[UserFormModal] Validazione fallita:', errors);
+             toast.warn("Correggi gli errori nel form prima di salvare.");
         }
     };
 
+    // Il JSX del return rimane identico alla versione precedente
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                <h3 className="text-lg font-bold mb-4">Modifica Dati Utente</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* --- MODIFICA: Aggiungi un campo nascosto per id_ditta --- */}
-                    <input type="hidden" name="id_ditta" value={formData.id_ditta} />
+                <h3 className="text-lg font-bold mb-4">{user?.id ? 'Modifica Dati Utente' : 'Crea Nuovo Utente'}</h3>
+                 <form onSubmit={handleSubmit} className="space-y-4">
+                     {/* Nome e Cognome */}
+                     <div className="grid grid-cols-2 gap-4">
+                         <div>
+                             <label htmlFor="nome" className="block text-sm font-medium text-gray-700">Nome</label>
+                             <input type="text" id="nome" name="nome" value={formData.nome || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.nome ? 'border-red-500' : 'border-gray-300'}`} />
+                             {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
+                         </div>
+                         <div>
+                             <label htmlFor="cognome" className="block text-sm font-medium text-gray-700">Cognome</label>
+                             <input type="text" id="cognome" name="cognome" value={formData.cognome || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.cognome ? 'border-red-500' : 'border-gray-300'}`} />
+                             {errors.cognome && <p className="text-red-500 text-xs mt-1">{errors.cognome}</p>}
+                         </div>
+                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="nome" className="block text-sm font-medium text-gray-700">Nome</label>
-                            <input type="text" id="nome" name="nome" value={formData.nome} onChange={handleChange} className="mt-1 p-2 border rounded w-full" />
-                            {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
-                        </div>
-                        <div>
-                            <label htmlFor="cognome" className="block text-sm font-medium text-gray-700">Cognome</label>
-                            <input type="text" id="cognome" name="cognome" value={formData.cognome} onChange={handleChange} className="mt-1 p-2 border rounded w-full" />
-                            {errors.cognome && <p className="text-red-500 text-xs mt-1">{errors.cognome}</p>}
-                        </div>
-                    </div>
+                     {/* Email (Readonly) */}
+                     <div>
+                         <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                         <input type="email" id="email" name="email" value={formData.email || ''} readOnly className="mt-1 p-2 border rounded w-full bg-gray-100 cursor-not-allowed" />
+                     </div>
 
-                    <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-                        <input type="email" id="email" name="email" value={formData.email} readOnly className="mt-1 p-2 border rounded w-full bg-gray-100 cursor-not-allowed" />
-                    </div>
+                     {/* Livello */}
+                     <div>
+                         <label htmlFor="livello" className="block text-sm font-medium text-gray-700">Livello (1-{currentUser?.id_ruolo === 1 ? 100 : currentUser?.id_ruolo === 2 ? 90 : 80})</label>
+                         <input
+                             type="number"
+                             id="livello"
+                             name="livello"
+                             value={formData.livello || ''}
+                             onChange={handleChange}
+                             min="1"
+                             max={currentUser?.id_ruolo === 1 ? 100 : currentUser?.id_ruolo === 2 ? 90 : 80}
+                             className={`mt-1 p-2 border rounded w-full ${errors.livello ? 'border-red-500' : 'border-gray-300'}`}
+                         />
+                         {errors.livello && <p className="text-red-500 text-xs mt-1">{errors.livello}</p>}
+                     </div>
 
-                    <div>
-                        <label htmlFor="livello" className="block text-sm font-medium text-gray-700">Livello (1-80)</label>
-                        <input 
-                            type="number" 
-                            id="livello" 
-                            name="livello" 
-                            value={formData.livello} 
-                            onChange={handleChange} 
-                            min="1" 
-                            max="80"
-                            className="mt-1 p-2 border rounded w-full" 
-                        />
-                        {errors.livello && <p className="text-red-500 text-xs mt-1">{errors.livello}</p>}
-                    </div>
+                     {/* Stato */}
+                     <div>
+                         <label htmlFor="stato" className="block text-sm font-medium text-gray-700">Stato</label>
+                         <select id="stato" name="stato" value={formData.stato || 'attivo'} onChange={handleChange} className="mt-1 p-2 border border-gray-300 rounded w-full">
+                             <option value="attivo">Attivo</option>
+                             <option value="bloccato">Bloccato</option>
+                         </select>
+                     </div>
 
-                    <div>
-                        <label htmlFor="stato" className="block text-sm font-medium text-gray-700">Stato</label>
-                        <select id="stato" name="stato" value={formData.stato} onChange={handleChange} className="mt-1 p-2 border rounded w-full">
-                            <option value="attivo">Attivo</option>
-                            <option value="bloccato">Bloccato</option>
-                        </select>
-                    </div>
+                     {/* Codice Tipo Utente */}
+                     <div>
+                         <label htmlFor="Codice_Tipo_Utente" className="block text-sm font-medium text-gray-700">Codice Tipo Utente</label>
+                         <input type="text" id="Codice_Tipo_Utente" name="Codice_Tipo_Utente" value={formData.Codice_Tipo_Utente || ''} onChange={handleChange} className="mt-1 p-2 border border-gray-300 rounded w-full" placeholder="Es. AGENTE, INTERNO (opzionale)" />
+                     </div>
 
-                    <div>
-                        <label htmlFor="Codice_Tipo_Utente" className="block text-sm font-medium text-gray-700">Codice Tipo Utente</label>
-                        <input type="text" id="Codice_Tipo_Utente" name="Codice_Tipo_Utente" value={formData.Codice_Tipo_Utente} onChange={handleChange} className="mt-1 p-2 border rounded w-full" />
-                    </div>
+                     {/* Ruolo */}
+                     <div>
+                         <label htmlFor="id_ruolo" className="block text-sm font-medium text-gray-700">Ruolo</label>
+                         <select id="id_ruolo" name="id_ruolo" value={formData.id_ruolo || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.id_ruolo ? 'border-red-500' : 'border-gray-300'}`}>
+                             <option value="">Seleziona Ruolo</option>
+                             {ruoli
+                                .filter(r => {
+                                    if (currentUser?.id_ruolo === 1) return true;
+                                    if (currentUser?.id_ruolo === 2) return r.id > 2;
+                                    return false;
+                                })
+                                .map(r => <option key={r.id} value={r.id}>{r.ruolo}</option>)
+                             }
+                         </select>
+                         {errors.id_ruolo && <p className="text-red-500 text-xs mt-1">{errors.id_ruolo}</p>}
+                     </div>
 
-                    <div>
-                        <label htmlFor="id_ruolo" className="block text-sm font-medium text-gray-700">Ruolo</label>
-                        <select id="id_ruolo" name="id_ruolo" value={formData.id_ruolo} onChange={handleChange} className="mt-1 p-2 border rounded w-full">
-                            <option value="">Seleziona Ruolo</option>
-                            {ruoli.map(r => <option key={r.id} value={r.id}>{r.ruolo}</option>)}
-                        </select>
-                        {errors.id_ruolo && <p className="text-red-500 text-xs mt-1">{errors.id_ruolo}</p>}
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-4">
-                        <button type="button" onClick={onCancel} className="btn-secondary">Annulla</button>
-                        <button type="submit" className="btn-primary">Salva</button>
-                    </div>
-                </form>
+                     {/* Pulsanti */}
+                     <div className="flex justify-end gap-2 pt-4">
+                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Annulla</button>
+                         <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Salva</button>
+                     </div>
+                 </form>
             </div>
         </div>
     );
 };
-
+// ... (Resto del file AdminPanel.js come fornito, con GestioneUtenti, AssociaModuliDitta, etc.) ...
+// Assicurati che il file termini con l'export corretto:
+// export default AdminPanel;
 // ====================================================================
 // Sotto-componente: Gestione Utenti (MODIFICATO per includere invito, recupero PW e gestione livelli)
 // ====================================================================
@@ -334,6 +410,7 @@ const GestioneUtenti = () => {
             setUtenti([]);
             return;
         }
+        console.log(`[DEBUG] Chiamando fetchUtentiForDitta per dittaId: ${dittaId}`); // <-- LOG AGGIUNTO
         setIsLoading(true);
         try {
             const response = await api.get(`/admin/utenti/ditta/${dittaId}`);
@@ -341,6 +418,7 @@ const GestioneUtenti = () => {
         } catch (error) {
             toast.error("Impossibile caricare l'elenco degli utenti.");
             console.error(`Errore nel caricamento degli utenti per la ditta ${dittaId}:`, error);
+            console.error(`[DEBUG] Errore in fetchUtentiForDitta per ditta ${dittaId}:`, error); // <-- LOG AGGIUNTO
             setUtenti([]);
         }
         setIsLoading(false);
@@ -384,19 +462,44 @@ const GestioneUtenti = () => {
         toast.info("Invito inviato. L'elenco utenti si aggiornerà quando l'utente completerà la registrazione.");
     };
 
-    const handleEditUser = useCallback(async (userId) => {
-        console.log(`[FRONTEND] Tentativo di modifica per l'utente con ID: ${userId}`);
-        try {
-            const response = await api.get(`/admin/utenti/${userId}`);
-            console.log('[FRONTEND] Dati ricevuti dal backend:', response.data.utente);
-            setEditingUser(response.data.utente);
-            setIsModalOpen(true);
-        } catch (error) {
-            console.error(`Errore nel caricamento dei dati dell'utente ${userId}:`, error);
+   const handleEditUser = useCallback(async (userId) => {
+     console.log(`[FRONTEND] Tentativo di modifica per l'utente con ID: ${userId}`);
+
+        // --- INIZIO CORREZIONE ---
+        // Non facciamo una nuova chiamata API. I dati dell'utente sono
+        // già presenti nello stato 'utenti' caricato dalla griglia.
+        const userToEdit = utenti.find(u => u.id === userId);
+
+        if (userToEdit) {
+            console.log('[FRONTEND] Dati utente trovati localmente:', userToEdit);
+            // Questo oggetto 'userToEdit' contiene l'ID, nome, cognome, id_ruolo, etc.
+            // necessari al modal per funzionare.
+         setEditingUser(userToEdit);
+        setIsModalOpen(true);
+        } else {
+            // Questo è un caso di errore, non dovrebbe succedere
+            console.error(`Errore: impossibile trovare l'utente ${userId} nei dati locali.`);
+            toast.error("Impossibile modificare l'utente. Prova a ricaricare.");
         }
+        // --- FINE CORREZIONE ---
+
+    /* // RIMUOVIAMO LA VECCHIA LOGICA ERRATA
+        try {
+            // QUESTA ROTTA NON ESISTE IN admin.js e causa il fallimento
+            const response = await api.get(`/admin/utenti/${userId}`); 
+            console.log('[FRONTEND] Dati ricevuti dal backend:', response.data.utente);
+            setEditingUser(response.data.utente);
+            setIsModalOpen(true);
+        } catch (error) {
+            console.error(`Errore nel caricamento dei dati dell'utente ${userId}:`, error);
+        }
+        */
     },
+     [utenti] // <- Aggiungi 'utenti' alle dipendenze di useCallback
+);
+
     
-    []);
+  //  []);
 
     const handleDeleteUser = useCallback(async (userId) => {
         if (window.confirm('Sei sicuro di voler eliminare questo utente?')) {
@@ -456,39 +559,51 @@ const GestioneUtenti = () => {
     }, [hasPermission]); // Aggiunta dipendenza hasPermission
 
 const handleSaveUser = useCallback(async (userData) => {
-        // Estrai l'ID per decidere se è una modifica o una creazione
-        const { id } = userData;
-        const isModifica = !!id;
-        const actionType = isModifica ? 'Modifica' : 'Creazione';
+ // Estrai l'ID per decidere se è una modifica o una creazione
+ const { id } = userData;
+ const isModifica = !!id;
+ const actionType = isModifica ? 'Modifica' : 'Creazione';
 
-        try {
-            if (isModifica) {
-                // --- Logica di MODIFICA (PUT) ---
-                // Nota l'uso dei backtick (`) e l'ID nell'URL
-                await api.put(`/admin/utenti/${id}`, userData);
-            } else {
-                // --- Logica di CREAZIONE (POST) ---
-                await api.put(`/admin/utenti/${id}`, userData);
+ try {
+ if (isModifica) {
+ // --- Logica di MODIFICA (PUT) ---
+                // Con la Correzione 1, 'id' ora sarà valorizzato correttamente.
+ await api.put(`/admin/utenti/${id}`, userData);
+ } else {
+ // --- Logica di CREAZIONE (POST) ---
+                
+                // --- INIZIO CORREZIONE ---
+                // ERRORE: Questa era 'api.put' con un id undefined (causava 404)
+// await api.put(`/admin/utenti/${id}`, userData);
+               
+                // NOTA: La creazione in questo pannello avviene tramite "InvitaUtenteModal".
+                // Questo blocco 'else' non dovrebbe essere raggiunto.
+                // Se dovesse essere raggiunto, generiamo un errore chiaro
+                // invece di far fallire la chiamata API.
+                console.error("Errore Logico: 'handleSaveUser' chiamato in modalità Creazione.");
+                toast.error("Errore: questo form può solo modificare utenti. Usare 'Invita Utente' per crearne di nuovi.");
+                // --- FINE CORREZIONE ---
+ }
+ 
+            // Questa parte ora funzionerà solo per la modifica
+ const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
+ logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
+ 
+ setIsModalOpen(false);
+setEditingUser(null); 
+ 
+            // Ricarica gli utenti
+            // NOTA: Se 'handleSaveUser' è stato chiamato per modifica, selectedDittaId è già valorizzato
+            if (selectedDittaId) {
+    fetchUtentiForDitta(selectedDittaId);
             }
-            
-            // Logica di feedback e aggiornamento
-            const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
-            logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
-            
-            setIsModalOpen(false);
-            setEditingUser(null); // Pulisci l'utente in modifica
-            
-            // Ricarica gli utenti per la ditta selezionata
-            const response = await api.get(`/admin/utenti/ditta/${selectedDittaId}`);
-            setUtenti(response.data.utenti);
 
-        } catch (error) {
-            // Refuso corretto ("during" -> "durante")
-            console.error(`Errore durante il salvataggio dell'utente (${actionType}):`, error);
-        }
-    // Aggiungiamo le dipendenze per useCallback
-    }, [ditte, selectedDittaId, logAction]); // Aggiungi qui le dipendenz
-
+ } catch (error) {
+ console.error(`Errore during il salvataggio dell'utente (${actionType}):`, error);
+            // Aggiungiamo un toast di errore
+            toast.error(`Errore durante il salvataggio: ${error.message}`);
+ }
+ }, [ditte, selectedDittaId, logAction, fetchUtentiForDitta]); // <- Aggiungi fetchUtentiForDitta
     const handleExport = (format) => {
         const selectedDitta = ditte.find(d => d.id === parseInt(selectedDittaId, 10));
         if (!selectedDitta) {
@@ -525,8 +640,20 @@ const handleSaveUser = useCallback(async (userData) => {
 
     // --- Definizione 'columns' ---
     const columns = useMemo(() => [
-        { header: 'Username', accessorKey: 'username' },
+        {
+            header: 'Username',
+            // Rimuoviamo accessorKey perché il valore è calcolato
+            // accessorKey: 'username',
+            // Usiamo una cell function per concatenare nome e cognome
+            cell: info => {
+                const nome = info.row.original.nome || '';
+                const cognome = info.row.original.cognome || '';
+                return `${nome} ${cognome}`.trim(); // Trim per rimuovere spazi extra se uno dei due manca
+            }
+        },
         { header: 'Email', accessorKey: 'email' },
+        
+        { header: 'Livello', accessorKey: 'livello' },
         {
             header: 'Ruolo',
             accessorKey: 'id_ruolo',
@@ -625,10 +752,7 @@ const handleSaveUser = useCallback(async (userData) => {
                     </div>
                     <AdvancedDataGrid columns={columns} data={utenti} isLoading={isLoading} />
 
-                    {/* --- 2. INSERIMENTO NUOVO COMPONENTE --- */}
-                    {hasPermission('AM_UTE_LVL') && (
-                        <GestioneLivelliUtente />
-                    )}
+                    
                 </>
             )}
             {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => { setIsModalOpen(false); setEditingUser(null); }} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
@@ -1133,13 +1257,13 @@ function AdminPanel() {
             component: <MonitoraggioSistema />,
             permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW']
         },
-        {
+       /* {
              key: 'livelliUtente',
              label: 'Livelli Utente Ditta',
              component: <GestioneLivelliUtente />,
              permission: 'AM_UTE_LVL',
              isSystemAdminOnly: false
-         }, // <-- NUOVA TAB
+         }, // <-- NUOVA TAB*/
     // eslint-disable-next-line react-hooks/exhaustive-deps
     ]), []); // Rimosse dipendenze non necessarie, i componenti sono definiti sopra
 

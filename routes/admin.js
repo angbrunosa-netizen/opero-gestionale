@@ -148,35 +148,67 @@ router.get('/utenti/:id/ditte', [verifyToken, checkPermission('ADMIN_USER_PERMIS
 
 
 
-router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin], async (req, res) => {
+
+/*
+* File: /routes/admin.js
+* Revisione: 8.7 (Fix GET /utenti/ditta/:id_ditta - Rimozione u.username inesistente)
+* Descrizione: Corretta DEFINITIVAMENTE la query Knex rimuovendo 'u.username' (che non esiste)
+* e assicurando la presenza di u.nome, u.cognome, aud.livello, aud.Codice_Tipo_Utente.
+*/
+
+// ... (require, middleware, altre rotte come nel file originale) ...
+
+// Rimuovi o commenta la rotta GET /utenti/:id se non è utilizzata
+/*
+router.get('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
+    // ... codice ...
+});
+*/
+
+// --------------------------------------------------------------------
+// GET Utenti per Ditta (Rotta che popola la griglia GestioneUtenti) - CORRETTA
+// SOSTITUISCI LA TUA VERSIONE ESISTENTE CON QUESTA:
+// --------------------------------------------------------------------
+router.get('/utenti/ditta/:id_ditta', [verifyToken, isDittaAdmin, checkPermission('UTENTI_VIEW')], async (req, res) => {
     const { id_ditta } = req.params;
     const requester = req.user;
 
-    // Sicurezza: Un Ditta Admin può vedere solo gli utenti della propria ditta.
-    if (requester.id_ruolo === 2 && parseInt(id_ditta, 10) !== requester.id_ditta) {
-        return res.status(403).json({ success: false, message: 'Accesso non autorizzato.' });
-    }
-
     try {
+        // Controllo sicurezza Ditta Admin
+        if (requester.id_ruolo === 2 && parseInt(id_ditta, 10) !== requester.id_ditta) {
+            console.warn(`[AUTH] Tentativo non autorizzato da Ditta Admin ${requester.id} di vedere utenti ditta ${id_ditta}`);
+            return res.status(403).json({ success: false, message: 'Accesso non autorizzato.' });
+        }
+
+        // --- Query Knex CORRETTA con TUTTI i campi e SENZA u.username ---
         const utenti = await knex('ad_utenti_ditte as aud')
             .join('utenti as u', 'aud.id_utente', 'u.id')
-            .join('ruoli as r', 'aud.id_ruolo', 'r.id')
+            // Rimosso join con 'ruoli' perché non serve qui
             .where('aud.id_ditta', id_ditta)
             .select(
-                'u.id as id', // *** CORREZIONE CRUCIALE per compatibilità frontend ***
-                'aud.id as id_associazione',
-                knex.raw('CONCAT(u.nome, " ", u.cognome) as username'),
-                'u.email',
-                'aud.id_ruolo',
-                'r.tipo as nome_ruolo',
-                'aud.stato'
+                'u.id as id',               // ID Utente (da 'utenti', alias 'id')
+                'aud.id as id_associazione',// ID Associazione (opzionale)
+                // 'u.username',             // RIMOSSO - Colonna inesistente!
+                'u.email',                // Email
+                'u.nome',                 // <-- PRESENTE!
+                'u.cognome',              // <-- PRESENTE!
+                'aud.id_ruolo',           // ID Ruolo (dall'associazione)
+                'aud.stato',              // Stato (dall'associazione)
+                'aud.livello',            // <-- PRESENTE! (dall'associazione)
+                'aud.Codice_Tipo_Utente'  // <-- PRESENTE! (dall'associazione)
             );
+        // --- Fine Query Knex CORRETTA ---
+
         res.json({ success: true, utenti });
+
     } catch (error) {
-        console.error(`Errore recupero utenti per ditta ${id_ditta}:`, error);
-        res.status(500).json({ success: false, message: "Errore nel recupero degli utenti." });
+        // Log specifico dell'errore SQL se disponibile
+        const sqlError = error.sqlMessage ? ` (SQL: ${error.sqlMessage})` : '';
+        console.error(`[API GET /utenti/ditta/${id_ditta}] Errore recupero utenti:${sqlError}`, error.stack || error);
+        res.status(500).json({ success: false, message: "Errore interno del server nel recupero degli utenti." });
     }
 });
+
 
 
 /* sostituita da put utenti/id
@@ -327,21 +359,21 @@ router.get('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
     try {
         // La query cerca l'associazione specifica tra l'utente richiesto e la ditta dell'admin.
         const utente = await knex('ad_utenti_ditte as aud')
-            .join('utenti as u', 'aud.id_utente', 'u.id')
+            .join('ad_utenti_ditte as ud', 'u.id', 'ud.id_utente')
+            .where('ud.id_ditta', dittaId)
             .select(
-                'u.id as id_utente',
+                'u.id', // <-- CORREZIONE: Questo è l'ID utente corretto
+                'u.username',
+                'u.email',
                 'u.nome',
                 'u.cognome',
-                'u.email',
-                'aud.id as id_associazione',
-                'aud.id_ditta',
-                'aud.id_ruolo',
-                'aud.Codice_Tipo_Utente',
-                'aud.stato',
-                'aud.livello'
-
-            )
-            .where('aud.id_utente', id_utente)
+                'ud.id_ruolo',
+                'ud.stato', // 'attivo', 'bloccato', 'invitato'
+                'ud.livello',
+                'ud.Codice_Tipo_Utente',
+                'ud.id as id_associazione' // ID dell'associazione (precedentemente inviato come 'id')
+            );
+            where('aud.id_utente', id_utente)
             .andWhere('aud.id_ditta', requester.id_ditta) // Filtra per la ditta del richiedente
             .first();
 
@@ -853,31 +885,6 @@ router.post('/utenti/:id/sblocca', verifyToken, checkPermission('ADMIN_UTENTI_SB
 });
 
 
-router.get('/utenti/ditta/:dittaId', verifyToken, checkPermission('UTENTI_VIEW'), async (req, res) => {
-    const { dittaId } = req.params;
-    let connection;
-    try {
-        connection = await dbPool.getConnection();
-        const [utenti] = await connection.query(
-            `SELECT 
-                u.id, 
-                u.nome, 
-                u.cognome, 
-                u.email, 
-                u.id_ruolo, 
-                r.tipo as nome_ruolo, 
-                u.stato  -- Assicura che questo campo venga selezionato
-             FROM utenti u 
-             LEFT JOIN ruoli r ON u.id_ruolo = r.id 
-             WHERE u.id_ditta = ?`,
-            [dittaId]
-        );
-        res.json({ success: true, utenti });
-    } catch (error) {
-        console.error("Errore nel recuperare gli utenti:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
-    }
-});
 
 
 // ===================================================================
@@ -1051,7 +1058,7 @@ router.post('/setup-ditta-proprietaria', [verifyToken, isSystemAdmin], async (re
 // --- NUOVA ROTTA PER GENERAZIONE LINK RECUPERO DA ADMIN ---
 // API: Genera link recupero password per un utente (solo Admin)
 // NOTA: Questa route è stata modificata per allinearla alla validazione di auth.js
-router.post('/utenti/:id/generate-recovery-link', [verifyToken, isDittaAdmin, checkPermission('ADMIN_USERS_MANAGE')], async (req, res) => {
+router.post('/utenti/:id/generate-recovery-link', [verifyToken, isDittaAdmin, checkPermission('ADM_PWD_REC')], async (req, res) => {
     const { id } = req.params; // ID utente per cui generare il link
     const adminId = req.user.id;
     const adminDittaId = req.user.id_ditta;
@@ -1148,7 +1155,7 @@ router.post('/utenti/:id/generate-recovery-link', [verifyToken, isDittaAdmin, ch
 
 
 // --- NUOVE ROTTE GESTIONE LIVELLI UTENTE (SPOSTATE QUI) ---
-
+/*
 // GET: Recupera utenti associati alla ditta corrente con il loro livello specifico
 // Accessibile solo a Admin Ditta/System Admin con permesso AM_UTE_LVL
 router.get('/utenti-ditta', [verifyToken, isDittaAdmin, checkPermission('AM_UTE_LVL')], async (req, res) => {
@@ -1182,7 +1189,8 @@ router.get('/utenti-ditta', [verifyToken, isDittaAdmin, checkPermission('AM_UTE_
         console.error('Errore recupero utenti per ditta:', error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
-});
+});*/
+
 
 // PUT: Aggiorna il livello di accesso di un utente specifico per la ditta corrente
 // Accessibile solo a Admin Ditta/System Admin con permesso AM_UTE_LVL
@@ -1199,74 +1207,131 @@ router.get('/utenti-ditta', [verifyToken, isDittaAdmin, checkPermission('AM_UTE_
 
 // In routes/admin.js
 
+// File: opero/routes/admin.js
+// Descrizione: Rotta per l'aggiornamento dei dati di un utente esistente.
+// Utilizzo: Chiamata dal frontend quando si salvano le modifiche nel modal UserFormModal.
+
 router.put('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
+    // --- CORREZIONE: Estrarre 'id' da req.params ---
     const { id } = req.params;
+    // --- FINE CORREZIONE ---
+
     const { nome, cognome, id_ruolo, livello, Codice_Tipo_Utente, stato, id_ditta: id_ditta_from_body } = req.body;
-     
+
     const requester = req.user;
 
+    // Determina l'ID della ditta su cui operare. Se viene passato nel body (es. da SysAdmin), usa quello, altrimenti usa la ditta del richiedente.
     const id_ditta_operativa = id_ditta_from_body || requester.id_ditta;
 
+    // Validazione input base
     if (!id_ditta_operativa) {
         return res.status(400).json({ success: false, message: 'Impossibile determinare la ditta di operazione.' });
     }
-
     if (!nome || !cognome) {
         return res.status(400).json({ success: false, message: 'Nome e cognome sono obbligatori.' });
     }
-    if (!id_ruolo) {
+    if (id_ruolo === undefined || id_ruolo === null) { // Controllo più robusto per id_ruolo
         return res.status(400).json({ success: false, message: 'Il ruolo è obbligatorio.' });
     }
-    if (livello === undefined || livello === null || livello < 1 || livello > 80) {
-        return res.status(400).json({ success: false, message: 'Il livello è obbligatorio e deve essere compreso tra 1 e 80.' });
+     // Validazione livello: Assicurati che sia un numero e nell'intervallo corretto
+    const livelloNum = parseInt(livello, 10);
+    if (isNaN(livelloNum) || livelloNum < 1 || livelloNum > 90) { // Esteso a 90 per Ditta Admin
+       return res.status(400).json({ success: false, message: 'Il livello è obbligatorio e deve essere compreso tra 1 e 90.' });
     }
 
+    // Controlli di sicurezza specifici per Ditta Admin (ruolo 2)
     if (requester.id_ruolo === 2) {
         if (parseInt(id_ditta_operativa, 10) !== requester.id_ditta) {
             return res.status(403).json({ success: false, message: 'Non autorizzato a gestire utenti per altre ditte.' });
         }
+        // Un Ditta Admin non può assegnare ruoli uguali o superiori al proprio (Admin Ditta o Sys Admin)
         if (parseInt(id_ruolo, 10) <= 2) {
             return res.status(403).json({ success: false, message: 'Non autorizzato ad assegnare ruoli di amministratore.' });
         }
+         // Un Ditta Admin non può impostare un livello superiore al proprio livello massimo (90)
+         if (livelloNum > 90) {
+             return res.status(403).json({ success: false, message: 'Non puoi assegnare un livello superiore a 90.' });
+         }
+         // Verifica se si sta tentando di modificare un utente con livello superiore o uguale
+         const utenteTarget = await knex('ad_utenti_ditte')
+                                   .where({ id_utente: id, id_ditta: id_ditta_operativa })
+                                   .select('livello')
+                                   .first();
+         if (utenteTarget && utenteTarget.livello >= requester.livello) {
+              return res.status(403).json({ success: false, message: 'Non puoi modificare un utente con livello uguale o superiore al tuo.' });
+         }
     }
 
-    const datiAnagrafici = { nome, cognome };
-    const datiAssociazione = { id_ruolo, livello, Codice_Tipo_Utente, stato };
-// In routes/admin.js
 
-const trx = await knex.transaction();
-try {
-    // --- INDAGINE APPROFONDITA SU REQ.PARAMS ---
-    console.log('--- AUTOPSIA DI REQ.PARAMS ---');
-    console.log('Oggetto req.params completo:', req.params);
-    console.log("Valore di req.params.id:", req.params.id);
-    console.log("Tipo di req.params.id:", typeof req.params.id);
-    console.log("req.params.id in JSON:", JSON.stringify(req.params));
-    console.log('-----------------------------------');
+    // Preparazione dei dati per l'aggiornamento
+    const datiAnagrafici = { nome, cognome }; // Aggiorna solo nome e cognome nella tabella 'utenti'
+    const datiAssociazione = {}; // Oggetto per aggiornare 'ad_utenti_ditte'
 
-    // A questo punto, sappiamo che l'ID è corrotto, quindi non ha senso continuare.
-    // Restituiamo un errore che ci dica esattamente cosa abbiamo ricevuto.
-    await trx.rollback(); // Chiudiamo la transazione
-    return res.status(400).json({ 
-        success: false, 
-        message: 'Debug: il valore di req.params.id è corrotto. Valore ricevuto: ' + JSON.stringify(req.params.id) 
-    });
+    // Aggiungi solo i campi definiti per l'associazione, evitando sovrascritture con undefined/null
+    if (id_ruolo !== undefined) datiAssociazione.id_ruolo = id_ruolo;
+    if (livelloNum !== undefined && !isNaN(livelloNum)) datiAssociazione.livello = livelloNum; // Usa il livello numerico validato
+    if (Codice_Tipo_Utente !== undefined) datiAssociazione.Codice_Tipo_Utente = Codice_Tipo_Utente;
+    if (stato !== undefined) datiAssociazione.stato = stato;
 
-    // Il resto del codice non verrà eseguito
-    await trx('utenti').where({ id }).update(datiAnagrafici);
-    await trx('ad_utenti_ditte')
-        .where({ id_utente: id, id_ditta: id_ditta_operativa })
-        .update(datiAssociazione);
 
-    await trx.commit();
-    res.json({ success: true, message: 'Utente aggiornato con successo.' });
+    // Inizio transazione
+    const trx = await knex.transaction();
+    try {
+        // --- CORREZIONE: Rimosso il blocco di debug che causava l'errore ---
 
-} catch (error) {
-    await trx.rollback();
-    console.error("Errore aggiornamento utente:", error);
-    res.status(500).json({ success: false, message: 'Errore del server durante l\'aggiornamento.' });
-}
+        // 1. Aggiorna dati anagrafici nella tabella 'utenti'
+        const updatedUtenti = await trx('utenti').where({ id: id }).update(datiAnagrafici);
+
+        // Verifica se l'utente esiste
+        if (updatedUtenti === 0) {
+             await trx.rollback();
+             return res.status(404).json({ success: false, message: 'Utente non trovato.' });
+        }
+
+
+        // 2. Aggiorna dati specifici dell'associazione nella tabella 'ad_utenti_ditte'
+        //    Assicurati che ci siano dati da aggiornare per l'associazione
+        if (Object.keys(datiAssociazione).length > 0) {
+            const updatedAssociazione = await trx('ad_utenti_ditte')
+                .where({ id_utente: id, id_ditta: id_ditta_operativa })
+                .update(datiAssociazione);
+
+             // Se l'associazione non esiste per quella ditta, potrebbe essere un errore logico
+             if (updatedAssociazione === 0) {
+                 console.warn(`Tentativo di aggiornare associazione non trovata per utente ${id} e ditta ${id_ditta_operativa}`);
+                 // Potresti decidere di restituire un errore o semplicemente loggare, a seconda della logica attesa
+                 // await trx.rollback();
+                 // return res.status(404).json({ success: false, message: 'Associazione utente-ditta non trovata.' });
+             }
+        } else {
+             console.log(`Nessun dato di associazione da aggiornare per utente ${id} / ditta ${id_ditta_operativa}. Aggiornati solo dati anagrafici.`);
+        }
+
+
+         // 3. Log dell'azione (Opzionale ma raccomandato)
+         await trx('log_azioni').insert({
+             id_utente: requester.id,
+             id_ditta: requester.id_ditta, // Ditta dell'admin che esegue l'azione
+             azione: 'AGGIORNAMENTO_UTENTE',
+             dettagli: `Aggiornato utente ID: ${id} per ditta ID: ${id_ditta_operativa}. Dati: ${JSON.stringify({ ...datiAnagrafici, ...datiAssociazione })}`,
+             modulo :'admin',
+             funzione:'modifica_utente'
+            });
+
+
+        // Commit della transazione se tutto è andato a buon fine
+        await trx.commit();
+        res.json({ success: true, message: 'Utente aggiornato con successo.' });
+
+    } catch (error) {
+        // Rollback in caso di errore
+        await trx.rollback();
+        console.error(`Errore aggiornamento utente ${id}:`, error);
+        res.status(500).json({ success: false, message: 'Errore del server durante l\'aggiornamento.' });
+    }
 });
+
+// --- FINE ROTTA PUT /utenti/:id ---
 // La riga "module.exports = router;" dovrebbe essere alla fine del file, non qui.
 
 module.exports = router;

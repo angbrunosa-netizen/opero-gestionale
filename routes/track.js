@@ -68,25 +68,26 @@ router.post('/log-action', verifyToken, async (req, res) => {
     const { azione, dettagli, modulo, funzione } = req.body;
     const id_utente = req.user.id;
     const id_ditta = req.user.id_ditta;
-  
 
     if (!azione) {
         return res.status(400).json({ success: false, message: 'Il campo "azione" è obbligatorio.' });
     }
 
-    let connection;
     try {
-        connection = await dbPool.getConnection();
-        await connection.query(
-            'INSERT INTO log_azioni (id_utente, id_ditta, azione, dettagli, modulo, funzione) VALUES (?, ?, ?, ?, ?, ?)',
-            [id_utente, id_ditta, azione, dettagli || '', modulo || null, funzione || null]
-        );
+        await knex('log_azioni').insert({
+            id_utente: id_utente,
+            id_ditta: id_ditta,
+            azione: azione,
+            dettagli: dettagli || '',
+            modulo: modulo || null,
+            funzione: funzione || null
+            // 'timestamp' di solito viene gestito automaticamente dal DB (DEFAULT CURRENT_TIMESTAMP)
+        });
         res.status(200).json({ success: true, message: 'Azione registrata.' });
     } catch (error) {
-        console.error("Errore durante la registrazione dell'azione:", error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
-    } finally {
-        if (connection) connection.release();
+        const sqlError = error.sqlMessage ? ` (SQL: ${error.sqlMessage})` : '';
+        console.error(`[TRACK /log-action] Errore registrazione azione con knex:${sqlError}`, error.stack || error);
+        res.status(500).json({ success: false, message: 'Errore interno del server durante la registrazione.' });
     }
 });
 

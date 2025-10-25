@@ -1,5 +1,5 @@
 // #####################################################################
-// # Modulo Posta - v9.3 (con Gestione Rubrica Avanzata)
+// # Modulo Posta - v10.0 (RESPONSIVE con Mobile Support)
 // # File: opero-frontend/src/components/MailModule.js
 // #####################################################################
 
@@ -8,7 +8,15 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import AddressBook from './AddressBook'; // Sostituisce il vecchio selettore
+import AddressBook from './AddressBook';
+import { 
+    Bars3Icon, 
+    XMarkIcon, 
+    ChevronLeftIcon,
+    PaperClipIcon,
+    EyeIcon,
+    TrashIcon
+} from '@heroicons/react/24/outline';
 
 // =====================================================================
 // =================== COMPONENTI SECONDARI ============================
@@ -50,7 +58,7 @@ const AddressBookSelectorModal = ({ onSelect, onCancel }) => {
     
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="bg-white p-4 md:p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
                 <h3 className="text-lg font-bold mb-4">Seleziona Contatti</h3>
                 <input 
                     type="text" 
@@ -72,16 +80,16 @@ const AddressBookSelectorModal = ({ onSelect, onCancel }) => {
                                     className="h-4 w-4" 
                                 />
                                 <div className="ml-3">
-                                    <p className="font-semibold">{user.nome} {user.cognome}</p>
-                                    <p className="text-sm text-slate-500">{user.email}</p>
+                                    <p className="font-semibold text-sm">{user.nome} {user.cognome}</p>
+                                    <p className="text-xs text-slate-500">{user.email}</p>
                                 </div>
                             </div>
                         ))
                     )}
                 </div>
-                <div className="flex justify-end gap-4 pt-4 mt-4 border-t">
-                    <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button>
-                    <button type="button" onClick={handleConfirmSelection} className="px-4 py-2 bg-blue-600 text-white rounded-md">Aggiungi</button>
+                <div className="flex justify-end gap-2 md:gap-4 pt-4 mt-4 border-t">
+                    <button type="button" onClick={onCancel} className="px-3 md:px-4 py-2 bg-gray-200 rounded-md text-sm">Annulla</button>
+                    <button type="button" onClick={handleConfirmSelection} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md text-sm">Aggiungi</button>
                 </div>
             </div>
         </div>
@@ -145,55 +153,55 @@ const ContactEditModal = ({ user, onSave, onCancel }) => {
     
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl flex flex-col">
+            <div className="bg-white p-4 md:p-6 rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-bold mb-4">Gestisci Contatto</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input 
                         name="nome" 
                         value={`${formData.nome} ${formData.cognome}`} 
                         disabled 
-                        className="w-full p-2 border rounded-md bg-slate-100" 
+                        className="w-full p-2 border rounded-md bg-slate-100 text-sm" 
                     />
                     <input 
                         name="mail_contatto" 
                         value={formData.mail_contatto} 
                         onChange={handleChange} 
                         placeholder="Email Contatto" 
-                        className="w-full p-2 border rounded-md" 
+                        className="w-full p-2 border rounded-md text-sm" 
                     />
                     <input 
                         name="mail_collaboratore" 
                         value={formData.mail_collaboratore} 
                         onChange={handleChange} 
                         placeholder="Email Collaboratore" 
-                        className="w-full p-2 border rounded-md" 
+                        className="w-full p-2 border rounded-md text-sm" 
                     />
                     <input 
                         name="mail_pec" 
                         value={formData.mail_pec} 
                         onChange={handleChange} 
                         placeholder="PEC" 
-                        className="w-full p-2 border rounded-md" 
+                        className="w-full p-2 border rounded-md text-sm" 
                     />
                     <input 
                         name="telefono" 
                         value={formData.telefono} 
                         onChange={handleChange} 
                         placeholder="Telefono" 
-                        className="w-full p-2 border rounded-md" 
+                        className="w-full p-2 border rounded-md text-sm" 
                     />
                     <input 
                         name="citta" 
                         value={formData.citta} 
                         onChange={handleChange} 
                         placeholder="Città" 
-                        className="w-full p-2 border rounded-md" 
+                        className="w-full p-2 border rounded-md text-sm" 
                     />
                 </div>
-                <h4 className="font-semibold mt-4 mb-2">Liste di Distribuzione</h4>
+                <h4 className="font-semibold mt-4 mb-2 text-sm">Liste di Distribuzione</h4>
                 <div className="border rounded-md p-2 h-40 overflow-y-auto">
                     {allLists.map(list => (
-                        <div key={list.id} className="flex items-center">
+                        <div key={list.id} className="flex items-center text-sm">
                             <input 
                                 type="checkbox" 
                                 checked={selectedLists.has(list.id)} 
@@ -203,93 +211,11 @@ const ContactEditModal = ({ user, onSave, onCancel }) => {
                         </div>
                     ))}
                 </div>
-                <div className="flex justify-end gap-4 pt-4 mt-4 border-t">
-                    <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button>
-                    <button type="button" onClick={handleSubmit} className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva</button>
+                <div className="flex justify-end gap-2 md:gap-4 pt-4 mt-4 border-t">
+                    <button type="button" onClick={onCancel} className="px-3 md:px-4 py-2 bg-gray-200 rounded-md text-sm">Annulla</button>
+                    <button type="button" onClick={handleSubmit} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md text-sm">Salva</button>
                 </div>
             </div>
-        </div>
-    );
-};
-
-// --- Componente: Gestione Rubrica ---
-const AddressBookManager = () => {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const { hasPermission } = useAuth();
-    const canManage = hasPermission('RUBRICA_MANAGE');
-    
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { data } = await api.get('/amministrazione/utenti');
-            if (data.success) setUsers(data.data);
-        } catch (error) {
-            console.error("Errore nel caricamento dati rubrica:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-    
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-    
-    const handleOpenModal = (user) => {
-        setSelectedUser(user);
-        setIsModalOpen(true);
-    };
-    
-    const handleCloseModal = () => {
-        setSelectedUser(null);
-        setIsModalOpen(false);
-        fetchData();
-    };
-    
-    return (
-        <div className="p-6">
-            {isModalOpen && <ContactEditModal user={selectedUser} onSave={handleCloseModal} onCancel={handleCloseModal} />}
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Rubrica</h2>
-                {canManage && (
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm">+ Aggiungi Contatto</button>
-                )}
-            </div>
-            {loading ? (
-                <p>Caricamento...</p>
-            ) : (
-                <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                    <table className="min-w-full">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="p-3 text-left text-sm font-semibold">Nome</th>
-                                <th className="p-3 text-left text-sm font-semibold">Email Contatto</th>
-                                {canManage && <th className="p-3 text-center text-sm font-semibold">Azioni</th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {users.map(user => (
-                                <tr key={user.id} className="border-b hover:bg-slate-50">
-                                    <td className="p-3">{user.nome} {user.cognome}</td>
-                                    <td className="p-3">{user.mail_contatto || user.email}</td>
-                                    {canManage && (
-                                        <td className="p-3 text-center">
-                                            <button 
-                                                onClick={() => handleOpenModal(user)} 
-                                                className="text-blue-600 hover:underline"
-                                            >
-                                                Gestisci
-                                            </button>
-                                        </td>
-                                    )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
         </div>
     );
 };
@@ -311,7 +237,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
     useEffect(() => {
         let initialBody = `<br/><br/><hr><p>${(user?.firma || '').replace(/\n/g, '<br/>')}</p>`;
         if (emailToReply) {
-            // Qui andrebbe la logica per preparare il corpo della mail in risposta/inoltro
+            // Logica per risposta/inoltro
         }
         setBody(initialBody);
     }, [emailToReply, replyType, user]);
@@ -332,7 +258,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
         if (addressBookTarget === 'to') setTo(updateField(to));
         if (addressBookTarget === 'cc') setCc(updateField(cc));
         if (addressBookTarget === 'bcc') setBcc(updateField(bcc));
-        setIsAddressBookOpen(false); // Chiude la modale dopo la selezione
+        setIsAddressBookOpen(false);
     };
 
     const handleSelectList = async (list) => {
@@ -352,7 +278,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
         } catch (error) {
             alert("Impossibile caricare i contatti della lista selezionata.");
         } finally {
-            setIsAddressBookOpen(false); // Chiude la modale dopo la selezione
+            setIsAddressBookOpen(false);
         }
     };
 
@@ -389,7 +315,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
     };
 
     return (
-        <div>
+        <div className="p-4 md:p-6">
             {isAddressBookOpen && (
                 <AddressBook 
                     isModal={true}
@@ -398,44 +324,47 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
                     onSelectList={handleSelectList}
                 />
             )}
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Componi Email</h2>
-                <button onClick={() => setShowCcBcc(!showCcBcc)} className="text-sm text-blue-600">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-2">
+                <h2 className="text-lg md:text-xl font-bold">Componi Email</h2>
+                <button onClick={() => setShowCcBcc(!showCcBcc)} className="text-sm text-blue-600 self-start md:self-auto">
                     {showCcBcc ? 'Nascondi CC/CCN' : 'Mostra CC/CCN'} 
                 </button>
             </div>
-            <div className="space-y-4">
-                 <div className="flex items-center">
-                    <label className="pr-2 text-slate-600">A:</label>
-                    <input type="text" value={to} onChange={e => setTo(e.target.value)} className="w-full p-2 border rounded-l-md" />
+            <div className="space-y-3 md:space-y-4">
+                <div className="flex items-center">
+                    <label className="pr-2 text-slate-600 text-sm min-w-[30px]">A:</label>
+                    <input type="text" value={to} onChange={e => setTo(e.target.value)} className="w-full p-2 border rounded-l-md text-sm" />
                     <button onClick={() => openAddressBook('to')} className="p-2 border-t border-b border-r rounded-r-md bg-slate-100" title="Apri Rubrica">👤</button>
                 </div>
                 {showCcBcc && (
                     <>
                         <div className="flex items-center">
-                            <label className="pr-2 text-slate-600">CC:</label>
-                            <input type="text" value={cc} onChange={e => setCc(e.target.value)} className="w-full p-2 border rounded-l-md" />
+                            <label className="pr-2 text-slate-600 text-sm min-w-[30px]">CC:</label>
+                            <input type="text" value={cc} onChange={e => setCc(e.target.value)} className="w-full p-2 border rounded-l-md text-sm" />
                             <button onClick={() => openAddressBook('cc')} className="p-2 border-t border-b border-r rounded-r-md bg-slate-100" title="Apri Rubrica">👤</button>
                         </div>
                         <div className="flex items-center">
-                            <label className="pr-2 text-slate-600">CCN:</label>
-                            <input type="text" value={bcc} onChange={e => setBcc(e.target.value)} className="w-full p-2 border rounded-l-md" />
+                            <label className="pr-2 text-slate-600 text-sm min-w-[30px]">CCN:</label>
+                            <input type="text" value={bcc} onChange={e => setBcc(e.target.value)} className="w-full p-2 border rounded-l-md text-sm" />
                             <button onClick={() => openAddressBook('bcc')} className="p-2 border-t border-b border-r rounded-r-md bg-slate-100" title="Apri Rubrica">👤</button>
                         </div>
                     </>
                 )}
-                <input type="text" placeholder="Oggetto:" value={subject} onChange={e => setSubject(e.target.value)} className="w-full p-2 border rounded-md" />
-                <ReactQuill theme="snow" value={body} onChange={setBody} style={{ height: '250px', marginBottom: '50px' }} />
+                <input type="text" placeholder="Oggetto:" value={subject} onChange={e => setSubject(e.target.value)} className="w-full p-2 border rounded-md text-sm" />
+                <div className="h-48 md:h-64">
+                    <ReactQuill theme="snow" value={body} onChange={setBody} style={{ height: '150px', marginBottom: '50px' }} />
+                </div>
                 <input type="file" multiple onChange={e => setAttachments([...e.target.files])} className="block w-full text-sm" />
             </div>
-            <div className="flex justify-end gap-4 mt-4">
-                <button onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button>
-                <button onClick={handleSend} disabled={isSending} className="px-4 py-2 bg-blue-600 text-white rounded-md">{isSending ? 'Invio...' : 'Invia'}</button>
+            <div className="flex justify-end gap-2 md:gap-4 mt-4">
+                <button onClick={onCancel} className="px-3 md:px-4 py-2 bg-gray-200 rounded-md text-sm">Annulla</button>
+                <button onClick={handleSend} disabled={isSending} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md text-sm">{isSending ? 'Invio...' : 'Invia'}</button>
             </div>
         </div>
     );
 };
-// --- Componente: Gestione della Posta (Inviata, In Arrivo, etc.) ---
+
+// --- Componente: Gestione della Posta ---
 const MailClientView = () => {
     const { user } = useAuth();
     const [accounts, setAccounts] = useState([]);
@@ -446,6 +375,7 @@ const MailClientView = () => {
     const [replyType, setReplyType] = useState('reply');
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [showMobileList, setShowMobileList] = useState(true); // Per gestire vista mobile
     
     useEffect(() => {
         const fetchAccounts = async () => {
@@ -463,6 +393,8 @@ const MailClientView = () => {
     }, []);
     
     const handleEmailSelect = async (uidOrEmailObject) => {
+        setShowMobileList(false); // Nascondi lista su mobile quando selezioni email
+        
         if (typeof uidOrEmailObject === 'object') {
             setSelectedEmail(uidOrEmailObject);
             setContentView('reading');
@@ -479,6 +411,7 @@ const MailClientView = () => {
         } catch (error) {
             console.error("Errore nel caricare il dettaglio email:", error);
             setContentView('list');
+            setShowMobileList(true);
         } finally {
             setLoadingDetail(false);
         }
@@ -488,6 +421,12 @@ const MailClientView = () => {
         setReplyType(type);
         setContentView('composing');
     };
+
+    const handleBackToList = () => {
+        setShowMobileList(true);
+        setContentView('list');
+        setSelectedEmail(null);
+    };
     
     const renderMainContent = () => {
         if (contentView === 'composing') {
@@ -495,31 +434,41 @@ const MailClientView = () => {
                 accountId={selectedAccountId}
                 emailToReply={selectedEmail} 
                 replyType={replyType}
-                onCancel={() => { setContentView(selectedEmail ? 'reading' : 'list'); }}
-                onSent={() => { setView('sent'); setContentView('list'); setSelectedEmail(null); }}
+                onCancel={() => { 
+                    setContentView(selectedEmail ? 'reading' : 'list'); 
+                    if (!selectedEmail) setShowMobileList(true);
+                }}
+                onSent={() => { 
+                    setView('sent'); 
+                    setContentView('list'); 
+                    setSelectedEmail(null); 
+                    setShowMobileList(true);
+                }}
             />;
         }
         
         if (contentView === 'reading') {
-            return <ReadingPane email={selectedEmail} accountId={selectedAccountId} onAction={handleAction} />;
+            return <ReadingPane email={selectedEmail} accountId={selectedAccountId} onAction={handleAction} onBack={handleBackToList} />;
         }
         
-        return <div className="flex items-center justify-center h-full text-slate-400"><p>Seleziona un'email per leggerla.</p></div>;
+        return <div className="flex items-center justify-center h-full text-slate-400 p-4"><p className="text-center">Seleziona un'email per leggerla.</p></div>;
     };
     
     return (
         <div className="flex w-full h-full">
-            <div className="w-full md:w-1/3 lg:w-[400px] border-r border-slate-200 flex flex-col bg-white">
-                <div className="p-4 border-b">
+            {/* Lista Email - nascosta su mobile quando si visualizza un'email */}
+            <div className={`${showMobileList ? 'block' : 'hidden'} md:block w-full md:w-1/3 lg:w-[400px] border-r border-slate-200 flex flex-col bg-white`}>
+                <div className="p-3 md:p-4 border-b">
                     <select 
                         value={selectedAccountId} 
                         onChange={(e) => { 
                             setSelectedAccountId(e.target.value); 
                             setSelectedEmail(null); 
                             setContentView('list'); 
-                            setView('inbox'); 
+                            setView('inbox');
+                            setShowMobileList(true);
                         }} 
-                        className="w-full p-2 border rounded-md mb-4" 
+                        className="w-full p-2 border rounded-md mb-3 md:mb-4 text-sm" 
                         disabled={accounts.length === 0}
                     >
                         {accounts.length > 0 ? (
@@ -533,9 +482,10 @@ const MailClientView = () => {
                         onClick={() => { 
                             setSelectedEmail(null); 
                             setReplyType(''); 
-                            setContentView('composing'); 
+                            setContentView('composing');
+                            setShowMobileList(false);
                         }} 
-                        className="w-full p-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 mb-4" 
+                        className="w-full p-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 mb-3 md:mb-4 text-sm" 
                         disabled={!selectedAccountId}
                     >
                         + Componi
@@ -546,9 +496,10 @@ const MailClientView = () => {
                             onClick={() => { 
                                 setView('inbox'); 
                                 setContentView('list'); 
-                                setSelectedEmail(null); 
+                                setSelectedEmail(null);
+                                setShowMobileList(true);
                             }} 
-                            className={`flex-1 p-2 rounded-md border text-sm ${view === 'inbox' ? 'bg-blue-100 text-blue-700' : ''}`}
+                            className={`flex-1 p-2 rounded-md border text-xs md:text-sm ${view === 'inbox' ? 'bg-blue-100 text-blue-700' : ''}`}
                         >
                             In Arrivo
                         </button>
@@ -556,9 +507,10 @@ const MailClientView = () => {
                             onClick={() => { 
                                 setView('sent'); 
                                 setContentView('list'); 
-                                setSelectedEmail(null); 
+                                setSelectedEmail(null);
+                                setShowMobileList(true);
                             }} 
-                            className={`flex-1 p-2 rounded-md border text-sm ${view === 'sent' ? 'bg-blue-100 text-blue-700' : ''}`}
+                            className={`flex-1 p-2 rounded-md border text-xs md:text-sm ${view === 'sent' ? 'bg-blue-100 text-blue-700' : ''}`}
                         >
                             Inviata
                         </button>
@@ -578,7 +530,9 @@ const MailClientView = () => {
                     )}
                 </div>
             </div>
-            <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
+
+            {/* Contenuto Email - mostrato su mobile solo quando un'email è selezionata */}
+            <div className={`${!showMobileList ? 'block' : 'hidden'} md:block flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto`}>
                 {loadingDetail ? <p>Caricamento...</p> : renderMainContent()}
             </div>
         </div>
@@ -606,80 +560,28 @@ const SentView = ({ onEmailSelect }) => {
         fetchSentEmails();
     }, []);
     
-    if (loading) return <p className="p-4 text-center">Caricamento...</p>;
-    if (sentEmails.length === 0) return <p className="p-4 text-center">Nessuna email inviata.</p>;
+    if (loading) return <p className="p-4 text-center text-sm">Caricamento...</p>;
+    if (sentEmails.length === 0) return <p className="p-4 text-center text-sm">Nessuna email inviata.</p>;
     
     return sentEmails.map(email => (
         <div 
             key={email.id} 
-            className="p-4 border-b cursor-pointer hover:bg-slate-50 flex justify-between items-center" 
+            className="p-3 md:p-4 border-b cursor-pointer hover:bg-slate-50 flex justify-between items-center" 
             onClick={() => onEmailSelect(email)}
         >
-            <div className="min-w-0">
-                <p className="font-semibold truncate">{email.destinatari}</p>
-                <p className="text-sm text-slate-600 truncate">{email.oggetto}</p>
+            <div className="min-w-0 flex-1">
+                <p className="font-semibold truncate text-sm">{email.destinatari}</p>
+                <p className="text-xs md:text-sm text-slate-600 truncate">{email.oggetto}</p>
                 <p className="text-xs text-slate-400 mt-1">Inviata il: {new Date(email.data_invio).toLocaleDateString()}</p>
             </div>
-            <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+            <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
                 {email.attachments && email.attachments.length > 0 && (
-                    <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-4 w-4 text-slate-400" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor" 
-                        title="Contiene allegati"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
+                    <PaperClipIcon className="h-4 w-4 text-slate-400" title="Contiene allegati" />
                 )}
-                <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    className={`h-5 w-5 ${email.aperta ? 'text-green-500' : 'text-slate-400'}`} 
-                    viewBox="0 0 20 20" 
-                    fill="currentColor" 
-                    title={email.aperta ? 'Letta' : 'Non letta'}
-                >
-                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                    <path fillRule="evenodd" d="M.458 10C3.732 4.943 9.522 3 10 3s6.268 1.943 9.542 7c-3.274 5.057-9.064 7-9.542 7S3.732 15.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                </svg>
+                <EyeIcon className={`h-4 w-4 md:h-5 md:w-5 ${email.aperta ? 'text-green-500' : 'text-slate-400'}`} title={email.aperta ? 'Letta' : 'Non letta'} />
             </div>
         </div>
     ));
-};
-
-// --- Componente per le Impostazioni ---
-const SettingsView = () => {
-    const { user } = useAuth();
-    const [firma, setFirma] = useState(user?.firma || '');
-    
-    const handleSaveSignature = async () => {
-        try {
-            const { data } = await api.patch('/user/signature', { firma });
-            if (data.success) {
-                alert('Firma salvata con successo!');
-            }
-        } catch (error) {
-            alert('Errore nel salvataggio della firma.');
-        }
-    };
-    
-    return (
-        <div>
-            <h2 className="text-xl font-bold">Impostazioni Posta</h2>
-            <div className="mt-6">
-                <h3 className="font-semibold">La tua Firma</h3>
-                <p className="text-sm text-slate-500 mb-2">Questa firma verrà aggiunta automaticamente a tutte le nuove email che componi.</p>
-                <textarea 
-                    value={firma} 
-                    onChange={e => setFirma(e.target.value)}
-                    rows="4"
-                    className="w-full p-2 border rounded-md"
-                ></textarea>
-                <button onClick={handleSaveSignature} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md">Salva Firma</button>
-            </div>
-        </div>
-    );
 };
 
 // --- Componente per la Lista della Posta in Arrivo ---
@@ -736,8 +638,8 @@ function InboxList({ accountId, onEmailSelect, userLevel, refreshList }) {
         }
     };
     
-    if (loading) return <p className="text-center p-4 text-slate-500">Caricamento...</p>;
-    if (emails.length === 0) return <p className="text-center p-4 text-slate-500">Nessuna email nella casella di posta.</p>;
+    if (loading) return <p className="text-center p-4 text-slate-500 text-sm">Caricamento...</p>;
+    if (emails.length === 0) return <p className="text-center p-4 text-slate-500 text-sm">Nessuna email nella casella di posta.</p>;
     
     return emails.map(email => (
         <div 
@@ -745,29 +647,25 @@ function InboxList({ accountId, onEmailSelect, userLevel, refreshList }) {
             className={`flex items-center border-b border-slate-200 cursor-pointer bg-white hover:bg-slate-50`} 
             onClick={() => onEmailSelect(email.uid)}
         >
-            <div className={`flex-grow p-4 min-w-0 ${!email.read && 'font-semibold'}`}>
-                <p className="truncate text-slate-800">{email.from}</p>
-                <p className={`truncate text-sm ${email.read ? 'text-slate-500' : 'text-slate-700'}`}>{email.subject}</p>
+            <div className={`flex-grow p-3 md:p-4 min-w-0 ${!email.read && 'font-semibold'}`}>
+                <p className="truncate text-slate-800 text-sm">{email.from}</p>
+                <p className={`truncate text-xs md:text-sm ${email.read ? 'text-slate-500' : 'text-slate-700'}`}>{email.subject}</p>
             </div>
-            <div className="flex items-center pr-2">
+            <div className="flex items-center pr-2 gap-1">
                 <button 
                     onClick={(e) => handleAction(e, handleHideEmail, email.uid)} 
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded-full" 
+                    className="p-1.5 md:p-2 text-slate-400 hover:text-slate-600 rounded-full" 
                     title="Nascondi email (solo per te)"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <TrashIcon className="h-4 w-4 md:h-5 md:w-5" />
                 </button>
                 {userLevel > 90 && (
                     <button 
                         onClick={(e) => handleAction(e, handlePermanentDelete, email.uid)} 
-                        className="p-2 text-red-500 hover:text-red-700 rounded-full" 
+                        className="p-1.5 md:p-2 text-red-500 hover:text-red-700 rounded-full" 
                         title="Elimina PERMANENTEMENTE dal server"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                        </svg>
+                        <TrashIcon className="h-4 w-4 md:h-5 md:w-5" />
                     </button>
                 )}
             </div>
@@ -776,18 +674,27 @@ function InboxList({ accountId, onEmailSelect, userLevel, refreshList }) {
 }
 
 // --- Componente per il Pannello di Lettura ---
-function ReadingPane({ email, accountId, onAction }) {
-    if (!email) return <div className="flex items-center justify-center h-full text-slate-400"><p>Seleziona un'email per leggerla.</p></div>;
+function ReadingPane({ email, accountId, onAction, onBack }) {
+    if (!email) return <div className="flex items-center justify-center h-full text-slate-400 p-4"><p className="text-center">Seleziona un'email per leggerla.</p></div>;
     
     if (email.uid) { // Email in arrivo
         return (
             <div>
-                <div className="flex flex-wrap gap-2 items-center mb-4 pb-4 border-b">
-                    <h2 className="text-xl lg:text-2xl font-bold flex-grow ">{email.subject}</h2>
-                    <button onClick={() => onAction('reply')} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 text-sm">Rispondi</button>
+                {/* Bottone Back per mobile */}
+                <button 
+                    onClick={onBack}
+                    className="md:hidden flex items-center text-blue-600 mb-4 text-sm"
+                >
+                    <ChevronLeftIcon className="h-5 w-5 mr-1" />
+                    Torna alla lista
+                </button>
+                
+                <div className="flex flex-col md:flex-row md:flex-wrap gap-2 md:items-center mb-4 pb-4 border-b">
+                    <h2 className="text-lg md:text-xl lg:text-2xl font-bold flex-grow">{email.subject}</h2>
+                    <button onClick={() => onAction('reply')} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 text-sm self-start md:self-auto">Rispondi</button>
                 </div>
-                <p className="mb-4 text-slate-600"><strong>Da:</strong> {email.from}</p>
-                <div className="text-base leading-relaxed prose max-w-none" dangerouslySetInnerHTML={{ __html: email.body }}></div>
+                <p className="mb-4 text-slate-600 text-sm md:text-base"><strong>Da:</strong> {email.from}</p>
+                <div className="text-sm md:text-base leading-relaxed prose max-w-none" dangerouslySetInnerHTML={{ __html: email.body }}></div>
             </div>
         );
     }
@@ -795,8 +702,17 @@ function ReadingPane({ email, accountId, onAction }) {
     // Email inviata (con Tracking)
     return (
         <div>
-            <h2 className="text-xl lg:text-2xl font-bold mb-4 pb-4 border-b">{email.oggetto}</h2>
-            <div className="mb-4 p-4 bg-slate-50 rounded-lg border text-sm space-y-2">
+            {/* Bottone Back per mobile */}
+            <button 
+                onClick={onBack}
+                className="md:hidden flex items-center text-blue-600 mb-4 text-sm"
+            >
+                <ChevronLeftIcon className="h-5 w-5 mr-1" />
+                Torna alla lista
+            </button>
+            
+            <h2 className="text-lg md:text-xl lg:text-2xl font-bold mb-4 pb-4 border-b">{email.oggetto}</h2>
+            <div className="mb-4 p-3 md:p-4 bg-slate-50 rounded-lg border text-xs md:text-sm space-y-2">
                 <h3 className="font-bold text-slate-700">Riepilogo Invio</h3>
                 <p><strong>Destinatari:</strong> {email.destinatari}</p>
                 <p><strong>Stato:</strong> {email.aperta ? 
@@ -808,7 +724,7 @@ function ReadingPane({ email, accountId, onAction }) {
                         <p className="font-semibold">Allegati:</p>
                         <ul className="list-disc list-inside ml-4">
                             {email.attachments.map(att => (
-                                <li key={att.nome_file_originale}>
+                                <li key={att.nome_file_originale} className="text-xs md:text-sm">
                                     {att.nome_file_originale} - {att.scaricato ? 
                                         <span className="font-semibold text-green-600">Scaricato</span> : 
                                         <span className="text-slate-500">Non scaricato</span>}
@@ -819,55 +735,197 @@ function ReadingPane({ email, accountId, onAction }) {
                 )}
             </div>
             <div className="mt-6 pt-6 border-t">
-                <h4 className="font-semibold mb-2">Corpo del Messaggio Inviato:</h4>
-                <div className="text-base leading-relaxed prose max-w-none p-4 border rounded-md bg-white" dangerouslySetInnerHTML={{ __html: email.corpo }}></div>
+                <h4 className="font-semibold mb-2 text-sm md:text-base">Corpo del Messaggio Inviato:</h4>
+                <div className="text-sm md:text-base leading-relaxed prose max-w-none p-3 md:p-4 border rounded-md bg-white" dangerouslySetInnerHTML={{ __html: email.corpo }}></div>
             </div>
         </div>
     );
 }
 
+// --- Componente: Gestione Rubrica ---
+const AddressBookManager = () => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const { hasPermission } = useAuth();
+    const canManage = hasPermission('RUBRICA_MANAGE');
+    
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data } = await api.get('/amministrazione/utenti');
+            if (data.success) setUsers(data.data);
+        } catch (error) {
+            console.error("Errore nel caricamento dati rubrica:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+    
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+    
+    const handleOpenModal = (user) => {
+        setSelectedUser(user);
+        setIsModalOpen(true);
+    };
+    
+    const handleCloseModal = () => {
+        setSelectedUser(null);
+        setIsModalOpen(false);
+        fetchData();
+    };
+    
+    return (
+        <div className="p-4 md:p-6">
+            {isModalOpen && <ContactEditModal user={selectedUser} onSave={handleCloseModal} onCancel={handleCloseModal} />}
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-2">
+                <h2 className="text-lg md:text-xl font-bold">Rubrica</h2>
+                {canManage && (
+                    <button className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md text-sm self-start md:self-auto">+ Aggiungi Contatto</button>
+                )}
+            </div>
+            {loading ? (
+                <p>Caricamento...</p>
+            ) : (
+                <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+                    <table className="min-w-full">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="p-2 md:p-3 text-left text-xs md:text-sm font-semibold">Nome</th>
+                                <th className="p-2 md:p-3 text-left text-xs md:text-sm font-semibold">Email Contatto</th>
+                                {canManage && <th className="p-2 md:p-3 text-center text-xs md:text-sm font-semibold">Azioni</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.map(user => (
+                                <tr key={user.id} className="border-b hover:bg-slate-50">
+                                    <td className="p-2 md:p-3 text-xs md:text-sm">{user.nome} {user.cognome}</td>
+                                    <td className="p-2 md:p-3 text-xs md:text-sm">{user.mail_contatto || user.email}</td>
+                                    {canManage && (
+                                        <td className="p-2 md:p-3 text-center">
+                                            <button 
+                                                onClick={() => handleOpenModal(user)} 
+                                                className="text-blue-600 hover:underline text-xs md:text-sm"
+                                            >
+                                                Gestisci
+                                            </button>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Componente per le Impostazioni ---
+const SettingsView = () => {
+    const { user } = useAuth();
+    const [firma, setFirma] = useState(user?.firma || '');
+    
+    const handleSaveSignature = async () => {
+        try {
+            const { data } = await api.patch('/user/signature', { firma });
+            if (data.success) {
+                alert('Firma salvata con successo!');
+            }
+        } catch (error) {
+            alert('Errore nel salvataggio della firma.');
+        }
+    };
+    
+    return (
+        <div className="p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold">Impostazioni Posta</h2>
+            <div className="mt-6">
+                <h3 className="font-semibold text-sm md:text-base">La tua Firma</h3>
+                <p className="text-xs md:text-sm text-slate-500 mb-2">Questa firma verrà aggiunta automaticamente a tutte le nuove email che componi.</p>
+                <textarea 
+                    value={firma} 
+                    onChange={e => setFirma(e.target.value)}
+                    rows="4"
+                    className="w-full p-2 border rounded-md text-sm"
+                ></textarea>
+                <button onClick={handleSaveSignature} className="mt-2 px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md text-sm">Salva Firma</button>
+            </div>
+        </div>
+    );
+};
 
 // =====================================================================
 // ============ COMPONENTE PRINCIPALE DEL MODULO =======================
 // =====================================================================
 function MailModule() {
     const [activeView, setActiveView] = useState('posta');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { hasPermission } = useAuth();
     
-    // Funzione che decide quale componente visualizzare nell'area principale
     const renderContent = () => {
         switch (activeView) {
             case 'posta':
                 return <MailClientView />;
             case 'rubrica':
-                // Qui usiamo il componente AddressBook completo al posto di quello vecchio
                 return hasPermission('RUBRICA_VIEW') 
                     ? <AddressBook /> 
-                    : <p className="p-6">Non hai i permessi per visualizzare la rubrica.</p>;
+                    : <p className="p-4 md:p-6">Non hai i permessi per visualizzare la rubrica.</p>;
             default:
                 return <p>Seleziona una funzione</p>;
         }
     };
     
     return (
-        <div className="flex w-full h-full bg-slate-50">
-            {/* Menu laterale del modulo */}
-            <aside className="w-56 border-r border-slate-200 p-4 bg-white">
-                <h2 className="font-bold mb-4 text-slate-700">Menu Posta</h2>
+        <div className="flex w-full h-full bg-slate-50 relative">
+            {/* Overlay per mobile quando il menu è aperto */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+
+            {/* Menu laterale del modulo - RESPONSIVE */}
+            <aside className={`
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+                lg:translate-x-0 
+                fixed lg:relative 
+                w-56 border-r border-slate-200 p-4 bg-white 
+                h-full z-40 
+                transition-transform duration-300 ease-in-out
+            `}>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-bold text-slate-700">Menu Posta</h2>
+                    <button 
+                        onClick={() => setIsSidebarOpen(false)}
+                        className="lg:hidden text-gray-600"
+                    >
+                        <XMarkIcon className="h-6 w-6" />
+                    </button>
+                </div>
                 <ul className="space-y-2">
                     <li>
                         <button 
-                            onClick={() => setActiveView('posta')} 
+                            onClick={() => { 
+                                setActiveView('posta'); 
+                                setIsSidebarOpen(false);
+                            }} 
                             className={`w-full text-left p-2 rounded-md text-sm ${activeView === 'posta' ? 'bg-blue-100 text-blue-700' : ''}`}
                         >
                             Gestisci Posta
                         </button>
                     </li>
-                    {/* Il pulsante "Rubrica" ora caricherà il componente AddressBook */}
                     {hasPermission('RUBRICA_VIEW') && (
                         <li>
                             <button 
-                                onClick={() => setActiveView('rubrica')} 
+                                onClick={() => { 
+                                    setActiveView('rubrica'); 
+                                    setIsSidebarOpen(false);
+                                }} 
                                 className={`w-full text-left p-2 rounded-md text-sm ${activeView === 'rubrica' ? 'bg-blue-100 text-blue-700' : ''}`}
                             >
                                 Rubrica
@@ -877,8 +935,16 @@ function MailModule() {
                 </ul>
             </aside>
 
-            {/* Area principale dove viene renderizzato il contenuto attivo */}
-            <main className="flex-1 overflow-y-auto">
+            {/* Area principale */}
+            <main className="flex-1 overflow-y-auto relative">
+                {/* Hamburger button per mobile */}
+                <button 
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="lg:hidden fixed top-4 left-4 z-20 bg-white p-2 rounded-md shadow-lg border"
+                >
+                    <Bars3Icon className="h-6 w-6 text-gray-600" />
+                </button>
+
                 {renderContent()}
             </main>
         </div>

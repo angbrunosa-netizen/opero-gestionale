@@ -11,14 +11,15 @@
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { dbPool } = require('../config/db');
+const { dbPool, knex } = require('../config/db');
 const { v4: uuidv4 } = require('uuid'); // Per generare un ID univoco per il token (jti)
-
+const mailer = require('../utils/mailer');
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'backup_secret_key_molto_sicura';
 const { verifyToken } = require('../utils/auth');
-
+ const { sendSystemEmail } = require('../utils/mailer'); // o il path corretto
 // Costanti di configurazione per la Portineria
 const MAX_TENTATIVI_FALLITI = 4;
 const DURATA_SESSIONE_MINUTI = 15;
@@ -438,18 +439,56 @@ router.post('/request-password-reset', async (req, res) => {
         if (userRows.length > 0) {
             const user = userRows[0];
             const token = crypto.randomBytes(32).toString('hex'); // Token sicuro
-            const hashedToken = await bcrypt.hash(token, 10); // Hash del token per il DB
+           // const hashedToken = await bcrypt.hash(token, 10); // Hash del token per il DB
             const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // Scadenza tra 1 ora
 
             // Salva il token hashato nel DB
             await connection.query(
-                'INSERT INTO password_reset_tokens (id_utente, token, expires_at) VALUES (?, ?, ?)',
-                [user.id, hashedToken, expiresAt]
-            );
+    'INSERT INTO password_reset_tokens (id_utente, token, expires_at) VALUES (?, ?, ?)',
+    [user.id, token, expiresAt] );
 
             const resetLink = `${process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`; 
             const mailSubject = 'Opero - Richiesta Reset Password';
-            const mailBody = `...`; // Email HTML come prima
+           const mailBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .button { display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Opero Gestionali</h1>
+            </div>
+            <div class="content">
+                <h2>Ciao ${user.nome} ${user.cognome},</h2>
+                <p>Abbiamo ricevuto una richiesta per reimpostare la password del tuo account.</p>
+                <p>Clicca sul pulsante qui sotto per creare una nuova password:</p>
+                <div style="text-align: center;">
+                    <a href="${resetLink}" class="button">Reimposta Password</a>
+                </div>
+                <p>Oppure copia e incolla questo link nel tuo browser:</p>
+                <p style="word-break: break-all; color: #4F46E5;">${resetLink}</p>
+                <p><strong>Questo link scadrà tra 1 ora.</strong></p>
+                <p>Se non hai richiesto il reset della password, ignora questa email.</p>
+            </div>
+            <div class="footer">
+                <p>© ${new Date().getFullYear()} Opero Gestionali - Tutti i diritti riservati</p>
+            </div>
+        </div>
+    </body>
+    </html>
+`;
+
+// Email HTML come prima
 
             // --- CORREZIONE CHIAMATA MAILER ---
             // Usa sendSystemEmail invece di sendMail
