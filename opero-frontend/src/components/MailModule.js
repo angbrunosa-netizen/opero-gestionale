@@ -863,7 +863,6 @@ const SettingsView = () => {
 // =====================================================================
 function MailModule() {
     const [activeView, setActiveView] = useState('posta');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { hasPermission } = useAuth();
     
     const renderContent = () => {
@@ -880,41 +879,43 @@ function MailModule() {
     };
     
     return (
-        <div className="flex w-full h-full bg-slate-50 relative">
-            {/* Overlay per mobile quando il menu è aperto */}
-            {isSidebarOpen && (
-                <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-                    onClick={() => setIsSidebarOpen(false)}
-                ></div>
-            )}
-
-            {/* Menu laterale del modulo - RESPONSIVE */}
-            <aside className={`
-                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-                lg:translate-x-0 
-                fixed lg:relative 
-                w-56 border-r border-slate-200 p-4 bg-white 
-                h-full z-40 
-                transition-transform duration-300 ease-in-out
-            `}>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="font-bold text-slate-700">Menu Posta</h2>
-                    <button 
-                        onClick={() => setIsSidebarOpen(false)}
-                        className="lg:hidden text-gray-600"
+        <div className="flex flex-col lg:flex-row w-full h-full bg-slate-50">
+            {/* TAB NAVIGATION per mobile, SIDEBAR per desktop */}
+            <div className="lg:hidden bg-white border-b border-slate-200">
+                <div className="flex">
+                    <button
+                        onClick={() => setActiveView('posta')}
+                        className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+                            activeView === 'posta' 
+                                ? 'border-blue-600 text-blue-600 bg-blue-50' 
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                        }`}
                     >
-                        <XMarkIcon className="h-6 w-6" />
+                        📧 Posta
                     </button>
+                    {hasPermission('RUBRICA_VIEW') && (
+                        <button
+                            onClick={() => setActiveView('rubrica')}
+                            className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+                                activeView === 'rubrica' 
+                                    ? 'border-blue-600 text-blue-600 bg-blue-50' 
+                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                            }`}
+                        >
+                            📖 Rubrica
+                        </button>
+                    )}
                 </div>
+            </div>
+
+            {/* SIDEBAR per desktop */}
+            <aside className="hidden lg:block w-56 border-r border-slate-200 p-4 bg-white">
+                <h2 className="font-bold mb-4 text-slate-700">Menu Posta</h2>
                 <ul className="space-y-2">
                     <li>
                         <button 
-                            onClick={() => { 
-                                setActiveView('posta'); 
-                                setIsSidebarOpen(false);
-                            }} 
-                            className={`w-full text-left p-2 rounded-md text-sm ${activeView === 'posta' ? 'bg-blue-100 text-blue-700' : ''}`}
+                            onClick={() => setActiveView('posta')} 
+                            className={`w-full text-left p-2 rounded-md text-sm ${activeView === 'posta' ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-50'}`}
                         >
                             Gestisci Posta
                         </button>
@@ -922,11 +923,8 @@ function MailModule() {
                     {hasPermission('RUBRICA_VIEW') && (
                         <li>
                             <button 
-                                onClick={() => { 
-                                    setActiveView('rubrica'); 
-                                    setIsSidebarOpen(false);
-                                }} 
-                                className={`w-full text-left p-2 rounded-md text-sm ${activeView === 'rubrica' ? 'bg-blue-100 text-blue-700' : ''}`}
+                                onClick={() => setActiveView('rubrica')} 
+                                className={`w-full text-left p-2 rounded-md text-sm ${activeView === 'rubrica' ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-50'}`}
                             >
                                 Rubrica
                             </button>
@@ -935,16 +933,8 @@ function MailModule() {
                 </ul>
             </aside>
 
-            {/* Area principale */}
-            <main className="flex-1 overflow-y-auto relative">
-                {/* Hamburger button per mobile */}
-                <button 
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="lg:hidden fixed top-4 left-4 z-20 bg-white p-2 rounded-md shadow-lg border"
-                >
-                    <Bars3Icon className="h-6 w-6 text-gray-600" />
-                </button>
-
+            {/* Area principale del contenuto */}
+            <main className="flex-1 overflow-y-auto">
                 {renderContent()}
             </main>
         </div>

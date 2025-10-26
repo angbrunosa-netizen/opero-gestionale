@@ -7,7 +7,9 @@ import React, { useState, useCallback, useEffect ,useMemo} from 'react';
 import { api } from '../services/api'; 
 import PianoContiManager from './cont-smart/PianoContiManager'; // Importato il componente reale
 import { useAuth } from '../context/AuthContext';
-import { Cog6ToothIcon, UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon,BuildingOffice2Icon,WrenchScrewdriverIcon, DocumentTextIcon, AtSymbolIcon, Cog8ToothIcon, HashtagIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
+import { Cog6ToothIcon,
+        ChevronDownIcon,
+         UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon,BuildingOffice2Icon,WrenchScrewdriverIcon, DocumentTextIcon, AtSymbolIcon, Cog8ToothIcon, HashtagIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
 import UserForm from './UserForm'; // Esempio, potrebbero essere gestori più complessi
 import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
 import ProgressiviManager from './amministrazione/ProgressiviManager';
@@ -1001,54 +1003,88 @@ function UserEditModal({ userId, onSave, onCancel }) {
 // =====================================================================
 const AmministrazioneModule = () => {
     const { hasPermission } = useAuth();
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     
-    // Definiamo tutte le possibili voci di menu con la loro chiave, etichetta, icona e permesso richiesto.
     const menuItems = [
-        { key: 'anagrafiche', label: 'Gestione Aziende', permission: 'ANAGRAFICHE_VIEW', icon: BuildingOfficeIcon },
-        { key: 'utenti', label: 'Gestione Utenti', permission: 'UTENTI_VIEW', icon: UsersIcon },
-        //{ key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: Cog6ToothIcon },
-        { key: 'pdc', label: 'Piano dei Conti', permission: 'PDC_VIEW', icon: WrenchScrewdriverIcon, minLevel: 90, component: PianoContiManager },
-        { key: 'mail_accounts', label: 'Account Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon},
-        { key: 'ppa', label: 'Configurazione PPA', permission: 'PPA_MODULE', icon: QueueListIcon },
-        // <span style="color:green;">// NUOVO: Aggiunta la voce di menu per la gestione dei progressivi.</span>
-        // <span style="color:green;">// Il permesso richiesto è 'PROGRESSIVI_MANAGE'.</span>
-        { key: 'progressivi', label: 'Gestione Progressivi', permission: 'PROGRESSIVI_MANAGE', icon: HashtagIcon },
+        { key: 'anagrafiche', label: 'Gestione Aziende', shortLabel: '🏢 Aziende', permission: 'ANAGRAFICHE_VIEW', icon: BuildingOfficeIcon },
+        { key: 'utenti', label: 'Gestione Utenti', shortLabel: '👥 Utenti', permission: 'UTENTI_VIEW', icon: UsersIcon },
+        { key: 'pdc', label: 'Piano dei Conti', shortLabel: '🔧 PDC', permission: 'PDC_VIEW', icon: WrenchScrewdriverIcon, minLevel: 90 },
+        { key: 'mail_accounts', label: 'Account Email', shortLabel: '📧 Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon },
+        { key: 'ppa', label: 'Configurazione PPA', shortLabel: '📋 PPA', permission: 'PPA_MODULE', icon: QueueListIcon },
+        { key: 'progressivi', label: 'Gestione Progressivi', shortLabel: '#️⃣ Progressivi', permission: 'PROGRESSIVI_MANAGE', icon: HashtagIcon },
     ];
 
-    // Filtriamo le voci di menu in base ai permessi dell'utente.
     const accessibleMenuItems = menuItems.filter(item => hasPermission(item.permission));
-
-    // Lo stato 'activeMenu' parte dalla prima voce di menu accessibile.
     const [activeMenu, setActiveMenu] = useState(accessibleMenuItems.length > 0 ? accessibleMenuItems[0].key : null);
 
-    const renderContent = () => {
-        // Se l'utente non ha accesso a nessuna funzione, mostra un messaggio.
-        if (!activeMenu) {
-            return <NoPermissionMessage />;
-        }
+    // Trova l'item attivo per mostrarlo nel dropdown
+    const activeMenuItem = accessibleMenuItems.find(item => item.key === activeMenu);
 
-        // Controlla di nuovo il permesso prima di renderizzare, per sicurezza.
+    const renderContent = () => {
+        if (!activeMenu) return <NoPermissionMessage />;
+
         const currentItem = menuItems.find(item => item.key === activeMenu);
         if (!currentItem || !hasPermission(currentItem.permission)) {
             return <NoPermissionMessage />;
         }
         
-        // Switch per visualizzare il componente corretto.
         switch (activeMenu) {
             case 'anagrafiche': return <AnagraficheManager />;
             case 'utenti': return <UserManager />;
             case 'pdc': return <PianoContiManager />;
             case 'mail_accounts': return <MailAccountsManager />;
             case 'ppa': return <PPAModule />;
-            // <span style="color:green;">// NUOVO: Aggiunto il caso per visualizzare il nuovo componente.</span>
             case 'progressivi': return <ProgressiviManager />;
             default: return <p className="p-6">Seleziona una voce dal menu.</p>;
         }
     };
 
     return (
-        <div className="flex w-full h-full bg-gray-50">
-            <aside className="w-64 border-r border-slate-200 p-4 bg-white flex-shrink-0">
+        <div className="flex flex-col lg:flex-row w-full h-full bg-gray-50">
+            {/* DROPDOWN NAVIGATION per mobile (< 1024px) */}
+            <div className="lg:hidden bg-white border-b border-slate-200">
+                <div className="relative">
+                    <button
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="w-full flex items-center justify-between py-3 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                        <span className="flex items-center gap-2">
+                            {activeMenuItem && <activeMenuItem.icon className="h-5 w-5" />}
+                            {activeMenuItem ? activeMenuItem.label : 'Seleziona...'}
+                        </span>
+                        <ChevronDownIcon className={`h-5 w-5 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {/* Dropdown Menu */}
+                    {isDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 bg-white border-b border-slate-200 shadow-lg z-50 max-h-[60vh] overflow-y-auto">
+                            {accessibleMenuItems.map(item => {
+                                const Icon = item.icon;
+                                return (
+                                    <button
+                                        key={item.key}
+                                        onClick={() => {
+                                            setActiveMenu(item.key);
+                                            setIsDropdownOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-3 py-3 px-4 text-sm transition-colors ${
+                                            activeMenu === item.key 
+                                                ? 'bg-blue-50 text-blue-600 font-semibold border-l-4 border-blue-600' 
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <Icon className="h-5 w-5 flex-shrink-0" />
+                                        <span>{item.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* SIDEBAR per desktop (≥ 1024px) */}
+            <aside className="hidden lg:block w-64 border-r border-slate-200 p-4 bg-white flex-shrink-0">
                 <h2 className="font-bold mb-4 text-slate-700 text-lg">Menu Amministrazione</h2>
                 <ul className="space-y-2">
                     {accessibleMenuItems.map(item => {
@@ -1057,7 +1093,11 @@ const AmministrazioneModule = () => {
                             <li key={item.key}>
                                 <button 
                                     onClick={() => setActiveMenu(item.key)} 
-                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center gap-3 ${activeMenu === item.key ? 'bg-blue-100 text-blue-700 font-semibold' : 'hover:bg-slate-100'}`}
+                                    className={`w-full text-left p-2 rounded-md transition-colors text-sm flex items-center gap-3 ${
+                                        activeMenu === item.key 
+                                            ? 'bg-blue-100 text-blue-700 font-semibold' 
+                                            : 'hover:bg-slate-100'
+                                    }`}
                                 >
                                     <Icon className="h-5 w-5 flex-shrink-0" />
                                     <span>{item.label}</span>
@@ -1067,13 +1107,14 @@ const AmministrazioneModule = () => {
                     })}
                 </ul>
             </aside>
-            <main className="flex-1 p-6 overflow-y-auto">
+
+            {/* MAIN CONTENT AREA */}
+            <main className="flex-1 p-4 md:p-6 overflow-y-auto">
                 {renderContent()}
             </main>
         </div>
     );
 };
-
 
 
 export default AmministrazioneModule;

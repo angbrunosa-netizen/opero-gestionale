@@ -608,15 +608,16 @@ const MainApp = () => {
                 {/* HEADER */}
                 <header className="bg-white border-b flex items-center justify-between p-4 z-20">
                     <div className="flex items-center gap-2">
-                        {/* Hamburger menu per mobile */}
+                        {/* Hamburger menu per mobile con nome modulo */}
                         <button 
                             onClick={() => setIsMobileMenuOpen(true)}
-                            className="lg:hidden text-gray-600 hover:text-gray-900 mr-2"
+                            className="lg:hidden flex items-center gap-2 text-gray-700 hover:text-gray-900"
                         >
                             <Bars3Icon className="h-6 w-6" />
+                            <span className="font-semibold text-sm">Menu</span>
                         </button>
 
-                        {/* Scorciatoie */}
+                        {/* Scorciatoie - nascoste su mobile per fare spazio al nome modulo */}
                         <div className="hidden md:flex items-center gap-2">
                             {(shortcuts || []).map(sc => (
                                 <button 
@@ -657,5 +658,4 @@ const MainApp = () => {
         </div>
     );
 };
-
 export default MainApp;
