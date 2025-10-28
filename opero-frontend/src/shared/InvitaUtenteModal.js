@@ -22,7 +22,7 @@ const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo }) => {
     // Il useEffect per recuperare i tipi utente è stato rimosso
 
     const handleInvite = async () => {
-        if (!email || !id_ruolo || !codiceTipoUtente) {
+        if (!email || !id_ruolo ) {
             setError('Tutti i campi sono obbligatori.');
             return;
         }
@@ -34,7 +34,7 @@ const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo }) => {
                 email,
                 id_ruolo,
                 // Convertiamo la stringa in numero prima di inviarla
-                Codice_Tipo_Utente: parseInt(codiceTipoUtente, 10),
+                //Codice_Tipo_Utente: parseInt(codiceTipoUtente, 10),
             });
             
             toast.success(response.data.message);

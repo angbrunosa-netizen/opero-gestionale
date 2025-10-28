@@ -362,7 +362,7 @@ function UserManager() {
                      isOpen={isInviteModalOpen} // Passa lo stato per la visibilità
                      onClose={() => setIsInviteModalOpen(false)} // Passa funzione per chiudere
                      onInviteSent={handleInviteSuccess} // Passa funzione da chiamare DOPO l'invio riuscito
-                     id_ruolo={null} // Passa null o un ruolo di default se necessario dal modale
+                     id_ruolo={4} // Passa 4 o un ruolo di default se necessario dal modale
                      // NOTA: Non passiamo più onSendInvite o isLoading perché sono gestiti internamente dal modale
                  />
              )}
