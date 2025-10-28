@@ -430,6 +430,14 @@ const MainApp = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const location = useLocation();
 
+    // Funzione per ottenere il nome del modulo attivo
+    const getActiveModuleName = () => {
+        if (activeModule === 'DASHBOARD') return 'Dashboard';
+        
+        const activeModuleData = modules.find(module => module.chiave_componente === activeModule);
+        return activeModuleData ? activeModuleData.descrizione : 'Opero';
+    };
+
     const fetchShortcuts = useCallback(async () => {
         if (!user) return;
         try {
@@ -608,13 +616,13 @@ const MainApp = () => {
                 {/* HEADER */}
                 <header className="bg-white border-b flex items-center justify-between p-4 z-20">
                     <div className="flex items-center gap-2">
-                        {/* Hamburger menu per mobile con nome modulo */}
+                        {/* Hamburger menu per mobile con nome modulo attivo */}
                         <button 
                             onClick={() => setIsMobileMenuOpen(true)}
                             className="lg:hidden flex items-center gap-2 text-gray-700 hover:text-gray-900"
                         >
                             <Bars3Icon className="h-6 w-6" />
-                            <span className="font-semibold text-sm">Menu</span>
+                            <span className="font-semibold text-sm">{getActiveModuleName()}</span>
                         </button>
 
                         {/* Scorciatoie - nascoste su mobile per fare spazio al nome modulo */}
@@ -658,4 +666,5 @@ const MainApp = () => {
         </div>
     );
 };
+
 export default MainApp;

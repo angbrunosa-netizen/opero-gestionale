@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect ,useMemo} from 'react';
 import { api } from '../services/api'; 
 import PianoContiManager from './cont-smart/PianoContiManager'; // Importato il componente reale
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-toastify';
 import { Cog6ToothIcon,
         ChevronDownIcon,
          UsersIcon, BuildingOfficeIcon, QueueListIcon, EnvelopeIcon,BuildingOffice2Icon,WrenchScrewdriverIcon, DocumentTextIcon, AtSymbolIcon, Cog8ToothIcon, HashtagIcon} from '@heroicons/react/24/solid'; // Aggiunta icona per PPA
@@ -14,6 +15,15 @@ import UserForm from './UserForm'; // Esempio, potrebbero essere gestori più co
 import PPAModule from './PPAModule'; // <-- IMPORTA IL NUOVO MODULO PPA
 import ProgressiviManager from './amministrazione/ProgressiviManager';
 //import DynamicReportTable from '../shared/DynamicReportTable'; // <-- IMPORTAZIONE COMPONENTE
+import { PencilIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+
+// Importa il componente AdvancedDataGrid dal percorso corretto
+import AdvancedDataGrid from '../shared/AdvancedDataGrid'; // Assicurati che il percorso sia giusto!
+
+import InvitaUtenteModal from '../shared/InvitaUtenteModal';
+// --- MODIFICA: Import del nuovo modale ---
+import ShowLinkModal from '../shared/ShowLinkModal';
+
 
 //const AnagraficheManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Anagrafiche</h2><p>Interfaccia per la gestione di Clienti e Fornitori.</p></div>;
 //const UserManager = () => <div className="p-6"><h2 className="text-2xl font-bold">Gestione Utenti</h2><p>Interfaccia per la gestione degli utenti della ditta.</p></div>;
@@ -211,26 +221,37 @@ function AnagraficaEditModal({ anagraficaId, onSave, onCancel }) {
 // --- Componente per la Gestione Utenti (Placeholder) ---
 // --- Componente per la Gestione Utenti ---
 // --- Componente per la Gestione Utenti ---
+// --- Componente per la Gestione Utenti (CORRETTO) ---
 function UserManager() {
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
-    const [generatedLink, setGeneratedLink] = useState('');
+
+    // Stato per il modale di INVITO (usato solo per aprirlo/chiuderlo)
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    // Lo stato isInviting non serve più qui, è gestito dentro InvitaUtenteModal
+
     const { hasPermission } = useAuth();
 
+    // Funzione per caricare gli utenti
     const fetchData = useCallback(async () => {
         setIsLoading(true);
+        setError('');
         try {
             const { data } = await api.get('/amministrazione/utenti');
             if (data.success) {
                 setUsers(data.data);
             } else {
-                setError(data.message);
+                setError(data.message || 'Errore nel caricamento utenti.');
+                toast.error(data.message || 'Errore nel caricamento utenti.');
             }
         } catch (err) {
-            setError('Errore di connessione.');
+            console.error("Errore fetch utenti:", err);
+            const errMsg = err.response?.data?.message || 'Errore di connessione.';
+            setError(errMsg);
+            toast.error(errMsg);
         } finally {
             setIsLoading(false);
         }
@@ -240,99 +261,150 @@ function UserManager() {
         fetchData();
     }, [fetchData]);
 
-    const handleGenerateLink = async () => {
-        setGeneratedLink('Generazione link in corso...');
-        try {
-            const { data } = await api.post('/amministrazione/utenti/genera-link-registrazione');
-            if (data.success) {
-                setGeneratedLink(data.link);
-            } else {
-                setGeneratedLink(`Errore: ${data.message}`);
-            }
-        } catch (err) {
-            setGeneratedLink('Errore di connessione durante la generazione del link.');
-        }
-    };
+    // --- RIMOSSA LA FUNZIONE handleSendInvite ---
+    // La logica di invio è interna a InvitaUtenteModal e non possiamo cambiarla.
+    // Useremo la prop onInviteSent del modale per aggiornare i dati.
 
-    const handleOpenModal = (userId) => {
+    // Funzione chiamata da InvitaUtenteModal quando l'invito ha successo
+    const handleInviteSuccess = useCallback(() => {
+        setIsInviteModalOpen(false); // Chiudi il modale
+        fetchData(); // Aggiorna la lista utenti
+    }, [fetchData]); // Dipende solo da fetchData
+
+
+    // Funzioni per aprire/chiudere il modale di MODIFICA
+    const handleOpenEditModal = (userId) => {
+        if (!hasPermission('UTENTI_EDIT')) {
+             toast.warn('Non hai i permessi per modificare gli utenti.');
+             return;
+        }
         setSelectedUserId(userId);
-        setIsModalOpen(true);
+        setIsEditModalOpen(true);
     };
 
-    const handleCloseModal = () => {
+    const handleCloseEditModal = () => {
         setSelectedUserId(null);
-        setIsModalOpen(false);
+        setIsEditModalOpen(false);
     };
 
+    // Funzione per salvare le modifiche dall'UserEditModal
     const handleSaveUser = async (userId, data) => {
+         if (!hasPermission('UTENTI_EDIT')) {
+             toast.warn('Non hai i permessi per salvare le modifiche.');
+             return;
+        }
         try {
-            const res = await api.patch(`/amministrazione/utenti/${userId}`, data);
-            alert(res.data.message);
-            if (res.data.success) {
-                handleCloseModal();
-                fetchData(); // Ricarica la lista utenti per vedere le modifiche
+            const response = await api.patch(`/amministrazione/utenti/${userId}`, data);
+            if (response.data.success) {
+                 toast.success(response.data.message || 'Utente aggiornato con successo!');
+                 handleCloseEditModal();
+                 fetchData();
+            } else {
+                 toast.error(response.data.message || 'Errore durante il salvataggio.');
             }
         } catch (err) {
-            alert(err.response?.data?.message || 'Errore nel salvataggio.');
+            console.error("Errore salvataggio utente:", err);
+            const errMsg = err.response?.data?.message || 'Errore durante la comunicazione con il server.';
+            toast.error(errMsg);
         }
     };
 
-    const canCreate = hasPermission('UTENTI_CREATE');
+
+    // Permessi per UI condizionale (controlla UTENTI_CREATE per il pulsante)
+    const canInvite = hasPermission('UTENTI_CREATE'); // Visibilità pulsante basata su UTENTI_CREATE
     const canEdit = hasPermission('UTENTI_EDIT');
 
-    return (
-        <div>
-            {isModalOpen && <UserEditModal userId={selectedUserId} onSave={handleSaveUser} onCancel={handleCloseModal} />}
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-slate-700">Gestione Utenti</h3>
-                {canCreate && (
-                    <div className="flex items-center gap-4">
-                        <button onClick={handleGenerateLink} className="px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700">
-                            Crea Utente da Link
+    // Colonne per AdvancedDataGrid
+    const columns = useMemo(() => [
+        { accessorKey: 'cognome', header: 'Cognome', size: 150 },
+        { accessorKey: 'nome', header: 'Nome', size: 150 },
+        { accessorKey: 'email', header: 'Email', size: 250 },
+        { accessorKey: 'ruolo', header: 'Ruolo', size: 150 },
+        {
+            id: 'actions',
+            header: 'Azioni',
+            size: 100,
+            enableSorting: false,
+            enableHiding: false,
+            cell: ({ row }) => (
+                canEdit && (
+                    <div className="flex justify-center">
+                        <button
+                            onClick={() => handleOpenEditModal(row.original.id)}
+                            className="p-1 text-blue-600 hover:text-blue-900 focus:outline-none"
+                            aria-label="Gestisci utente"
+                            title="Gestisci utente"
+                        >
+                            <PencilIcon className="h-5 w-5" />
                         </button>
                     </div>
+                )
+            ),
+        },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ], [canEdit]); // Rimosso handleOpenEditModal dalle dipendenze, non cambia
+
+
+    return (
+        <div className="p-4 space-y-4">
+             {/* Renderizza il modale di MODIFICA UTENTE */}
+            {isEditModalOpen && selectedUserId && (
+                <UserEditModal
+                    userId={selectedUserId}
+                    onSave={handleSaveUser}
+                    onCancel={handleCloseEditModal}
+                />
+             )}
+
+             {/* Renderizza il modale di INVITO UTENTE condiviso */}
+             {isInviteModalOpen && (
+                 <InvitaUtenteModal
+                     isOpen={isInviteModalOpen} // Passa lo stato per la visibilità
+                     onClose={() => setIsInviteModalOpen(false)} // Passa funzione per chiudere
+                     onInviteSent={handleInviteSuccess} // Passa funzione da chiamare DOPO l'invio riuscito
+                     id_ruolo={null} // Passa null o un ruolo di default se necessario dal modale
+                     // NOTA: Non passiamo più onSendInvite o isLoading perché sono gestiti internamente dal modale
+                 />
+             )}
+
+
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                <h3 className="text-xl font-semibold text-slate-700">Gestione Utenti</h3>
+                {canInvite && ( // Mostra pulsante se UTENTI_CREATE è true
+                     <button
+                        onClick={() => setIsInviteModalOpen(true)} // Apre il modale
+                        className={`px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 flex items-center gap-2 transition duration-150 ease-in-out`}
+                        // disabled non è più necessario qui, lo gestirà il modale internamente
+                    >
+                        <UserPlusIcon className="h-5 w-5" />
+                        Invita Nuovo Utente
+                    </button>
                 )}
             </div>
 
-            {generatedLink && (
-                <div className="mb-4 p-3 bg-gray-100 rounded-md">
-                    <p className="text-sm font-medium">Link di registrazione generato:</p>
-                    <input type="text" readOnly value={generatedLink} className="w-full p-2 mt-1 bg-white border rounded-md" onFocus={e => e.target.select()} />
+            {error && !isLoading && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    <strong className="font-bold">Errore: </strong>
+                    <span className="block sm:inline">{error}</span>
                 </div>
-            )}
+             )}
 
-            {isLoading && <p>Caricamento...</p>}
-            {error && <p className="text-red-500">{error}</p>}
-            {!isLoading && !error && (
-                <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Cognome e Nome</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Ruolo</th>
-                                {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                            {users.map(user => (
-                                <tr key={user.id}>
-                                    <td className="px-6 py-4 font-medium">{user.cognome} {user.nome}</td>
-                                    <td className="px-6 py-4">{user.email}</td>
-                                    <td className="px-6 py-4">{user.ruolo}</td>
-                                    {canEdit && <td className="px-6 py-4 text-center"><button onClick={() => handleOpenModal(user.id)} className="text-blue-600 hover:text-blue-900">Gestisci</button></td>}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+             <div style={{ height: 600, width: '100%' }} className="bg-white shadow rounded-lg">
+                 <AdvancedDataGrid
+                     data={users}
+                     columns={columns}
+                     loading={isLoading}
+                     getRowId={(row) => row.id}
+                     initialState={{
+                         pagination: { paginationModel: { pageSize: 10 } },
+                     }}
+                     pageSizeOptions={[5, 10, 25, 50]}
+                     autoHeight={false}
+                 />
+            </div>
         </div>
     );
 }
-
-
-
 /*
 
 // --- Componente per la Gestione Anagrafiche (AGGIORNATO) ---
@@ -733,7 +805,7 @@ function MailAccountsManager() {
     const [selectedAccount, setSelectedAccount] = useState(null);
     const { hasPermission } = useAuth();
 
-    const canEdit = hasPermission('MAIL_ACCOUNTS_EDIT', 90);
+    const canEdit = hasPermission('MAIL_ACCOUNTS_EDIT',79);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -844,6 +916,7 @@ function MailAccountsManager() {
 
 // --- Componente Modale per la Gestione Utente (POTENZIATO con Etichette) ---
 function UserEditModal({ userId, onSave, onCancel }) {
+    const { hasPermission } = useAuth(); // <-- 2. INIZIALIZZIAMO L'HOOK PER I PERMESSI
     const [formData, setFormData] = useState({});
     const [availableAccounts, setAvailableAccounts] = useState([]);
     const [selectedAccounts, setSelectedAccounts] = useState(new Set());
@@ -851,9 +924,13 @@ function UserEditModal({ userId, onSave, onCancel }) {
     const [userTypes, setUserTypes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // <-- 3. AGGIUNGIAMO STATO PER LE TAB
+    const [activeTab, setActiveTab] = useState('anagrafica');
+
     useEffect(() => {
         const fetchData = async () => {
             try {
+                // Il caricamento dati esistente va già bene
                 const [userRes, accountsRes, rolesRes, typesRes] = await Promise.all([
                     api.get(`/amministrazione/utenti/${userId}`),
                     api.get('/amministrazione/mail-accounts'),
@@ -898,99 +975,195 @@ function UserEditModal({ userId, onSave, onCancel }) {
         });
     };
 
+    // --- Helper per trovare le descrizioni (Sola Lettura Tab 2) ---
+    // Usiamo useMemo per non ricalcolare ad ogni render
+    const ruoloUtente = useMemo(() => {
+        return roles.find(r => r.id === formData.id_ruolo)?.tipo || 'N/D';
+    }, [formData.id_ruolo, roles]);
+
+    const tipoUtente = useMemo(() => {
+        return userTypes.find(t => t.Codice === formData.Codice_Tipo_Utente)?.Descrizione || 'N/D';
+    }, [formData.Codice_Tipo_Utente, userTypes]);
+    // --- Fine Helper ---
+
+
     if (isLoading) return <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><p className="text-white">Caricamento...</p></div>;
+
+    // --- Componente Helper per le Tab (per pulizia codice) ---
+    const TabButton = ({ tabId, label }) => (
+        <button
+            type="button"
+            onClick={() => setActiveTab(tabId)}
+            className={`px-4 py-2 font-medium text-sm rounded-t-md ${
+                activeTab === tabId
+                    ? 'bg-white border-b-2 border-blue-600 text-blue-600'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+        >
+            {label}
+        </button>
+    );
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-5xl max-h-[95vh] flex flex-col">
                 <h3 className="text-xl font-semibold mb-4 text-slate-800">Gestisci Utente: {formData.nome} {formData.cognome}</h3>
-                <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto pr-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Colonna 1: Anagrafica */}
-                    <div className="space-y-4">
-                        <h4 className="font-semibold text-slate-600 border-b pb-2">Anagrafica</h4>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">ID Utente</label>
-                            <input value={formData.id || ''} disabled className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Nome</label>
-                            <input name="nome" value={formData.nome || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Cognome</label>
-                            <input name="cognome" value={formData.cognome || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
-                            <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Telefono</label>
-                            <input name="telefono" value={formData.telefono || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
-                            <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Città</label>
-                            <input name="citta" value={formData.citta || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">CAP</label>
-                            <input name="cap" value={formData.cap || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Note</label>
-                            <textarea name="note" value={formData.note || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md h-24"></textarea>
-                        </div>
-                    </div>
+                
+                {/* <-- 4. INIZIO NAVIGAZIONE TAB --> */}
+                <div className="flex border-b border-slate-200 mb-4">
+                    <TabButton tabId="anagrafica" label="Dati Anagrafici" />
+                    <TabButton tabId="funzionali" label="Dati Funzionali" />
+                    <TabButton tabId="mail" label="Settaggi Mail" />
+                </div>
+                {/* <-- FINE NAVIGAZIONE TAB --> */}
 
-                    {/* Colonna 2: Credenziali e Permessi */}
-                    <div className="space-y-4">
-                        <h4 className="font-semibold text-slate-600 border-b pb-2">Credenziali e Permessi</h4>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Email</label>
-                            <input value={formData.email || ''} disabled className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Ruolo</label>
-                            <select name="id_ruolo" value={formData.id_ruolo || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md">
-                                <option value="">Seleziona Ruolo...</option>
-                                {roles.map(role => <option key={role.id} value={role.id}>{role.tipo}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Tipo Utente</label>
-                            <select name="Codice_Tipo_Utente" value={formData.Codice_Tipo_Utente || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md">
-                                <option value="">Seleziona Tipo Utente...</option>
-                                {userTypes.map(type => <option key={type.Codice} value={type.Codice}>{type.Descrizione}</option>)}
-                            </select>
-                        </div>
-                         <div>
-                            <label className="block text-sm font-medium text-slate-700">Livello</label>
-                            <input type="number" name="livello" value={formData.livello || 0} onChange={handleFormChange} min="0" max="100" className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div className="flex items-center gap-6 pt-2">
-                            <div className="flex items-center"><input type="checkbox" name="attivo" id="user-active" checked={!!formData.attivo} onChange={handleFormChange} className="h-4 w-4" /><label htmlFor="user-active" className="ml-2">Attivo</label></div>
-                            <div className="flex items-center"><input type="checkbox" name="privacy" id="user-privacy" checked={!!formData.privacy} onChange={handleFormChange} className="h-4 w-4" /><label htmlFor="user-privacy" className="ml-2">Privacy Accettata</label></div>
-                        </div>
-                    </div>
+                <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto pr-4">
+                    
+                    {/* <-- 5. PANNELLO TAB 1: DATI ANAGRAFICI --> */}
+                    {activeTab === 'anagrafica' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Colonna 1: Anagrafica Base */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">ID Utente</label>
+                                    <input value={formData.id || ''} disabled className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Nome</label>
+                                    <input name="nome" value={formData.nome || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Cognome</label>
+                                    <input name="cognome" value={formData.cognome || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Codice Fiscale</label>
+                                    <input name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
+                                </div>
+                            </div>
 
-                    {/* Colonna 3: Account Email */}
-                    <div className="space-y-4">
-                        <h4 className="font-semibold text-slate-600 border-b pb-2">Account Email Associati</h4>
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                            {availableAccounts.map(acc => (
-                                <div key={acc.id} className="flex items-center"><input type="checkbox" id={`acc-${acc.id}`} checked={selectedAccounts.has(acc.id)} onChange={() => handleAccountToggle(acc.id)} className="h-4 w-4" /><label htmlFor={`acc-${acc.id}`} className="ml-2">{acc.nome_account}</label></div>
-                            ))}
+                            {/* Colonna 2: Contatti Email */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Email (Registrazione)</label>
+                                    <input value={formData.email || ''} disabled className="mt-1 block w-full p-2 border rounded-md bg-slate-100" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Email Contatto</label>
+                                    <input name="mail_contatto" value={formData.mail_contatto || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" placeholder="Email pubblica..." />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Email Collaboratore</label>
+                                    <input name="mail_collaboratore" value={formData.mail_collaboratore || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" placeholder="Email interna..." />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Email PEC</label>
+                                    <input name="mail_pec" value={formData.mail_pec || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" placeholder="Indirizzo PEC..." />
+                                </div>
+                            </div>
+                            
+                            {/* Colonna 3: Residenza e Telefono */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Telefono</label>
+                                    <input name="telefono" value={formData.telefono || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Indirizzo</label>
+                                    <input name="indirizzo" value={formData.indirizzo || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Città</label>
+                                    <input name="citta" value={formData.citta || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">Provincia</label>
+                                        <input name="provincia" value={formData.provincia || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" maxLength="2" placeholder="Es. MI" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700">CAP</label>
+                                        <input name="cap" value={formData.cap || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md" maxLength="5" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    {/* Pulsanti di Azione */}
-                    <div className="md:col-span-3 flex justify-end gap-4 pt-4 border-t mt-4">
+                    {/* <-- 6. PANNELLO TAB 2: DATI FUNZIONALI --> */}
+                    {activeTab === 'funzionali' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Colonna 1: Opzioni e Note */}
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-slate-600 border-b pb-2">Opzioni</h4>
+                                <div className="flex items-center gap-6 pt-2">
+                                    <div className="flex items-center">
+                                        <input type="checkbox" name="attivo" id="user-active" checked={!!formData.attivo} onChange={handleFormChange} className="h-4 w-4" />
+                                        <label htmlFor="user-active" className="ml-2">Utente Attivo</label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <input type="checkbox" name="privacy" id="user-privacy" checked={!!formData.privacy} onChange={handleFormChange} className="h-4 w-4" />
+                                        <label htmlFor="user-privacy" className="ml-2">Privacy Accettata</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Note</label>
+                                    <textarea name="note" value={formData.note || ''} onChange={handleFormChange} className="mt-1 block w-full p-2 border rounded-md h-32"></textarea>
+                                </div>
+                            </div>
+                            
+                            {/* Colonna 2: Credenziali (Sola Lettura) */}
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-slate-600 border-b pb-2">Credenziali (Sola Lettura)</h4>
+                                <div className="bg-slate-50 p-4 rounded-md space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 uppercase">Ruolo</label>
+                                        <p className="text-base text-slate-800">{ruoloUtente}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 uppercase">Tipo Utente</label>
+                                        <p className="text-base text-slate-800">{tipoUtente}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 uppercase">Livello</label>
+                                        <p className="text-base text-slate-800">{formData.livello || 0}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* <-- 7. PANNELLO TAB 3: SETTAGGI MAIL --> */}
+                    {activeTab === 'mail' && (
+                         <div className="space-y-4">
+                            <h4 className="font-semibold text-slate-600 border-b pb-2">Account Email Associati</h4>
+                            <div className="space-y-2 max-h-96 overflow-y-auto p-2">
+                                {availableAccounts.length > 0 ? availableAccounts.map(acc => (
+                                    <div key={acc.id} className="flex items-center p-2 rounded hover:bg-slate-50">
+                                        <input 
+                                            type="checkbox" 
+                                            id={`acc-${acc.id}`} 
+                                            checked={selectedAccounts.has(acc.id)} 
+                                            onChange={() => handleAccountToggle(acc.id)} 
+                                            className="h-4 w-4" 
+                                        />
+                                        <label htmlFor={`acc-${acc.id}`} className="ml-2">{acc.nome_account}</label>
+                                    </div>
+                                )) : <p className="text-slate-500">Nessun account email configurato per la ditta.</p>}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* <-- 8. PULSANTI DI AZIONE --> */}
+                    <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 rounded-md">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva Modifiche</button>
+                        <button 
+                            type="submit" 
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-slate-400"
+                            disabled={!hasPermission('UTENTI_EDIT')} // <-- 9. PROTEZIONE PERMESSO
+                        >
+                            Salva Modifiche
+                        </button>
                     </div>
                 </form>
             </div>

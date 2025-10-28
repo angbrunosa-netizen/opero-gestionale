@@ -386,25 +386,42 @@ router.patch('/anagrafiche/:id', verifyToken, async (req, res) => {
 
 // --- GET (Lista Utenti della Ditta) ---
 // --- ROTTA: GET (Lista Utenti per la Ditta) --- (MODIFICATA PER DEBUG)
+/*
+ * File: routes/amministrazione.js
+ * Versione: 1.5 (Refactoring Schema DB per Elenco Utenti)
+ * Descrizione: API per recuperare l'elenco utenti associati alla ditta corrente con la nuova logica multi-ditta.
+ * Utilizzo: Chiamata dal frontend (es. GestioneUtenti) per visualizzare la lista utenti.
+ */
+
+// --- GET (Elenco Utenti per Ditta) ---
+// Modificato per usare la join tra ad_utenti_ditte, utenti e ruoli
 router.get('/utenti', verifyToken, async (req, res) => {
+    // Recupera l'ID della ditta dal token dell'utente che esegue la richiesta
     const { id_ditta } = req.user;
 
-  
     try {
-        const query = `
-            SELECT u.id, u.nome, u.cognome, u.email, u.livello, r.tipo as tipo_ruolo, u.attivo
-            FROM utenti u
-            LEFT JOIN ruoli r ON u.id_ruolo = r.id
-            WHERE u.id_ditta = ?
-            ORDER BY u.cognome, u.nome
-        `;
-        const [users] = await dbPool.query(query, [id_ditta]);
-        
-        // =================================================================
-        // ## ALTRO BLOCCO DI DEBUG ##
-      
+        // --- NUOVA LOGICA DI QUERY CON KNEX ---
+        // 1. Partiamo da 'ad_utenti_ditte' (aud) filtrando subito per id_ditta.
+        // 2. Facciamo JOIN con 'utenti' (u) per i dati anagrafici.
+        // 3. Facciamo JOIN con 'ruoli' (r) per il nome del ruolo.
+        const users = await knex('ad_utenti_ditte as aud')
+            .join('utenti as u', 'aud.id_utente', 'u.id')
+            .join('ruoli as r', 'aud.id_ruolo', 'r.id')
+            .where('aud.id_ditta', id_ditta) // Filtro primario sulla tabella pivot
+            .select(
+                'u.id',
+                'u.nome',
+                'u.cognome',
+                'u.email',
+                'aud.livello', // Livello ora preso da ad_utenti_ditte
+                'r.tipo as tipo_ruolo', // Nome ruolo (tipo) da ruoli
+                'aud.stato as attivo' // Stato preso da ad_utenti_ditte e rinominato 'attivo' per compatibilità
+            )
+            .orderBy(['u.cognome', 'u.nome']); // Ordinamento sui campi della tabella utenti
 
+        // L'output rimane una lista di oggetti utente, come prima.
         res.json({ success: true, data: users });
+
     } catch (error) {
         console.error("Errore nel recupero utenti:", error);
         res.status(500).json({ success: false, message: 'Errore durante il recupero degli utenti.' });
@@ -729,40 +746,99 @@ router.get('/utenti/:id', verifyToken, async (req, res) => {
     }
 });
 // --- PATCH (Aggiorna Utente e Account Email - Potenziata) ---
+// --- PATCH (Aggiorna Utente) ---
+// Modificato per aggiornare separatamente 'utenti' e 'ad_utenti_ditte' in transazione
 router.patch('/utenti/:id', verifyToken, async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
-    const { id: userId } = req.params;
+    const { id_ditta: dittaId, id: requestingUserId } = req.user; // ID utente che esegue l'operazione per logging
+    const { id: userId } = req.params; // ID utente da modificare
     const { userData, mailAccountIds } = req.body;
 
-    // Rimuoviamo i campi non modificabili o gestiti separatamente
-    delete userData.id;
-    delete userData.id_ditta;
-    delete userData.email; // L'email non dovrebbe essere modificabile
-    delete userData.password;
-    delete userData.data_creazione;
-    delete userData.data_ultimo_accesso;
+    // Definiamo i campi per ciascuna tabella
+    const anagraphicFields = ['nome', 'cognome', 'codice_fiscale', 'telefono', 'indirizzo', 'citta', 'provincia', 'cap', 'mail_contatto', 'mail_collaboratore', 'mail_pec', 'note', 'firma', 'privacy'];
+    const contextualFields = ['id_ruolo', 'Codice_Tipo_Utente', 'stato', 'livello']; // Aggiungi altri se necessario
 
-    const connection = await dbPool.getConnection();
-    try {
-        await connection.beginTransaction();
+    // Separiamo i dati in base alla tabella di destinazione
+    const anagraphicData = {};
+    const contextualData = {};
 
-        await connection.query('UPDATE utenti SET ? WHERE id = ? AND id_ditta = ?', [userData, userId, dittaId]);
-
-        await connection.query('DELETE FROM utente_mail_accounts WHERE id_utente = ?', [userId]);
-        if (mailAccountIds && mailAccountIds.length > 0) {
-            const values = mailAccountIds.map(accountId => [userId, accountId]);
-            await connection.query('INSERT INTO utente_mail_accounts (id_utente, id_mail_account) VALUES ?', [values]);
+    for (const key in userData) {
+        if (anagraphicFields.includes(key)) {
+            anagraphicData[key] = userData[key];
+        } else if (contextualFields.includes(key)) {
+            contextualData[key] = userData[key];
         }
-
-        await connection.commit();
-        res.json({ success: true, message: 'Utente aggiornato con successo.' });
-    } catch (error) {
-        await connection.rollback();
-        console.error("Errore aggiornamento utente:", error);
-        res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento.' });
-    } finally {
-        connection.release();
+        // Ignoriamo altri campi (es. 'tipo_ruolo' che è letto ma non scritto)
     }
+
+    // Usiamo una transazione Knex
+    try {
+        await knex.transaction(async (trx) => {
+            // 1. Aggiorna dati anagrafici sulla tabella 'utenti'
+            if (Object.keys(anagraphicData).length > 0) {
+                await trx('utenti')
+                    .where('id', userId)
+                    .update(anagraphicData);
+                // NOTA: Non filtriamo per ditta qui, l'anagrafica è unica.
+            }
+
+            // 2. Aggiorna dati contestuali sulla tabella 'ad_utenti_ditte'
+            if (Object.keys(contextualData).length > 0) {
+                const affectedRows = await trx('ad_utenti_ditte')
+                    .where({
+                        id_utente: userId,
+                        id_ditta: dittaId
+                    })
+                    .update(contextualData);
+
+                // Controllo se l'utente è effettivamente associato a quella ditta
+                if (affectedRows === 0) {
+                    throw new Error(`Utente con ID ${userId} non trovato o non associato alla ditta ID ${dittaId}. L'aggiornamento dei dati contestuali è fallito.`);
+                }
+            }
+
+            // 3. Gestisci associazioni account email (come prima, ma usando 'trx')
+            await trx('utente_mail_accounts')
+                .where('id_utente', userId)
+                .del(); // DELETE
+
+            if (mailAccountIds && mailAccountIds.length > 0) {
+                const values = mailAccountIds.map(accountId => ({
+                    id_utente: userId,
+                    id_mail_account: accountId
+                }));
+                 // Usiamo insert con array di oggetti per Knex
+                await trx('utente_mail_accounts').insert(values);
+            }
+
+            // 4. *** LOGGING OBBLIGATORIO ***
+            // Inserisci qui la logica per scrivere nella tabella log_azioni
+            // Esempio:
+             await trx('log_azioni').insert({
+                 id_utente: requestingUserId, // Chi ha fatto l'azione
+                 id_ditta: dittaId,
+                 azione: 'UPDATE UTENTE',
+                 modulo: 'AMMINISTRAZIONE',
+                 funzione: 'MODIFICA UTENTE',
+                 //tabella_modificata: 'utenti/ad_utenti_ditte', // Potresti voler essere più specifico
+                 //id_record_modificato: userId,
+                 timestamp: new Date(),
+                 dettagli: JSON.stringify({ anagraphicData, contextualData, mailAccountIds }) // Dati modificati
+             });
+        }); // Fine transazione (commit automatico se non ci sono errori)
+
+        res.json({ success: true, message: 'Utente aggiornato con successo.' });
+
+    } catch (error) {
+        // Rollback automatico in caso di errore nella transazione
+        console.error("Errore aggiornamento utente:", error);
+        // Restituisci un messaggio specifico se l'utente non è stato trovato nella ditta
+        if (error.message.includes("non trovato o non associato")) {
+             res.status(404).json({ success: false, message: error.message });
+        } else {
+             res.status(500).json({ success: false, message: 'Errore durante l\'aggiornamento dell\'utente.' });
+        }
+    }
+    // Non serve più connection.release() perché Knex gestisce il pool
 });
 // --- NUOVA ROTTA: GET (Lista Ruoli Assegnabili) ---
 router.get('/ruoli-assegnabili', verifyToken, async (req, res) => {
@@ -1285,10 +1361,10 @@ router.get('/utenti-esterni', verifyToken, async (req, res) => {
 // Nel tuo file routes/amministrazione.js
 
 router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
-    const { email, id_ruolo, Codice_Tipo_Utente } = req.body;
+    const { email, id_ruolo } = req.body;
     const { id_ditta, ditta } = req.user;
 
-    if (!email || !id_ruolo || !Codice_Tipo_Utente) {
+    if (!email || !id_ruolo ) {
         return res.status(400).json({ success: false, message: 'Email, ruolo e tipo utente sono obbligatori.' });
     }
 
@@ -1316,7 +1392,7 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
                 id_utente: existingUser.id,
                 id_ditta: id_ditta,
                 id_ruolo: id_ruolo,
-                Codice_Tipo_Utente: Codice_Tipo_Utente,
+               // Codice_Tipo_Utente: Codice_Tipo_Utente,
                 stato: 'attivo'
             });
             
@@ -1335,7 +1411,7 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
                 token,
                 scadenza: knex.raw('DATE_ADD(NOW(), INTERVAL 7 DAY)'),
                 id_ruolo,
-                Codice_Tipo_Utente: Codice_Tipo_Utente 
+               // Codice_Tipo_Utente: Codice_Tipo_Utente 
             });
 
             res.status(200).json({ 
