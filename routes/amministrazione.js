@@ -681,26 +681,53 @@ router.post('/utenti/genera-link-registrazione', verifyToken, async (req, res) =
 
 
 // --- GET (Dettaglio Singolo Utente - Potenziata) ---
+// Modificato per usare la join tra utenti e ad_utenti_ditte
+// CORRETTO: Usa 'knex' e 'r.nome'
+// --- GET (Dettaglio Singolo Utente - Potenziata) ---
+// Modificato per usare la join tra utenti e ad_utenti_ditte
+// CORRETTO: Usa 'knex' e 'r.tipo'
 router.get('/utenti/:id', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
     const { id: userId } = req.params;
-    try {
-        const [userRows] = await dbPool.query('SELECT * FROM utenti WHERE id = ? AND id_ditta = ?', [userId, dittaId]);
-        if (userRows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Utente non trovato.' });
-        }
-        const userData = userRows[0];
-        delete userData.password;
 
-        const [assignedAccounts] = await dbPool.query('SELECT id_mail_account FROM utente_mail_accounts WHERE id_utente = ?', [userId]);
+    try {
+        const userData = await knex('utenti as u')
+            .join('ad_utenti_ditte as aud', 'u.id', 'aud.id_utente')
+            .join('ruoli as r', 'aud.id_ruolo', 'r.id')
+            .where('u.id', userId)
+            .andWhere('aud.id_ditta', dittaId)
+            .select(
+                // Campi anagrafici da 'utenti'
+                'u.id', 'u.email', 'u.mail_contatto', 'u.mail_collaboratore', 'u.mail_pec',
+                'u.nome', 'u.cognome', 'u.codice_fiscale', 'u.telefono', 'u.indirizzo',
+                'u.citta', 'u.provincia', 'u.cap', 'u.data_creazione', 'u.data_ultimo_accesso',
+                'u.note', 'u.firma', 'u.privacy',
+                
+                // Campi contestuali da 'ad_utenti_ditte'
+                'aud.id_ruolo', 'aud.Codice_Tipo_Utente', 'aud.stato', 'aud.livello', 'aud.is_default',
+                
+                // Campi descrittivi da 'ruoli'
+                'r.tipo as nome_ruolo' // <-- CORREZIONE FINALE: 'r.tipo' e lo rinomino 'nome_ruolo'
+            )
+            .first();
+
+        if (!userData) {
+            return res.status(404).json({ success: false, message: 'Utente non trovato o non associato a questa ditta.' });
+        }
+
+        const assignedAccounts = await knex('utente_mail_accounts')
+            .where('id_utente', userId)
+            .select('id_mail_account');
+            
         const assignedMailAccountIds = assignedAccounts.map(a => a.id_mail_account);
 
         res.json({ success: true, data: { userData, assignedMailAccountIds } });
+
     } catch (error) {
+        console.error("Errore nel recupero dei dettagli utente (/utenti/:id):", error);
         res.status(500).json({ success: false, message: 'Errore nel recupero dei dettagli utente.' });
     }
 });
-
 // --- PATCH (Aggiorna Utente e Account Email - Potenziata) ---
 router.patch('/utenti/:id', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
