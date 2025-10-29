@@ -1,7 +1,7 @@
 /**
  * @file migrations/20251021114400_standardize_user_id_to_unsigned.js
  * @description Migrazione Strutturale Definitiva per standardizzare `utenti.id` a INT UNSIGNED.
- * @version 1.9 (Patch per email_nascoste)
+ * @version 1.11 (Patch per email_nascoste e ppa_teammembri)
  * @date 2025-10-29
  *
  * @overview
@@ -9,6 +9,8 @@
  * alla lista `foreignKeys`. Questo completa il censimento delle dipendenze e dovrebbe permettere
  * il completamento della migrazione strutturale.
  * * @version 1.9 -> Aggiunta logica di eccezione per `email_nascoste` che usa `id_utente`
+ * come parte di una PRIMARY KEY e non può essere reso NULL.
+ * * @version 1.11 -> Aggiunta logica di eccezione per `ppa_teammembri` che usa `id_utente`
  * come parte di una PRIMARY KEY e non può essere reso NULL.
  */
 
@@ -20,7 +22,7 @@ const foreignKeys = [
   { table: 'ct_codici_fornitore', column: 'created_by', constraint: 'ct_codici_fornitore_created_by_foreign'},
   { table: 'ct_ean', column: 'created_by', constraint: 'ct_ean_created_by_foreign'},
   { table: 'email_inviate', column: 'id_utente_mittente', constraint: 'email_inviate_ibfk_1'},
-  { table: 'email_nascoste', column: 'id_utente', constraint: 'email_nascoste_ibfk_1'},
+  { table: 'email_nascoste', column: 'id_utente', constraint: 'email_nascoste_ibfk_1'}, // PK
   { table: 'ldu', column: 'id_utente', constraint: 'ldu_ibfk_2'},
   { table: 'log_accessi', column: 'id_utente', constraint: 'log_accessi_ibfk_1'},
   { table: 'log_azioni', column: 'id_utente', constraint: 'log_azioni_ibfk_1'},
@@ -28,7 +30,7 @@ const foreignKeys = [
   { table: 'password_reset_tokens', column: 'id_utente', constraint: 'password_reset_tokens_id_utente_foreign'},
   { table: 'ppa_istanzeazioni', column: 'id_utente_assegnatario', constraint: 'ppa_istanzeazioni_ibfk_3'},
   { table: 'ppa_istanzeprocedure', column: 'id_utente_creatore', constraint: 'ppa_istanzeprocedure_ibfk_3'},
-  { table: 'ppa_teammembri', column: 'id_utente', constraint: 'ppa_teammembri_ibfk_2'},
+  { table: 'ppa_teammembri', column: 'id_utente', constraint: 'ppa_teammembri_ibfk_2'}, // Parte di PK
   { table: 'registration_tokens', column: 'id_utente_invitante', constraint: 'registration_tokens_ibfk_1'},
   { table: 'sc_registrazioni_testata', column: 'id_utente', constraint: 'sc_registrazioni_testata_ibfk_2'},
   { table: 'stati_lettura', column: 'id_utente', constraint: 'stati_lettura_ibfk_1'},
@@ -68,11 +70,11 @@ async function dropForeignKeyRobust(knex, nomeTabella, nomeColonna, nomeVincolo)
 
     // 1. Controlla se il vincolo esiste in INFORMATION_SCHEMA
     const result = await knex.raw(
-      `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-       WHERE TABLE_SCHEMA = DATABASE() 
-       AND TABLE_NAME = ? 
-       AND COLUMN_NAME = ? 
-       AND REFERENCED_TABLE_NAME = 'utenti'`,
+     `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = ? 
+      AND COLUMN_NAME = ? 
+      AND REFERENCED_TABLE_NAME = 'utenti'`,
       [nomeTabella, nomeColonna]
     );
 
@@ -107,12 +109,12 @@ async function dropForeignKeyRobust(knex, nomeTabella, nomeColonna, nomeVincolo)
   } catch (error) {
      // Gestione errori specifici
      if (error.code === 'ER_TABLE_NOT_FOUND' || error.sqlState === '42S02') {
-         console.log(`WARN: Tabella '${nomeTabella}' per vincolo '${nomeVincolo}' non trovata. Salto.`);
+        console.log(`WARN: Tabella '${nomeTabella}' per vincolo '${nomeVincolo}' non trovata. Salto.`);
      } else if (error.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
-         console.log(`WARN: Impossibile rimuovere FK '${nomeVincolo}' (forse non esiste). ${error.message}`);
+        console.log(`WARN: Impossibile rimuovere FK '${nomeVincolo}' (forse non esiste). ${error.message}`);
      } else {
-        console.error(`ERRORE non gestito durante rimozione FK ${nomeVincolo}: ${error.message}`);
-        throw error; // Rilancia se è un errore sconosciuto
+       console.error(`ERRORE non gestito durante rimozione FK ${nomeVincolo}: ${error.message}`);
+       throw error; // Rilancia se è un errore sconosciuto
      }
   }
 }
@@ -128,7 +130,7 @@ async function getColumnDefinition(knex, tableName, columnName) {
              WHERE TABLE_SCHEMA = DATABASE() 
              AND TABLE_NAME = ? 
              AND COLUMN_NAME = ?`,
-            [tableName, columnName]
+             [tableName, columnName]
         );
         if (result && result[0] && result[0][0]) {
             return result[0][0];
@@ -141,69 +143,61 @@ async function getColumnDefinition(knex, tableName, columnName) {
 
 
 exports.up = async function(knex) {
-  console.log('--- AVVIO MIGRAZIONE STRUTTURALE UTENTI.ID (v1.9 - Patch email_nascoste) ---');
-  
+  console.log('--- AVVIO MIGRAZIONE STRUTTURALE UTENTI.ID (v1.11 - Patch email_nascoste e ppa_teammembri) ---');
+
   try {
     await knex.transaction(async (trx) => {
-      
+
       // Fase 1: Rimozione delle Foreign Keys
       // Questa fase rimuove tutti i vincoli FK che puntano a `utenti.id`
       console.log('Fase 1: Rimozione delle Foreign Keys...');
-      let fkRemovedCount = 0;
       for (const { table: nomeTabella, column: nomeColonna, constraint: nomeVincolo } of foreignKeys) {
-        const originalWarnCount = console.warn.callCount || 0;
         await dropForeignKeyRobust(trx, nomeTabella, nomeColonna, nomeVincolo);
-        if ((console.warn.callCount || 0) === originalWarnCount) {
-             // Se dropForeignKeyRobust non ha emesso WARN (cioè ha rimosso OK)
-             // Nota: questo contatore è imperfetto se dropForeignKeyRobust cambia logica
-             // Ma ci basiamo sul log "OK:"
-             // Migliore: controlliamo se il log "OK:" è stato stampato (non possiamo qui)
-        }
       }
-      console.log(`INFO: Completata rimozione FKs.`); // Conteggio rimosso perché inaffidabile
+      console.log(`INFO: Completata rimozione FKs.`);
 
 
-      // Fase 2: Modifica delle colonne figlie in UNSIGNED NULL
-      // Modifichiamo tutte le colonne figlie (ex-FK) per accettare UNSIGNED e NULL.
-      // NULL è temporaneo per permettere la modifica della tabella 'utenti'
-      console.log('Fase 2: Modifica delle colonne figlie in UNSIGNED NULL (temporaneo)...');
+      // Fase 2: Modifica delle colonne figlie in UNSIGNED NULL (temporaneo, con eccezioni per PK)
+      console.log('Fase 2: Modifica delle colonne figlie in UNSIGNED (NOT NULL per PKs)...');
       for (const { table: nomeTabella, column: nomeColonna } of foreignKeys) {
         if (await trx.schema.hasTable(nomeTabella) && await trx.schema.hasColumn(nomeTabella, nomeColonna)) {
-           
-           const columnNameForModify = columnCaseMap[`${nomeTabella}.${nomeColonna}`] || nomeColonna;
-           console.log(`INFO: Tentativo di modificare ${nomeTabella}.${nomeColonna} (usando '${columnNameForModify}') in UNSIGNED NULL`);
-           
-           const colDef = await getColumnDefinition(trx, nomeTabella, nomeColonna);
-           const currentComment = colDef?.Comment ? `COMMENT '${colDef.Comment.replace(/'/g, "''")}'` : '';
-           
-           // --- INIZIO MODIFICA CRITICA (v1.9) ---
-           let nullClause = 'NULL'; 
-           if (nomeTabella === 'email_nascoste') {
-               console.log(`INFO: Eccezione per ${nomeTabella}.${nomeColonna}. È una PK, modifico in NOT NULL.`);
-               nullClause = 'NOT NULL';
-           }
-           // --- FINE MODIFICA CRITICA (v1.9) ---
 
-           await trx.raw(`ALTER TABLE \`${nomeTabella}\` MODIFY \`${columnNameForModify}\` INT UNSIGNED ${nullClause} ${currentComment}`);
-           console.log(`OK: Colonna '${columnNameForModify}' modificata in UNSIGNED per tabella '${nomeTabella}'.`);
+            const columnNameForModify = columnCaseMap[`${nomeTabella}.${nomeColonna}`] || nomeColonna;
+            console.log(`INFO: Tentativo di modificare ${nomeTabella}.${nomeColonna} (usando '${columnNameForModify}') in UNSIGNED`);
+
+            const colDef = await getColumnDefinition(trx, nomeTabella, nomeColonna);
+            const currentComment = colDef?.Comment ? `COMMENT '${colDef.Comment.replace(/'/g, "''")}'` : '';
+
+            // --- INIZIO LOGICA ECCEZIONI PER PK (v1.11) ---
+            let nullClause = 'NULL'; // Default: rende NULLABLE temporaneamente
+            if (nomeTabella === 'email_nascoste') {
+                console.log(`INFO: Eccezione per ${nomeTabella}.${nomeColonna}. È una PK, modifico in NOT NULL.`);
+                nullClause = 'NOT NULL';
+            }
+            else if (nomeTabella === 'ppa_teammembri') { // Aggiunta eccezione
+                 console.log(`INFO: Eccezione per ${nomeTabella}.${nomeColonna}. È parte di una PK, modifico in NOT NULL.`);
+                 nullClause = 'NOT NULL';
+            }
+            // --- FINE LOGICA ECCEZIONI PER PK ---
+
+            await trx.raw(`ALTER TABLE \`${nomeTabella}\` MODIFY \`${columnNameForModify}\` INT UNSIGNED ${nullClause} ${currentComment}`);
+            console.log(`OK: Colonna '${columnNameForModify}' modificata in UNSIGNED per tabella '${nomeTabella}'.`);
         } else {
-           console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto modifica tipo.`);
+            console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto modifica tipo.`);
         }
       }
 
 
       // Fase 3: Modifica della tabella 'utenti'
-      // Ora che nessun vincolo punta a `utenti.id`, possiamo modificarla.
       console.log('Fase 3: Modifica tabella utenti.id in UNSIGNED AUTO_INCREMENT...');
       const utentiColDef = await getColumnDefinition(trx, 'utenti', 'id');
       const utentiComment = utentiColDef?.Comment ? `COMMENT '${utentiColDef.Comment.replace(/'/g, "''")}'` : '';
-      
+
       await trx.raw(`ALTER TABLE \`utenti\` MODIFY \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT ${utentiComment}`);
       console.log('OK: Tabella `utenti.id` modificata.');
 
 
-      // Fase 4: Ripristino NOT NULL sulle colonne figlie
-      // Ripristiniamo il vincolo NOT NULL (dove appropriato)
+      // Fase 4: Ripristino NOT NULL sulle colonne figlie (dove necessario)
       console.log('Fase 4: Ripristino del NOT NULL sulle colonne figlie...');
       for (const { table: nomeTabella, column: nomeColonna } of foreignKeys) {
         if (await trx.schema.hasTable(nomeTabella) && await trx.schema.hasColumn(nomeTabella, nomeColonna)) {
@@ -211,19 +205,23 @@ exports.up = async function(knex) {
             const colDef = await getColumnDefinition(trx, nomeTabella, nomeColonna);
             const currentComment = colDef?.Comment ? `COMMENT '${colDef.Comment.replace(/'/g, "''")}'` : '';
 
-            // --- INIZIO MODIFICA CRITICA (v1.9) ---
-            // Logica per determinare se la colonna deve essere NOT NULL
-            // (Assumiamo che tutte le FK in questo progetto siano NOT NULL tranne casi specifici)
+            // --- INIZIO LOGICA ECCEZIONI PER PK (v1.11) ---
+            // Le colonne che erano PK devono rimanere NOT NULL
+            // Per le altre, assumiamo che fossero NOT NULL (default)
             let notNullClause = 'NOT NULL';
             if (nomeTabella === 'email_nascoste') {
                  console.log(`INFO: Eccezione per ${nomeTabella}.${nomeColonna}. È una PK, mantenuta NOT NULL.`);
                  notNullClause = 'NOT NULL';
             }
+            else if (nomeTabella === 'ppa_teammembri') { // Aggiunta eccezione
+                  console.log(`INFO: Eccezione per ${nomeTabella}.${nomeColonna}. È parte di una PK, mantenuta NOT NULL.`);
+                  notNullClause = 'NOT NULL';
+            }
             // Aggiungere qui altre eventuali eccezioni se scoperte (es. colonne che DEVONO essere NULL)
             // if (nomeTabella === 'tabella_speciale' && nomeColonna === 'colonna_speciale') {
             //     notNullClause = 'NULL';
             // }
-            // --- FINE MODIFICA CRITICA (v1.9) ---
+             // --- FINE LOGICA ECCEZIONI PER PK ---
 
             await trx.raw(`ALTER TABLE \`${nomeTabella}\` MODIFY \`${columnNameForModify}\` INT UNSIGNED ${notNullClause} ${currentComment}`);
             console.log(`OK: Ripristinato ${notNullClause} su ${nomeTabella}.${columnNameForModify}`);
@@ -232,17 +230,23 @@ exports.up = async function(knex) {
 
 
       // Fase 5: Ricreazione delle Foreign Keys
-      // Ricreiamo i vincoli FK, ora puntando a una colonna UNSIGNED
       console.log('Fase 5: Ricreazione delle Foreign Keys (UNSIGNED)...');
       for (const { table: nomeTabella, column: nomeColonna, constraint: nomeVincolo } of foreignKeys) {
         if (await trx.schema.hasTable(nomeTabella) && await trx.schema.hasColumn(nomeTabella, nomeColonna)) {
-          
+
           // --- Gestione Eccezione per 'email_nascoste' ---
           if (nomeTabella === 'email_nascoste') {
               console.log(`INFO: Saltata creazione FK per ${nomeTabella}.${nomeColonna} (è una PK, e la FK in prod non esiste).`);
               continue; // Salta la creazione della FK
           }
-          
+           // --- Gestione Eccezione per 'ppa_teammembri' (solo se la FK era già assente) ---
+           // Potrebbe essere necessario un controllo più robusto se la FK dovesse esistere
+          if (nomeTabella === 'ppa_teammembri') {
+               console.log(`INFO: Saltata ricreazione FK per ${nomeTabella}.${nomeColonna} (PK).`);
+               continue; // Assumiamo che la FK non debba essere ricreata perché parte di PK
+           }
+
+
           const nuovoNomeVincolo = `${nomeVincolo}_unsigned_fk`; // Nuovo nome per evitare conflitti
           await trx.schema.alterTable(nomeTabella, table => {
             // Aggiungere qui logica onDelete() se necessaria (es. SET NULL, CASCADE)
@@ -254,7 +258,7 @@ exports.up = async function(knex) {
            console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto ricreazione FK.`);
         }
       }
-      
+
       console.log('--- MIGRAZIONE COMPLETATA CON SUCCESSO ---');
     });
   } catch (error) {
@@ -271,35 +275,35 @@ exports.up = async function(knex) {
 
 
 exports.down = async function(knex) {
-  console.log('--- AVVIO ROLLBACK MIGRAZIONE UTENTI.ID (v1.9) ---');
-  
+  console.log('--- AVVIO ROLLBACK MIGRAZIONE UTENTI.ID (v1.11) ---');
+
   try {
     await knex.transaction(async (trx) => {
-      
+
       // Rollback Fase 1: Rimozione delle Foreign Keys (nuove)
       console.log('Rollback Fase 1: Rimozione delle Foreign Keys (nuove, _unsigned_fk)...');
       for (const { table: nomeTabella, column: nomeColonna, constraint: nomeVincolo } of foreignKeys) {
         const nuovoNomeVincolo = `${nomeVincolo}_unsigned_fk`;
         if (await trx.schema.hasTable(nomeTabella) && await trx.schema.hasColumn(nomeTabella, nomeColonna)) {
-           
-            // --- Gestione Eccezione per 'email_nascoste' ---
-            if (nomeTabella === 'email_nascoste') {
+
+            // --- Gestione Eccezione per 'email_nascoste' e 'ppa_teammembri' ---
+            if (nomeTabella === 'email_nascoste' || nomeTabella === 'ppa_teammembri') {
                 console.log(`INFO: Saltata rimozione FK per ${nomeTabella}.${nomeColonna} (non creata in UP).`);
-                continue; 
+                continue;
             }
-           
-           try {
+
+            try {
               await trx.schema.alterTable(nomeTabella, table => {
                 table.dropForeign([nomeColonna], nuovoNomeVincolo);
               });
-              console.log(`OK: Vincolo FK '${nuovoNomeVincolo}' rimosso per ${nomeTabella}.${nomeColonna}.`);
-           } catch(e) {
+               console.log(`OK: Vincolo FK '${nuovoNomeVincolo}' rimosso per ${nomeTabella}.${nomeColonna}.`);
+            } catch(e) {
                if (e.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
-                  console.log(`WARN: Impossibile rimuovere FK '${nuovoNomeVincolo}' (forse non esiste). ${e.message}`);
+                   console.log(`WARN: Impossibile rimuovere FK '${nuovoNomeVincolo}' (forse non esiste). ${e.message}`);
                } else {
                    throw e;
                }
-           }
+            }
         } else {
            console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto rimozione FK.`);
         }
@@ -309,7 +313,7 @@ exports.down = async function(knex) {
       console.log('Rollback Fase 2: Modifica utenti.id in SIGNED (INT)...');
       const utentiColDef = await getColumnDefinition(trx, 'utenti', 'id');
       const utentiComment = utentiColDef?.Comment ? `COMMENT '${utentiColDef.Comment.replace(/'/g, "''")}'` : '';
-      
+
       await trx.raw(`ALTER TABLE \`utenti\` MODIFY \`id\` INT NOT NULL AUTO_INCREMENT ${utentiComment}`);
       console.log('OK: Tabella `utenti.id` modificata in SIGNED.');
 
@@ -320,43 +324,43 @@ exports.down = async function(knex) {
            const columnNameForModify = columnCaseMap[`${nomeTabella}.${nomeColonna}`] || nomeColonna;
            const colDef = await getColumnDefinition(trx, nomeTabella, nomeColonna);
            const currentComment = colDef?.Comment ? `COMMENT '${colDef.Comment.replace(/'/g, "''")}'` : '';
-           
-           // Assumiamo che fossero NOT NULL in origine (la nostra patch v1.9 per email_nascoste rispetta questo)
+
+           // Assumiamo che fossero NOT NULL in origine (le nostre eccezioni in UP rispettano questo)
            const originalNullClause = 'NOT NULL';
            // Aggiungere qui eccezioni se alcune colonne erano originariamente NULL
-           
+
            await trx.raw(`ALTER TABLE \`${nomeTabella}\` MODIFY \`${columnNameForModify}\` INT ${originalNullClause} ${currentComment}`);
            console.log(`OK: Colonna '${columnNameForModify}' modificata in SIGNED per tabella '${nomeTabella}'.`);
         } else {
            console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto modifica tipo.`);
         }
       }
-      
+
       // Rollback Fase 4: Ricrea le FK (originali)
        console.log('Rollback Fase 4: Ricreazione delle Foreign Keys (originali)...');
-       for (const { table: nomeTabella, column: nomeColonna, constraint: nomeVincolo } of foreignKeys) { 
+       for (const { table: nomeTabella, column: nomeColonna, constraint: nomeVincolo } of foreignKeys) {
         if (await trx.schema.hasTable(nomeTabella) && await trx.schema.hasColumn(nomeTabella, nomeColonna)) {
-          
-            // --- Gestione Eccezione per 'email_nascoste' ---
-            if (nomeTabella === 'email_nascoste') {
-                console.log(`INFO: Saltata ricreazione FK originale per ${nomeTabella}.${nomeColonna} (non esisteva in prod).`);
-                continue; 
-            }
-          
-          try {
-            await trx.schema.alterTable(nomeTabella, table => {
-                // Ricreiamo il vincolo con il suo nome ORIGINALE
-                table.foreign(nomeColonna, nomeVincolo).references('id').inTable('utenti');
-            });
-             console.log(`OK: Vincolo FK '${nomeVincolo}' (originale) ricreato per ${nomeTabella}.${nomeColonna}.`);
-          } catch(e) {
-              console.warn(`WARN: Impossibile ricreare FK '${nomeVincolo}'. Potrebbe esistere già o la tabella 'utenti' non è compatibile. ${e.message}`);
-          }
-        } else {
-           console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto ricreazione FK.`);
-        }
+
+           // --- Gestione Eccezione per 'email_nascoste' e 'ppa_teammembri' ---
+           if (nomeTabella === 'email_nascoste' || nomeTabella === 'ppa_teammembri') {
+               console.log(`INFO: Saltata ricreazione FK originale per ${nomeTabella}.${nomeColonna} (non esisteva in prod / PK).`);
+               continue;
+           }
+
+           try {
+             await trx.schema.alterTable(nomeTabella, table => {
+                 // Ricreiamo il vincolo con il suo nome ORIGINALE
+                 table.foreign(nomeColonna, nomeVincolo).references('id').inTable('utenti');
+             });
+              console.log(`OK: Vincolo FK '${nomeVincolo}' (originale) ricreato per ${nomeTabella}.${nomeColonna}.`);
+           } catch(e) {
+               console.warn(`WARN: Impossibile ricreare FK '${nomeVincolo}'. Potrebbe esistere già o la tabella 'utenti' non è compatibile. ${e.message}`);
+           }
+         } else {
+            console.log(`WARN: Tabella '${nomeTabella}' o colonna '${nomeColonna}' non trovata. Salto ricreazione FK.`);
+         }
        }
-      
+
       console.log('--- ROLLBACK COMPLETATO CON SUCCESSO ---');
     });
   } catch (error) {
