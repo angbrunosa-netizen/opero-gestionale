@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Creato il: Ott 11, 2025 alle 11:32
+-- Creato il: Ott 30, 2025 alle 20:54
 -- Versione del server: 10.4.32-MariaDB
 -- Versione PHP: 8.2.12
 
@@ -45,6 +45,11 @@ INSERT INTO `funzioni` (`id`, `codice`, `descrizione`, `Scorciatoia`, `chiave_co
 (3, 'ANAGRAFICHE_EDIT', 'Permette di modificare un\'anagrafica esistente', 0, 'AMMINISTRAZIONE'),
 (4, 'ANAGRAFICHE_DELETE', 'Permette di eliminare un\'anagrafica', 0, 'AMMINISTRAZIONE'),
 (5, 'UTENTI_VIEW', 'Permette di visualizzare gli utenti della propria ditta', 1, 'AMMINISTRAZIONE'),
+(10, 'ADMIN_FUNZIONI_VIEW', 'Visualizza pannello gestione funzioni', 0, 'ADMIN_PANEL'),
+(11, 'ADMIN_FUNZIONI_MANAGE', 'Crea/modifica/associa funzioni alle ditte', 0, 'ADMIN_PANEL'),
+(13, 'ADMIN_RUOLI_VIEW', 'Visualizza pannello ruoli e permessi di ditta', 0, 'ADMIN_PANEL'),
+(14, 'ADMIN_RUOLI_MANAGE', 'Crea/modifica ruoli e assegna permessi', 0, 'ADMIN_PANEL'),
+(15, 'FUNZIONI_MANAGE', 'INSERIRE E GESTIRE LE FUNZIONI\r\n', 0, 'ADMIN_PANEL'),
 (26, 'PDC_VIEW', 'Visualizzazione del Piano dei Conti', 1, 'AMMINISTRAZIONE'),
 (27, 'PDC_EDIT', 'Modifica e creazione voci del Piano dei Conti', 0, 'AMMINISTRAZIONE'),
 (28, 'MAIL_ACCOUNTS_VIEW', 'Visualizza gli account email della ditta', 0, 'AMMINISTRAZIONE'),
@@ -90,7 +95,18 @@ INSERT INTO `funzioni` (`id`, `codice`, `descrizione`, `Scorciatoia`, `chiave_co
 (107, 'MG_MOVIMENTI_MANAGE', 'GESTISCE I MOVIMENTI', 0, 'MG_VIEW'),
 (108, 'CT_IVA_VIEW', 'visualizza tabella iva', 0, 'CT_VIEW'),
 (109, 'VA_CLIENTI_VIEW', 'VISUALIZZA MODULO VENDITE', 0, 'VA_CLIENTI_VIEW'),
-(110, 'VA_CLIENTI_MANAGE', 'ORGANIZZA MODULO VENDITE', 0, 'VA_CLIENTI_VIEW');
+(110, 'VA_CLIENTI_MANAGE', 'ORGANIZZA MODULO VENDITE', 0, 'VA_CLIENTI_VIEW'),
+(115, 'ADMIN_USER_PERMISSIONS_MANAGE', 'Gestione permessi personalizzati per utente', 0, 'ADMIN_PANEL'),
+(116, 'VA_TIPI_DOC_MANAGE', 'PERMETTE DI GESTIRE I DOCUMENTI DEL MODULO VENDITE E AQUISTE CREAZIONE MODIFICA', 0, 'VA_CLIENTI_VIEW'),
+(117, 'VA_TIPI_DOC_VIEW', 'VISUALIZZARE I TIPI DI DOCUMENTI DI MAGAZZINO VENDITE E ACQUISTI', 0, 'VA_CLIENTI_VIEW'),
+(118, 'ADMIN_LOGS_VIEW', 'GESTIRE I LOG DITTA', 0, 'ADMIN_PANEL'),
+(119, 'ADMIN_SESSIONS_VIEW', 'GESTIRE LE CONNESSIONI UTENTE DITTA', 0, 'ADMIN_PANEL'),
+(120, 'ADM_PWD_REC', 'PERMETTERE L\'EMISSIONE DI UN LINK DI RECUPERO PASSWORD UTENTE', 0, 'ADMIN_PANEL'),
+(121, 'AM_UTE_LVL', 'GESTIRE LIVELLO UTENTE', 0, 'ADMIN_PANEL'),
+(122, 'PRIVACY_MANAGE', 'gestione della policy privacy', 0, 'ADMIN_PANEL'),
+(123, 'SUPER_ADMIN', 'ASSEGNAZIONE MODULI PER DITTA', 0, 'ADMIN_PANEL'),
+(124, 'AM_UTENTI_EDIT', 'MODIFICA UTENTI AMMINISTRAZIONE', 0, 'AMMINISTRAZIONE'),
+(127, 'MAIL_ACC_EDIT', 'GESTIRE E CREARE ACCOUNT', 0, 'AMMINISTRAZIONE');
 
 --
 -- Indici per le tabelle scaricate
@@ -112,7 +128,7 @@ ALTER TABLE `funzioni`
 -- AUTO_INCREMENT per la tabella `funzioni`
 --
 ALTER TABLE `funzioni`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=111;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=128;
 
 --
 -- Limiti per le tabelle scaricate

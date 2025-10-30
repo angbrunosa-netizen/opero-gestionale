@@ -433,7 +433,6 @@ const MainApp = () => {
     // Funzione per ottenere il nome del modulo attivo
     const getActiveModuleName = () => {
         if (activeModule === 'DASHBOARD') return 'Dashboard';
-        
         const activeModuleData = modules.find(module => module.chiave_componente === activeModule);
         return activeModuleData ? activeModuleData.descrizione : 'Opero';
     };
@@ -454,10 +453,24 @@ const MainApp = () => {
         fetchShortcuts();
     }, [fetchShortcuts]);
 
-    // Chiudi menu mobile quando si naviga
     useEffect(() => {
         setIsMobileMenuOpen(false);
     }, [location]);
+
+    // Forza sidebar sempre collassata su mobile
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 1024) {
+                setIsSidebarCollapsed(true);
+            }
+        };
+        
+        // Imposta al mount
+        handleResize();
+        
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     if (loading || !user || !ditta) {
         return (
@@ -517,143 +530,152 @@ const MainApp = () => {
                 />
             }
 
-            {/* Overlay per mobile quando il menu è aperto */}
-            {isMobileMenuOpen && (
-                <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                ></div>
-            )}
-
-            {/* SIDEBAR */}
+            {/* SIDEBAR - Sempre visibile con icone su mobile */}
             <aside className={`
-                ${isSidebarCollapsed ? 'w-20' : 'w-64'} 
+                ${isSidebarCollapsed ? 'w-16 lg:w-20' : 'w-64'} 
                 bg-slate-800 flex flex-col transition-all duration-300 ease-in-out
-                fixed lg:relative h-full z-40
-                ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                relative h-full z-30
             `}>
-                {/* Header Sidebar */}
-                <div className="p-4 border-b border-slate-700">
-                    <div className="flex items-center justify-between">
-                        {!isSidebarCollapsed && (
-                            <h1 className="text-xl font-bold text-white">Opero</h1>
-                        )}
-                        {/* Bottone chiudi per mobile */}
+                {/* Header Sidebar - Solo su desktop */}
+                {!isSidebarCollapsed && (
+                    <div className="hidden lg:block p-4 border-b border-slate-700">
+                        <h1 className="text-xl font-bold text-white">Opero</h1>
+                        
+                        {/* Logo aziendale */}
+                        <div className="text-center my-4">
+                            <img 
+                                src={ditta.logo_url || 'https://placehold.co/100x100/FFFFFF/334155?text=Logo'} 
+                                alt="Logo Azienda" 
+                                className="w-24 h-24 rounded-full mx-auto border-2 border-slate-600"
+                                onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FFFFFF/334155?text=Logo'; }}
+                            />
+                            <p className="text-sm font-semibold text-white mt-2">{ditta.ragione_sociale}</p>
+                        </div>
+                        
+                        {/* Bottone collapse solo per desktop */}
                         <button 
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="lg:hidden text-white p-1"
+                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                            className="w-full flex justify-center items-center py-2 text-white hover:bg-slate-700 rounded-md transition-colors"
+                            title="Comprimi menu"
                         >
-                            <XMarkIcon className="h-6 w-6" />
+                            <ChevronLeftIcon className="h-5 w-5" />
                         </button>
                     </div>
-                    
-                    {/* Logo aziendale */}
-                    <div className="text-center my-4">
+                )}
+
+                {/* Logo compatto per sidebar collassata (desktop) */}
+                {isSidebarCollapsed && (
+                    <div className="hidden lg:block p-2 border-b border-slate-700">
                         <img 
                             src={ditta.logo_url || 'https://placehold.co/100x100/FFFFFF/334155?text=Logo'} 
-                            alt="Logo Azienda" 
-                            className={`${isSidebarCollapsed ? 'w-12 h-12' : 'w-24 h-24'} rounded-full mx-auto border-2 border-slate-600 transition-all duration-300`}
+                            alt="Logo" 
+                            className="w-12 h-12 rounded-full mx-auto border-2 border-slate-600"
                             onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FFFFFF/334155?text=Logo'; }}
                         />
-                        {!isSidebarCollapsed && (
-                            <p className="text-sm font-semibold text-white mt-2">{ditta.ragione_sociale}</p>
-                        )}
+                        <button 
+                            onClick={() => setIsSidebarCollapsed(false)}
+                            className="w-full mt-2 flex justify-center items-center py-1 text-white hover:bg-slate-700 rounded-md"
+                            title="Espandi menu"
+                        >
+                            <ChevronRightIcon className="h-4 w-4" />
+                        </button>
                     </div>
-                    
-                    {/* Bottone collapse per desktop */}
-                    <button 
-                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                        className="hidden lg:flex w-full justify-center items-center py-2 text-white hover:bg-slate-700 rounded-md transition-colors"
-                        title={isSidebarCollapsed ? "Espandi menu" : "Comprimi menu"}
-                    >
-                        {isSidebarCollapsed ? (
-                            <ChevronRightIcon className="h-5 w-5" />
-                        ) : (
-                            <ChevronLeftIcon className="h-5 w-5" />
-                        )}
-                    </button>
-                </div>
+                )}
 
-                {/* Navigation - MODIFICATO: rimosso flex-1 per permettere espansione */}
-                <nav className="p-4 overflow-y-auto">
+                {/* Navigation */}
+                <nav className="flex-1 p-2 lg:p-4 overflow-y-auto">
                     {!isSidebarCollapsed && (
-                        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Menu</h2>
+                        <h2 className="hidden lg:block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Menu</h2>
                     )}
                     <ul className="space-y-2">
                         <li>
                             <button 
                                 onClick={() => setActiveModule('DASHBOARD')} 
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === 'DASHBOARD' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
-                                title={isSidebarCollapsed ? "Dashboard" : ""}
+                                className={`w-full flex items-center justify-center lg:justify-start px-2 lg:px-3 py-3 lg:py-2 text-sm font-medium rounded-md transition-colors ${
+                                    activeModule === 'DASHBOARD' 
+                                        ? 'bg-blue-600 text-white' 
+                                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                                }`}
+                                title="Dashboard"
                             >
-                                <HomeIcon className="h-5 w-5" />
-                                {!isSidebarCollapsed && <span className="ml-3">Dashboard</span>}
+                                <HomeIcon className="h-6 w-6 lg:h-5 lg:w-5" />
+                                {!isSidebarCollapsed && <span className="hidden lg:inline ml-3">Dashboard</span>}
                             </button>
                         </li>
                         {modules.map(module => (
                             <li key={module.codice}>
                                 <button 
                                     onClick={() => setActiveModule(module.chiave_componente)} 
-                                    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeModule === module.chiave_componente ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
-                                    title={isSidebarCollapsed ? module.descrizione : ""}
+                                    className={`w-full flex items-center justify-center lg:justify-start px-2 lg:px-3 py-3 lg:py-2 text-sm font-medium rounded-md transition-colors ${
+                                        activeModule === module.chiave_componente 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                                    }`}
+                                    title={module.descrizione}
                                 >
                                     {getModuleIcon(module.chiave_componente)}
-                                    {!isSidebarCollapsed && <span className="ml-3">{module.descrizione}</span>}
+                                    {!isSidebarCollapsed && <span className="hidden lg:inline ml-3">{module.descrizione}</span>}
                                 </button>
                             </li>
                         ))}
                     </ul>
                 </nav>
 
-                {/* Calendario Widget - MODIFICATO: posizionato in fondo senza flex-grow */}
-                <div className="mt-auto p-2 pb-4">
+                {/* Calendario Widget - Solo desktop */}
+                <div className="hidden lg:block p-2 pb-4">
                     <CalendarWidget isCollapsed={isSidebarCollapsed} />
                 </div>
             </aside>
 
             {/* MAIN CONTENT AREA */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* HEADER */}
-                <header className="bg-white border-b flex items-center justify-between p-4 z-20">
-                    <div className="flex items-center gap-2">
-                        {/* Hamburger menu per mobile con nome modulo attivo */}
-                        <button 
-                            onClick={() => setIsMobileMenuOpen(true)}
-                            className="lg:hidden flex items-center gap-2 text-gray-700 hover:text-gray-900"
-                        >
-                            <Bars3Icon className="h-6 w-6" />
-                            <span className="font-semibold text-sm">{getActiveModuleName()}</span>
-                        </button>
-
-                        {/* Scorciatoie - nascoste su mobile per fare spazio al nome modulo */}
-                        <div className="hidden md:flex items-center gap-2">
-                            {(shortcuts || []).map(sc => (
-                                <button 
-                                    key={sc.id}
-                                    onClick={(event) => handleShortcutClick(event, sc)}
-                                    title={sc.descrizione}
-                                    className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                >
-                                    {getIconForFunction(sc.codice)}
-                                </button>
-                            ))}
+                {/* HEADER MOBILE - Personalizzato con logo e "Opero Go" */}
+                <header className="bg-gradient-to-r from-slate-800 to-slate-900 lg:bg-white border-b flex items-center justify-between p-3 lg:p-4 z-20 shadow-md lg:shadow-none">
+                    {/* Mobile Header */}
+                    <div className="flex items-center gap-3 lg:hidden">
+                        <img 
+                            src={ditta.logo_url || 'https://placehold.co/40x40/FFFFFF/334155?text=Logo'} 
+                            alt="Logo" 
+                            className="w-10 h-10 rounded-full border-2 border-white"
+                            onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/40x40/FFFFFF/334155?text=Logo'; }}
+                        />
+                        <div className="flex flex-col">
+                            <span className="text-white font-bold text-lg leading-tight">Opero Go</span>
+                            <span className="text-blue-300 text-xs font-medium">{getActiveModuleName()}</span>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 md:gap-4">
-                        <span className="text-sm hidden md:block">Benvenuto, {user.nome} {user.cognome}</span>
+                    {/* Desktop Header - Scorciatoie */}
+                    <div className="hidden lg:flex items-center gap-2">
+                        {(shortcuts || []).map(sc => (
+                            <button 
+                                key={sc.id}
+                                onClick={(event) => handleShortcutClick(event, sc)}
+                                title={sc.descrizione}
+                                className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                {getIconForFunction(sc.codice)}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* User Actions */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs lg:text-sm text-white lg:text-gray-700 hidden sm:block">
+                            {user.nome}
+                        </span>
                         <button 
                             onClick={() => setIsShortcutModalOpen(true)} 
-                            title="Personalizza scorciatoie"
-                            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                            title="Personalizza"
+                            className="p-2 hover:bg-slate-700 lg:hover:bg-gray-100 rounded-full transition-colors"
                         >
-                            <Cog6ToothIcon className="h-6 w-6 text-gray-600 hover:text-blue-600" />
+                            <Cog6ToothIcon className="h-5 w-5 lg:h-6 lg:w-6 text-white lg:text-gray-600" />
                         </button>
                         <button 
                             onClick={logout} 
-                            className="text-sm font-medium text-red-600 hover:underline"
+                            className="text-xs lg:text-sm font-medium text-red-400 lg:text-red-600 hover:underline px-2"
                         >
-                            Logout
+                            Exit
                         </button>
                     </div>
                 </header>

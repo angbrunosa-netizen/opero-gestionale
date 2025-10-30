@@ -1362,7 +1362,7 @@ router.get('/utenti-esterni', verifyToken, async (req, res) => {
 
 router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
     const { email, id_ruolo } = req.body;
-    const { id_ditta, ditta } = req.user;
+    const { id_ditta } = req.user;
 
     if (!email || !id_ruolo ) {
         return res.status(400).json({ success: false, message: 'Email, ruolo e tipo utente sono obbligatori.' });
@@ -1377,6 +1377,11 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
 
     try {
         // ... il resto del tuo codice rimane esattamente uguale ...
+       const dittaInfo = await knex('ditte').where({ id: id_ditta }).first();
+        if (!dittaInfo) {
+            // Questo non dovrebbe mai accadere se il token è valido, ma è un controllo sicuro
+            return res.status(404).json({ success: false, message: 'Dati della ditta non trovati.' });
+        }
         const existingUser = await knex('utenti').where({ email }).first();
 
         if (existingUser) {
@@ -1398,7 +1403,10 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
             
             res.status(200).json({ success: true, message: `L'utente ${email} è stato associato con successo alla ditta.` });
 
-            mailer.sendAddedToDittaNotification(email, ditta.ragione_sociale, existingUser.nome)
+          //  mailer.sendAddedToDittaNotification(email, ditta.ragione_sociale, existingUser.nome)
+            //    .then(() => console.log(`Email di notifica inviata in background a: ${email}`))
+              //  .catch(err => console.error(`ERRORE: Invio email di notifica fallito per ${email}:`, err));
+            mailer.sendAddedToDittaNotification(email, dittaInfo.ragione_sociale, existingUser.nome)
                 .then(() => console.log(`Email di notifica inviata in background a: ${email}`))
                 .catch(err => console.error(`ERRORE: Invio email di notifica fallito per ${email}:`, err));
 
@@ -1420,9 +1428,10 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
                 link: registrationLink 
             });
 
-            mailer.sendRegistrationInvite(email, ditta.ragione_sociale, registrationLink)
+            mailer.sendRegistrationInvite(email, dittaInfo.ragione_sociale, registrationLink)
                 .then(() => console.log(`Email di invito inviata con successo in background a: ${email}`))
                 .catch(err => console.error(`ERRORE: Invio email di invito in background fallito per ${email}:`, err));
+            // --- FINE CORREZIONE ---
         }
 
     } catch (error) {

@@ -8,7 +8,7 @@ const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
 const { dbPool } = require('../config/db');
-
+const { knex } = require('../config/db');
 const router = express.Router();
 
 // --- GET (Recupera dati per la pagina di registrazione) ---
