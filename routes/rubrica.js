@@ -7,6 +7,8 @@ const express = require('express');
 const { dbPool } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
 const router = express.Router();
+const { knex } = require('../config/db');// *** AGGIUNTO: Standard di progetto per le query
+
 // Applica il middleware di autenticazione a tutte le rotte di questo file
 router.use(verifyToken);
 
@@ -46,19 +48,46 @@ router.get('/liste/:id/emails', async (req, res) => {
 
 /*
  * GET /api/rubrica/contatti/:id
- * Recupera i dati completi di un singolo contatto.
- */
-router.get('/contatti/:id', async (req, res) => {
+ * Recupera i dati completi di un singolo contatto, verificando che appartenga alla ditta dell'utente.
+ * Ristrutturato v2.0.0
+ */ 
+router.get('/contatti/:id', verifyToken, async (req, res) => { // *** AGGIUNTO verifyToken
     const { id: contactId } = req.params;
-    const { id_ditta: dittaId } = req.user;
+    const { id_ditta: dittaId } = req.user; // dittaId dell'utente che fa la richiesta
+
     try {
-        const [rows] = await dbPool.query('SELECT * FROM utenti WHERE id = ? AND id_ditta = ?', [contactId, dittaId]);
-        if (rows.length === 0) {
-            return res.status(404).json({ message: 'Contatto non trovato.' });
+        // Nuova query con JOIN su ad_utenti_ditte
+        const contatto = await knex('utenti as u')
+            .join('ad_utenti_ditte as aud', 'u.id', 'aud.id_utente')
+            .select(
+                'u.id',
+                'u.nome',
+                'u.cognome',
+                'u.email',
+                'u.mail_contatto',
+                'u.mail_pec',
+                'u.telefono',
+                'u.indirizzo',
+                'u.citta',
+                'u.cap',
+                'u.provincia',
+                'aud.id_ditta', // Campo preso dall'associazione
+                'aud.id_ruolo', // Campo preso dall'associazione
+                'aud.stato'     // Campo preso dall'associazione
+            )
+            .where('u.id', contactId) // ID del contatto richiesto
+            .andWhere('aud.id_ditta', dittaId) // Verifica che sia nella ditta dell'utente
+            .first();
+
+        if (!contatto) {
+            return res.status(404).json({ success: false, message: 'Contatto non trovato.' });
         }
-        res.status(200).json(rows[0]);
+        
+        res.status(200).json({ success: true, contatto });
+
     } catch (error) {
-        res.status(500).json({ message: 'Errore nel recupero del contatto.' });
+        console.error("Errore recupero contatto:", error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero del contatto.' });
     }
 });
 
@@ -80,26 +109,38 @@ router.get('/ruoli', async (req, res) => {
  * GET /api/rubrica/contatti
  * Recupera tutti i contatti (utenti) associati alla ditta dell'utente loggato.
  */
-router.get('/contatti', async (req, res) => {
+router.get('/contatti', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
+    
     try {
-        const [contatti] = await dbPool.query(
-            'SELECT id, nome, cognome, email, telefono, citta FROM utenti WHERE id_ditta = ? ORDER BY cognome, nome',
-            [dittaId]
-        );
-        res.status(200).json(contatti);
+        const contatti = await knex('ad_utenti_ditte as aud')
+            .join('utenti as u', 'aud.id_utente', 'u.id')
+            .select(
+                'u.id', // Manteniamo 'id' per compatibilità frontend
+                'u.nome',
+                'u.cognome',
+                'u.email',
+                'u.telefono',
+                'u.citta'
+            )
+            .where('aud.id_ditta', dittaId)
+            .orderBy(['u.cognome', 'u.nome']);
+
+        res.status(200).json({ success: true, contatti });
+
     } catch (error) {
         console.error("Errore recupero contatti:", error);
-        res.status(500).json({ message: 'Errore del server durante il recupero dei contatti.' });
+        res.status(500).json({ success: false, message: 'Errore del server durante il recupero dei contatti.' });
     }
 });
+
 
 /**
  * POST /api/rubrica/contatti
  * Crea un nuovo contatto (utente esterno) per la ditta.
  */
-router.post('/contatti', async (req, res) => {
-    const { id_ditta: dittaId } = req.user;
+router.post('/contatti', verifyToken, async (req, res) => {
+    const { id_ditta: dittaId, id: idUtenteRichiedente } = req.user;
     const { nome, cognome, email, telefono, citta } = req.body;
 
     if (!nome || !cognome || !email) {
@@ -107,29 +148,93 @@ router.post('/contatti', async (req, res) => {
     }
 
     try {
-        const newUser = {
-            email, nome, cognome, telefono, citta, id_ditta: dittaId,
-            mail_contatto: email, id_ruolo: 4, livello: 0, Codice_Tipo_Utente: 2, attivo: 0,
-            password: 'password_provvisoria' // Password temporanea
-        };
-        const [result] = await dbPool.query('INSERT INTO utenti SET ?', newUser);
+        let id_utente_contatto;
         
-        // Recupera e restituisci il contatto appena creato per aggiornare il frontend
-        const [newContactRows] = await dbPool.query('SELECT id, nome, cognome, email, telefono, citta FROM utenti WHERE id = ?', [result.insertId]);
+        await knex.transaction(async (trx) => {
+            // 1. Controlla se l'utente (email) esiste già globalmente
+            let utente = await trx('utenti').where('email', email).first();
+
+            if (utente) {
+                // Utente esiste. Controlla se è GIÀ associato a questa ditta.
+                id_utente_contatto = utente.id;
+                const associazione = await trx('ad_utenti_ditte')
+                    .where({
+                        id_utente: id_utente_contatto,
+                        id_ditta: dittaId
+                    })
+                    .first();
+                
+                if (associazione) {
+                    // Lanciamo un errore specifico che verrà catturato dal catch
+                    const err = new Error('Un utente con questa email è già presente in rubrica.');
+                    err.code = 'ER_DUP_ENTRY_CUSTOM'; // Codice custom per distinguerlo
+                    throw err;
+                }
+                
+                // Se utente esiste ma non è associato, procediamo a creare l'associazione (step 3)
+
+            } else {
+                // 2. Utente non esiste. Crea l'utente anagrafico.
+                const hashedPassword = await bcrypt.hash('password_provvisoria', 10); // Hash password provvisoria
+                
+                const datiNuovoUtente = {
+                    email,
+                    nome,
+                    cognome,
+                    telefono,
+                    citta,
+                    mail_contatto: email,
+                    password: hashedPassword,
+                    livello: 0, // Come da codice originale
+                    Codice_Tipo_Utente: 2, // Come da codice originale (deprecato qui, ma lo teniamo?)
+                    attivo: 0 // Come da codice originale (utente non ancora verificato)
+                };
+                
+                // Rimuoviamo i campi che non sono più in 'utenti'
+                delete datiNuovoUtente.id_ditta;
+                delete datiNuovoUtente.id_ruolo;
+
+                const [newId] = await trx('utenti').insert(datiNuovoUtente);
+                id_utente_contatto = newId;
+            }
+
+            // 3. Crea l'associazione in ad_utenti_ditte
+            const datiAssociazione = {
+                id_utente: id_utente_contatto,
+                id_ditta: dittaId,
+                id_ruolo: 4, // Ruolo 4 = Utente_esterno (come da codice originale)
+                Codice_Tipo_Utente: 2, // Tipo 2 = Utente_Esterno (come da codice originale)
+                stato: 'attivo' // Lo impostiamo attivo di default nella rubrica
+            };
+            await trx('ad_utenti_ditte').insert(datiAssociazione);
+
+            // 4. Logga l'azione
+            await trx('log_azioni').insert({
+                id_utente: idUtenteRichiedente,
+                id_ditta: dittaId,
+                azione: 'CREATE_RUBRICA_CONTACT',
+                dettagli: `Creato contatto ${nome} ${cognome} (ID: ${id_utente_contatto}) per ditta ${dittaId}`
+            });
+        });
+
+        // 5. Se la transazione ha successo, restituisci il nuovo contatto
+        const contattoCreato = { id: id_utente_contatto, nome, cognome, email, telefono, citta };
         
         res.status(201).json({ 
             success: true, 
             message: 'Contatto aggiunto con successo.', 
-            contatto: newContactRows[0]
+            contatto: contattoCreato
         });
+
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 'ER_DUP_ENTRY' || error.code === 'ER_DUP_ENTRY_CUSTOM') {
             return res.status(409).json({ message: 'Un utente con questa email esiste già.' });
         }
         console.error("Errore creazione contatto:", error);
         res.status(500).json({ message: 'Errore del server durante la creazione del contatto.' });
     }
 });
+
 
 /**
  * GET /api/rubrica/tipi-utente
@@ -445,15 +550,17 @@ router.post('/contatti/:id/liste', async (req, res) => {
  * GET /api/rubrica/all-contacts
  * Recupera un elenco unificato di contatti (utenti e ditte).
  */
-router.get('/all-contacts', async (req, res) => {
+router.get('/all-contacts', verifyToken, async (req, res) => {
     const { id_ditta: dittaId } = req.user;
 
     try {
-        // 1. Recupera gli utenti
-        const [users] = await dbPool.query(
-            'SELECT id, nome, cognome, email FROM utenti WHERE id_ditta = ? AND attivo = 1',
-            [dittaId]
-        );
+        // 1. Recupera gli utenti (colleghi) associati alla ditta
+        const users = await knex('ad_utenti_ditte as aud')
+            .join('utenti as u', 'aud.id_utente', 'u.id')
+            .select('u.id', 'u.nome', 'u.cognome', 'u.email')
+            .where('aud.id_ditta', dittaId)
+            .andWhere('aud.stato', 'attivo'); // Seleziona solo utenti attivi in questa ditta
+
         const userContacts = users.map(u => ({
             id: `user-${u.id}`,
             type: 'user',
@@ -462,10 +569,11 @@ router.get('/all-contacts', async (req, res) => {
         }));
 
         // 2. Recupera le ditte (clienti, fornitori, etc.)
-        const [ditte] = await dbPool.query(
-            'SELECT id, ragione_sociale, citta, provincia, mail_1 FROM ditte WHERE id_ditta_proprietaria = ? AND stato = 1',
-            [dittaId]
-        );
+        const ditte = await knex('ditte')
+            .select('id', 'ragione_sociale', 'citta', 'provincia', 'mail_1')
+            .where('id_ditta_proprietaria', dittaId)
+            .andWhere('stato', 1); // Assumendo 1 = attivo
+
         const dittaContacts = ditte.map(d => ({
             id: `ditta-${d.id}`,
             type: 'ditta',
@@ -476,11 +584,13 @@ router.get('/all-contacts', async (req, res) => {
 
         // 3. Unisci e invia i risultati
         const allContacts = [...userContacts, ...dittaContacts];
-        res.json(allContacts);
+        
+        // *** FIX: Restituisce direttamente l'array come richiesto dal frontend ***
+        res.status(200).json(allContacts);
 
     } catch (error) {
         console.error("Errore nel recuperare i contatti unificati:", error);
-        res.status(500).json({ message: 'Errore interno del server.' });
+        res.status(500).json({ message: 'Errore interno del server.' }); // Messaggio generico per compatibilità
     }
 });
 
