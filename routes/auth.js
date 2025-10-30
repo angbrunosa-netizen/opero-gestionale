@@ -23,6 +23,33 @@ const { verifyToken } = require('../utils/auth');
 // Costanti di configurazione per la Portineria
 const MAX_TENTATIVI_FALLITI = 4;
 const DURATA_SESSIONE_MINUTI = 15;
+const MINUTI_TOLLERANZA_HEARTBEAT = 5; // Aggiungiamo 5 min di tolleranza
+const DURATA_MASSIMA_SESSIONE_MINUTI = DURATA_SESSIONE_MINUTI + MINUTI_TOLLERANZA_HEARTBEAT; // Totale 20 minuti
+// --- NUOVA FUNZIONE AUSILIARIA PER PULIZIA SESSIONI ---
+/**
+ * Rimuove le sessioni dalla tabella utenti_sessioni_attive se l'heartbeat
+ * è più vecchio di DURATA_MASSIMA_SESSIONE_MINUTI.
+ * Questo previene il blocco degli slot dovuto a sessioni "orfane".
+ * @param {object} connection - La connessione al database (deve essere già acquisita)
+ */
+async function pulisciSessioniScadute(connection) {
+    console.log(`[AUTH-CLEANUP] Avvio pulizia sessioni scadute (limite: ${DURATA_MASSIMA_SESSIONE_MINUTI} minuti)...`);
+    const queryPulizia = `
+        DELETE FROM utenti_sessioni_attive
+        WHERE last_heartbeat_timestamp < NOW() - INTERVAL ? MINUTE
+    `;
+    try {
+        const [result] = await connection.query(queryPulizia, [DURATA_MASSIMA_SESSIONE_MINUTI]);
+        if (result.affectedRows > 0) {
+            console.log(`[AUTH-CLEANUP] Sessioni scadute rimosse: ${result.affectedRows}`);
+        }
+    } catch (error) {
+        console.error("[AUTH-CLEANUP] Errore critico durante la pulizia delle sessioni scadute:", error);
+        // Non blocchiamo il login se la pulizia fallisce, ma lo logghiamo
+        // Se la pulizia fallisce, il sistema si comporta come prima (potenzialmente bloccando)
+    }
+}
+
 
 
 // --- FUNZIONE AUSILIARIA PER GENERARE IL TOKEN E COMPLETARE IL LOGIN ---
@@ -119,6 +146,20 @@ async function _buildPermissions(connection, id_utente, id_ruolo, id_ditta) {
 // --- NUOVO FLUSSO DI LOGIN A STEP (MODIFICATO) ---
 
 // STEP 1: AUTENTICAZIONE INIZIALE
+/**
+ * @file opero/routes/auth.js (Riformattato per Chiarezza)
+ * @description Spiegazione della rotta /login con logica multi-ditta (v12.0 + v12.1).
+ * - Questa rotta gestisce l'autenticazione e il bivio logico:
+ * - CASO A: Utente con 1 ditta -> Login immediato.
+ * - CASO B: Utente con 2+ ditte -> Richiesta di selezione.
+ */
+
+// ... (tutti i require e le costanti sono definiti sopra) ...
+
+// La funzione pulisciSessioniScadute (v12.1) è definita qui sopra...
+// async function pulisciSessioniScadute(connection) { ... }
+
+// STEP 1: AUTENTICAZIONE INIZIALE
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -127,10 +168,18 @@ router.post('/login', async (req, res) => {
 
     let connection;
     try {
+        // --- PREPARAZIONE DATABASE ---
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
 
-        // 1. Verifica sessione attiva (Portineria) - invariato
+        // --- 1. PULIZIA SESSIONI (Garbage Collector v12.1) ---
+        // Come da nostra modifica precedente, puliamo le sessioni "morte" 
+        // (es. browser chiuso senza logout) per liberare gli slot di licenza.
+        await pulisciSessioniScadute(connection);
+
+        // --- 2. CONTROLLO SESSIONE ATTIVA (Pre-Autenticazione) ---
+        // Controlla se l'ID utente (recuperato via email) è GIÀ in 'utenti_sessioni_attive'.
+        // Se sì, blocca il login per evitare sessioni multiple dello stesso utente.
         const [userCheckRows] = await connection.query('SELECT id FROM utenti WHERE email = ?', [email]);
         if (userCheckRows.length > 0) {
             const userId = userCheckRows[0].id;
@@ -141,7 +190,9 @@ router.post('/login', async (req, res) => {
             }
         }
 
-        // 2. Autenticazione utente e recupero ruolo primario - invariato
+        // --- 3. AUTENTICAZIONE (Verifica Credenziali) ---
+        // Recupera l'utente e la sua password hashata per il confronto.
+        // Recupera anche i dati "legacy" (id_ditta, id_ruolo) che useremo come FALLBACK.
         const userQuery = `
             SELECT
                 u.id, u.nome, u.cognome, u.email, u.password,
@@ -151,123 +202,161 @@ router.post('/login', async (req, res) => {
             LEFT JOIN ruoli r ON u.id_ruolo = r.id
             WHERE u.email = ?`;
         const [userRows] = await connection.query(userQuery, [email]);
+
+        // Se l'utente non esiste O la password non corrisponde...
         if (userRows.length === 0 || !await bcrypt.compare(password, userRows[0].password)) {
+            // *** ATTENZIONE (REGRESSIONE) ***
+            // Qui manca la logica anti-brute-force (v12.2)
+            // che incrementa 'tentativi_falliti' e blocca l'utente.
+            // Questa versione si limita a dare errore.
             await connection.rollback();
             return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
         }
+        
+        // Se siamo qui, la password è CORRETTA.
         const user = userRows[0];
 
-        // 3. Raccogli tutte le associazioni ditta (INCLUSO IL LIVELLO)
-        // CORREZIONE: Aggiunto COALESCE(aud.livello, 50) per fornire un default
-        //             anche nella seconda parte della UNION per coerenza.
+        // --- 4. RECUPERO DITTE ASSOCIATE (Logica Multi-Ditta) ---
+        // Questa è la query complessa. Unisce due ricerche:
         const ditteAssociateQuery = `
+            /* Blocco 1: Cerca nella NUOVA tabella 'ad_utenti_ditte' */
             (SELECT
                 d.id, d.ragione_sociale AS denominazione, d.logo_url,
-                aud.livello  -- Recupera livello da ad_utenti_ditte
-             FROM ad_utenti_ditte aud
-             JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
-            UNION
+                aud.livello  /* Prende il livello specifico da questa tabella */
+            FROM ad_utenti_ditte aud
+            JOIN ditte d ON aud.id_ditta = d.id WHERE aud.id_utente = ? AND aud.stato = 'attivo')
+            
+            UNION  /* Unisce i risultati, eliminando duplicati */
+            
+            /* Blocco 2: Cerca nella VECCHIA colonna 'utenti.id_ditta' (Legacy) */
             (SELECT
                 d.id, d.ragione_sociale AS denominazione, d.logo_url,
-                50 as livello -- Fornisce un livello di default (es. 50) se l'associazione è solo su 'utenti'
-             FROM utenti u
-             JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL
-             -- Escludi ditte già trovate nella prima parte per evitare duplicati se un utente ha sia id_ditta che associazione
-             AND d.id NOT IN (SELECT id_ditta FROM ad_utenti_ditte WHERE id_utente = ? AND stato = 'attivo')
+                50 as livello /* Fornisce un livello di default (50) per la ditta legacy */
+            FROM utenti u
+            JOIN ditte d ON u.id_ditta = d.id WHERE u.id = ? AND u.id_ditta IS NOT NULL
+            /* Esclude ditte GIA' trovate nel Blocco 1 (per evitare duplicati) */
+            AND d.id NOT IN (SELECT id_ditta FROM ad_utenti_ditte WHERE id_utente = ? AND stato = 'attivo')
             )
         `;
-        // CORREZIONE: Aggiunto user.id una terza volta per la subquery NOT IN
+        
+        // Passiamo user.id tre volte (uno per ogni '?' nella query)
         const [ditteRows] = await connection.query(ditteAssociateQuery, [user.id, user.id, user.id]);
 
-
+        // Se l'utente è valido ma non ha ditte attive, lo fermiamo.
         if (ditteRows.length === 0) {
             await connection.rollback();
             return res.status(403).json({ success: false, message: 'Nessuna ditta associata a questo utente.' });
         }
 
-        // 4. Determina il prossimo passo
-        if (ditteRows.length === 1) {
-            // CASO A: Utente con una sola ditta
-            const id_ditta_scelta = ditteRows[0].id;
-            // Il livello è GIA' presente in ditteRows[0] grazie alla query corretta
-            const livello_ditta_scelta = ditteRows[0].livello;
+        // --- 5. BIVIO LOGICO: 1 Ditta vs. Multi-Ditta ---
 
-            // Recupera id_ruolo e Codice_Tipo_Utente specifici per questa ditta da ad_utenti_ditte
+        if (ditteRows.length === 1) {
+            /************************************************************/
+            /* CASO A: UTENTE CON UNA SOLA DITTA (Login Diretto)  */
+            /************************************************************/
+            console.log(`[AUTH-LOGIN] Caso A: Utente ${email} ha 1 ditta. Login immediato.`);
+            
+            const id_ditta_scelta = ditteRows[0].id;
+            const livello_ditta_scelta = ditteRows[0].livello; // Livello già pronto dalla query UNION
+
+            // Cerca se esiste un ruolo/tipo SPECIFICO in 'ad_utenti_ditte'
             const [associazioneRows] = await connection.query(
-                // CORREZIONE SQL: Seleziona solo i campi necessari, rimosso 'livello:50,'
                 'SELECT id_ruolo, Codice_Tipo_Utente FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"',
                 [user.id, id_ditta_scelta]
             );
 
-            // Usa i dati specifici se esistono, altrimenti fallback ai dati su 'utenti'
-            let associazione = associazioneRows.length > 0
-                ? associazioneRows[0]
-                : { id_ruolo: user.id_ruolo, Codice_Tipo_Utente: user.Codice_Tipo_Utente };
+            // Se esiste un'associazione specifica, la usiamo.
+            // Altrimenti, facciamo "fallback" ai dati vecchi sulla tabella 'utenti'.
+            let associazione;
+            if (associazioneRows.length > 0) {
+                associazione = associazioneRows[0]; // Dati specifici trovati
+            } else {
+                associazione = { id_ruolo: user.id_ruolo, Codice_Tipo_Utente: user.Codice_Tipo_Utente }; // Fallback ai dati legacy
+            }
+            
+            const { Codice_Tipo_Utente } = associazione; // Ci serve per il controllo licenze
 
-            const { id_ruolo, Codice_Tipo_Utente } = associazione; // Livello non è più qui, è in livello_ditta_scelta
-
-            // Controlli licenza (invariati)
+            // --- 6A. PORTINERIA: Controllo Licenze (Solo per Caso A) ---
+            // Recupera i limiti massimi per la ditta scelta
             const [dittaInfoRows] = await connection.query('SELECT max_utenti_interni, max_utenti_esterni FROM ditte WHERE id = ?', [id_ditta_scelta]);
             const { max_utenti_interni, max_utenti_esterni } = dittaInfoRows[0];
             const isUtenteInterno = (Codice_Tipo_Utente === 1);
+
+            // Conta le sessioni GIA' ATTIVE per QUEL TIPO (interni/esterni) in QUELLA DITTA
             const countQuery = `
                 SELECT COUNT(usa.id_utente) as sessioni_attive
                 FROM utenti_sessioni_attive usa
+                /* Questa JOIN complessa serve a trovare il Codice_Tipo_Utente CORRETTO */
                 LEFT JOIN ad_utenti_ditte aud ON usa.id_utente = aud.id_utente AND usa.id_ditta_attiva = aud.id_ditta
                 LEFT JOIN utenti u ON usa.id_utente = u.id
-                WHERE usa.id_ditta_attiva = ? AND COALESCE(aud.Codice_Tipo_Utente, u.Codice_Tipo_Utente) = ?`;
+                WHERE usa.id_ditta_attiva = ? 
+                  AND COALESCE(aud.Codice_Tipo_Utente, u.Codice_Tipo_Utente) = ?`;
+            
             const [countRows] = await connection.query(countQuery, [id_ditta_scelta, Codice_Tipo_Utente]);
             const sessioniAttivePerTipo = countRows[0].sessioni_attive;
+
+            // Se il limite è raggiunto, blocca il login
             if ((isUtenteInterno && sessioniAttivePerTipo >= max_utenti_interni) || (!isUtenteInterno && sessioniAttivePerTipo >= max_utenti_esterni)) {
                 await connection.rollback();
                 return res.status(403).json({ success: false, message: `Numero massimo di connessioni raggiunto.` });
             }
 
-            // Recupero nome ruolo (invariato)
+            // --- 7A. FINALIZZAZIONE LOGIN (Caso A) ---
             const [ruoloInfo] = await connection.query('SELECT tipo FROM ruoli WHERE id = ?', [associazione.id_ruolo]);
 
-            // Creazione userContext con il livello corretto
+            // Costruisce l'oggetto utente completo (il "contesto") per il token
             const userContext = {
-                ...user,
+                ...user, // Contiene id, nome, cognome, email... (password VERRÀ rimossa da finalizzaLogin)
                 id_ditta: id_ditta_scelta,
                 id_ruolo: associazione.id_ruolo,
                 Codice_Tipo_Utente: associazione.Codice_Tipo_Utente,
-                livello: livello_ditta_scelta, // Usa il livello recuperato dalla query delle ditte
+                livello: livello_ditta_scelta, // Livello corretto (specifico o default 50)
                 nome_ruolo: ruoloInfo[0]?.tipo
             };
 
-            // Finalizza login (assicurati che finalizzaLogin usi userContext.livello)
+            // La funzione helper che crea la sessione, il log e il token
             const response = await finalizzaLogin(connection, req, userContext, id_ditta_scelta);
-            await connection.commit();
-            res.json(response);
+            
+            await connection.commit(); // Conferma la transazione (INSERT in utenti_sessioni_attive, log_accessi, ecc.)
+            res.json(response); // Invia il token al frontend
 
         } else {
-            // CASO B: Utente con più ditte
-            delete user.password;
-            // CORREZIONE: Aggiunto 'livello' prendendolo dalla prima ditta (sarà poi aggiornato da /select-ditta)
+            /************************************************************/
+            /* CASO B: UTENTE CON 2+ DITTE (Richiedi Selezione)     */
+            /************************************************************/
+            console.log(`[AUTH-LOGIN] Caso B: Utente ${email} ha ${ditteRows.length} ditte. Invio a selezione.`);
+            
+            delete user.password; // Rimuovi la password prima di inviarla al frontend!
+            
+            // Prepara un oggetto utente "temporaneo" per il frontend
             const userForFrontend = {
                 ...user,
                 ruolo: user.nome_ruolo,
-                // Aggiungi il livello della prima ditta come valore temporaneo
-                livello: ditteRows[0]?.livello || 50 // Usa optional chaining e fallback
+                // Mette un livello "temporaneo" (quello della prima ditta trovata)
+                livello: ditteRows[0]?.livello || 50 
             };
 
-            await connection.commit();
+            await connection.commit(); // Commit (non ci sono state scritture, ma chiudiamo la transazione)
+            
+            // Invia al frontend la lista di ditte tra cui scegliere
             res.json({
                 success: true,
-                needsDittaSelection: true,
-                ditte: ditteRows, // ditteRows contiene già il livello per ogni ditta
-                user: userForFrontend
+                needsDittaSelection: true, // Questo dice al frontend di mostrare il modale
+                ditte: ditteRows, // La lista delle ditte (ognuna ha già id, nome, logo e livello)
+                user: userForFrontend // Dati utente base
             });
         }
     } catch (error) {
+        // --- GESTIONE ERRORI GLOBALE ---
         if (connection) await connection.rollback();
         console.error('Errore durante il login iniziale:', error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     } finally {
+        // --- RILASCIO CONNESSIONE ---
         if (connection) connection.release();
     }
 });
+
 // STEP 2: SELEZIONE DELLA DITTA (per utenti multi-ditta)
 // --- MODIFICA 3: Rimuoviamo il middleware 'verifyToken' ---
 // --- MODIFICA 4: La rotta ora si aspetta email, password e id_ditta_scelta nel body ---
@@ -282,6 +371,7 @@ router.post('/select-ditta', async (req, res) => {
     try {
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
+        await pulisciSessioniScadute(connection);
 
         // --- MODIFICA 5: Riautentichiamo l'utente usando email e password ---
         const userQuery = `SELECT id, nome, cognome, email, password, id_ditta, id_ruolo, Codice_Tipo_Utente FROM utenti WHERE email = ?`;
