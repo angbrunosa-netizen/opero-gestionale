@@ -234,6 +234,7 @@ router.post('/login', async (req, res) => {
                 Codice_Tipo_Utente: associazione.Codice_Tipo_Utente,
                 livello: livello_ditta_scelta, // Usa il livello recuperato dalla query delle ditte
                 nome_ruolo: ruoloInfo[0]?.tipo
+
             };
 
             // Finalizza login (assicurati che finalizzaLogin usi userContext.livello)
@@ -447,7 +448,7 @@ router.post('/request-password-reset', async (req, res) => {
     'INSERT INTO password_reset_tokens (id_utente, token, expires_at) VALUES (?, ?, ?)',
     [user.id, token, expiresAt] );
 
-            const resetLink = `${process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`; 
+            const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`; 
             const mailSubject = 'Opero - Richiesta Reset Password';
            const mailBody = `
     <!DOCTYPE html>
@@ -481,7 +482,7 @@ router.post('/request-password-reset', async (req, res) => {
                 <p>Se non hai richiesto il reset della password, ignora questa email.</p>
             </div>
             <div class="footer">
-                <p>© ${new Date().getFullYear()} Opero Gestionali - Tutti i diritti riservati</p>
+                <p>© ${new Date().getFullYear()} Opero Gestionale  - Tutti i diritti riservati abanexus</p>
             </div>
         </div>
     </body>
