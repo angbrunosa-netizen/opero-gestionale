@@ -1205,6 +1205,8 @@ function AnagraficheManager() {
     );
 }
 // --- Componente Modale per Account Email ---
+// --- Componente Modale per Account Email (Responsive) ---
+// --- Componente Modale per Account Email (Responsive Corretto) ---
 function MailAccountEditModal({ account, onSave, onCancel }) {
     const [formData, setFormData] = useState({
         nome_account: '', email_address: '', 
@@ -1214,16 +1216,49 @@ function MailAccountEditModal({ account, onSave, onCancel }) {
     });
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState({ message: '', type: '' });
+    const [windowSize, setWindowSize] = useState({
+        width: window.innerWidth,
+        height: window.innerHeight
+    });
+
+    // Hook per rilevare le dimensioni della finestra
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowSize({
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
+        };
+        
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Determina se è mobile basandosi sulla larghezza della finestra
+    const isMobile = windowSize.width < 768;
 
     useEffect(() => {
         if (account) {
-            setFormData({ ...account, auth_pass: '' });
+            // Assicurati che tutti i campi abbiano valori di default
+            setFormData({ 
+                nome_account: account.nome_account || '',
+                email_address: account.email_address || '',
+                imap_host: account.imap_host || '',
+                imap_port: account.imap_port || 993,
+                smtp_host: account.smtp_host || '',
+                smtp_port: account.smtp_port || 465,
+                auth_user: account.auth_user || '',
+                auth_pass: '' // Non precompilare la password per sicurezza
+            });
         }
     }, [account]);
 
     const handleChange = (e) => {
         const { name, value, type } = e.target;
-        setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseInt(value, 10) : value }));
+        setFormData(prev => ({ 
+            ...prev, 
+            [name]: type === 'number' ? (value === '' ? '' : parseInt(value, 10)) : value 
+        }));
     };
 
     const handleTestConnection = async () => {
@@ -1254,63 +1289,159 @@ function MailAccountEditModal({ account, onSave, onCancel }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
-                <h3 className="text-xl font-semibold mb-4 text-slate-800">{account ? 'Modifica Account Email' : 'Nuovo Account Email'}</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Nome Account</label>
-                            <input name="nome_account" value={formData.nome_account} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Indirizzo Email</label>
-                            <input type="email" name="email_address" value={formData.email_address} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Host IMAP</label>
-                            <input name="imap_host" value={formData.imap_host} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Porta IMAP</label>
-                            <input type="number" name="imap_port" value={formData.imap_port} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Host SMTP</label>
-                            <input name="smtp_host" value={formData.smtp_host} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Porta SMTP</label>
-                            <input type="number" name="smtp_port" value={formData.smtp_port} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Utente Autenticazione</label>
-                            <input name="auth_user" value={formData.auth_user} onChange={handleChange} required className="mt-1 block w-full p-2 border rounded-md" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700">Password</label>
-                            <input type="password" name="auth_pass" value={formData.auth_pass} onChange={handleChange} required={!account} placeholder={account ? 'Lasciare vuoto per non modificare' : ''} className="mt-1 block w-full p-2 border rounded-md" />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`bg-white rounded-lg shadow-xl w-full ${isMobile ? 'max-w-full' : 'max-w-2xl'} max-h-[90vh] overflow-y-auto`}>
+                <div className="sticky top-0 bg-white p-4 md:p-6 border-b border-slate-200">
+                    <h3 className="text-lg md:text-xl font-semibold text-slate-800">
+                        {account ? 'Modifica Account Email' : 'Nuovo Account Email'}
+                    </h3>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
+                    {/* Sezione Informazioni Base */}
+                    <div className="space-y-4">
+                        <h4 className="text-base font-medium text-slate-700 border-b border-slate-200 pb-2">Informazioni Base</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Nome Account</label>
+                                <input 
+                                    name="nome_account" 
+                                    value={formData.nome_account} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Indirizzo Email</label>
+                                <input 
+                                    type="email" 
+                                    name="email_address" 
+                                    value={formData.email_address} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
                         </div>
                     </div>
 
+                    {/* Sezione Configurazione IMAP */}
+                    <div className="space-y-4">
+                        <h4 className="text-base font-medium text-slate-700 border-b border-slate-200 pb-2">Configurazione IMAP</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Host IMAP</label>
+                                <input 
+                                    name="imap_host" 
+                                    value={formData.imap_host} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Porta IMAP</label>
+                                <input 
+                                    type="number" 
+                                    name="imap_port" 
+                                    value={formData.imap_port} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sezione Configurazione SMTP */}
+                    <div className="space-y-4">
+                        <h4 className="text-base font-medium text-slate-700 border-b border-slate-200 pb-2">Configurazione SMTP</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Host SMTP</label>
+                                <input 
+                                    name="smtp_host" 
+                                    value={formData.smtp_host} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Porta SMTP</label>
+                                <input 
+                                    type="number" 
+                                    name="smtp_port" 
+                                    value={formData.smtp_port} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sezione Autenticazione */}
+                    <div className="space-y-4">
+                        <h4 className="text-base font-medium text-slate-700 border-b border-slate-200 pb-2">Autenticazione</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Utente Autenticazione</label>
+                                <input 
+                                    name="auth_user" 
+                                    value={formData.auth_user} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Password</label>
+                                <input 
+                                    type="password" 
+                                    name="auth_pass" 
+                                    value={formData.auth_pass} 
+                                    onChange={handleChange} 
+                                    required={!account} 
+                                    placeholder={account ? 'Lasciare vuoto per non modificare' : ''} 
+                                    className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" 
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Risultato del Test */}
                     {testResult.message && (
                         <div className={`p-3 rounded-md text-sm ${testResult.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                             {testResult.message}
                         </div>
                     )}
 
-                    <div className="flex justify-between items-center gap-4 pt-4 border-t mt-4">
+                    {/* Pulsanti di Azione */}
+                    <div className={`${isMobile ? 'flex flex-col space-y-3' : 'flex justify-between items-center'} pt-4 border-t mt-4`}>
                         <button 
                             type="button" 
                             onClick={handleTestConnection} 
                             disabled={isTesting}
-                            className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-md hover:bg-gray-700 disabled:bg-gray-400"
+                            className={`${isMobile ? 'w-full' : ''} px-4 py-2 bg-gray-600 text-white font-semibold rounded-md hover:bg-gray-700 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500`}
                         >
                             {isTesting ? 'Testing...' : 'Testa Account'}
                         </button>
-                        <div className="flex gap-4">
-                            <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Annulla</button>
-                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
+                        <div className={`${isMobile ? 'flex flex-col space-y-3 w-full' : 'flex gap-4'}`}>
+                            <button 
+                                type="button" 
+                                onClick={onCancel} 
+                                className={`${isMobile ? 'w-full' : ''} px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-500`}
+                            >
+                                Annulla
+                            </button>
+                            <button 
+                                type="submit" 
+                                className={`${isMobile ? 'w-full' : ''} px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            >
+                                Salva
+                            </button>
                         </div>
                     </div>
                 </form>
@@ -1318,15 +1449,40 @@ function MailAccountEditModal({ account, onSave, onCancel }) {
         </div>
     );
 }
-
 // --- Componente per la Gestione Account Email ---
+// --- Componente per la Gestione Account Email (Responsive) ---
 function MailAccountsManager() {
     const [accounts, setAccounts] = useState([]);
+    const [filteredAccounts, setFilteredAccounts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10); // Per la visualizzazione desktop
+    const [mobileItemsPerPage] = useState(6); // Per la visualizzazione mobile
+    const [windowSize, setWindowSize] = useState({
+        width: window.innerWidth,
+        height: window.innerHeight
+    });
     const { hasPermission } = useAuth();
+
+    // Hook per rilevare le dimensioni della finestra
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowSize({
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
+        };
+        
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Determina se è mobile basandosi sulla larghezza della finestra
+    const isMobile = windowSize.width < 768;
 
     const canEdit = hasPermission('MAIL_ACCOUNTS_EDIT',79);
 
@@ -1335,7 +1491,17 @@ function MailAccountsManager() {
         try {
             const { data } = await api.get('/amministrazione/mail-accounts');
             if (data.success) {
-                setAccounts(data.data);
+                // Assicurati che tutti gli account abbiano i campi necessari
+                const processedAccounts = data.data.map(account => ({
+                    ...account,
+                    nome_account: account.nome_account || '',
+                    email_address: account.email_address || '',
+                    auth_user: account.auth_user || '',
+                    imap_host: account.imap_host || '',
+                    smtp_host: account.smtp_host || ''
+                }));
+                setAccounts(processedAccounts);
+                setFilteredAccounts(processedAccounts);
             } else {
                 setError(data.message);
             }
@@ -1349,6 +1515,28 @@ function MailAccountsManager() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Effetto per filtrare gli account in base al termine di ricerca
+    useEffect(() => {
+        if (searchTerm.trim() === '') {
+            setFilteredAccounts(accounts);
+        } else {
+            const filtered = accounts.filter(account => {
+                // Verifica che i campi esistano prima di chiamare toLowerCase()
+                const nome_account = account.nome_account || '';
+                const email_address = account.email_address || '';
+                const auth_user = account.auth_user || '';
+                
+                const searchTermLower = searchTerm.toLowerCase();
+                return nome_account.toLowerCase().includes(searchTermLower) ||
+                       email_address.toLowerCase().includes(searchTermLower) ||
+                       auth_user.toLowerCase().includes(searchTermLower);
+            });
+            setFilteredAccounts(filtered);
+        }
+        // Resetta la pagina corrente quando cambia il termine di ricerca
+        setCurrentPage(1);
+    }, [searchTerm, accounts]);
 
     const handleOpenModal = (account = null) => {
         setSelectedAccount(account);
@@ -1395,48 +1583,372 @@ function MailAccountsManager() {
         }
     };
 
+    // Calcolo degli elementi da visualizzare in base alla paginazione
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filteredAccounts.slice(indexOfFirstItem, indexOfLastItem);
+    
+    // Calcolo per la visualizzazione mobile
+    const mobileIndexOfLastItem = currentPage * mobileItemsPerPage;
+    const mobileIndexOfFirstItem = mobileIndexOfLastItem - mobileItemsPerPage;
+    const mobileCurrentItems = filteredAccounts.slice(mobileIndexOfFirstItem, mobileIndexOfLastItem);
+    
+    // Funzione per cambiare pagina
+    const paginate = pageNumber => setCurrentPage(pageNumber);
+    
+    // Calcolo del numero totale di pagine
+    const totalPages = Math.ceil(filteredAccounts.length / itemsPerPage);
+    const mobileTotalPages = Math.ceil(filteredAccounts.length / mobileItemsPerPage);
+
+    // Funzione per gestire la ricerca
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+    };
+
+    // Funzione per resettare la ricerca
+    const handleClearSearch = () => {
+        setSearchTerm('');
+    };
+
     return (
-        <div>
+        <div className="p-4 space-y-4">
             {isModalOpen && <MailAccountEditModal account={selectedAccount} onSave={handleSave} onCancel={handleCloseModal} />}
-            <div className="flex justify-between items-center mb-4">
+            
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                 <h3 className="text-xl font-semibold text-slate-700">Gestione Account Email</h3>
-                {canEdit && <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">+ Nuovo Account</button>}
+                {canEdit && (
+                    <button 
+                        onClick={() => handleOpenModal()} 
+                        className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 flex items-center gap-2"
+                    >
+                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                        Nuovo Account
+                    </button>
+                )}
             </div>
-            {isLoading && <p>Caricamento...</p>}
-            {error && <p className="text-red-500">{error}</p>}
-            {!isLoading && !error && (
-                <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Nome Account</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Indirizzo Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Utente</th>
-                                {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase">Azioni</th>}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                            {accounts.map(acc => (
-                                <tr key={acc.id}>
-                                    <td className="px-6 py-4 font-medium">{acc.nome_account}</td>
-                                    <td className="px-6 py-4">{acc.email_address}</td>
-                                    <td className="px-6 py-4">{acc.auth_user}</td>
-                                    {canEdit && (
-                                        <td className="px-6 py-4 text-center space-x-4">
-                                            <button onClick={() => handleOpenModal(acc)} className="text-blue-600 hover:text-blue-900">Modifica</button>
-                                            <button onClick={() => handleDelete(acc.id)} className="text-red-600 hover:text-red-900">Elimina</button>
-                                        </td>
-                                    )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+
+            {/* Barra di ricerca */}
+            <div className="bg-white p-4 rounded-lg shadow mb-4">
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <input
+                        type="text"
+                        className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Cerca per nome account, email o utente..."
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                    />
+                    {searchTerm && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                            <button
+                                type="button"
+                                className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                                onClick={handleClearSearch}
+                            >
+                                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    )}
+                </div>
+                {searchTerm && (
+                    <div className="mt-2 text-sm text-gray-600">
+                        Trovati {filteredAccounts.length} account per "{searchTerm}"
+                    </div>
+                )}
+            </div>
+
+            {error && !isLoading && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    <strong className="font-bold">Errore: </strong>
+                    <span className="block sm:inline">{error}</span>
                 </div>
             )}
+
+            {/* Visualizzazione condizionale: tabella per desktop, card per mobile */}
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+                {isLoading ? (
+                    <div className="flex justify-center items-center p-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span className="ml-2">Caricamento...</span>
+                    </div>
+                ) : filteredAccounts.length > 0 ? (
+                    <>
+                        {/* VISUALIZZAZIONE DESKTOP: TABELLA */}
+                        {!isMobile && (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                                Nome Account
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                                Indirizzo Email
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                                Utente
+                                            </th>
+                                            {canEdit && (
+                                                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                                    Azioni
+                                                </th>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-slate-200">
+                                        {currentItems.map(acc => (
+                                            <tr key={acc.id} className="hover:bg-slate-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                                    {acc.nome_account || 'N/D'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                    {acc.email_address || 'N/D'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                    {acc.auth_user || 'N/D'}
+                                                </td>
+                                                {canEdit && (
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                                        <div className="flex justify-center space-x-2">
+                                                            <button 
+                                                                onClick={() => handleOpenModal(acc)} 
+                                                                className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                                                                title="Modifica"
+                                                            >
+                                                                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleDelete(acc.id)} 
+                                                                className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                                                                title="Elimina"
+                                                            >
+                                                                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        
+                        {/* VISUALIZZAZIONE MOBILE: CARD */}
+                        {isMobile && (
+                            <div className="grid grid-cols-1 gap-4 p-4">
+                                {mobileCurrentItems.map(acc => (
+                                    <div key={acc.id} className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow p-4">
+                                        <div className="flex items-center mb-3">
+                                            <div className="flex-shrink-0 h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <svg className="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                                                </svg>
+                                            </div>
+                                            <div className="ml-3">
+                                                <h3 className="text-lg font-medium text-slate-900">
+                                                    {acc.nome_account || 'Account senza nome'}
+                                                </h3>
+                                                <p className="text-sm text-slate-500">
+                                                    {acc.email_address || 'Nessuna email'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <div className="flex items-center text-sm text-slate-600">
+                                                <svg className="h-4 w-4 mr-2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <span>Utente: {acc.auth_user || 'N/D'}</span>
+                                            </div>
+                                            <div className="flex items-center text-sm text-slate-600">
+                                                <svg className="h-4 w-4 mr-2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                                                </svg>
+                                                <span>IMAP: {acc.imap_host || 'N/D'}:{acc.imap_port || 'N/D'}</span>
+                                            </div>
+                                            <div className="flex items-center text-sm text-slate-600">
+                                                <svg className="h-4 w-4 mr-2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                </svg>
+                                                <span>SMTP: {acc.smtp_host || 'N/D'}:{acc.smtp_port || 'N/D'}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-4 pt-3 border-t border-slate-100">
+                                            {canEdit && (
+                                                <div className="flex justify-end space-x-2">
+                                                    <button
+                                                        onClick={() => handleOpenModal(acc)}
+                                                        className="px-3 py-1 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors text-sm flex items-center"
+                                                        aria-label="Modifica account"
+                                                        title="Modifica account"
+                                                    >
+                                                        <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                                        </svg>
+                                                        Modifica
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(acc.id)}
+                                                        className="px-3 py-1 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors text-sm flex items-center"
+                                                        aria-label="Elimina account"
+                                                        title="Elimina account"
+                                                    >
+                                                        <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                        </svg>
+                                                        Elimina
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        
+                        {/* Paginazione per DESKTOP */}
+                        {!isMobile && totalPages > 1 && (
+                            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-slate-200">
+                                <div className="flex-1 flex justify-between sm:hidden">
+                                    <button 
+                                        onClick={() => currentPage > 1 && paginate(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Precedente
+                                    </button>
+                                    <button 
+                                        onClick={() => currentPage < totalPages && paginate(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="ml-3 relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Successivo
+                                    </button>
+                                </div>
+                                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-sm text-slate-700">
+                                            Mostrando da <span className="font-medium">{indexOfFirstItem + 1}</span> a{' '}
+                                            <span className="font-medium">{Math.min(indexOfLastItem, filteredAccounts.length)}</span> di{' '}
+                                            <span className="font-medium">{filteredAccounts.length}</span> risultati
+                                            {searchTerm && ` per "${searchTerm}"`}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                            <button 
+                                                onClick={() => currentPage > 1 && paginate(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <span className="sr-only">Previous</span>
+                                                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
+                                            
+                                            {/* Numeri di pagina */}
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(number => (
+                                                <button
+                                                    key={number}
+                                                    onClick={() => paginate(number)}
+                                                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                                        currentPage === number
+                                                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                                            : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    {number}
+                                                </button>
+                                            ))}
+                                            
+                                            <button 
+                                                onClick={() => currentPage < totalPages && paginate(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <span className="sr-only">Next</span>
+                                                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* Paginazione per MOBILE */}
+                        {isMobile && mobileTotalPages > 1 && (
+                            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-slate-200">
+                                <div className="flex-1 flex justify-between">
+                                    <button 
+                                        onClick={() => currentPage > 1 && paginate(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Precedente
+                                    </button>
+                                    <span className="text-sm text-slate-700">
+                                        Pagina {currentPage} di {mobileTotalPages}
+                                    </span>
+                                    <button 
+                                        onClick={() => currentPage < mobileTotalPages && paginate(currentPage + 1)}
+                                        disabled={currentPage === mobileTotalPages}
+                                        className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Successivo
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="text-center py-8">
+                        <svg className="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <h3 className="mt-2 text-sm font-medium text-slate-900">
+                            {searchTerm ? `Nessun account trovato per "${searchTerm}"` : 'Nessun account email trovato'}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            {searchTerm ? 'Prova a modificare i criteri di ricerca' : 'Prova a modificare i criteri di ricerca o aggiungi un nuovo account email.'}
+                        </p>
+                        {canEdit && !searchTerm && (
+                            <div className="mt-6">
+                                <button
+                                    onClick={() => handleOpenModal()}
+                                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                    </svg>
+                                    Nuovo Account
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
-
 // --- Componente Modale per la Gestione Utente ---
 function UserEditModal({ userId, onSave, onCancel }) {
     const { hasPermission } = useAuth();

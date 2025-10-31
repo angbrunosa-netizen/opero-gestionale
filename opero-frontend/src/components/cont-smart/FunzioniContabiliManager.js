@@ -22,11 +22,20 @@ const FunzioniContabiliManager = () => {
             
             setFunzioni(funzioniRes.data.data || []);
 
-            const flattenPdc = (nodes) => {
+            // MODIFICA CHIAVE: Sostituita la funzione flattenPdc per includere i sottoconti
+            // e mostrare la gerarchia nel menu a tendina.
+            const flattenPdc = (nodes, level = 0) => {
                 let flat = [];
                 nodes.forEach(node => {
-                    flat.push({ id: node.id, descrizione: node.descrizione, isSelectable: node.tipo === 'Conto' });
-                    if (node.children) flat = flat.concat(flattenPdc(node.children));
+                    // Aggiunge il prefisso '--' per rappresentare il livello di gerarchia
+                    const prefix = '--'.repeat(level);
+                    flat.push({ 
+                        id: node.id, 
+                        descrizione: `${prefix} ${node.descrizione}`, 
+                        // Rende selezionabili solo i nodi di tipo 'Sottoconto'
+                        isSelectable: node.tipo === 'Sottoconto' 
+                    });
+                    if (node.children) flat = flat.concat(flattenPdc(node.children, level + 1));
                 });
                 return flat;
             };
@@ -95,7 +104,6 @@ const FunzioniContabiliManager = () => {
             fetchData();
             handleCloseModal();
         } catch (error) {
-             // Mostra un messaggio di errore più specifico
              const errorMessage = error.response?.data?.message || "Salvataggio fallito. Riprova.";
              alert(errorMessage);
         }
@@ -105,7 +113,7 @@ const FunzioniContabiliManager = () => {
     if (error) return <div className="text-red-500">{error}</div>;
 
     const SortableHeader = ({ field, label }) => (
-        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(field)}>
+        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sm:table-cell hidden" onClick={() => requestSort(field)}>
             <div className="flex items-center">
                 {label}
                 {sortConfig.key === field && <span className="ml-1">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>}
@@ -114,10 +122,53 @@ const FunzioniContabiliManager = () => {
     );
 
     return (
-        <div>
-            <div className="flex justify-between items-center mb-4">
+        <>
+        <style jsx>{`
+            @media (max-width: 640px) {
+                .table-card-row {
+                    display: block;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 0.5rem;
+                    margin-bottom: 1rem;
+                    padding: 1rem;
+                    background-color: white;
+                }
+                .table-card-row td {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    text-align: right;
+                    padding: 0.5rem 0;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .table-card-row td:last-child {
+                    border-bottom: none;
+                }
+                .table-card-row td::before {
+                    content: attr(data-label);
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    flex-grow: 1;
+                    text-align: left;
+                }
+                .table-card-row td:last-child {
+                    display: block;
+                    text-align: center;
+                    margin-top: 1rem;
+                    padding-top: 1rem;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .table-card-row td:last-child::before {
+                    display: none;
+                }
+            }
+        `}</style>
+        <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 gap-y-4">
                 <h2 className="text-xl font-bold">Gestione Funzioni Contabili</h2>
-                <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 shadow-sm hover:bg-blue-700">
+                <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center gap-2 shadow-sm hover:bg-blue-700 w-full sm:w-auto">
                     <PlusIcon className="h-5 w-5" /> Nuova Funzione
                 </button>
             </div>
@@ -132,11 +183,10 @@ const FunzioniContabiliManager = () => {
                 />
             </div>
 
-            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
+            <div className="shadow overflow-hidden sm:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 hidden sm:table">
                     <thead className="bg-gray-50">
                         <tr>
-                            {/* <span style="color:green;">// NUOVO: Aggiunta colonna Codice Funzione</span> */}
                             <SortableHeader field="codice_funzione" label="Codice" />
                             <SortableHeader field="nome_funzione" label="Nome Funzione" />
                             <SortableHeader field="tipo_funzione" label="Tipo" />
@@ -149,7 +199,7 @@ const FunzioniContabiliManager = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                         {sortedAndFilteredFunzioni.map(funzione => (
                             <tr key={funzione.id}>
-                                 <td className="px-3 py-2 whitespace-nowrap">
+                                <td className="px-3 py-2 whitespace-nowrap">
                                     <div className="text-sm font-semibold text-gray-600">{funzione.codice_funzione}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -173,6 +223,31 @@ const FunzioniContabiliManager = () => {
                         ))}
                     </tbody>
                 </table>
+
+                <div className="sm:hidden">
+                    {sortedAndFilteredFunzioni.map(funzione => (
+                        <div key={funzione.id} className="table-card-row">
+                            <td data-label="Codice">{funzione.codice_funzione}</td>
+                            <td data-label="Nome Funzione">
+                                <div>
+                                    <div className="text-sm font-medium text-gray-900">{funzione.nome_funzione}</div>
+                                    <div className="text-sm text-gray-500">{funzione.descrizione}</div>
+                                </div>
+                            </td>
+                            <td data-label="Tipo">
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                    {funzione.tipo_funzione}
+                                </span>
+                            </td>
+                            <td data-label="Categoria">{funzione.categoria}</td>
+                            <td>
+                                <button onClick={() => handleOpenModal(funzione)} className="text-blue-600 hover:text-blue-900">
+                                    <PencilIcon className="h-5 w-5" />
+                                </button>
+                            </td>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {isModalOpen && (
@@ -184,11 +259,11 @@ const FunzioniContabiliManager = () => {
                 />
             )}
         </div>
+        </>
     );
 };
 
 const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
-    // <span style="color:red;">// MODIFICA: Aggiunto 'codice_funzione' allo stato iniziale</span>
     const [testata, setTestata] = useState({
         codice_funzione: '',
         nome_funzione: '', 
@@ -202,7 +277,6 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
     useEffect(() => {
         if (funzione) {
             setTestata({
-                // <span style="color:red;">// MODIFICA: Popola 'codice_funzione' in modifica</span>
                 codice_funzione: funzione.codice_funzione || '',
                 nome_funzione: funzione.nome_funzione || '',
                 descrizione: funzione.descrizione || '',
@@ -258,7 +332,6 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
                 <form onSubmit={handleSubmit}>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
-                        {/* <span style="color:green;">// NUOVO: Aggiunto campo per il Codice Funzione</span> */}
                         <div className="relative">
                             <label htmlFor="codice_funzione" className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-bold text-gray-900">Codice Funzione</label>
                             <input 
@@ -268,7 +341,7 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
                                 value={testata.codice_funzione} 
                                 onChange={handleTestataChange} 
                                 required 
-                                disabled={!!funzione} // Disabilitato in modalità modifica
+                                disabled={!!funzione}
                                 className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
                             />
                             {!funzione && <p className="text-xs text-gray-500 mt-1">Codice breve e unico (es. FATT-ACQ). Non modificabile.</p>}
@@ -317,20 +390,21 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
                     <h4 className="font-semibold mb-2 mt-6">Righe Predefinite</h4>
                     <div className="space-y-3 mb-4">
                         {righe.map(riga => (
-                            <div key={riga.uniqueId} className="grid grid-cols-12 gap-2 items-center p-2 border rounded-md">
-                                <select value={riga.id_conto} onChange={e => handleRigaChange(riga.uniqueId, 'id_conto', e.target.value)} className="col-span-12 md:col-span-5 p-2 border rounded text-sm">
+                            <div key={riga.uniqueId} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center p-2 border rounded-md">
+                                <select value={riga.id_conto} onChange={e => handleRigaChange(riga.uniqueId, 'id_conto', e.target.value)} className="col-span-1 sm:col-span-5 p-2 border rounded text-sm">
                                     <option value="">Seleziona Conto</option>
+                                    {/* Ora la select mostrerà tutti i conti, ma renderà selezionabili solo i sottoconti */}
                                     {pianoConti.map(c => <option key={c.id} value={c.id} disabled={!c.isSelectable}>{c.descrizione}</option>)}
                                 </select>
-                                <select value={riga.tipo_movimento} onChange={e => handleRigaChange(riga.uniqueId, 'tipo_movimento', e.target.value)} className="col-span-6 md:col-span-2 p-2 border rounded text-sm">
+                                <select value={riga.tipo_movimento} onChange={e => handleRigaChange(riga.uniqueId, 'tipo_movimento', e.target.value)} className="col-span-1 sm:col-span-2 p-2 border rounded text-sm">
                                     <option value="D">DARE</option>
                                     <option value="A">AVERE</option>
                                 </select>
-                                <label className="col-span-6 md:col-span-4 flex items-center text-sm select-none">
+                                <label className="col-span-1 sm:col-span-4 flex items-center text-sm select-none">
                                     <input type="checkbox" checked={riga.is_conto_ricerca} onChange={e => handleRigaChange(riga.uniqueId, 'is_conto_ricerca', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
                                     <span className="ml-2">Conto di Ricerca</span>
                                 </label>
-                                <button type="button" onClick={() => setRighe(righe.filter(r => r.uniqueId !== riga.uniqueId))} className="col-span-12 md:col-span-1 p-2 text-red-500 hover:bg-red-100 rounded-full flex justify-center">
+                                <button type="button" onClick={() => setRighe(righe.filter(r => r.uniqueId !== riga.uniqueId))} className="col-span-1 sm:col-span-1 p-2 text-red-500 hover:bg-red-100 rounded-full flex justify-center">
                                     <TrashIcon className="h-5 w-5" />
                                 </button>
                             </div>
@@ -338,9 +412,9 @@ const FunzioneModal = ({ funzione, onClose, onSave, pianoConti }) => {
                     </div>
                     <button type="button" onClick={addRiga} className="text-sm text-blue-600 mb-6 flex items-center gap-1"><PlusIcon className="h-4 w-4"/> Aggiungi Riga</button>
 
-                    <div className="flex justify-end gap-4">
-                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva</button>
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-4">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md w-full sm:w-auto">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md w-full sm:w-auto">Salva</button>
                     </div>
                 </form>
             </div>
