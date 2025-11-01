@@ -6,6 +6,9 @@
   "dependencies": {
     "@ag-grid-community/client-side-row-model": "^32.3.9",
     "@ag-grid-community/csv-export": "^32.3.9",
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
     "@heroicons/react": "^2.2.0",
     "@tanstack/react-table": "^8.21.3",
     "@testing-library/dom": "^10.4.0",
@@ -58,6 +61,7 @@
     ]
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@tailwindcss/postcss": "^4.1.11",
     "autoprefixer": "^10.0.0",
     "postcss": "^8.0.0",

@@ -521,18 +521,24 @@ const NuovaRegistrazione = () => {
 
     useEffect(() => {
         const handleNavKeyDown = (event) => {
-            if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
-            const focusable = Array.from(formRef.current?.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])') ?? []);
-            const currentIndex = focusable.findIndex(el => el === document.activeElement);
-            if (currentIndex === -1) return;
-            event.preventDefault();
-            const nextIndex = (event.key === 'ArrowDown') ? (currentIndex + 1) % focusable.length : (currentIndex - 1 + focusable.length) % focusable.length;
-            focusable[nextIndex]?.focus();
-        };
-        const form = formRef.current;
-        form?.addEventListener('keydown', handleNavKeyDown);
-        return () => form?.removeEventListener('keydown', handleNavKeyDown);
+        // NUOVO: Escludi la gestione delle frecce se siamo dentro la tabella
+        if (event.target.closest('.dynamic-report-table')) {
+            return;
+        }
+        
+        if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+        const focusable = Array.from(formRef.current?.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])') ?? []);
+        const currentIndex = focusable.findIndex(el => el === document.activeElement);
+        if (currentIndex === -1) return;
+        event.preventDefault();
+        const nextIndex = (event.key === 'ArrowDown') ? (currentIndex + 1) % focusable.length : (currentIndex - 1 + focusable.length) % focusable.length;
+        focusable[nextIndex]?.focus();
+    };
+    const form = formRef.current;
+    form?.addEventListener('keydown', handleNavKeyDown);
+    return () => form?.removeEventListener('keydown', handleNavKeyDown);
     }, [isEditing]);
+
 
     const handleFocus = (e) => setActiveField(e.target.name);
     
@@ -625,19 +631,21 @@ const NuovaRegistrazione = () => {
                                 </div>
                             </fieldset>
                         {isElencoMode ? (
-                            <fieldset className="border-2 border-gray-600 rounded-lg p-4 mb-6 animate-fade-in">
-                                <legend className="px-2 font-semibold text-base text-slate-600">Selezione Partite Aperte</legend>
-                                {isElencoLoading ? (
-                                    <div className="text-center p-4">Caricamento elenco...</div>
-                                ) : (
-                                    <>
-                                        <DynamicReportTable
-                                            data={elencoData}
-                                            columns={elencoColumns}
-                                            isSelectable={true}
-                                            onSelectionChange={(ids) => setSelectedElencoIds(ids)}
-                                            title={reportTitle}
-                                        />
+                              <fieldset className="border-2 border-gray-600 rounded-lg p-4 mb-6 animate-fade-in">
+        <legend className="px-2 font-semibold text-base text-slate-600">Selezione Partite Aperte</legend>
+        {isElencoLoading ? (
+            <div className="text-center p-4">Caricamento elenco...</div>
+        ) : (
+            <>
+                <div className="dynamic-report-table">
+                    <DynamicReportTable
+                        data={elencoData}
+                        columns={elencoColumns}
+                        isSelectable={true}
+                        onSelectionChange={(ids) => setSelectedElencoIds(ids)}
+                        title={reportTitle}
+                    />
+                     </div>
                                         <div className="mt-4 flex justify-between items-center p-3 bg-slate-100 rounded-md">
                                             <div className="text-base font-semibold">
                                                 Totale Selezionato: <span className="font-bold text-blue-600">

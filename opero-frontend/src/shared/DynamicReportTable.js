@@ -185,22 +185,34 @@ const DynamicReportTable = ({
                                 }`}
                             >
                                 {isSelectable && (
-                                    <div className="flex justify-between items-center mb-3">
+                                    <button
+                                        type="button"
+                                        className="w-full flex justify-between items-center mb-3 cursor-pointer select-none -mx-4 -mt-4 px-4 pt-4 pb-3 rounded-t-lg hover:bg-gray-50 active:bg-gray-100 border-0 bg-transparent text-left"
+                                        onClick={() => {
+                                            console.log('Click su item:', item.id);
+                                            handleSelectRow(item.id);
+                                        }}
+                                    >
                                         <div className="flex items-center">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={isSelected}
-                                                onChange={() => handleSelectRow(item.id)}
-                                                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3"
-                                            />
-                                            <span className="text-sm font-medium text-gray-700">
-                                                {isSelected ? 'Selezionato' : 'Seleziona'}
+                                            <div 
+                                                className={`h-6 w-6 border-2 rounded flex items-center justify-center mr-3 transition-colors flex-shrink-0 ${
+                                                    isSelected 
+                                                        ? 'bg-blue-600 border-blue-600' 
+                                                        : 'border-gray-400 bg-white'
+                                                }`}
+                                            >
+                                                {isSelected && (
+                                                    <CheckIcon className="h-4 w-4 text-white stroke-2" />
+                                                )}
+                                            </div>
+                                            <span className="text-sm font-semibold text-gray-700">
+                                                {isSelected ? 'Selezionato' : 'Tocca per selezionare'}
                                             </span>
                                         </div>
                                         {isSelected && (
-                                            <CheckIcon className="h-5 w-5 text-blue-600" />
+                                            <CheckIcon className="h-6 w-6 text-blue-600 flex-shrink-0" />
                                         )}
-                                    </div>
+                                    </button>
                                 )}
                                 
                                 <div className="space-y-2">
@@ -222,8 +234,12 @@ const DynamicReportTable = ({
                                     <div className="flex justify-end space-x-2 mt-4 pt-3 border-t border-gray-100">
                                         {onEdit && (
                                             <button 
-                                                onClick={() => onEdit(item)} 
-                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEdit(item);
+                                                }} 
+                                                className="p-2 text-blue-600 hover:bg-blue-50 active:bg-blue-100 rounded-md transition-colors"
                                                 title="Modifica"
                                             >
                                                 <PencilIcon className="h-5 w-5" />
@@ -231,8 +247,12 @@ const DynamicReportTable = ({
                                         )}
                                         {onDelete && (
                                             <button 
-                                                onClick={() => onDelete(item)} 
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDelete(item);
+                                                }} 
+                                                className="p-2 text-red-600 hover:bg-red-50 active:bg-red-100 rounded-md transition-colors"
                                                 title="Elimina"
                                             >
                                                 <TrashIcon className="h-5 w-5" />

@@ -1,19 +1,17 @@
 /**
  * File: opero-frontend/src/components/AttivitaPPA.js
  * Descrizione: Componente per visualizzare e gestire le attività PPA in corso.
- * Fase: 4.3 (Integrazione Finale) - Integrazione della vista di dettaglio.
+ * Fase: 4.4 (Ottimizzazione Mobile) - Adattamento della vista tabellare per mobile.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
-import IstanzaDetailView from './ppa/IstanzaDetailView'; // Importiamo la nuova vista
+import IstanzaDetailView from './ppa/IstanzaDetailView';
 import { EyeIcon } from '@heroicons/react/24/outline';
 
 const AttivitaPPA = ({ refreshKey }) => {
     const [istanze, setIstanze] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    // NUOVO: Stato per gestire la navigazione alla vista di dettaglio
     const [selectedIstanzaId, setSelectedIstanzaId] = useState(null);
 
     const fetchIstanze = useCallback(async () => {
@@ -42,11 +40,12 @@ const AttivitaPPA = ({ refreshKey }) => {
         setSelectedIstanzaId(null);
     };
 
-    // NUOVO: Logica di rendering condizionale
+    // Logica di rendering condizionale per la vista di dettaglio
     if (selectedIstanzaId) {
         return <IstanzaDetailView istanzaId={selectedIstanzaId} onBack={handleBackToList} />;
     }
 
+    // Stati di caricamento ed errore
     if (isLoading) {
         return <div className="p-4 text-center">Caricamento attività...</div>;
     }
@@ -58,7 +57,9 @@ const AttivitaPPA = ({ refreshKey }) => {
     return (
         <div className="bg-white p-4 rounded-lg shadow-md">
             <h3 className="text-lg font-bold text-gray-800 mb-4">Procedure in Corso</h3>
-            <div className="overflow-x-auto">
+            
+            {/* Vista Desktop: Tabella tradizionale (visibile solo su schermi medi e grandi) */}
+            <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -92,6 +93,37 @@ const AttivitaPPA = ({ refreshKey }) => {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Vista Mobile: Layout a card (visibile solo su schermi piccoli) */}
+            <div className="md:hidden space-y-4">
+                {istanze.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 bg-gray-50 rounded-md">Nessuna procedura in corso.</div>
+                ) : (
+                    istanze.map((istanza) => (
+                        <div key={istanza.ID} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex justify-between items-start mb-2">
+                                <h4 className="text-sm font-semibold text-gray-900">{istanza.NomeProcedura}</h4>
+                                <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-800 rounded-full">{istanza.Stato}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">
+                                <span className="font-medium">Applicata a:</span> {istanza.TargetEntityName}
+                            </p>
+                            <p className="text-xs text-gray-600 mb-3">
+                                <span className="font-medium">Scadenza:</span> {new Date(istanza.DataPrevistaFine).toLocaleDateString('it-IT')}
+                            </p>
+                            <div className="flex justify-end">
+                                <button 
+                                    onClick={() => handleViewDetails(istanza.ID)} 
+                                    className="text-blue-600 hover:text-blue-900 flex items-center gap-1 text-sm font-medium"
+                                >
+                                    <EyeIcon className="h-4 w-4" />
+                                    Dettagli
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
