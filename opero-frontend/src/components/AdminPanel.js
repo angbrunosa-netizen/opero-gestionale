@@ -12,7 +12,8 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
 // --- MODIFICA: Assicura che KeyIcon sia importato ---
-import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon ,UserPlusIcon, KeyIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, DocumentArrowDownIcon, PrinterIcon, PlusIcon, LockOpenIcon ,UserPlusIcon, KeyIcon,
+    XMarkIcon,ChevronDownIcon } from '@heroicons/react/24/outline';
 import { ShieldCheck } from 'lucide-react';
 import GestioneFunzioni from './admin/GestioneFunzioni';
 import GestioneRuoliPermessi from './admin/GestioneRuoliPermessi';
@@ -373,6 +374,19 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
 // ====================================================================
 // Sotto-componente: Gestione Utenti (MODIFICATO per includere invito, recupero PW e gestione livelli)
 // ====================================================================
+/*
+/*
+/*
+ * #####################################################################
+ * # Componente GestioneUtenti - v2.2 (Con Funzione di Ricerca)
+ * # File: opero-frontend/src/components/admin/GestioneUtenti.js
+ * # Modifiche principali:
+ * # - Aggiunta barra di ricerca per filtrare utenti
+ * # - La ricerca funziona su nome, cognome, email e ruolo
+ * # - Layout della ricerca ottimizzato per mobile e desktop
+ * #####################################################################
+ */
+
 const GestioneUtenti = () => {
     const { user, ditta, hasPermission } = useAuth();
     const [ditte, setDitte] = useState([]);
@@ -381,36 +395,30 @@ const GestioneUtenti = () => {
     const [selectedDittaId, setSelectedDittaId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    // --- NUOVO STATO PER LA RICERCA ---
+    const [searchTerm, setSearchTerm] = useState('');
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [editingPermissionsForUser, setEditingPermissionsForUser] = useState(null);
-
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-    // --- MODIFICA: Stati per il nuovo modale ---
     const [loadingRecoveryLink, setLoadingRecoveryLink] = useState(false);
     const [generatedLink, setGeneratedLink] = useState('');
     const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
 
+    const [showMobileActions, setShowMobileActions] = useState(false);
+
     const logAction = useCallback(async (azione, dettagli = '') => {
         try { 
-            await api.post('/track/log-action', {
-                azione,
-                dettagli,
-                modulo: 'Admin',
-                funzione: 'Gestione Utenti'
-            });
+            await api.post('/track/log-action', { azione, dettagli, modulo: 'Admin', funzione: 'Gestione Utenti' });
         } catch (error) {
             console.error("Errore during la registrazione dell'azione:", error);
         }
     }, []);
 
     const fetchUtentiForDitta = useCallback(async (dittaId) => {
-        if (!dittaId) {
-            setUtenti([]);
-            return;
-        }
-        console.log(`[DEBUG] Chiamando fetchUtentiForDitta per dittaId: ${dittaId}`); // <-- LOG AGGIUNTO
+        if (!dittaId) { setUtenti([]); return; }
         setIsLoading(true);
         try {
             const response = await api.get(`/admin/utenti/ditta/${dittaId}`);
@@ -418,7 +426,6 @@ const GestioneUtenti = () => {
         } catch (error) {
             toast.error("Impossibile caricare l'elenco degli utenti.");
             console.error(`Errore nel caricamento degli utenti per la ditta ${dittaId}:`, error);
-            console.error(`[DEBUG] Errore in fetchUtentiForDitta per ditta ${dittaId}:`, error); // <-- LOG AGGIUNTO
             setUtenti([]);
         }
         setIsLoading(false);
@@ -431,7 +438,6 @@ const GestioneUtenti = () => {
             try {
                 const ruoliRes = await api.get('/admin/ruoli');
                 setRuoli(ruoliRes.data.ruoli || ruoliRes.data || []);
-
                 if (user.ruolo === 'Amministratore_sistema') {
                     const ditteRes = await api.get('/admin/ditte');
                     setDitte(ditteRes.data.ditte || ditteRes.data || []);
@@ -453,62 +459,44 @@ const GestioneUtenti = () => {
         }
     }, [selectedDittaId, fetchUtentiForDitta]);
 
-    const handleInviteUser = () => {
-        setIsInviteModalOpen(true);
-    };
+    // --- LOGICA DI FILTRAGGIO CON USEMEMO ---
+    const filteredUsers = useMemo(() => {
+        if (!searchTerm) return utenti;
+        
+        const lowerCaseTerm = searchTerm.toLowerCase();
+        return utenti.filter(user => {
+            const ruolo = ruoli.find(r => r.id === user.id_ruolo)?.ruolo || '';
+            return (
+                user.nome.toLowerCase().includes(lowerCaseTerm) ||
+                user.cognome.toLowerCase().includes(lowerCaseTerm) ||
+                user.email.toLowerCase().includes(lowerCaseTerm) ||
+                ruolo.toLowerCase().includes(lowerCaseTerm)
+            );
+        });
+    }, [utenti, ruoli, searchTerm]);
 
+    const handleInviteUser = () => setIsInviteModalOpen(true);
     const handleInviteSuccess = () => {
         setIsInviteModalOpen(false);
         toast.info("Invito inviato. L'elenco utenti si aggiornerà quando l'utente completerà la registrazione.");
     };
 
-   const handleEditUser = useCallback(async (userId) => {
-     console.log(`[FRONTEND] Tentativo di modifica per l'utente con ID: ${userId}`);
-
-        // --- INIZIO CORREZIONE ---
-        // Non facciamo una nuova chiamata API. I dati dell'utente sono
-        // già presenti nello stato 'utenti' caricato dalla griglia.
+    const handleEditUser = useCallback((userId) => {
         const userToEdit = utenti.find(u => u.id === userId);
-
         if (userToEdit) {
-            console.log('[FRONTEND] Dati utente trovati localmente:', userToEdit);
-            // Questo oggetto 'userToEdit' contiene l'ID, nome, cognome, id_ruolo, etc.
-            // necessari al modal per funzionare.
-         setEditingUser(userToEdit);
-        setIsModalOpen(true);
+            setEditingUser(userToEdit);
+            setIsModalOpen(true);
         } else {
-            // Questo è un caso di errore, non dovrebbe succedere
-            console.error(`Errore: impossibile trovare l'utente ${userId} nei dati locali.`);
             toast.error("Impossibile modificare l'utente. Prova a ricaricare.");
         }
-        // --- FINE CORREZIONE ---
-
-    /* // RIMUOVIAMO LA VECCHIA LOGICA ERRATA
-        try {
-            // QUESTA ROTTA NON ESISTE IN admin.js e causa il fallimento
-            const response = await api.get(`/admin/utenti/${userId}`); 
-            console.log('[FRONTEND] Dati ricevuti dal backend:', response.data.utente);
-            setEditingUser(response.data.utente);
-            setIsModalOpen(true);
-        } catch (error) {
-            console.error(`Errore nel caricamento dei dati dell'utente ${userId}:`, error);
-        }
-        */
-    },
-     [utenti] // <- Aggiungi 'utenti' alle dipendenze di useCallback
-);
-
-    
-  //  []);
+    }, [utenti]);
 
     const handleDeleteUser = useCallback(async (userId) => {
         if (window.confirm('Sei sicuro di voler eliminare questo utente?')) {
             try {
                 const userToDelete = utenti.find(u => u.id === userId);
                 await api.delete(`/admin/utenti/${userId}`);
-                if (userToDelete) {
-                    logAction('Eliminazione utente', `Utente: ${userToDelete.email} (ID: ${userId})`);
-                }
+                if (userToDelete) logAction('Eliminazione utente', `Utente: ${userToDelete.email} (ID: ${userId})`);
                 setUtenti(prev => prev.filter(u => u.id !== userId));
             } catch (error) {
                 console.error(`Errore during l'eliminazione dell'utente ${userId}:`, error);
@@ -525,265 +513,219 @@ const GestioneUtenti = () => {
                 fetchUtentiForDitta(selectedDittaId);
             } catch (error) {
                 toast.error(error.response?.data?.message || "Errore during lo sblocco dell'utente.");
-                console.error(error);
             }
         }
     }, [selectedDittaId, fetchUtentiForDitta, logAction]);
 
-    // --- MODIFICA: Aggiornata funzione per aprire il modale ---
     const handleGenerateRecoveryLink = useCallback(async (userId, userEmail) => {
-        if (!hasPermission('ADM_PWD_REC')) {
-            toast.warn('Non hai i permessi necessari per eseguire questa operazione.');
-            return;
-        }
-        if (!window.confirm(`Sei sicuro di voler generare un nuovo link di recupero password per l'utente ${userEmail}? Il link precedente (se esistente) verrà invalidato e questo sarà valido per 1 ora.`)) {
-            return;
-        }
+        if (!hasPermission('ADM_PWD_REC')) { toast.warn('Non hai i permessi necessari.'); return; }
+        if (!window.confirm(`Sei sicuro di voler generare un nuovo link di recupero password per ${userEmail}?`)) return;
         setLoadingRecoveryLink(true);
         try {
             const response = await api.post(`/admin/utenti/${userId}/generate-recovery-link`);
             if (response.data.success && response.data.recoveryLink) {
-                // --- APRI IL MODALE ---
                 setGeneratedLink(response.data.recoveryLink);
                 setIsRecoveryModalOpen(true);
                 toast.success('Link di recupero generato!');
             } else {
-                 toast.error(response.data.message || 'Errore imprevisto nella generazione del link.');
+                 toast.error(response.data.message || 'Errore imprevisto.');
             }
         } catch (err) {
-            console.error("Errore API /generate-recovery-link:", err);
-            toast.error(err.response?.data?.message || 'Errore during la comunicazione con il server.');
+            console.error("Errore API:", err);
+            toast.error(err.response?.data?.message || 'Errore di comunicazione.');
         } finally {
              setLoadingRecoveryLink(false);
         }
-    }, [hasPermission]); // Aggiunta dipendenza hasPermission
+    }, [hasPermission]);
 
-const handleSaveUser = useCallback(async (userData) => {
- // Estrai l'ID per decidere se è una modifica o una creazione
- const { id } = userData;
- const isModifica = !!id;
- const actionType = isModifica ? 'Modifica' : 'Creazione';
-
- try {
- if (isModifica) {
- // --- Logica di MODIFICA (PUT) ---
-                // Con la Correzione 1, 'id' ora sarà valorizzato correttamente.
- await api.put(`/admin/utenti/${id}`, userData);
- } else {
- // --- Logica di CREAZIONE (POST) ---
-                
-                // --- INIZIO CORREZIONE ---
-                // ERRORE: Questa era 'api.put' con un id undefined (causava 404)
-// await api.put(`/admin/utenti/${id}`, userData);
-               
-                // NOTA: La creazione in questo pannello avviene tramite "InvitaUtenteModal".
-                // Questo blocco 'else' non dovrebbe essere raggiunto.
-                // Se dovesse essere raggiunto, generiamo un errore chiaro
-                // invece di far fallire la chiamata API.
-                console.error("Errore Logico: 'handleSaveUser' chiamato in modalità Creazione.");
-                toast.error("Errore: questo form può solo modificare utenti. Usare 'Invita Utente' per crearne di nuovi.");
-                // --- FINE CORREZIONE ---
- }
- 
-            // Questa parte ora funzionerà solo per la modifica
- const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
- logAction(`${actionType} utente`, `Utente: ${userData.email}, Ditta: ${dittaName}`);
- 
- setIsModalOpen(false);
-setEditingUser(null); 
- 
-            // Ricarica gli utenti
-            // NOTA: Se 'handleSaveUser' è stato chiamato per modifica, selectedDittaId è già valorizzato
-            if (selectedDittaId) {
-    fetchUtentiForDitta(selectedDittaId);
+    const handleSaveUser = useCallback(async (userData) => {
+        const { id } = userData;
+        try {
+            if (id) {
+                await api.put(`/admin/utenti/${id}`, userData);
+                const dittaName = ditte.find(d => d.id === parseInt(userData.id_ditta, 10))?.ragione_sociale || userData.id_ditta;
+                logAction('Modifica utente', `Utente: ${userData.email}, Ditta: ${dittaName}`);
+                setIsModalOpen(false); setEditingUser(null);
+                if (selectedDittaId) fetchUtentiForDitta(selectedDittaId);
+            } else {
+                toast.error("Errore: questo form può solo modificare utenti. Usa 'Invita Utente' per crearne di nuovi.");
             }
-
- } catch (error) {
- console.error(`Errore during il salvataggio dell'utente (${actionType}):`, error);
-            // Aggiungiamo un toast di errore
+        } catch (error) {
+            console.error(`Errore durante il salvataggio:`, error);
             toast.error(`Errore durante il salvataggio: ${error.message}`);
- }
- }, [ditte, selectedDittaId, logAction, fetchUtentiForDitta]); // <- Aggiungi fetchUtentiForDitta
+        }
+    }, [ditte, selectedDittaId, logAction, fetchUtentiForDitta]);
+
     const handleExport = (format) => {
         const selectedDitta = ditte.find(d => d.id === parseInt(selectedDittaId, 10));
-        if (!selectedDitta) {
-            toast.warn("Seleziona una ditta prima di esportare.");
-            return;
-        }
-
-        const columnsToExport = [
-            { label: 'Username', key: 'username' },
-            { label: 'Email', key: 'email' },
-            { label: 'Ruolo', key: 'ruolo' }
-        ];
-
-        const dataToExport = utenti.map(u => ({
-            username: u.username,
+        if (!selectedDitta) { toast.warn("Seleziona una ditta prima di esportare."); return; }
+        // Esporta i dati filtrati, non l'intero elenco
+        const dataToExport = filteredUsers.map(u => ({
+            username: `${u.nome} ${u.cognome}`,
             email: u.email,
-            ruolo: ruoli.find(r => r.id === u.id_ruolo)?.ruolo || 'N/D'
+            ruolo: ruoli.find(r => r.id === u.id_ruolo)?.ruolo || 'N/D',
+            stato: u.stato
         }));
-
         const fileName = `elenco_utenti_${selectedDitta.ragione_sociale.replace(/\s/g, '_')}`;
-
         if (format === 'csv') {
             logAction('Export CSV', `Esportato elenco utenti per ditta: ${selectedDitta.ragione_sociale}`);
-            const csvData = [
-                columnsToExport.map(col => col.label),
-                ...dataToExport.map(row => columnsToExport.map(col => row[col.key]))
-            ];
-            exportToCSV(csvData, fileName);
+            exportToCSV(Papa.unparse(dataToExport), fileName);
         } else if (format === 'pdf') {
             logAction('Stampa PDF', `Stampato elenco utenti per ditta: ${selectedDitta.ragione_sociale}`);
-            exportToPDF(dataToExport, columnsToExport, fileName, selectedDitta);
+            exportToPDF(dataToExport, [
+                { label: 'Utente', key: 'username' },
+                { label: 'Email', key: 'email' },
+                { label: 'Ruolo', key: 'ruolo' },
+                { label: 'Stato', key: 'stato' }
+            ], fileName, selectedDitta);
         }
     };
 
-    // --- Definizione 'columns' ---
-    const columns = useMemo(() => [
-        {
-            header: 'Username',
-            // Rimuoviamo accessorKey perché il valore è calcolato
-            // accessorKey: 'username',
-            // Usiamo una cell function per concatenare nome e cognome
-            cell: info => {
-                const nome = info.row.original.nome || '';
-                const cognome = info.row.original.cognome || '';
-                return `${nome} ${cognome}`.trim(); // Trim per rimuovere spazi extra se uno dei due manca
-            }
-        },
-        { header: 'Email', accessorKey: 'email' },
-        
-        { header: 'Livello', accessorKey: 'livello' },
-        {
-            header: 'Ruolo',
-            accessorKey: 'id_ruolo',
-            cell: info => {
-                const ruolo = ruoli.find(r => r.id === info.getValue());
-                return ruolo ? ruolo.ruolo : 'N/D';
-            }
-        },
-        {
-            header: 'Stato',
-            accessorKey: 'stato',
-            cell: info => (
-                info.getValue() === 'bloccato' ?
-                <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Bloccato</span> :
-                <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Attivo</span>
-            ),
-        },
-        {
-            id: 'actions',
-            header: 'Azioni',
-            cell: (info) => ( // 'info' è il 'params' corretto per tanstack-table
-                <div className="flex space-x-2">
-                    {hasPermission('UTENTI_EDIT') && <button
-                     onClick={() => handleEditUser(info.row.original.id)} 
-                     className="text-blue-600 hover:text-blue-800"
-                     title="modifica dati utente"   
-                     >
-                        <PencilIcon className="h-5 w-5" /></button>}
-                   
-                    {hasPermission('UTENTI_EDIT') && <button onClick={() => handleDeleteUser(info.row.original.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>}
+    const renderUserCard = (user) => {
+        const ruolo = ruoli.find(r => r.id === user.id_ruolo);
+        return (
+            <div key={user.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-lg font-semibold text-gray-900 truncate">{user.nome} {user.cognome}</p>
+                        <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                    </div>
+                    <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${
+                        user.stato === 'bloccato' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                        {user.stato}
+                    </span>
+                </div>
+                
+                <div className="text-sm text-gray-600 mb-4">
+                    <span className="font-medium">Ruolo:</span> {ruolo ? ruolo.ruolo : 'N/D'} | 
+                    <span className="font-medium ml-2">Livello:</span> {user.livello}
+                </div>
 
-                    {hasPermission('ADMIN_USER_PERMISSIONS_MANAGE') && (
-                        <button
-                            onClick={() => setEditingPermissionsForUser(info.row.original)}
-                            className="p-1 text-gray-500 hover:text-green-600"
-                            title="Gestisci permessi personalizzati"
-                        >
-                            <ShieldCheck size={18} />
+                <div className="flex items-center justify-around border-t border-gray-100 pt-3">
+                    {hasPermission('UTENTI_EDIT') && (
+                        <button onClick={() => handleEditUser(user.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Modifica">
+                            <PencilIcon className="h-5 w-5" />
                         </button>
                     )}
-
-                    {/* --- MODIFICA: Pulsante Recupero Password --- */}
+                    {hasPermission('UTENTI_EDIT') && (
+                        <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Elimina">
+                            <TrashIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                    {hasPermission('ADMIN_USER_PERMISSIONS_MANAGE') && (
+                        <button onClick={() => setEditingPermissionsForUser(user)} className="p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Permessi">
+                            <ShieldCheck size={20} />
+                        </button>
+                    )}
                     {hasPermission('ADM_PWD_REC') && (
-                         <button
-                            onClick={() => handleGenerateRecoveryLink(info.row.original.id, info.row.original.email)}
-                            className={`p-1 text-orange-600 hover:text-orange-800 focus:outline-none ${loadingRecoveryLink ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title="Genera Link Recupero Password"
-                            disabled={loadingRecoveryLink}
-                        >
+                        <button onClick={() => handleGenerateRecoveryLink(user.id, user.email)} className={`p-2 text-orange-600 hover:bg-orange-50 rounded-md transition-colors ${loadingRecoveryLink ? 'opacity-50 cursor-not-allowed' : ''}`} title="Reset Password" disabled={loadingRecoveryLink}>
                             <KeyIcon className="h-5 w-5" />
                         </button>
                     )}
-                    {/* --- FINE MODIFICA --- */}
-
-                    {info.row.original.stato === 'bloccato' && hasPermission('ADMIN_UTENTI_SBLOCCA') && (
-                        <button
-                            onClick={() => handleUnlockUser(info.row.original.id)}
-                            className="p-1 text-gray-500 hover:text-blue-600"
-                            title="Sblocca utente"
-                        >
+                    {user.stato === 'bloccato' && hasPermission('ADMIN_UTENTI_SBLOCCA') && (
+                        <button onClick={() => handleUnlockUser(user.id)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Sblocca">
                             <LockOpenIcon className="h-5 w-5" />
                         </button>
                     )}
                 </div>
-            ),
-        },
-    // --- MODIFICA: Aggiunte dipendenze ---
-    ], [ruoli, hasPermission, handleEditUser, handleDeleteUser, handleUnlockUser, loadingRecoveryLink, handleGenerateRecoveryLink, setEditingPermissionsForUser]);
+            </div>
+        );
+    };
 
     return (
-        <div className="p-4">
+        <div className="flex flex-col h-full">
             {user.ruolo === 'Amministratore_sistema' && (
-                <select value={selectedDittaId} onChange={e => setSelectedDittaId(e.target.value)} className="w-full p-2 border rounded mb-4">
-                    <option value="">Seleziona una ditta...</option>
-                    {ditte.map(d => <option key={d.id} value={d.id}>{d.ragione_sociale}</option>)}
-                </select>
+                <div className="px-4 py-3 bg-white border-b border-gray-200">
+                    <label htmlFor="ditta-select" className="block text-sm font-medium text-gray-700 mb-1">Seleziona una ditta</label>
+                    <select id="ditta-select" value={selectedDittaId} onChange={e => setSelectedDittaId(e.target.value)} className="w-full p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Seleziona una ditta...</option>
+                        {ditte.map(d => <option key={d.id} value={d.id}>{d.ragione_sociale}</option>)}
+                    </select>
+                </div>
             )}
+
             {selectedDittaId && (
                 <>
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold">Elenco Utenti</h3>
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => handleExport('csv')} title="Esporta CSV" className="p-2 rounded-md hover:bg-slate-200 transition-colors">
-                                <DocumentArrowDownIcon className="h-5 w-5 text-slate-600" />
-                            </button>
-                            <button onClick={() => handleExport('pdf')} title="Stampa PDF" className="p-2 rounded-md hover:bg-slate-200 transition-colors">
-                                <PrinterIcon className="h-5 w-5 text-slate-600" />
-                            </button>
-                            {hasPermission('UTENTI_CREATE') && (
-                                <button onClick={handleInviteUser} className="flex items-center gap-2 bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
-                                    <UserPlusIcon className="h-5 w-5" />
-                                    <span>Invita Utente</span>
-                                </button>
-                            )}
+                    {/* Header con titolo, ricerca e azioni */}
+                    <div className="px-4 py-4 bg-white border-b border-gray-200 space-y-4">
+                        {/* Titolo e Ricerca */}
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                            <h3 className="text-lg font-bold text-gray-900">Elenco Utenti</h3>
+                            <div className="relative w-full sm:w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Cerca per nome, email o ruolo..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm('')}
+                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                                    >
+                                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Azioni */}
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                            <p className="text-sm text-gray-500">
+                                {filteredUsers.length} {filteredUsers.length === 1 ? 'utente trovato' : 'utenti trovati'}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <div className="sm:hidden">
+                                    <button onClick={() => setShowMobileActions(!showMobileActions)} className="flex items-center p-2 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"> Azioni <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg> </button>
+                                    {showMobileActions && (<div className="absolute right-4 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"><div className="py-1"><button onClick={() => { handleExport('csv'); setShowMobileActions(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"><DocumentArrowDownIcon className="h-5 w-5 mr-2 text-gray-500" />Esporta CSV</button><button onClick={() => { handleExport('pdf'); setShowMobileActions(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"><PrinterIcon className="h-5 w-5 mr-2 text-gray-500" />Stampa PDF</button></div></div>)}
+                                </div>
+                                <div className="hidden sm:flex items-center gap-2">
+                                    <button onClick={() => handleExport('csv')} title="Esporta CSV" className="p-2 rounded-md hover:bg-slate-200 transition-colors"><DocumentArrowDownIcon className="h-5 w-5 text-slate-600" /></button>
+                                    <button onClick={() => handleExport('pdf')} title="Stampa PDF" className="p-2 rounded-md hover:bg-slate-200 transition-colors"><PrinterIcon className="h-5 w-5 text-slate-600" /></button>
+                                </div>
+                                {hasPermission('UTENTI_CREATE') && (
+                                    <button onClick={handleInviteUser} className="flex items-center gap-2 bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors"><UserPlusIcon className="h-5 w-5" /><span className="hidden sm:inline">Invita Utente</span><span className="sm:hidden">Invita</span></button>
+                                )}
+                            </div>
                         </div>
                     </div>
-                    <AdvancedDataGrid columns={columns} data={utenti} isLoading={isLoading} />
 
-                    
+                    {/* Lista Utenti - Card View */}
+                    <div className="flex-1 overflow-auto bg-gray-50 p-4">
+                        {isLoading ? (
+                            <div className="flex justify-center items-center h-32"><div className="text-gray-500">Caricamento...</div></div>
+                        ) : filteredUsers.length > 0 ? (
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                {filteredUsers.map(renderUserCard)}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12">
+                                <p className="text-gray-500">
+                                    {searchTerm ? `Nessun utente corrispondente alla ricerca per "${searchTerm}"` : 'Nessun utente trovato per questa ditta.'}
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </>
             )}
+
+            {/* Modali */}
             {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => { setIsModalOpen(false); setEditingUser(null); }} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
-
-            {editingPermissionsForUser && (
-                <GestionePermessiUtenteModal
-                    utente={editingPermissionsForUser}
-                    onClose={() => setEditingPermissionsForUser(null)}
-                />
-            )}
-
-            <InvitaUtenteModal
-                isOpen={isInviteModalOpen}
-                onClose={() => setIsInviteModalOpen(false)}
-                onInviteSent={handleInviteSuccess}
-                id_ruolo={3} // Invita come "Utente Esterno"
-            />
-
-            {/* --- MODIFICA: Aggiunta del modale per mostrare il link --- */}
-            {isRecoveryModalOpen && (
-                <ShowLinkModal
-                    isOpen={isRecoveryModalOpen}
-                    onClose={() => setIsRecoveryModalOpen(false)}
-                    title="Link di Recupero Password"
-                    link={generatedLink}
-                />
-            )}
+            {editingPermissionsForUser && <GestionePermessiUtenteModal utente={editingPermissionsForUser} onClose={() => setEditingPermissionsForUser(null)} />}
+            <InvitaUtenteModal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} onInviteSent={handleInviteSuccess} id_ruolo={3} />
+            {isRecoveryModalOpen && <ShowLinkModal isOpen={isRecoveryModalOpen} onClose={() => setIsRecoveryModalOpen(false)} title="Link di Recupero Password" link={generatedLink} />}
         </div>
     );
 };
-
 // ====================================================================
 // Sotto-componente: Associa Moduli Ditta (invariato)
 // ====================================================================
@@ -1101,9 +1043,18 @@ const GestioneDitte = () => {
     );
 };
 
-// ====================================================================
-// ++ NUOVO Sotto-componente: Monitoraggio Sistema ++
-// ====================================================================
+/*
+ * #####################################################################
+ * # Componente MonitoraggioSistema - v2.0 (Versione Responsive Ottimizzata)
+ * # File: opero-frontend/src/components/admin/MonitoraggioSistema.js
+ * # Modifiche principali:
+ * # - Aggiunto menu a tendina per dispositivi mobili
+ * # - Ottimizzata la visualizzazione per schermi piccoli
+ * # - Aggiunta funzionalità di ricerca per ogni tabella
+ * # - Migliorata la responsività delle tabelle
+ * #####################################################################
+ */
+
 const MonitoraggioSistema = () => {
     const { hasPermission } = useAuth();
     const [subTab, setSubTab] = useState('log_azioni');
@@ -1111,14 +1062,25 @@ const MonitoraggioSistema = () => {
     const [logAccessi, setLogAccessi] = useState([]);
     const [sessioniAttive, setSessioniAttive] = useState([]);
     const [loading, setLoading] = useState(false);
+    
+    // Stati per la ricerca
+    const [searchLogAzioni, setSearchLogAzioni] = useState('');
+    const [searchLogAccessi, setSearchLogAccessi] = useState('');
+    const [searchSessioni, setSearchSessioni] = useState('');
+    
+    // Stato per il menu mobile
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const fetchLogAzioni = useCallback(async () => {
         if (!hasPermission('ADMIN_LOGS_VIEW')) return;
         setLoading(true);
         try {
             const response = await api.get('/admin/logs/azioni');
-            setLogAzioni(response.data.data);
-        } catch (error) { toast.error("Errore caricamento log azioni."); }
+            setLogAzioni(response.data.data || []);
+        } catch (error) { 
+            toast.error("Errore caricamento log azioni."); 
+            console.error("Errore nel caricamento dei log azioni:", error);
+        }
         finally { setLoading(false); }
     }, [hasPermission]);
 
@@ -1127,8 +1089,11 @@ const MonitoraggioSistema = () => {
         setLoading(true);
         try {
             const response = await api.get('/admin/logs/accessi');
-            setLogAccessi(response.data.data);
-        } catch (error) { toast.error("Errore caricamento log accessi."); }
+            setLogAccessi(response.data.data || []);
+        } catch (error) { 
+            toast.error("Errore caricamento log accessi."); 
+            console.error("Errore nel caricamento dei log accessi:", error);
+        }
         finally { setLoading(false); }
     }, [hasPermission]);
 
@@ -1137,8 +1102,11 @@ const MonitoraggioSistema = () => {
         setLoading(true);
         try {
             const response = await api.get('/admin/logs/sessioni-attive');
-            setSessioniAttive(response.data.data);
-        } catch (error) { toast.error("Errore caricamento sessioni."); }
+            setSessioniAttive(response.data.data || []);
+        } catch (error) { 
+            toast.error("Errore caricamento sessioni."); 
+            console.error("Errore nel caricamento delle sessioni attive:", error);
+        }
         finally { setLoading(false); }
     }, [hasPermission]);
 
@@ -1148,70 +1116,419 @@ const MonitoraggioSistema = () => {
         if (subTab === 'sessioni') fetchSessioniAttive();
     }, [subTab, fetchLogAzioni, fetchLogAccessi, fetchSessioniAttive]);
 
+    // Filtri per la ricerca
+    const filteredLogAzioni = useMemo(() => {
+        if (!searchLogAzioni) return logAzioni;
+        const lowerCaseTerm = searchLogAzioni.toLowerCase();
+        return logAzioni.filter(log => 
+            log.email?.toLowerCase().includes(lowerCaseTerm) ||
+            log.ragione_sociale?.toLowerCase().includes(lowerCaseTerm) ||
+            log.azione?.toLowerCase().includes(lowerCaseTerm) ||
+            log.dettagli?.toLowerCase().includes(lowerCaseTerm)
+        );
+    }, [logAzioni, searchLogAzioni]);
+
+    const filteredLogAccessi = useMemo(() => {
+        if (!searchLogAccessi) return logAccessi;
+        const lowerCaseTerm = searchLogAccessi.toLowerCase();
+        return logAccessi.filter(log => 
+            log.email?.toLowerCase().includes(lowerCaseTerm) ||
+            log.indirizzo_ip?.toLowerCase().includes(lowerCaseTerm) ||
+            log.dettagli_azione?.toLowerCase().includes(lowerCaseTerm)
+        );
+    }, [logAccessi, searchLogAccessi]);
+
+    const filteredSessioni = useMemo(() => {
+        if (!searchSessioni) return sessioniAttive;
+        const lowerCaseTerm = searchSessioni.toLowerCase();
+        return sessioniAttive.filter(sessione => 
+            sessione.email?.toLowerCase().includes(lowerCaseTerm) ||
+            sessione.nome?.toLowerCase().includes(lowerCaseTerm) ||
+            sessione.cognome?.toLowerCase().includes(lowerCaseTerm) ||
+            sessione.ditta_attiva?.toLowerCase().includes(lowerCaseTerm)
+        );
+    }, [sessioniAttive, searchSessioni]);
+
+    // Definizione delle colonne con ottimizzazioni per mobile
     const logAzioniColumns = useMemo(() => [
-        { header: 'ID', accessorKey: 'id', size: 90 },
-        { header: 'Data/Ora', accessorKey: 'timestamp', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+        { 
+            header: 'ID', 
+            accessorKey: 'id', 
+            size: 90,
+            meta: { hideOnMobile: true }
+        },
+        { 
+            header: 'Data/Ora', 
+            accessorKey: 'timestamp', 
+            cell: info => new Date(info.getValue()).toLocaleString('it-IT'),
+            meta: { hideOnMobile: true }
+        },
         { header: 'Utente', accessorKey: 'email' },
-        { header: 'Ditta', accessorKey: 'ragione_sociale' },
+        { header: 'Ditta', accessorKey: 'ragione_sociale', meta: { hideOnMobile: true } },
         { header: 'Azione', accessorKey: 'azione' },
-        { header: 'Dettagli', accessorKey: 'dettagli', size: 400 },
+        { 
+            header: 'Dettagli', 
+            accessorKey: 'dettagli', 
+            size: 400,
+            meta: { hideOnMobile: true }
+        },
     ], []);
 
     const logAccessiColumns = useMemo(() => [
-        { header: 'ID', accessorKey: 'id', size: 90 },
-        { header: 'Data/Ora', accessorKey: 'data_ora_accesso', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+        { 
+            header: 'ID', 
+            accessorKey: 'id', 
+            size: 90,
+            meta: { hideOnMobile: true }
+        },
+        { 
+            header: 'Data/Ora', 
+            accessorKey: 'data_ora_accesso', 
+            cell: info => new Date(info.getValue()).toLocaleString('it-IT'),
+            meta: { hideOnMobile: true }
+        },
         { header: 'Utente', accessorKey: 'email' },
-        { header: 'Indirizzo IP', accessorKey: 'indirizzo_ip' },
+        { header: 'Indirizzo IP', accessorKey: 'indirizzo_ip', meta: { hideOnMobile: true } },
         { header: 'Esito', accessorKey: 'dettagli_azione' },
     ], []);
 
     const sessioniColumns = useMemo(() => [
         { header: 'Utente', accessorKey: 'email' },
-        { header: 'Nome', accessorKey: 'nome' },
-        { header: 'Cognome', accessorKey: 'cognome' },
-        { header: 'Ditta Attiva', accessorKey: 'ditta_attiva' },
-        { header: 'Login', accessorKey: 'login_timestamp', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
-        { header: 'Ultima Attività', accessorKey: 'last_heartbeat_timestamp', cell: info => new Date(info.getValue()).toLocaleString('it-IT') },
+        { header: 'Nome', accessorKey: 'nome', meta: { hideOnMobile: true } },
+        { header: 'Cognome', accessorKey: 'cognome', meta: { hideOnMobile: true } },
+        { header: 'Ditta Attiva', accessorKey: 'ditta_attiva', meta: { hideOnMobile: true } },
+        { 
+            header: 'Login', 
+            accessorKey: 'login_timestamp', 
+            cell: info => new Date(info.getValue()).toLocaleString('it-IT'),
+            meta: { hideOnMobile: true }
+        },
+        { 
+            header: 'Ultima Attività', 
+            accessorKey: 'last_heartbeat_timestamp', 
+            cell: info => new Date(info.getValue()).toLocaleString('it-IT'),
+            meta: { hideOnMobile: true }
+        },
     ], []);
 
-    const SubTabButton = ({ active, onClick, children }) => (
-        <button
-            onClick={onClick}
-            className={`px-3 py-1.5 text-sm font-medium rounded ${
-                active ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-100'
-            }`}
-        >
-            {children}
-        </button>
+    // Componente per il menu mobile
+    const MobileMenu = () => (
+        <div className="lg:hidden">
+            <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="flex items-center justify-between w-full p-4 bg-white border-b border-gray-200 text-left"
+            >
+                <span className="font-medium text-gray-900">
+                    {subTab === 'log_azioni' && 'Log Azioni'}
+                    {subTab === 'log_accessi' && 'Log Accessi'}
+                    {subTab === 'sessioni' && 'Sessioni Attive'}
+                </span>
+                {isMobileMenuOpen ? (
+                    <svg className="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                ) : (
+                    <svg className="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                )}
+            </button>
+            
+            {isMobileMenuOpen && (
+                <div className="bg-white border-b border-gray-200 shadow-lg">
+                    <nav className="py-2">
+                        {hasPermission('ADMIN_LOGS_VIEW') && (
+                            <button
+                                onClick={() => {
+                                    setSubTab('log_azioni');
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className={`block w-full text-left px-4 py-3 text-sm ${
+                                    subTab === 'log_azioni'
+                                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                Log Azioni
+                            </button>
+                        )}
+                        {hasPermission('ADMIN_LOGS_VIEW') && (
+                            <button
+                                onClick={() => {
+                                    setSubTab('log_accessi');
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className={`block w-full text-left px-4 py-3 text-sm ${
+                                    subTab === 'log_accessi'
+                                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                Log Accessi
+                            </button>
+                        )}
+                        {hasPermission('ADMIN_SESSIONS_VIEW') && (
+                            <button
+                                onClick={() => {
+                                    setSubTab('sessioni');
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className={`block w-full text-left px-4 py-3 text-sm ${
+                                    subTab === 'sessioni'
+                                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                Sessioni Attive
+                            </button>
+                        )}
+                    </nav>
+                </div>
+            )}
+        </div>
+    );
+
+    // Componente per la barra di ricerca
+    const SearchBar = ({ searchTerm, setSearchTerm, placeholder }) => (
+        <div className="relative w-full md:w-64 mb-4">
+            <input
+                type="text"
+                placeholder={placeholder}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+            </div>
+            {searchTerm && (
+                <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                </button>
+            )}
+        </div>
     );
 
     return (
-        <div className="p-4">
-            <div className="flex space-x-2 mb-4 border-b pb-2">
-                {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_azioni'} onClick={() => setSubTab('log_azioni')}>Log Azioni</SubTabButton>}
-                {hasPermission('ADMIN_LOGS_VIEW') && <SubTabButton active={subTab === 'log_accessi'} onClick={() => setSubTab('log_accessi')}>Log Accessi</SubTabButton>}
-                {hasPermission('ADMIN_SESSIONS_VIEW') && <SubTabButton active={subTab === 'sessioni'} onClick={() => setSubTab('sessioni')}>Sessioni Attive</SubTabButton>}
+        <div className="flex flex-col h-full">
+            {/* Menu mobile per schermi piccoli */}
+            <MobileMenu />
+
+            {/* Navigazione Tabs per schermi grandi */}
+            <div className="hidden lg:block bg-white border-b border-gray-200">
+                <div className="px-6">
+                    <nav className="flex space-x-8" aria-label="Tabs">
+                        {hasPermission('ADMIN_LOGS_VIEW') && (
+                            <button
+                                onClick={() => setSubTab('log_azioni')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                    subTab === 'log_azioni'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                                aria-current={subTab === 'log_azioni' ? 'page' : undefined}
+                            >
+                                Log Azioni
+                            </button>
+                        )}
+                        {hasPermission('ADMIN_LOGS_VIEW') && (
+                            <button
+                                onClick={() => setSubTab('log_accessi')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                    subTab === 'log_accessi'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                                aria-current={subTab === 'log_accessi' ? 'page' : undefined}
+                            >
+                                Log Accessi
+                            </button>
+                        )}
+                        {hasPermission('ADMIN_SESSIONS_VIEW') && (
+                            <button
+                                onClick={() => setSubTab('sessioni')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                    subTab === 'sessioni'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                                aria-current={subTab === 'sessioni' ? 'page' : undefined}
+                            >
+                                Sessioni Attive
+                            </button>
+                        )}
+                    </nav>
+                </div>
             </div>
-            {subTab === 'log_azioni' && hasPermission('ADMIN_LOGS_VIEW') && (
-                <AdvancedDataGrid title="Log delle Azioni" columns={logAzioniColumns} data={logAzioni} isLoading={loading} onRefresh={fetchLogAzioni} />
-            )}
-            {subTab === 'log_accessi' && hasPermission('ADMIN_LOGS_VIEW') && (
-                 <AdvancedDataGrid title="Log degli Accessi" columns={logAccessiColumns} data={logAccessi} isLoading={loading} onRefresh={fetchLogAccessi} />
-            )}
-            {subTab === 'sessioni' && hasPermission('ADMIN_SESSIONS_VIEW') && (
-                 <AdvancedDataGrid title="Sessioni Utente Attive" columns={sessioniColumns} data={sessioniAttive} isLoading={loading} onRefresh={fetchSessioniAttive} />
+
+            {/* Contenuto principale */}
+            <div className="flex-1 overflow-auto bg-gray-50 p-4">
+                {/* Log Azioni */}
+                {subTab === 'log_azioni' && hasPermission('ADMIN_LOGS_VIEW') && (
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2 md:mb-0">Log delle Azioni</h3>
+                            <div className="flex items-center gap-2">
+                                <SearchBar 
+                                    searchTerm={searchLogAzioni} 
+                                    setSearchTerm={setSearchLogAzioni} 
+                                    placeholder="Cerca nei log azioni..." 
+                                />
+                                <button 
+                                    onClick={fetchLogAzioni} 
+                                    className="p-2 rounded-md hover:bg-slate-200 transition-colors"
+                                    title="Aggiorna"
+                                >
+                                    <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="text-sm text-gray-500 mb-2">
+                            {filteredLogAzioni.length} {filteredLogAzioni.length === 1 ? 'risultato trovato' : 'risultati trovati'}
+                        </div>
+                        <AdvancedDataGrid 
+                            columns={logAzioniColumns} 
+                            data={filteredLogAzioni} 
+                            isLoading={loading} 
+                            responsive={true}
+                        />
+                    </div>
+                )}
+
+                {/* Log Accessi */}
+                {subTab === 'log_accessi' && hasPermission('ADMIN_LOGS_VIEW') && (
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2 md:mb-0">Log degli Accessi</h3>
+                            <div className="flex items-center gap-2">
+                                <SearchBar 
+                                    searchTerm={searchLogAccessi} 
+                                    setSearchTerm={setSearchLogAccessi} 
+                                    placeholder="Cerca nei log accessi..." 
+                                />
+                                <button 
+                                    onClick={fetchLogAccessi} 
+                                    className="p-2 rounded-md hover:bg-slate-200 transition-colors"
+                                    title="Aggiorna"
+                                >
+                                    <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="text-sm text-gray-500 mb-2">
+                            {filteredLogAccessi.length} {filteredLogAccessi.length === 1 ? 'risultato trovato' : 'risultati trovati'}
+                        </div>
+                        <AdvancedDataGrid 
+                            columns={logAccessiColumns} 
+                            data={filteredLogAccessi} 
+                            isLoading={loading} 
+                            responsive={true}
+                        />
+                    </div>
+                )}
+
+                {/* Sessioni Attive */}
+                {subTab === 'sessioni' && hasPermission('ADMIN_SESSIONS_VIEW') && (
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2 md:mb-0">Sessioni Utente Attive</h3>
+                            <div className="flex items-center gap-2">
+                                <SearchBar 
+                                    searchTerm={searchSessioni} 
+                                    setSearchTerm={setSearchSessioni} 
+                                    placeholder="Cerca nelle sessioni..." 
+                                />
+                                <button 
+                                    onClick={fetchSessioniAttive} 
+                                    className="p-2 rounded-md hover:bg-slate-200 transition-colors"
+                                    title="Aggiorna"
+                                >
+                                    <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="text-sm text-gray-500 mb-2">
+                            {filteredSessioni.length} {filteredSessioni.length === 1 ? 'risultato trovato' : 'risultati trovati'}
+                        </div>
+                        <AdvancedDataGrid 
+                            columns={sessioniColumns} 
+                            data={filteredSessioni} 
+                            isLoading={loading} 
+                            responsive={true}
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Componente MenuMobile per la navigazione su schermi piccoli
+const MenuMobile = ({ tabs, activeTab, setActiveTab, isOpen, setIsOpen }) => {
+    return (
+        <div className="lg:hidden">
+            {/* Pulsante per aprire/chiudere il menu mobile */}
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center justify-between w-full p-4 bg-white border-b border-gray-200 text-left"
+            >
+                <span className="font-medium text-gray-900">
+                    {tabs.find(tab => tab.key === activeTab)?.label || 'Menu'}
+                </span>
+                {isOpen ? (
+                    <XMarkIcon className="h-5 w-5 text-gray-500" />
+                ) : (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                )}
+            </button>
+            
+            {/* Menu a tendina */}
+            {isOpen && (
+                <div className="bg-white border-b border-gray-200 shadow-lg">
+                    <nav className="py-2">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.key}
+                                onClick={() => {
+                                    setActiveTab(tab.key);
+                                    setIsOpen(false);
+                                }}
+                                className={`block w-full text-left px-4 py-3 text-sm ${
+                                    activeTab === tab.key
+                                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
             )}
         </div>
     );
 };
 
-
 // ====================================================================
-// COMPONENTE PRINCIPALE AdminPanel (Container delle Tabs)
+// COMPONENTE PRINCIPALE AdminPanel (Container delle Tabs) - VERSIONE RESPONSIVE
 // ====================================================================
 function AdminPanel() {
     const { hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('utenti');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     // Definiamo le tab e i componenti che devono renderizzare
     const TABS = useMemo(() => ([
@@ -1231,13 +1548,13 @@ function AdminPanel() {
             key: 'moduli',
             label: 'Associa Moduli Ditta',
             component: <AssociaModuliDitta />,
-            permission: 'SUPER_ADMIN' // o un permesso specifico
+            permission: 'SUPER_ADMIN'
         },
         {
             key: 'privacy',
             label: 'Gestione Privacy',
             component: <PrivacyDittaManager />,
-            permission: 'PRIVACY_MANAGE' // o un permesso specifico
+            permission: 'PRIVACY_MANAGE'
         },
         {
             key: 'funzioni',
@@ -1257,62 +1574,71 @@ function AdminPanel() {
             component: <MonitoraggioSistema />,
             permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW']
         },
-       /* {
-             key: 'livelliUtente',
-             label: 'Livelli Utente Ditta',
-             component: <GestioneLivelliUtente />,
-             permission: 'AM_UTE_LVL',
-             isSystemAdminOnly: false
-         }, // <-- NUOVA TAB*/
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    ]), []); // Rimosse dipendenze non necessarie, i componenti sono definiti sopra
+    ]), []);
+
+    // Filtra le tab in base ai permessi
+    const visibleTabs = useMemo(() => {
+        return TABS.filter(tab => {
+            if (!tab.permission) return true;
+            
+            if (Array.isArray(tab.permission)) {
+                return tab.permission.some(p => hasPermission(p));
+            } else {
+                return hasPermission(tab.permission);
+            }
+        });
+    }, [TABS, hasPermission]);
 
     return (
-        <div className="p-4 md:p-6 lg:p-8 bg-gray-50 min-h-full flex flex-col">
-            <h1 className="text-3xl font-bold text-gray-900 mb-8">Pannello Amministrazione</h1>
+        <div className="flex flex-col h-full bg-gray-50">
+            {/* Header con titolo - visibile su tutti i dispositivi */}
+            <div className="px-4 py-6 bg-white border-b border-gray-200 shadow-sm">
+                <h1 className="text-2xl font-bold text-gray-900">Pannello Amministrazione</h1>
+            </div>
 
-            {/* Navigazione Tabs */}
-            <div className="mb-6 border-b border-gray-300">
-                <div className="flex space-x-4 overflow-x-auto">
-                    {TABS.map(tab => {
-                        let isVisible = true;
-                        if (tab.permission) {
-                            if (Array.isArray(tab.permission)) {
-                                if (!tab.permission.some(p => hasPermission(p))) {
-                                    isVisible = false;
-                                }
-                            } else {
-                                if (!hasPermission(tab.permission)) {
-                                    isVisible = false;
-                                }
-                            }
-                        }
+            {/* Menu mobile per schermi piccoli */}
+            <MenuMobile 
+                tabs={visibleTabs} 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab}
+                isOpen={isMobileMenuOpen}
+                setIsOpen={setIsMobileMenuOpen}
+            />
 
-                        if (!isVisible) return null;
-
-                        return (
+            {/* Navigazione Tabs per schermi grandi */}
+            <div className="hidden lg:block bg-white border-b border-gray-200">
+                <div className="px-6">
+                    <nav className="flex space-x-8" aria-label="Tabs">
+                        {visibleTabs.map(tab => (
                             <button
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
-                                className={`py-2 px-4 text-sm font-medium text-center border-b-2 whitespace-nowrap ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} focus:outline-none`}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                    activeTab === tab.key
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                                 aria-current={activeTab === tab.key ? 'page' : undefined}
                             >
                                 {tab.label}
                             </button>
-                        );
-                    })}
+                        ))}
+                    </nav>
                 </div>
             </div>
 
-            <div className="flex-grow bg-gray-50 overflow-y-auto">
-                {TABS.find(tab => tab.key === activeTab)?.component || <p>Seleziona una scheda.</p>}
+            {/* Contenuto principale */}
+            <div className="flex-1 overflow-auto">
+                <div className="py-6 px-4 sm:px-6 lg:px-8">
+                    {visibleTabs.find(tab => tab.key === activeTab)?.component || 
+                        <div className="text-center py-12">
+                            <p className="text-gray-500">Seleziona una scheda per visualizzare il contenuto.</p>
+                        </div>
+                    }
+                </div>
             </div>
-
-            {/* Le modali sono gestite dai sotto-componenti, quindi non servono qui */}
-
         </div>
     );
 }
-
 export default AdminPanel;
 

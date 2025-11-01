@@ -2,10 +2,10 @@
  * ======================================================================
  * File: src/components/MainApp.js (RESPONSIVE VERSION)
  * ======================================================================
- * Versione: 3.0 - Menu Hamburger Mobile + Sidebar Collassabile
+ * Versione: 3.1 - Menu Hamburger Mobile + Sidebar Collassabile con icone moderne
  * - Aggiunto menu hamburger per dispositivi mobile
  * - Sidebar collassabile con animazioni fluide
- * - Icone visibili quando la sidebar è chiusa
+ * - Icone moderne e colorate quando la sidebar è chiusa
  * - Design responsive ottimizzato
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -29,7 +29,22 @@ import {
     Cog6ToothIcon, ChevronLeftIcon, ChevronRightIcon, 
     PlusCircleIcon, UserGroupIcon, EnvelopeIcon, 
     BookOpenIcon, ClipboardDocumentListIcon,
-    Bars3Icon, XMarkIcon, HomeIcon // Nuove icone per menu hamburger
+    Bars3Icon, XMarkIcon, HomeIcon,
+    // Icone colorate per sidebar collassata
+    HomeIcon as HomeIconSolid,
+    Cog6ToothIcon as Cog6ToothIconSolid,
+    UserGroupIcon as UserGroupIconSolid,
+    ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
+    EnvelopeIcon as EnvelopeIconSolid,
+    BookOpenIcon as BookOpenIconSolid,
+    PlusCircleIcon as PlusCircleIconSolid,
+    CurrencyDollarIcon,
+    BuildingOfficeIcon,
+    ArchiveBoxIcon,
+    ShoppingBagIcon,
+    DocumentTextIcon,
+    CubeIcon,
+    ChartBarIcon
 } from '@heroicons/react/24/outline';
 import AttivitaPPA from './AttivitaPPA';
 import FinanzeModule from './FinanzeModule';
@@ -408,14 +423,44 @@ const getIconForFunction = (codice) => {
 };
 
 // Helper per icone dei moduli nella sidebar
-const getModuleIcon = (chiaveComponente) => {
+const getModuleIcon = (chiaveComponente, isCollapsed) => {
     switch (chiaveComponente) {
-        case 'ADMIN_PANEL': return <Cog6ToothIcon className="h-5 w-5" />;
-        case 'AMMINISTRAZIONE': return <UserGroupIcon className="h-5 w-5" />;
-        case 'CONT_SMART': return <ClipboardDocumentListIcon className="h-5 w-5" />;
-        case 'MAIL': return <EnvelopeIcon className="h-5 w-5" />;
-        case 'RUBRICA': return <BookOpenIcon className="h-5 w-5" />;
-        default: return <Cog6ToothIcon className="h-5 w-5" />;
+        case 'ADMIN_PANEL': return isCollapsed ? 
+            <Cog6ToothIconSolid className="h-6 w-6 text-purple-400" /> : 
+            <Cog6ToothIcon className="h-5 w-5" />;
+        case 'AMMINISTRAZIONE': return isCollapsed ? 
+            <UserGroupIconSolid className="h-6 w-6 text-blue-400" /> : 
+            <UserGroupIcon className="h-5 w-5" />;
+        case 'CONT_SMART': return isCollapsed ? 
+            <ClipboardDocumentListIconSolid className="h-6 w-6 text-green-400" /> : 
+            <ClipboardDocumentListIcon className="h-5 w-5" />;
+        case 'MAIL': return isCollapsed ? 
+            <EnvelopeIconSolid className="h-6 w-6 text-red-400" /> : 
+            <EnvelopeIcon className="h-5 w-5" />;
+        case 'RUBRICA': return isCollapsed ? 
+            <BookOpenIconSolid className="h-6 w-6 text-yellow-400" /> : 
+            <BookOpenIcon className="h-5 w-5" />;
+        case 'FIN_SMART': return isCollapsed ? 
+            <CurrencyDollarIcon className="h-6 w-6 text-green-500" /> : 
+            <CurrencyDollarIcon className="h-5 w-5" />;
+        case 'BSSMART': return isCollapsed ? 
+            <BuildingOfficeIcon className="h-6 w-6 text-indigo-400" /> : 
+            <BuildingOfficeIcon className="h-5 w-5" />;
+        case 'PPA SIS': return isCollapsed ? 
+            <DocumentTextIcon className="h-6 w-6 text-orange-400" /> : 
+            <DocumentTextIcon className="h-5 w-5" />;
+        case 'CT_VIEW': return isCollapsed ? 
+            <ArchiveBoxIcon className="h-6 w-6 text-teal-400" /> : 
+            <ArchiveBoxIcon className="h-5 w-5" />;
+        case 'MG_VIEW': return isCollapsed ? 
+            <CubeIcon className="h-6 w-6 text-amber-400" /> : 
+            <CubeIcon className="h-5 w-5" />;
+        case 'VA_CLIENTI_VIEW': return isCollapsed ? 
+            <ShoppingBagIcon className="h-6 w-6 text-pink-400" /> : 
+            <ShoppingBagIcon className="h-5 w-5" />;
+        default: return isCollapsed ? 
+            <Cog6ToothIconSolid className="h-6 w-6 text-gray-400" /> : 
+            <Cog6ToothIcon className="h-5 w-5" />;
     }
 };
 
@@ -598,7 +643,10 @@ const MainApp = () => {
                                 }`}
                                 title="Dashboard"
                             >
-                                <HomeIcon className="h-6 w-6 lg:h-5 lg:w-5" />
+                                {isSidebarCollapsed ? 
+                                    <HomeIconSolid className="h-6 w-6 text-blue-400" /> : 
+                                    <HomeIcon className="h-6 w-6 lg:h-5 lg:w-5" />
+                                }
                                 {!isSidebarCollapsed && <span className="hidden lg:inline ml-3">Dashboard</span>}
                             </button>
                         </li>
@@ -613,7 +661,7 @@ const MainApp = () => {
                                     }`}
                                     title={module.descrizione}
                                 >
-                                    {getModuleIcon(module.chiave_componente)}
+                                    {getModuleIcon(module.chiave_componente, isSidebarCollapsed)}
                                     {!isSidebarCollapsed && <span className="hidden lg:inline ml-3">{module.descrizione}</span>}
                                 </button>
                             </li>

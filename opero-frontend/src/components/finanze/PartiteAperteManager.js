@@ -1,12 +1,23 @@
-// #####################################################################
-// # Componente Gestione Partite Aperte v6.1 (Correzione Race Condition)
-// # File: opero-frontend/src/components/finanze/PartiteAperteManager.js
-// #####################################################################
+/*
+ * #####################################################################
+ * # Componente Gestione Partite Aperte v7.0 (Versione Responsive)
+ * # File: opero-frontend/src/components/finanze/PartiteAperteManager.js
+ * # Modifiche principali:
+ * # - Ottimizzato layout per dispositivi mobili
+ * # - Aggiunto menu a tendina per azioni su schermi piccoli
+ * # - Migliorata visualizzazione della tabella su mobile
+ * # - Ottimizzato riepilogo selezioni per schermi piccoli
+ * #####################################################################
+ */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../../services/api';
 import DynamicReportTable from '../../shared/DynamicReportTable';
-import { ArrowPathIcon, DocumentTextIcon, EnvelopeIcon, DocumentArrowDownIcon, XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { 
+    ArrowPathIcon, DocumentTextIcon, EnvelopeIcon, 
+    DocumentArrowDownIcon, XCircleIcon, CheckCircleIcon,
+    FunnelIcon, ChevronDownIcon, Bars3Icon, XMarkIcon
+} from '@heroicons/react/24/outline';
 
 // ... (Funzioni loadScript e imageToBase64 invariate) ...
 const loadScript = (src) => {
@@ -40,7 +51,6 @@ const imageToBase64 = async (url) => {
     }
 };
 
-
 export const PartiteAperteManager = () => {
     const [tipoPartita, setTipoPartita] = useState('passive');
     const [tipoVista, setTipoVista] = useState('sintesi');
@@ -55,6 +65,10 @@ export const PartiteAperteManager = () => {
     const [showReminderModal, setShowReminderModal] = useState(false);
     const [isSendingReminder, setIsSendingReminder] = useState(false);
     const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+    
+    // Stati per la gestione della responsività
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+    const [showMobileActions, setShowMobileActions] = useState(false);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -74,8 +88,8 @@ export const PartiteAperteManager = () => {
                     }
                 }
                 
-                // <span style="color:green;">// MODIFICA: Risolve la race condition caricando prima la libreria principale
-                // e poi il plugin, con un piccolo delay per garantire l'inizializzazione.</span>
+                // MODIFICA: Risolve la race condition caricando prima la libreria principale
+                // e poi il plugin, con un piccolo delay per garantire l'inizializzazione.
                 await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
                 await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
                 
@@ -97,7 +111,6 @@ export const PartiteAperteManager = () => {
         fetchInitialData();
     }, []);
 
-    // ... (Il resto del componente rimane invariato) ...
     const fetchPartite = useCallback(async () => {
         setIsLoading(true);
         setError('');
@@ -359,28 +372,183 @@ export const PartiteAperteManager = () => {
         </div>
     );
 
-    return (
-        <div className="p-4 sm:p-6 bg-slate-50 min-h-screen pb-20">
-            <ToastNotification />
-            <ReminderModal />
-            <div className="bg-white p-6 rounded-lg shadow-md">
-                {/* ... (UI del componente invariata) ... */}
-                 <div className="flex flex-wrap justify-between items-center border-b pb-4 gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Gestione Scadenziario</h1>
-                        <p className="text-sm text-slate-500">Visualizza e gestisci crediti e debiti.</p>
-                    </div>
-                    <div className="flex items-center border border-gray-300 rounded-md p-1">
-                        <label className="mr-2 font-semibold text-gray-600 text-sm">Vista:</label>
-                        <button onClick={() => setTipoVista('sintesi')} className={`px-3 py-1 text-xs rounded ${tipoVista === 'sintesi' ? 'bg-gray-700 text-white' : 'bg-transparent text-gray-600'}`}>Sintetica</button>
-                        <button onClick={() => setTipoVista('dettaglio')} className={`px-3 py-1 text-xs rounded ${tipoVista === 'dettaglio' ? 'bg-gray-700 text-white' : 'bg-transparent text-gray-600'}`}>Analitica</button>
+    // Componente per il menu mobile dei filtri
+    const MobileFiltersMenu = () => (
+        <div className="md:hidden">
+            <button
+                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                className="flex items-center justify-between w-full p-4 bg-white border-b border-gray-200 text-left"
+            >
+                <span className="font-medium text-gray-900">
+                    {tipoPartita === 'attive' ? 'Clienti (Attive)' : 'Fornitori (Passive)'} - Vista {tipoVista === 'sintesi' ? 'Sintetica' : 'Analitica'}
+                </span>
+                {showMobileFilters ? (
+                    <XMarkIcon className="h-5 w-5 text-gray-500" />
+                ) : (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                )}
+            </button>
+            
+            {showMobileFilters && (
+                <div className="bg-white border-b border-gray-200 shadow-lg">
+                    <div className="p-4 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo Partita</label>
+                            <div className="flex space-x-2">
+                                <button 
+                                    onClick={() => {
+                                        setTipoPartita('attive');
+                                        setShowMobileFilters(false);
+                                    }} 
+                                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md ${tipoPartita === 'attive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}
+                                >
+                                    Clienti
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        setTipoPartita('passive');
+                                        setShowMobileFilters(false);
+                                    }} 
+                                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md ${tipoPartita === 'passive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}
+                                >
+                                    Fornitori
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo Vista</label>
+                            <div className="flex space-x-2">
+                                <button 
+                                    onClick={() => {
+                                        setTipoVista('sintesi');
+                                        setShowMobileFilters(false);
+                                    }} 
+                                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md ${tipoVista === 'sintesi' ? 'bg-gray-700 text-white' : 'bg-slate-200 text-slate-700'}`}
+                                >
+                                    Sintetica
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        setTipoVista('dettaglio');
+                                        setShowMobileFilters(false);
+                                    }} 
+                                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md ${tipoVista === 'dettaglio' ? 'bg-gray-700 text-white' : 'bg-slate-200 text-slate-700'}`}
+                                >
+                                    Analitica
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div className="flex flex-wrap justify-between items-center mt-4 gap-4">
-                    <nav>
-                        <button onClick={() => setTipoPartita('attive')} className={`px-4 py-2 text-sm font-medium rounded-l-md ${tipoPartita === 'attive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}>Clienti (Attive)</button>
-                        <button onClick={() => setTipoPartita('passive')} className={`px-4 py-2 text-sm font-medium rounded-r-md ${tipoPartita === 'passive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}>Fornitori (Passive)</button>
-                    </nav>
+            )}
+        </div>
+    );
+
+    // Componente per il menu mobile delle azioni
+    const MobileActionsMenu = () => (
+        <div className="md:hidden">
+            <button
+                onClick={() => setShowMobileActions(!showMobileActions)}
+                className="flex items-center justify-between w-full p-4 bg-white border-b border-gray-200 text-left"
+            >
+                <span className="font-medium text-gray-900">Azioni</span>
+                {showMobileActions ? (
+                    <XMarkIcon className="h-5 w-5 text-gray-500" />
+                ) : (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                )}
+            </button>
+            
+            {showMobileActions && (
+                <div className="bg-white border-b border-gray-200 shadow-lg">
+                    <div className="p-4 space-y-2">
+                        <button 
+                            onClick={() => {
+                                handleExportCSV();
+                                setShowMobileActions(false);
+                            }} 
+                            disabled={processedData.length === 0} 
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                        >
+                            <DocumentArrowDownIcon className="h-4 w-4" /> Esporta CSV
+                        </button>
+                        <button 
+                            onClick={() => {
+                                handleGeneratePDF();
+                                setShowMobileActions(false);
+                            }} 
+                            disabled={!pdfButtonState.enabled} 
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                        >
+                            <DocumentTextIcon className="h-4 w-4" /> Genera PDF
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setShowReminderModal(true);
+                                setShowMobileActions(false);
+                            }} 
+                            disabled={!reminderButtonState.enabled} 
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-gray-600 text-white rounded-md shadow-sm hover:bg-gray-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                        >
+                            <EnvelopeIcon className="h-4 w-4" /> Invia Sollecito
+                        </button>
+                        <button 
+                            onClick={() => {
+                                fetchPartite();
+                                setShowMobileActions(false);
+                            }} 
+                            disabled={isLoading} 
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                        >
+                            <ArrowPathIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Aggiorna
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col h-full bg-slate-50">
+            <ToastNotification />
+            <ReminderModal />
+            
+            {/* Header con titolo - visibile su tutti i dispositivi */}
+            <div className="px-4 py-6 bg-white border-b border-gray-200 shadow-sm">
+                <h1 className="text-2xl font-bold text-gray-900">Gestione Scadenziario</h1>
+                <p className="text-sm text-gray-500">Visualizza e gestisci crediti e debiti.</p>
+            </div>
+
+            {/* Menu mobile per filtri - visibile solo su schermi piccoli */}
+            <MobileFiltersMenu />
+
+            {/* Filtri e controlli - visibili solo su schermi grandi */}
+            <div className="hidden md:block bg-white border-b border-gray-200">
+                <div className="px-6 py-4">
+                    <div className="flex flex-wrap justify-between items-center gap-4">
+                        <div>
+                            <div className="flex items-center border border-gray-300 rounded-md p-1">
+                                <label className="mr-2 font-semibold text-gray-600 text-sm">Vista:</label>
+                                <button onClick={() => setTipoVista('sintesi')} className={`px-3 py-1 text-xs rounded ${tipoVista === 'sintesi' ? 'bg-gray-700 text-white' : 'bg-transparent text-gray-600'}`}>Sintetica</button>
+                                <button onClick={() => setTipoVista('dettaglio')} className={`px-3 py-1 text-xs rounded ${tipoVista === 'dettaglio' ? 'bg-gray-700 text-white' : 'bg-transparent text-gray-600'}`}>Analitica</button>
+                            </div>
+                        </div>
+                        
+                        <nav>
+                            <button onClick={() => setTipoPartita('attive')} className={`px-4 py-2 text-sm font-medium rounded-l-md ${tipoPartita === 'attive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}>Clienti (Attive)</button>
+                            <button onClick={() => setTipoPartita('passive')} className={`px-4 py-2 text-sm font-medium rounded-r-md ${tipoPartita === 'passive' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}`}>Fornitori (Passive)</button>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+            {/* Menu mobile per azioni - visibile solo su schermi piccoli */}
+            <MobileActionsMenu />
+
+            {/* Azioni - visibili solo su schermi grandi */}
+            <div className="hidden md:block bg-white border-b border-gray-200">
+                <div className="px-6 py-4">
                     <div className="flex justify-end gap-2">
                         <button onClick={handleExportCSV} disabled={processedData.length === 0} title="Esporta la vista corrente in formato CSV" className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed">
                             <DocumentArrowDownIcon className="h-4 w-4" /> CSV
@@ -397,24 +565,32 @@ export const PartiteAperteManager = () => {
                     </div>
                 </div>
             </div>
-            <div className="mt-6">
-                {error && <div className="bg-red-100 text-red-700 p-4 rounded-md mb-4">{error}</div>}
-                <DynamicReportTable
-                    data={processedData}
-                    columns={columns}
-                    isLoading={isLoading}
-                    defaultSort={{ key: 'ragione_sociale', direction: 'asc' }}
-                    onSelectionChange={handleSelectionChange}
-                    isSelectable={true}
-                    title={tipoPartita === 'attive' ? 'Crediti Clienti' : 'Debiti Fornitori'}
-                />
+
+            {/* Contenuto principale */}
+            <div className="flex-1 overflow-auto">
+                <div className="p-4 md:p-6">
+                    {error && <div className="bg-red-100 text-red-700 p-4 rounded-md mb-4">{error}</div>}
+                    <DynamicReportTable
+                        data={processedData}
+                        columns={columns}
+                        isLoading={isLoading}
+                        defaultSort={{ key: 'ragione_sociale', direction: 'asc' }}
+                        onSelectionChange={handleSelectionChange}
+                        isSelectable={true}
+                        title={tipoPartita === 'attive' ? 'Crediti Clienti' : 'Debiti Fornitori'}
+                        responsive={true}
+                    />
+                </div>
             </div>
 
+            {/* Riepilogo selezioni - ottimizzato per mobile */}
             {selectedIds.length > 0 && (
-                <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-auto bg-gray-800 text-white py-2 px-6 rounded-t-lg shadow-lg flex justify-center items-center z-50">
-                    <span className="font-semibold">Selezionati: {selectedIds.length}</span>
-                    <span className="mx-4 text-gray-500">|</span>
-                    <span className="font-semibold">Totale: {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(selectedTotal)}</span>
+                <div className="bg-gray-800 text-white py-3 px-4 shadow-lg">
+                    <div className="flex flex-col sm:flex-row sm:justify-center sm:items-center gap-2 text-center">
+                        <span className="font-semibold">Selezionati: {selectedIds.length}</span>
+                        <span className="hidden sm:inline text-gray-500">|</span>
+                        <span className="font-semibold">Totale: {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(selectedTotal)}</span>
+                    </div>
                 </div>
             )}
         </div>
@@ -422,4 +598,3 @@ export const PartiteAperteManager = () => {
 };
 
 export default PartiteAperteManager;
-
