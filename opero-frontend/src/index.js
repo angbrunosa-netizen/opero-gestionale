@@ -4,13 +4,15 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { AuthProvider } from './context/AuthContext'; // 1. Importa la "centrale elettrica"
-
+import ErrorBoundary from './ErrorBoundary'; // <-- 1. IMPORTA LA TRAPPOLA
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
+    <ErrorBoundary> {/* <-- 2. AVVOLGI TUTTO */}
     <AuthProvider>
       <App />
     </AuthProvider>
+    </ErrorBoundary> {/* <-- 3. CHIUDI LA TRAPPOLA */}
   </React.StrictMode>
 );
 
