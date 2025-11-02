@@ -1,12 +1,15 @@
 /*
  * #####################################################################
- * # Componente Gestione Partite Aperte v7.0 (Versione Responsive)
+ * # Componente Gestione Partite Aperte v7.4 (Logica Ibrida Web/App)
  * # File: opero-frontend/src/components/finanze/PartiteAperteManager.js
- * # Modifiche principali:
- * # - Ottimizzato layout per dispositivi mobili
- * # - Aggiunto menu a tendina per azioni su schermi piccoli
- * # - Migliorata visualizzazione della tabella su mobile
- * # - Ottimizzato riepilogo selezioni per schermi piccoli
+ * # Modifiche:
+ * # - Aggiunti import per Capacitor (Filesystem, Share, Toast).
+ * # - Aggiunta icona ShareIcon.
+ * # - Modificate 'handleExportCSV' e 'handleGeneratePDF' per:
+ * #   1. Rilevare la piattaforma (Capacitor.isNativePlatform()).
+ * #   2. Mantenere la logica di download originale per il Web (PC).
+ * #   3. Aggiungere la logica di Filesystem.writeFile() e Share.share() per l'App Mobile.
+ * # - Rimosso 'export default' alla fine per risolvere il conflitto di importazione.
  * #####################################################################
  */
 
@@ -16,8 +19,16 @@ import DynamicReportTable from '../../shared/DynamicReportTable';
 import { 
     ArrowPathIcon, DocumentTextIcon, EnvelopeIcon, 
     DocumentArrowDownIcon, XCircleIcon, CheckCircleIcon,
-    FunnelIcon, ChevronDownIcon, Bars3Icon, XMarkIcon
+    FunnelIcon, ChevronDownIcon, Bars3Icon, XMarkIcon,
+    ShareIcon, // <-- MODIFICA: Aggiunta icona per condivisione
 } from '@heroicons/react/24/outline';
+
+// --- MODIFICA: Aggiunti import per Capacitor ---
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Toast } from '@capacitor/toast';
+// --- FINE MODIFICA ---
 
 // ... (Funzioni loadScript e imageToBase64 invariate) ...
 const loadScript = (src) => {
@@ -51,6 +62,7 @@ const imageToBase64 = async (url) => {
     }
 };
 
+// Il tuo codice originale aveva già 'export const', che è corretto per il tuo FinanzeModule.js
 export const PartiteAperteManager = () => {
     const [tipoPartita, setTipoPartita] = useState('passive');
     const [tipoVista, setTipoVista] = useState('sintesi');
@@ -70,6 +82,7 @@ export const PartiteAperteManager = () => {
     const [showMobileFilters, setShowMobileFilters] = useState(false);
     const [showMobileActions, setShowMobileActions] = useState(false);
 
+    // [Funzione useEffect fetchInitialData - invariata]
     useEffect(() => {
         const fetchInitialData = async () => {
             setIsLoading(true);
@@ -88,12 +101,9 @@ export const PartiteAperteManager = () => {
                     }
                 }
                 
-                // MODIFICA: Risolve la race condition caricando prima la libreria principale
-                // e poi il plugin, con un piccolo delay per garantire l'inizializzazione.
                 await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
                 await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
                 
-                // Attende un ciclo di rendering per permettere al plugin di agganciarsi
                 await new Promise(resolve => setTimeout(resolve, 100)); 
 
                 if (window.jspdf && typeof window.jspdf.jsPDF.API.autoTable === 'function') {
@@ -111,6 +121,7 @@ export const PartiteAperteManager = () => {
         fetchInitialData();
     }, []);
 
+    // [Funzione fetchPartite - invariata]
     const fetchPartite = useCallback(async () => {
         setIsLoading(true);
         setError('');
@@ -131,10 +142,12 @@ export const PartiteAperteManager = () => {
         fetchPartite();
     }, [fetchPartite]);
     
+    // [Funzione handleSelectionChange - invariata]
     const handleSelectionChange = useCallback((newSelectedIds) => {
         setSelectedIds(newSelectedIds);
     }, []);
 
+    // [Funzione processedData - invariata]
     const processedData = useMemo(() => {
         return partite.map(p => {
             const oggi = new Date();
@@ -145,14 +158,17 @@ export const PartiteAperteManager = () => {
         });
     }, [partite]);
 
+    // [Funzione selectedPartiteData - invariata]
     const selectedPartiteData = useMemo(() => {
         return processedData.filter(p => selectedIds.includes(p.id));
     }, [selectedIds, processedData]);
     
+    // [Funzione selectedTotal - invariata]
     const selectedTotal = useMemo(() => {
         return selectedPartiteData.reduce((sum, item) => sum + Number(item.importo), 0);
     }, [selectedPartiteData]);
     
+    // [Funzione columns - invariata]
     const columns = useMemo(() => {
         const baseCols = [
             { label: 'Cliente/Fornitore', key: 'ragione_sociale', sortable: true },
@@ -169,6 +185,7 @@ export const PartiteAperteManager = () => {
         return baseCols;
     }, [tipoVista]);
     
+    // [Funzione pdfButtonState - invariata]
     const pdfButtonState = useMemo(() => {
         if (!scriptsLoaded) return { enabled: false, tooltip: 'Librerie PDF in caricamento...' };
         if (!dittaInfo) return { enabled: false, tooltip: 'Dati aziendali in caricamento...' };
@@ -178,6 +195,7 @@ export const PartiteAperteManager = () => {
         return { enabled: true, tooltip: 'Genera estratto conto in PDF' };
     }, [scriptsLoaded, dittaInfo, selectedIds, selectedPartiteData]);
 
+    // [Funzione reminderButtonState - invariata]
     const reminderButtonState = useMemo(() => {
         if (mailAccounts.length === 0) return { enabled: false, tooltip: 'Nessun account email configurato per l\'invio.' };
         if (selectedIds.length === 0) return { enabled: false, tooltip: 'Seleziona almeno una partita per inviare un sollecito.' };
@@ -198,13 +216,17 @@ export const PartiteAperteManager = () => {
         return { enabled: true, tooltip: 'Invia sollecito via email' };
     }, [selectedIds, selectedPartiteData, mailAccounts]);
     
+    // [Funzione showNotification - invariata]
     const showNotification = (message, type = 'success', duration = 3000) => {
         setNotification({ show: true, message, type });
         setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), duration);
     };
 
-    const handleExportCSV = () => {
+    // --- MODIFICA: Funzione 'handleExportCSV' resa Ibrida (Web/App) ---
+    const handleExportCSV = async () => { // Aggiunto 'async'
         if (processedData.length === 0) return;
+        
+        // La tua logica di creazione CSV originale è perfetta
         const headers = columns.map(c => c.label).join(';');
         const rows = processedData.map(item =>
             columns.map(col => {
@@ -215,21 +237,58 @@ export const PartiteAperteManager = () => {
             }).join(';')
         );
         const csvContent = [headers, ...rows].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `scadenziario_${tipoPartita}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+
+        // --- MODIFICA: Interruttore Web vs Nativo ---
+        if (!Capacitor.isNativePlatform()) {
+            // --- LOGICA WEB (PC) ---
+            // Questo è il tuo codice originale, che funziona sul web
+            console.log("Rilevato Browser: avvio download CSV...");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `scadenziario_${tipoPartita}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            // --- LOGICA NATIVA (App) ---
+            console.log("Rilevata App Nativa: scrivo file CSV...");
+            try {
+                const { uri } = await Filesystem.writeFile({
+                    path: `scadenziario_${tipoPartita}_${Date.now()}.csv`,
+                    data: csvContent, // Usiamo lo stesso 'csvContent'
+                    directory: Directory.Documents,
+                    encoding: Encoding.UTF8,
+                });
+
+                await Toast.show({ text: 'File CSV salvato in Documenti' });
+
+                // Apri la finestra di condivisione
+                await Share.share({
+                    title: 'Esporta Scadenziario CSV',
+                    text: 'Esportazione CSV generata da Opero.',
+                    url: uri, // Condivide il file appena creato
+                    dialogTitle: 'Condividi CSV'
+                });
+            } catch(e) {
+                console.error('Errore salvataggio CSV nativo', e);
+                await Toast.show({ text: `Errore salvataggio: ${e.message}`, duration: 'long' });
+            }
+        }
+        // --- FINE MODIFICA ---
     };
 
+    // --- MODIFICA: Funzione 'handleGeneratePDF' resa Ibrida (Web/App) ---
     const handleGeneratePDF = async () => {
         if (!pdfButtonState.enabled) return;
         setError('');
         
+        // Aggiungiamo 'setIsLoading' per coerenza
+        setIsLoading(true);
+        
         try {
+            // La tua logica di creazione PDF originale è perfetta
             const logoBase64 = await imageToBase64(dittaInfo?.logo);
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -278,7 +337,13 @@ export const PartiteAperteManager = () => {
             const totalRow = Array(pdfColumns.length).fill('');
             const importoIndex = pdfColumns.findIndex(c => c.key === 'importo');
             if (importoIndex !== -1) {
-                totalRow[importoIndex - 1] = 'TOTALE';
+                // Troviamo l'indice della colonna prima dell'importo per 'TOTALE'
+                let labelIndex = importoIndex > 0 ? importoIndex - 1 : 0;
+                // Assicuriamoci che non sia una colonna numerica
+                if(pdfColumns[labelIndex].format === 'currency' || pdfColumns[labelIndex].format === 'date') {
+                    labelIndex = 0; // Fallback alla prima colonna
+                }
+                totalRow[labelIndex] = 'TOTALE';
                 totalRow[importoIndex] = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(selectedTotal);
             }
             tableBody.push(totalRow);
@@ -292,10 +357,13 @@ export const PartiteAperteManager = () => {
                 didParseCell: (data) => {
                     if (data.row.index === selectedPartiteData.length) { 
                         data.cell.styles.fontStyle = 'bold';
-                        data.cell.styles.halign = 'right';
-                        if (data.column.index === importoIndex) {
-                            data.cell.styles.halign = 'right';
+                        // Allineiamo a destra solo il totale e l'importo
+                        if (data.column.index === importoIndex || data.column.index === (importoIndex > 0 ? importoIndex -1 : 0)) {
+                             data.cell.styles.halign = 'right';
                         }
+                    }
+                    if (pdfColumns[data.column.index].format === 'currency') {
+                         data.cell.styles.halign = 'right';
                     }
                 }
             });
@@ -305,13 +373,50 @@ export const PartiteAperteManager = () => {
             doc.setFont(undefined, 'bold');
             doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-            doc.save(`estratto_conto_${clientInfo.ragione_sociale.replace(/\s/g, '_')}.pdf`);
+            // --- MODIFICA: Interruttore Web vs Nativo ---
+            if (!Capacitor.isNativePlatform()) {
+                // --- LOGICA WEB (PC) ---
+                // Questo è il tuo codice originale
+                console.log("Rilevato Browser: avvio download PDF...");
+                doc.save(`estratto_conto_${clientInfo.ragione_sociale.replace(/\s/g, '_')}.pdf`);
+            } else {
+                // --- LOGICA NATIVA (App) ---
+                console.log("Rilevata App Nativa: scrivo file PDF...");
+                
+                // 1. Genera il PDF come stringa Base64
+                const pdfBase64 = doc.output('datauristring').split(',')[1];
+                
+                // 2. Scrivi il file sul dispositivo
+                const { uri } = await Filesystem.writeFile({
+                    path: `estratto_conto_${clientInfo.ragione_sociale.replace(/\s/g, '_')}_${Date.now()}.pdf`,
+                    data: pdfBase64,
+                    directory: Directory.Documents,
+                });
+
+                await Toast.show({ text: 'PDF salvato in Documenti' });
+
+                // 3. Apri la finestra di condivisione
+                await Share.share({
+                    title: 'Estratto Conto PDF',
+                    text: `Estratto conto ${tipoPartita} generato da Opero.`,
+                    url: uri, // Condivide il file PDF appena creato
+                    dialogTitle: 'Condividi PDF'
+                });
+            }
+            // --- FINE MODIFICA ---
+
         } catch (e) {
             console.error('Errore durante la generazione del PDF:', e);
             setError('Si è verificato un errore imprevisto durante la creazione del PDF.');
+            if(Capacitor.isNativePlatform()) { // Mostra Toast nativo su errore
+                await Toast.show({ text: `Errore PDF: ${e.message}`, duration: 'long' });
+            }
+        } finally {
+            setIsLoading(false); // Aggiunto per coerenza
         }
     };
     
+    // [Funzione handleSendReminder - invariata]
     const handleSendReminder = async () => {
         if (!reminderButtonState.enabled || !selectedMailAccount) {
             showNotification("Impossibile inviare: mancano i dati necessari.", "error");
@@ -337,6 +442,7 @@ export const PartiteAperteManager = () => {
         }
     };
 
+    // [Componente ToastNotification - invariato]
     const ToastNotification = () => notification.show && (
         <div className={`fixed top-5 right-5 p-4 rounded-lg shadow-lg text-white z-50 ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
             <div className="flex items-center">
@@ -346,6 +452,7 @@ export const PartiteAperteManager = () => {
         </div>
     );
 
+    // [Componente ReminderModal - invariato]
     const ReminderModal = () => showReminderModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-40">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
@@ -372,7 +479,7 @@ export const PartiteAperteManager = () => {
         </div>
     );
 
-    // Componente per il menu mobile dei filtri
+    // [Componente MobileFiltersMenu - invariato]
     const MobileFiltersMenu = () => (
         <div className="md:hidden">
             <button
@@ -445,7 +552,7 @@ export const PartiteAperteManager = () => {
         </div>
     );
 
-    // Componente per il menu mobile delle azioni
+    // [Componente MobileActionsMenu - invariato]
     const MobileActionsMenu = () => (
         <div className="md:hidden">
             <button
@@ -509,6 +616,7 @@ export const PartiteAperteManager = () => {
         </div>
     );
 
+    // [Return JSX principale - invariato]
     return (
         <div className="flex flex-col h-full bg-slate-50">
             <ToastNotification />
@@ -596,5 +704,9 @@ export const PartiteAperteManager = () => {
         </div>
     );
 };
+
+// --- MODIFICA: Rimuoviamo l'export default per risolvere il conflitto di importazione ---
+// export default PartiteAperteManager; 
+
 
 export default PartiteAperteManager;
