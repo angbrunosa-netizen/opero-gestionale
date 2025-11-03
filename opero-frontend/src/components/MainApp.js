@@ -2,13 +2,10 @@
  * ======================================================================
  * File: src/components/MainApp.js (RESPONSIVE VERSION - REFINED)
  * ======================================================================
- * Versione: 3.3 - Menu Hamburger Mobile Stabile e Prevedibile
- * - Implementato un vero menu hamburger per mobile che sostituisce la sidebar.
- * - La sidebar classica è ora visibile solo su desktop (lg: e superiori).
- * - Aggiunto un backdrop per chiudere il menu e migliorare il focus.
- * - RISOLTO: Il menu mobile ora si apre sempre in modo consistente, indipendentemente
- *   dallo stato della sidebar su desktop.
- * - Maggiore stabilità e usabilità su dispositivi touch.
+ * Versione: 3.5 - Header Mobile Ottimizzato
+ * - Rimosso completamente il riferimento alle scorciatoie nell'header mobile.
+ * - Aggiunto il logo aziendale nell'header mobile per migliorare il branding.
+ * - Mantenuto lo spazio superiore per evitare sovrapposizione con la barra notifiche.
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -87,7 +84,7 @@ const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
                 <h3 className="text-lg font-bold mb-4">Nuova Attività per il {selectedDate.toLocaleDateString()}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -320,7 +317,7 @@ const Dashboard = ({ user, ditta }) => {
                 if (isAdmin) {
                     const companyTasksRes = await api.get('/attivita/ditta/future');
                     if (companyTasksRes.data.success) {
-                        setCompanyTasks(companyTasksRes.data.data);
+                        setCompanyTasks(companyTasksRes.data);
                     }
                 }
             } catch (error) {
@@ -755,8 +752,8 @@ const MainApp = () => {
 
             {/* MAIN CONTENT AREA */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* HEADER */}
-                <header className="bg-gradient-to-r from-slate-800 to-slate-900 lg:bg-white border-b flex items-center justify-between p-3 lg:p-4 z-20 shadow-md lg:shadow-none">
+                {/* HEADER - Aggiunto padding-top per dispositivi mobili */}
+                <header className="bg-gradient-to-r from-slate-800 to-slate-900 lg:bg-white border-b flex items-center justify-between p-3 lg:p-4 pt-6 lg:pt-4 z-20 shadow-md lg:shadow-none">
                     <div className="flex items-center gap-3 lg:hidden">
                         <button 
                             onClick={() => {
@@ -767,12 +764,20 @@ const MainApp = () => {
                         >
                             <Bars3Icon className="h-6 w-6" />
                         </button>
+                        {/* Logo Aziendale Mobile */}
+                        <img 
+                            src={ditta.logo_url || 'https://placehold.co/100x100/FFFFFF/334155?text=Logo'} 
+                            alt="Logo Azienda" 
+                            className="h-8 w-8 rounded-full object-cover border border-slate-600"
+                            onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FFFFFF/334155?text=Logo'; }}
+                        />
                         <div className="flex flex-col">
                             <span className="text-white font-bold text-lg leading-tight">Opero Go</span>
                             <span className="text-blue-300 text-xs font-medium">{getActiveModuleName()}</span>
                         </div>
                     </div>
 
+                    {/* Scorciatoie: visibili solo su desktop */}
                     <div className="hidden lg:flex items-center gap-2">
                         {(shortcuts || []).map(sc => (
                             <button 
@@ -787,8 +792,8 @@ const MainApp = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <span className="text-xs lg:text-sm text-white lg:text-gray-700 hidden sm:block">
-                            {user.nome}
+                        <span className="text-xs lg:text-sm text-white lg:text-gray-700 block sm:block">
+                            {user.nome} {user.cognome}
                         </span>
                         <button 
                             onClick={() => setIsShortcutModalOpen(true)} 

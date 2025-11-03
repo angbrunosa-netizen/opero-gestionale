@@ -1,15 +1,22 @@
 /**
  * ======================================================================
- * File: src/components/ppa/ReportComposerModal.js (v2.5 - con Debugging)
+ * File: src/components/ppa/ReportComposerModal.js (v4.1 - Capacitor Share)
  * ======================================================================
  * @description
- * AGGIORNATO: Aggiunti log di debug nella funzione 'handleSendReport'
- * per diagnosticare perché la chiamata API non viene inviata.
+ * ADATTATO PER CAPACITOR: Utilizza il plugin Share per una gestione
+ * dei PDF più semplice e robusta su Android e iOS.
+ * - Rimosso la dipendenza da @capacitor/file-opener.
+ * - Utilizza @capacitor/filesystem e @capacitor/share per salvare e condividere.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
-import { XMarkIcon, DocumentArrowDownIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, DocumentArrowDownIcon, ArrowDownTrayIcon, ShareIcon } from '@heroicons/react/24/solid';
 import ReportPreviewModal from './ReportPreviewModal';
+
+// Importa solo i plugin necessari
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
     const [azioni, setAzioni] = useState([]);
@@ -21,6 +28,7 @@ const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
     const [isSending, setIsSending] = useState(false);
     const [isPreviewingPdf, setIsPreviewingPdf] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(null);
+    const [pdfBlob, setPdfBlob] = useState(null);
 
     const fetchData = useCallback(async () => {
         if (!istanza) return;
@@ -77,6 +85,55 @@ const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
             return newSet;
         });
     };
+    
+    // Funzione per gestire il PDF nell'ambiente Capacitor usando Share
+    const handleCapacitorPdf = async (blob, filename) => {
+        try {
+            // Converti il blob in base64
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64data = reader.result;
+                
+                // Scrivi il file nella cache dell'app per poterlo condividere
+                const fileResult = await Filesystem.writeFile({
+                    path: filename,
+                    data: base64data,
+                    directory: Directory.Cache,
+                    recursive: false
+                });
+
+                console.log('File salvato in:', fileResult.uri);
+
+                // Condividi il file. Il sistema operativo si occuperà di proporre
+                // le app corrette per aprirlo (es. visualizzatore PDF, email, etc.)
+                await Share.share({
+                    title: 'Report PPA',
+                    text: 'Ecco il report che hai richiesto.',
+                    // La proprietà 'files' è la chiave per condividere un file
+                    files: [fileResult.uri], 
+                });
+            };
+            reader.readAsDataURL(blob);
+        } catch (error) {
+            console.error("Errore nella condivisione del file con Capacitor:", error);
+            alert("Impossibile condividere il PDF. Riprova.");
+        }
+    };
+
+    // Funzione per scaricare il PDF nel browser
+    const downloadPdfInBrowser = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+    };
 
     const handleGeneratePdf = async () => {
         setIsPreviewingPdf(true);
@@ -97,22 +154,31 @@ const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
                 selectedMessaggi: messaggi.filter(m => selectedMessaggi.has(m.id)),
                 reportNotes
             };
+            
             const response = await api.post('/ppa/generate-report-pdf', payload, {
                 responseType: 'blob',
             });
-            const url = URL.createObjectURL(response.data);
-            setPdfUrl(url);
+            
+            const filename = `Report_${istanza.Titolo || 'PPA'}_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`;
+            setPdfBlob(response.data);
+
+            // Controlla se l'app è in esecuzione su una piattaforma nativa Capacitor
+            if (Capacitor.isNativePlatform()) {
+                await handleCapacitorPdf(response.data, filename);
+            } else {
+                // Logica per il browser web standard
+                const url = URL.createObjectURL(response.data);
+                setPdfUrl(url);
+            }
         } catch (error) {
             console.error("Errore generazione PDF:", error);
-            alert("Impossibile generare l'anteprima del report.");
+            alert("Impossibile generare il report. Controlla la connessione e riprova.");
         } finally {
             setIsPreviewingPdf(false);
         }
     };
 
     const handleSendReport = async () => {
-        console.log('[DEBUG-FE] 1. Funzione handleSendReport chiamata.'); // LOG 1
-
         setIsSending(true);
         try {
             const payload = {
@@ -122,20 +188,25 @@ const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
                 reportNotes
             };
             
-            console.log('[DEBUG-FE] 2. Payload pronto per l\'invio:', payload); // LOG 2
-
+            console.log('Invio report con payload:', payload);
             const response = await api.post('/ppa/send-report-email', payload);
-
-            console.log('[DEBUG-FE] 3. Risposta ricevuta dal backend:', response.data); // LOG 3
 
             alert(response.data.message);
             onClose();
 
         } catch (error) {
-            console.error("[DEBUG-FE] ERRORE durante l'invio del report:", error);
-            alert(error.response?.data?.message || "Impossibile inviare il report via email.");
+            console.error("ERRORE durante l'invio del report:", error);
+            const errorMessage = error.response?.data?.message || error.message || "Impossibile inviare il report via email. Controlla la connessione.";
+            alert(errorMessage);
         } finally {
             setIsSending(false);
+        }
+    };
+
+    const handleDownloadPdf = () => {
+        if (pdfBlob) {
+            const filename = `Report_${istanza.Titolo || 'PPA'}_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`;
+            downloadPdfInBrowser(pdfBlob, filename);
         }
     };
 
@@ -213,10 +284,36 @@ const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
                     </main>
 
                     <footer className="p-4 border-t flex justify-between items-center gap-3 bg-gray-50">
-                        <button onClick={handleGeneratePdf} disabled={isPreviewingPdf} className="flex items-center py-2 px-4 rounded-md text-gray-700 bg-white border hover:bg-gray-100 font-semibold disabled:bg-gray-200">
-                            <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
-                            {isPreviewingPdf ? 'Generando PDF...' : 'Anteprima PDF'}
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={handleGeneratePdf} 
+                                disabled={isPreviewingPdf} 
+                                className="flex items-center py-2 px-4 rounded-md text-gray-700 bg-white border hover:bg-gray-100 font-semibold disabled:bg-gray-200"
+                            >
+                                {Capacitor.isNativePlatform() ? (
+                                    <>
+                                        <ShareIcon className="h-5 w-5 mr-2" />
+                                        {isPreviewingPdf ? 'Genera e Condividi...' : 'Condividi PDF'}
+                                    </>
+                                ) : (
+                                    <>
+                                        <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
+                                        {isPreviewingPdf ? 'Generando PDF...' : 'Anteprima PDF'}
+                                    </>
+                                )}
+                            </button>
+                            
+                            {!Capacitor.isNativePlatform() && pdfBlob && (
+                                <button 
+                                    onClick={handleDownloadPdf} 
+                                    className="flex items-center py-2 px-4 rounded-md text-gray-700 bg-white border hover:bg-gray-100 font-semibold"
+                                    title="Scarica PDF"
+                                >
+                                    <ArrowDownTrayIcon className="h-5 w-5" />
+                                </button>
+                            )}
+                        </div>
+                        
                         <div className="flex gap-3">
                             <button onClick={onClose} className="py-2 px-4 rounded-md text-gray-700 bg-white border hover:bg-gray-100">Annulla</button>
                             <button onClick={handleSendReport} disabled={isSending} className="py-2 px-4 rounded-md text-white bg-teal-600 hover:bg-teal-700 font-semibold disabled:bg-gray-400">
@@ -227,11 +324,14 @@ const ReportComposerModal = ({ isOpen, onClose, istanza }) => {
                 </div>
             </div>
 
-            <ReportPreviewModal 
-                isOpen={!!pdfUrl}
-                onClose={() => { setPdfUrl(null); }}
-                pdfUrl={pdfUrl}
-            />
+            {/* Modale di anteprima solo su browser web */}
+            {!Capacitor.isNativePlatform() && (
+                <ReportPreviewModal 
+                    isOpen={!!pdfUrl}
+                    onClose={() => { setPdfUrl(null); }}
+                    pdfUrl={pdfUrl}
+                />
+            )}
         </>
     );
 };
