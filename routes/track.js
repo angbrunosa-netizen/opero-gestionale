@@ -8,7 +8,7 @@ const mysql = require('mysql2/promise');
 const path = require('path');
 const fs = require('fs');
 const { verifyToken } = require('../utils/auth');
-
+const knex = require('../config/db'); // <-- AGGIUNGI QUESTA RIGA
 const router = express.Router();
 const { dbPool } = require('../config/db');
 

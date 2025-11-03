@@ -1373,11 +1373,12 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
                     id_ditta_anagrafica: datiDocumento.id_anagrafica,
                     id_registrazione_testata: idTestata,
                     data_registrazione: datiDocumento.data_registrazione,
-                    data_scadenza: datiDocumento.data_registrazione,
+                    data_scadenza: datiDocumento.data_registrazione || null,
                     importo: datiDocumento.totale_documento,
                     stato: 'CHIUSA',
-                    data_documento: datiDocumento.data_documento,
-                    numero_documento: datiDocumento.numero_documento,
+                    data_documento: datiDocumento.data_documento || null,
+
+                    numero_documento: datiDocumento.numero_documento || null,
                     id_sottoconto: rigaAnagrafica ? rigaAnagrafica.id_conto : null,
                     tipo_movimento: tipoMovimentoChiusura
                 });
@@ -1403,12 +1404,12 @@ router.post('/registrazioni', verifyToken, async (req, res) => {
                         id_ditta_anagrafica: datiDocumento.id_anagrafica,
                         id_anagrafica: datiDocumento.id_anagrafica,
                         id_sottoconto: idSottocontoCorretto,
-                        numero_documento: datiDocumento.numero_documento,
-                        data_documento: datiDocumento.data_documento,
+                        numero_documento: datiDocumento.numero_documento || null,
+                        data_documento: datiDocumento.data_documento || null,
                         tipo_movimento: tipo_movimento,
                         importo: datiDocumento.totale_documento,
                         stato: 'APERTA',
-                        data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento,
+                        data_scadenza: datiDocumento.data_scadenza || datiDocumento.data_documento || null,
                     });
                 }
             }
