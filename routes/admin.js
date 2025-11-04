@@ -1334,4 +1334,53 @@ router.put('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
 // --- FINE ROTTA PUT /utenti/:id ---
 // La riga "module.exports = router;" dovrebbe essere alla fine del file, non qui.
 
+// --- GESTIONE QUOTA STORAGE DMS (NUOVA API) ---
+router.put('/ditte/:id/quota', verifyToken, checkPermission('DM_ADMIN_QUOTA'), async (req, res) => {
+  const { id } = req.params; // id della ditta da modificare
+  const { max_storage_mb } = req.body;
+  const idUtenteAdmin = req.user.id; // Chi sta facendo l'azione
+  
+  if (typeof max_storage_mb === 'undefined' || max_storage_mb === null || parseInt(max_storage_mb, 10) <= 0) {
+    return res.status(400).json({ error: 'Valore "max_storage_mb" mancante o non valido.' });
+  }
+
+  const storageMb = parseInt(max_storage_mb, 10);
+  const trx = await knex.transaction(); // Obbligo di transazione per il logging
+
+  try {
+    const ditta = await trx('ditte').where({ id }).first();
+    if (!ditta) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Ditta non trovata.' });
+    }
+
+    // Esegui l'aggiornamento
+    await trx('ditte')
+      .where({ id })
+      .update({
+        max_storage_mb: storageMb
+      });
+
+    // Log Azione Obbligatorio
+    await logAzione(
+      trx,
+      'DM_ADMIN_QUOTA',
+      idUtenteAdmin,
+      ditta.id, // Logghiamo sull'ID della ditta target
+      'ditte',
+      id,
+      `Aggiornata quota storage a: ${storageMb} MB (da utente ${idUtenteAdmin})`
+    );
+
+    await trx.commit();
+    res.json({ success: true, message: `Quota ditta ${ditta.nome} aggiornata a ${storageMb} MB.` });
+
+  } catch (error) {
+    await trx.rollback();
+    console.error("Errore durante l'aggiornamento della quota ditta:", error);
+    res.status(500).json({ error: "Errore interno del server durante l'aggiornamento." });
+  }
+});
+
+
 module.exports = router;
