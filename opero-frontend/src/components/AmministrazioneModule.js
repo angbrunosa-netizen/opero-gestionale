@@ -29,6 +29,7 @@ import { PencilIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import AdvancedDataGrid from '../shared/AdvancedDataGrid';
 import InvitaUtenteModal from '../shared/InvitaUtenteModal';
 import ShowLinkModal from '../shared/ShowLinkModal';
+import FattureAttiveManager from './FattureAttiveManager';
 
 const NoPermissionMessage = () => <div className="p-6 text-center text-gray-500"><p>Non disponi delle autorizzazioni necessarie per visualizzare questa sezione.</p></div>;
 
@@ -2206,6 +2207,13 @@ const AmministrazioneModule = () => {
         { key: 'mail_accounts', label: 'Account Email', shortLabel: '📧 Email', permission: 'MAIL_ACCOUNTS_VIEW', icon: QueueListIcon },
         { key: 'ppa', label: 'Configurazione PPA', shortLabel: '📋 PPA', permission: 'PPA_MODULE', icon: QueueListIcon },
         { key: 'progressivi', label: 'Gestione Progressivi', shortLabel: '#️⃣ Progressivi', permission: 'PROGRESSIVI_MANAGE', icon: HashtagIcon },
+        { 
+            key: 'fatture-attive', 
+            label: 'Gestione Fatture Attive', 
+            shortLabel: '🧾 Fatture Attive', 
+            permission: 'PDC_VIEW', // Assicurati che questo permesso esista nel backend
+            icon: DocumentTextIcon 
+        },
     ];
 
     const accessibleMenuItems = menuItems.filter(item => hasPermission(item.permission));
@@ -2229,6 +2237,7 @@ const AmministrazioneModule = () => {
             case 'mail_accounts': return <MailAccountsManager />;
             case 'ppa': return <PPAModule />;
             case 'progressivi': return <ProgressiviManager />;
+            case 'fatture-attive': return <FattureAttiveManager />;
             default: return <p className="p-6">Seleziona una voce dal menu.</p>;
         }
     };

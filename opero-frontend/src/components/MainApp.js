@@ -2,10 +2,10 @@
  * ======================================================================
  * File: src/components/MainApp.js (RESPONSIVE VERSION - REFINED)
  * ======================================================================
- * Versione: 3.5 - Header Mobile Ottimizzato
- * - Rimosso completamente il riferimento alle scorciatoie nell'header mobile.
- * - Aggiunto il logo aziendale nell'header mobile per migliorare il branding.
- * - Mantenuto lo spazio superiore per evitare sovrapposizione con la barra notifiche.
+ * Versione: 3.6 - Rimozione Scorciatoie da App Nativa
+ * - Eliminata completamente la visualizzazione delle scorciatoie e del pulsante
+ *   di impostazione delle scorciatoie sulle app native (Android/iOS) con Capacitor.
+ * - Utilizzato Capacitor.isNativePlatform() per un controllo più affidabile.
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +53,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import CatalogoModule from './CatalogoModule';
 import MagazzinoModule from './MagazzinoModule';
 import VenditeModule from './VenditeModule';
+// Importa Capacitor per il controllo della piattaforma
+import { Capacitor } from '@capacitor/core';
 
 // --- Componente Modale per Nuova Attività ---
 const AttivitaModal = ({ onSave, onCancel, selectedDate }) => {
@@ -777,31 +779,36 @@ const MainApp = () => {
                         </div>
                     </div>
 
-                    {/* Scorciatoie: visibili solo su desktop */}
-                    <div className="hidden lg:flex items-center gap-2">
-                        {(shortcuts || []).map(sc => (
-                            <button 
-                                key={sc.id}
-                                onClick={(event) => handleShortcutClick(event, sc)}
-                                title={sc.descrizione}
-                                className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                                {getIconForFunction(sc.codice)}
-                            </button>
-                        ))}
-                    </div>
+                    {/* Scorciatoie: visibili solo su browser web desktop */}
+                    {!Capacitor.isNativePlatform() && (
+                        <div className="hidden lg:flex items-center gap-2">
+                            {(shortcuts || []).map(sc => (
+                                <button 
+                                    key={sc.id}
+                                    onClick={(event) => handleShortcutClick(event, sc)}
+                                    title={sc.descrizione}
+                                    className="p-2 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    {getIconForFunction(sc.codice)}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     <div className="flex items-center gap-2">
                         <span className="text-xs lg:text-sm text-white lg:text-gray-700 block sm:block">
                             {user.nome} {user.cognome}
                         </span>
-                        <button 
-                            onClick={() => setIsShortcutModalOpen(true)} 
-                            title="Personalizza"
-                            className="p-2 hover:bg-slate-700 lg:hover:bg-gray-100 rounded-full transition-colors"
-                        >
-                            <Cog6ToothIcon className="h-5 w-5 lg:h-6 lg:w-6 text-white lg:text-gray-600" />
-                        </button>
+                        {/* Pulsante Impostazioni Scorciatoie: nascosto su app nativa */}
+                        {!Capacitor.isNativePlatform() && (
+                            <button 
+                                onClick={() => setIsShortcutModalOpen(true)} 
+                                title="Personalizza"
+                                className="p-2 hover:bg-slate-700 lg:hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <Cog6ToothIcon className="h-5 w-5 lg:h-6 lg:w-6 text-white lg:text-gray-600" />
+                            </button>
+                        )}
                         <button 
                             onClick={logout} 
                             className="text-xs lg:text-sm font-medium text-red-400 lg:text-red-600 hover:underline px-2"

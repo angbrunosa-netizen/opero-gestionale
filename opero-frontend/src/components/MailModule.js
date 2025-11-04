@@ -1,11 +1,18 @@
-// #####################################################################
-// # Modulo Posta - v10.0 (RESPONSIVE con Mobile Support)
-// # File: opero-frontend/src/components/MailModule.js
-// #####################################################################
-
+/**
+ * ======================================================================
+ * File: src/components/MailModule.js (v11.0 - COMPLETO E CORRETTO)
+ * ======================================================================
+ * @description
+ * Modulo per la gestione della posta elettronica.
+ * - Supporta la composizione, lettura, invio e gestione delle email.
+ * - Integrato con QuickComposeContext per permettere la composizione rapida
+ *   di email da altri moduli (es. condivisione PDF).
+ * - Responsive design per desktop e mobile.
+ */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useQuickCompose } from '../context/QuickComposeContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import AddressBook from './AddressBook';
@@ -17,6 +24,8 @@ import {
     EyeIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // =====================================================================
 // =================== COMPONENTI SECONDARI ============================
@@ -221,7 +230,15 @@ const ContactEditModal = ({ user, onSave, onCancel }) => {
 };
 
 // --- Componente: Composizione Email ---
-const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) => {
+const ComposeView = ({ 
+    accountId, 
+    emailToReply, 
+    replyType, 
+    onCancel, 
+    onSent,
+    initialComposeData, 
+    onResetQuickCompose 
+}) => {
     const { user } = useAuth();
     const [to, setTo] = useState('');
     const [cc, setCc] = useState('');
@@ -235,13 +252,46 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
     const [showCcBcc, setShowCcBcc] = useState(false);
 
     useEffect(() => {
+        if (initialComposeData) {
+            setSubject(initialComposeData.subject || '');
+            setBody(initialComposeData.body || '');
+            
+            if (Capacitor.isNativePlatform() && initialComposeData.attachments) {
+                const processAttachments = async () => {
+                    const newAttachments = [];
+                    for (const att of initialComposeData.attachments) {
+                        try {
+                            const fileName = att.uri.split('/').pop();
+                            const file = await Filesystem.readFile({
+                                path: fileName,
+                                directory: Directory.Cache,
+                            });
+                            
+                            const base64Response = await fetch(`data:${att.type};base64,${file.data}`);
+                            const blob = await base64Response.blob();
+                            const fileObject = new File([blob], att.name, { type: att.type });
+                            newAttachments.push(fileObject);
+                        } catch (error) {
+                            console.error("Errore nella lettura dell'allegato dall'URI:", error);
+                        }
+                    }
+                    setAttachments(prev => [...prev, ...newAttachments]);
+                };
+                processAttachments();
+            }
+        }
+    }, [initialComposeData]);
+
+    useEffect(() => {
         let initialBody = `<br/><br/><hr><p>${(user?.firma || '').replace(/\n/g, '<br/>')}</p>`;
         if (emailToReply) {
             // Logica per risposta/inoltro
         }
-        setBody(initialBody);
-    }, [emailToReply, replyType, user]);
-
+        if (!initialComposeData?.body) {
+            setBody(initialBody);
+        }
+    }, [emailToReply, replyType, user, initialComposeData]);
+    
     const openAddressBook = (target) => {
         setAddressBookTarget(target);
         setIsAddressBookOpen(true);
@@ -281,7 +331,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
             setIsAddressBookOpen(false);
         }
     };
-
+    
     const handleSend = async () => {
         if (!to && !cc && !bcc) {
             alert("Inserisci almeno un destinatario.");
@@ -305,6 +355,11 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
                 headers: { 'Content-Type': 'multipart/form-data' } 
             });
             alert('Email inviata con successo!');
+            
+            if (initialComposeData && onResetQuickCompose) {
+                onResetQuickCompose();
+            }
+
             if (onSent) onSent();
         } catch (error) {
             console.error("Errore durante l'invio dell'email:", error);
@@ -312,6 +367,13 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
         } finally {
             setIsSending(false);
         }
+    };
+
+    const handleCancelClick = () => {
+        if (initialComposeData && onResetQuickCompose) {
+            onResetQuickCompose();
+        }
+        onCancel();
     };
 
     return (
@@ -357,7 +419,7 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
                 <input type="file" multiple onChange={e => setAttachments([...e.target.files])} className="block w-full text-sm" />
             </div>
             <div className="flex justify-end gap-2 md:gap-4 mt-4">
-                <button onClick={onCancel} className="px-3 md:px-4 py-2 bg-gray-200 rounded-md text-sm">Annulla</button>
+                <button onClick={handleCancelClick} className="px-3 md:px-4 py-2 bg-gray-200 rounded-md text-sm">Annulla</button>
                 <button onClick={handleSend} disabled={isSending} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md text-sm">{isSending ? 'Invio...' : 'Invia'}</button>
             </div>
         </div>
@@ -365,7 +427,10 @@ const ComposeView = ({ accountId, emailToReply, replyType, onCancel, onSent }) =
 };
 
 // --- Componente: Gestione della Posta ---
-const MailClientView = () => {
+const MailClientView = ({ 
+    quickComposeTrigger, 
+    onResetQuickCompose 
+}) => {
     const { user } = useAuth();
     const [accounts, setAccounts] = useState([]);
     const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -375,25 +440,37 @@ const MailClientView = () => {
     const [replyType, setReplyType] = useState('reply');
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-    const [showMobileList, setShowMobileList] = useState(true); // Per gestire vista mobile
-    
-    useEffect(() => {
-        const fetchAccounts = async () => {
-            try {
-                const { data } = await api.get('/mail/my-mail-accounts');
-                if (data.success && data.data.length > 0) {
-                    setAccounts(data.data);
+    const [showMobileList, setShowMobileList] = useState(true);
+
+    const fetchAccounts = useCallback(async () => {
+        try {
+            const { data } = await api.get('/mail/my-mail-accounts');
+            if (data.success && data.data.length > 0) {
+                setAccounts(data.data);
+                if (!selectedAccountId) {
                     setSelectedAccountId(data.data[0].id);
                 }
-            } catch (error) { 
-                console.error("Errore nel caricare gli account:", error); 
             }
-        };
+        } catch (error) { 
+            console.error("Errore nel caricare gli account:", error); 
+        }
+    }, [selectedAccountId]);
+
+    useEffect(() => {
         fetchAccounts();
-    }, []);
+    }, [fetchAccounts]);
+
+    useEffect(() => {
+        if (quickComposeTrigger) {
+            console.log('MailClientView: Ricevuto trigger di composizione rapida.', quickComposeTrigger);
+            setContentView('composing');
+            setSelectedEmail(null);
+            setShowMobileList(false);
+        }
+    }, [quickComposeTrigger]);
     
     const handleEmailSelect = async (uidOrEmailObject) => {
-        setShowMobileList(false); // Nascondi lista su mobile quando selezioni email
+        setShowMobileList(false);
         
         if (typeof uidOrEmailObject === 'object') {
             setSelectedEmail(uidOrEmailObject);
@@ -444,6 +521,8 @@ const MailClientView = () => {
                     setSelectedEmail(null); 
                     setShowMobileList(true);
                 }}
+                initialComposeData={quickComposeTrigger}
+                onResetQuickCompose={onResetQuickCompose}
             />;
         }
         
@@ -456,7 +535,6 @@ const MailClientView = () => {
     
     return (
         <div className="flex w-full h-full">
-            {/* Lista Email - nascosta su mobile quando si visualizza un'email */}
             <div className={`${showMobileList ? 'block' : 'hidden'} md:block w-full md:w-1/3 lg:w-[400px] border-r border-slate-200 flex flex-col bg-white`}>
                 <div className="p-3 md:p-4 border-b">
                     <select 
@@ -531,7 +609,6 @@ const MailClientView = () => {
                 </div>
             </div>
 
-            {/* Contenuto Email - mostrato su mobile solo quando un'email è selezionata */}
             <div className={`${!showMobileList ? 'block' : 'hidden'} md:block flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto`}>
                 {loadingDetail ? <p>Caricamento...</p> : renderMainContent()}
             </div>
@@ -680,7 +757,6 @@ function ReadingPane({ email, accountId, onAction, onBack }) {
     if (email.uid) { // Email in arrivo
         return (
             <div>
-                {/* Bottone Back per mobile */}
                 <button 
                     onClick={onBack}
                     className="md:hidden flex items-center text-blue-600 mb-4 text-sm"
@@ -702,7 +778,6 @@ function ReadingPane({ email, accountId, onAction, onBack }) {
     // Email inviata (con Tracking)
     return (
         <div>
-            {/* Bottone Back per mobile */}
             <button 
                 onClick={onBack}
                 className="md:hidden flex items-center text-blue-600 mb-4 text-sm"
@@ -864,11 +939,22 @@ const SettingsView = () => {
 function MailModule() {
     const [activeView, setActiveView] = useState('posta');
     const { hasPermission } = useAuth();
-    
+    const { isQuickComposing, composeData, resetQuickCompose } = useQuickCompose();
+
+    useEffect(() => {
+        if (isQuickComposing && composeData) {
+            console.log('MailModule: Ricevuto trigger di composizione rapida. Attivazione vista posta.');
+            setActiveView('posta');
+        }
+    }, [isQuickComposing, composeData, setActiveView]);
+
     const renderContent = () => {
         switch (activeView) {
             case 'posta':
-                return <MailClientView />;
+                return <MailClientView 
+                    quickComposeTrigger={isQuickComposing ? composeData : null}
+                    onResetQuickCompose={resetQuickCompose}
+                />;
             case 'rubrica':
                 return hasPermission('RUBRICA_VIEW') 
                     ? <AddressBook /> 
@@ -880,7 +966,6 @@ function MailModule() {
     
     return (
         <div className="flex flex-col lg:flex-row w-full h-full bg-slate-50">
-            {/* TAB NAVIGATION per mobile, SIDEBAR per desktop */}
             <div className="lg:hidden bg-white border-b border-slate-200">
                 <div className="flex">
                     <button
@@ -908,7 +993,6 @@ function MailModule() {
                 </div>
             </div>
 
-            {/* SIDEBAR per desktop */}
             <aside className="hidden lg:block w-56 border-r border-slate-200 p-4 bg-white">
                 <h2 className="font-bold mb-4 text-slate-700">Menu Posta</h2>
                 <ul className="space-y-2">
@@ -933,7 +1017,6 @@ function MailModule() {
                 </ul>
             </aside>
 
-            {/* Area principale del contenuto */}
             <main className="flex-1 overflow-y-auto">
                 {renderContent()}
             </main>
