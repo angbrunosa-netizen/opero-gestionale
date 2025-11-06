@@ -1,29 +1,27 @@
 /**
  * File: /routes/documenti.js
  *
- * Versione: 1.0.0
+ * Versione: 1.1.0 (Correzione SuperAdmin + Ripristino)
  *
- * Descrizione: Questo file di rotte definisce le API per il
- * Modulo Gestione Documentale (DMS). Gestisce la logica per:
- * - Generare URL di upload sicuri (pre-firmati) per S3
- * - Finalizzare l'upload e salvare i metadati nel DB
- * - Elencare i file collegati a un'entità
- * - Generare URL di download sicuri (pre-firmati)
- * - Eliminare i collegamenti ai file ed eliminare i file orfani
+ * Descrizione: Questo file di rotte gestisce tutte le API
+ * per il Modulo Gestione Documentale (DMS).
+ * Include la generazione di URL pre-firmati S3 per upload/download,
+ * la finalizzazione (registrazione DB) e l'eliminazione dei file.
  *
- * Include controlli di permesso (tramite checkPermission) e
- * gestione delle quote di storage per ditta.
- *
- * Percorso base: /api/documenti
+ * Include il fix per il crash `Cannot read 'id' of undefined`
+ * controllando l'esistenza di `req.ditta` (necessario per i SuperAdmin).
  */
 
 const express = require('express');
 const router = express.Router();
-const knex = require('../config/db');
-const { verifyToken, checkPermission,logAzione } = require('../utils/auth');
-const { v4: uuidv4 } = require('uuid');
+const knex = require('../config/db'); // Importa Knex
+const { v4: uuidv4 } = require('uuid'); // Per generare nomi file univoci
 
-// Importa il client S3 e i comandi dal nostro helper
+// Import middleware di autenticazione e permessi
+// logAzione è in auth.js (come da correzione precedente)
+const { verifyToken, checkPermission, logAzione } = require('../utils/auth');
+
+// Import del nostro client S3 e dei comandi
 const {
   s3Client,
   PutObjectCommand,
@@ -33,128 +31,136 @@ const {
   S3_BUCKET_NAME
 } = require('../utils/s3Client');
 
-// --- API 1: Genera URL per l'Upload (Passo 1 dell'Upload) ---
-// Il frontend chiede "posso caricare questo file?"
+// --- API 1: GENERARE URL PER UPLOAD (CHIEDE PERMESSO) ---
+// Il frontend chiama questa API PRIMA di caricare un file.
 router.post('/generate-upload-url', verifyToken, checkPermission('DM_FILE_UPLOAD'), async (req, res) => {
-  const { fileName, fileSize, mimeType } = req.body;
-  const idDitta = req.ditta.id;
-  
-  if (!fileName || !fileSize || !mimeType) {
-    return res.status(400).json({ error: 'Dati del file mancanti (fileName, fileSize, mimeType).' });
-  }
-  
   try {
+    // --- CONTROLLO DI SICUREZZA DITTA (Fix SuperAdmin) ---
+    if (!req.ditta || !req.ditta.id) {
+      return res.status(400).json({ error: 'Nessuna ditta selezionata. Se sei un SuperAdmin, seleziona una ditta prima di procedere.' });
+    }
+    const idDitta = req.ditta.id;
+    // --- FINE CONTROLLO ---
+
+    const { fileName, fileSize, mimeType } = req.body;
+
+    if (!fileName || !fileSize || !mimeType) {
+      return res.status(400).json({ error: 'Dati file (fileName, fileSize, mimeType) mancanti.' });
+    }
+
     // --- CONTROLLO QUOTA (PIANI) ---
     const ditta = await knex('ditte').where({ id: idDitta }).first();
-    const maxSizeInBytes = (ditta.max_storage_mb || 0) * 1024 * 1024;
-    const currentSizeInBytes = ditta.current_storage_bytes || 0;
-    
-    // Converte fileSize (che arriva come stringa) in numero
-    const fileSizeNum = parseInt(fileSize, 10);
-    
-    if (currentSizeInBytes + fileSizeNum > maxSizeInBytes) {
-      return res.status(403).json({ 
-        error: `Spazio di archiviazione insufficiente. Spazio utilizzato: ${Math.round(currentSizeInBytes / (1024*1024))}MB / ${ditta.max_storage_mb}MB.` 
+    const maxSizeByte = (ditta.max_storage_mb || 0) * 1024 * 1024;
+    const currentSizeByte = ditta.current_storage_bytes || 0;
+
+    if (currentSizeByte + fileSize > maxSizeByte) {
+      return res.status(402).json({ // 402 Payment Required è un codice appropriato per "Quota superata"
+        error: `Quota di archiviazione superata. Spazio utilizzato: ${formatFileSize(currentSizeByte)} / ${formatFileSize(maxSizeByte)}`
       });
     }
-    
-    // --- Generazione Chiave S3 ---
-    // Crea un nome file univoco per S3 per evitare sovrascritture
-    // Formato: ditta_ID/uuid_v4
-    const s3Key = `ditta_${idDitta}/${uuidv4()}`;
-    
-    // Prepara il comando per S3
+    // --- FINE CONTROLLO QUOTA ---
+
+    // Genera una chiave (percorso) univoca per S3
+    // Es: ditta_1/allegati/a1b2c3d4-e5f6-....pdf
+    const s3Key = `ditta_${idDitta}/allegati/${uuidv4()}-${fileName}`;
+
+    // Crea il comando per un PUT (caricamento)
     const command = new PutObjectCommand({
       Bucket: S3_BUCKET_NAME,
       Key: s3Key,
       ContentType: mimeType,
-      ContentLength: fileSizeNum
+      ContentLength: fileSize
     });
-    
-    // Genera l'URL pre-firmato valido per 5 minuti (300 secondi)
+
+    // Genera l'URL pre-firmato valido per 5 minuti
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-    
+
     res.json({ uploadUrl, s3Key });
-    
+
   } catch (error) {
-    console.error("Errore durante la generazione dell'URL di upload S3:", error);
-    res.status(500).json({ error: "Impossibile generare l'URL di upload." });
+    console.error("Errore generazione URL upload S3:", error);
+    res.status(500).json({ error: "Errore interno del server (S3 Upload URL)." });
   }
 });
 
 
-// --- API 2: Finalizza Upload (Passo 2 dell'Upload) ---
-// Il frontend dice "OK, ho caricato il file su S3. Ora salvalo nel DB."
+// --- API 2: FINALIZZAZIONE UPLOAD (REGISTRAZIONE DB) ---
+// Il frontend chiama questa API DOPO aver caricato il file su S3.
 router.post('/finalize-upload', verifyToken, checkPermission('DM_FILE_UPLOAD'), async (req, res) => {
-  const { s3Key, fileName, fileSize, mimeType, entita_tipo, entita_id } = req.body;
-  const idDitta = req.ditta.id;
-  const idUtente = req.user.id;
   
-  if (!s3Key || !fileName || !fileSize || !entita_tipo || !entita_id) {
-    return res.status(400).json({ error: 'Dati di finalizzazione mancanti (s3Key, fileName, fileSize, entita_tipo, entita_id).' });
+  // --- CONTROLLO DI SICUREZZA DITTA (Fix SuperAdmin) ---
+  if (!req.ditta || !req.ditta.id) {
+    return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
   }
+  const idDitta = req.ditta.id;
+  // --- FINE CONTROLLO ---
+
+  const { s3Key, fileName, fileSize, mimeType, entita_tipo, entita_id } = req.body;
+
+  if (!s3Key || !fileName || !fileSize || !entita_tipo || !entita_id) {
+    return res.status(400).json({ error: 'Dati di finalizzazione (s3Key, fileName, fileSize, entita_tipo, entita_id) mancanti.' });
+  }
+
+  const trx = await knex.transaction(); // OBBLIGO TRANSAZIONE
   
-  const fileSizeNum = parseInt(fileSize, 10);
-  
-  // Usiamo una transazione per garantire l'integrità dei dati
-  const trx = await knex.transaction();
   try {
-    
-    // 1. Inserisci i metadati del file in 'dm_files'
-    const [fileId] = await trx('dm_files').insert({
+    // 1. Inserisci il file fisico in dm_files
+    const [insertedFile] = await trx('dm_files').insert({
       id_ditta: idDitta,
-      id_utente_upload: idUtente,
+      id_utente_upload: req.user.id,
       file_name_originale: fileName,
-      file_size_bytes: fileSizeNum,
+      file_size_bytes: fileSize,
       mime_type: mimeType,
       s3_key: s3Key
-    });
-    
-    // 2. Collega il file all'entità (es. scrittura contabile, bene strumentale)
+    }).returning('*'); // Restituisce l'oggetto inserito
+
+    // 2. Collega il file all'entità
     await trx('dm_allegati_link').insert({
       id_ditta: idDitta,
-      id_file: fileId,
+      id_file: insertedFile.id,
       entita_tipo: entita_tipo,
       entita_id: entita_id
     });
-    
-    // 3. Aggiorna il contatore dello spazio utilizzato per la ditta
+
+    // 3. Aggiorna la quota disco della ditta
     await trx('ditte')
       .where({ id: idDitta })
-      .increment('current_storage_bytes', fileSizeNum);
-      
-    // 4. Log Azione Obbligatorio
+      .increment('current_storage_bytes', fileSize);
+
+    // 4. Log azione
     await logAzione(
       trx,
       'DM_FILE_UPLOAD',
-      idUtente,
+      req.user.id,
       idDitta,
       'dm_files',
-      fileId,
-      `Caricato file: ${fileName} (ID: ${fileId}, Entità: ${entita_tipo}:${entita_id})`
+      insertedFile.id,
+      `Caricato file: ${fileName} (${formatFileSize(fileSize)}) per ${entita_tipo}:${entita_id}`
     );
-    
-    // Se tutto è andato bene, conferma la transazione
+
     await trx.commit();
-    
-    res.status(201).json({ success: true, message: 'File registrato con successo.', id_file: fileId });
-    
+    res.status(201).json(insertedFile);
+
   } catch (error) {
-    // In caso di errore, annulla tutte le operazioni
     await trx.rollback();
-    console.error("Errore durante la finalizzazione dell'upload:", error);
-    res.status(500).json({ error: "Impossibile registrare il file nel database." });
+    console.error("Errore finalizzazione upload:", error);
+    res.status(500).json({ error: "Errore interno del server (DB Finalize)." });
   }
 });
 
 
-// --- API 3: Elenco File per Entità ---
-// Ritorna la lista di tutti i file collegati a un oggetto (es. bs_bene: 123)
+// --- API 3: LISTA ALLEGATI PER ENTITÀ ---
 router.get('/list/:entita_tipo/:entita_id', verifyToken, checkPermission('DM_FILE_VIEW'), async (req, res) => {
-  const { entita_tipo, entita_id } = req.params;
-  const idDitta = req.ditta.id;
-  
   try {
+    // --- CONTROLLO DI SICUREZZA DITTA (Fix SuperAdmin) ---
+    if (!req.ditta || !req.ditta.id) {
+      return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
+    }
+    const idDitta = req.ditta.id;
+    // --- FINE CONTROLLO ---
+
+    const { entita_tipo, entita_id } = req.params;
+
     const allegati = await knex('dm_allegati_link as link')
       .join('dm_files as file', 'link.id_file', 'file.id')
       .leftJoin('utenti as u', 'file.id_utente_upload', 'u.id') // Join con utenti per nome
@@ -164,161 +170,157 @@ router.get('/list/:entita_tipo/:entita_id', verifyToken, checkPermission('DM_FIL
         'link.entita_id': entita_id
       })
       .select(
-        'link.id as id_link', // ID del collegamento (per eliminazione)
+        'link.id as id_link', // ID del collegamento
         'file.id as id_file', // ID del file fisico
         'file.file_name_originale',
         'file.file_size_bytes',
         'file.mime_type',
         'file.created_at',
-        knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload") // Nome completo utente
+        knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload") // Nome utente
       )
-      // Evitiamo di ordinare qui per performance,
-      // ma se necessario si può aggiungere .orderBy('file.created_at', 'desc')
-      
+      .orderBy('file.created_at', 'desc');
+
     res.json(allegati);
-    
+
   } catch (error) {
-    console.error("Errore nel recuperare l'elenco degli allegati:", error);
-    res.status(500).json({ error: "Impossibile recuperare l'elenco dei file." });
+    console.error("Errore lista allegati:", error);
+    res.status(500).json({ error: "Errore interno del server (Lista Allegati)." });
   }
 });
 
 
-// --- API 4: Genera URL per il Download ---
-// Il frontend chiede "posso scaricare questo file?"
+// --- API 4: GENERARE URL PER DOWNLOAD ---
 router.get('/generate-download-url/:id_file', verifyToken, checkPermission('DM_FILE_VIEW'), async (req, res) => {
-  const { id_file } = req.params;
-  const idDitta = req.ditta.id;
-  
   try {
-    // 1. Trova il file e verifica che appartenga alla ditta (per sicurezza)
-    const file = await knex('dm_files')
-      .where({
-        id: id_file,
-        id_ditta: idDitta
-      })
-      .first();
-      
-    if (!file) {
-      return res.status(404).json({ error: 'File non trovato o accesso negato.' });
+    // --- CONTROLLO DI SICUREZZA DITTA (Fix SuperAdmin) ---
+    if (!req.ditta || !req.ditta.id) {
+      return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
     }
-    
-    // 2. Prepara il comando GET per S3
+    const idDitta = req.ditta.id;
+    // --- FINE CONTROLLO ---
+
+    const { id_file } = req.params;
+
+    // Controllo sicurezza: verifica che il file appartenga alla ditta dell'utente
+    const file = await knex('dm_files')
+      .where({ id: id_file, id_ditta: idDitta })
+      .first();
+
+    if (!file) {
+      return res.status(404).json({ error: 'File non trovato o non appartenente a questa ditta.' });
+    }
+
+    // Crea il comando per un GET (download)
     const command = new GetObjectCommand({
       Bucket: S3_BUCKET_NAME,
       Key: file.s3_key,
-      // Forza il browser a scaricare il file col nome originale
-      ResponseContentDisposition: `attachment; filename="${file.file_name_originale}"` 
+      // Forza il browser a scaricare vs visualizzare
+      ResponseContentDisposition: `attachment; filename="${file.file_name_originale}"`
     });
-    
-    // 3. Genera l'URL pre-firmato valido per 5 minuti (300 secondi)
+
+    // Genera l'URL pre-firmato valido per 5 minuti
     const downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-    
+
     res.json({ downloadUrl });
-    
+
   } catch (error) {
-    console.error("Errore durante la generazione dell'URL di download S3:", error);
-    res.status(500).json({ error: "Impossibile generare l'URL di download." });
+    console.error("Errore generazione URL download S3:", error);
+    res.status(500).json({ error: "Errore interno del server (S3 Download URL)." });
   }
 });
 
 
-// --- API 5: Elimina Collegamento (e File se orfano) ---
-// Elimina un record 'dm_allegati_link'
+// --- API 5: ELIMINAZIONE LINK ALLEGATO (E FILE ORFANO) ---
 router.delete('/link/:id_link', verifyToken, checkPermission('DM_FILE_DELETE'), async (req, res) => {
-  const { id_link } = req.params;
-  const idDitta = req.ditta.id;
-  const idUtente = req.user.id;
   
-  const trx = await knex.transaction();
+  // --- CONTROLLO DI SICUREZZA DITTA (Fix SuperAdmin) ---
+  if (!req.ditta || !req.ditta.id) {
+    return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
+  }
+  const idDitta = req.ditta.id;
+  // --- FINE CONTROLLO ---
+
+  const { id_link } = req.params;
+
+  const trx = await knex.transaction(); // OBBLIGO TRANSAZIONE
+
   try {
-    // 1. Trova il link e assicurati che appartenga alla ditta (Sicurezza)
+    // 1. Trova il link e il file associato (verificando la ditta)
     const link = await trx('dm_allegati_link')
-      .where({
-        id: id_link,
-        id_ditta: idDitta
-      })
+      .where({ id: id_link, id_ditta: idDitta })
       .first();
-      
+
     if (!link) {
       await trx.rollback();
-      return res.status(404).json({ error: 'Collegamento non trovato o accesso negato.' });
+      return res.status(404).json({ error: 'Collegamento non trovato.' });
     }
-    
-    // 2. Recupera i dettagli del file PRIMA di cancellare il link
+
     const file = await trx('dm_files').where({ id: link.id_file }).first();
     if (!file) {
-      // Situazione anomala (link esiste ma file no), puliamo e usciamo
-      await trx('dm_allegati_link').where({ id: link.id }).del();
+      // Situazione strana (link esiste ma file no?), cancella comunque il link
+      await trx('dm_allegati_link').where({ id: id_link }).del();
       await trx.commit();
-      return res.status(404).json({ error: 'File associato non trovato, collegamento rimosso.' });
+      return res.status(404).json({ error: 'File associato non trovato, link rimosso.' });
     }
-    
-    // 3. Cancella il collegamento
-    await trx('dm_allegati_link').where({ id: link.id }).del();
-    
-    // 4. Controlla se il file è diventato "orfano" (non ha altri link)
+
+    // 2. Elimina il collegamento
+    await trx('dm_allegati_link').where({ id: id_link }).del();
+
+    // 3. Controlla se il file è orfano (non ha altri link)
     const altriLink = await trx('dm_allegati_link')
       .where({ id_file: file.id })
-      .first();
-      
-    let fileEliminato = false;
-      
+      .first(); // .first() è più veloce di .count(), ci serve solo sapere se esiste (1) o no (0)
+
     if (!altriLink) {
-      // 4a. Il file è orfano: eliminiamolo da S3 e dal DB
-      
-      // Comando di eliminazione per S3
+      // 4. Se ORFANO: Elimina da S3
       const deleteCommand = new DeleteObjectCommand({
         Bucket: S3_BUCKET_NAME,
-        Key: file.s3_key,
+        Key: file.s3_key
       });
-      
-      // Invia il comando a S3
       await s3Client.send(deleteCommand);
-      
-      // Elimina dal DB
+
+      // 5. Se ORFANO: Elimina da dm_files
       await trx('dm_files').where({ id: file.id }).del();
-      
-      // Aggiorna la quota della ditta
+
+      // 6. Se ORFANO: Aggiorna (decrementa) la quota ditta
       await trx('ditte')
         .where({ id: idDitta })
         .decrement('current_storage_bytes', file.file_size_bytes);
-        
-      fileEliminato = true;
     }
-    
-    // 5. Log Azione
+    // Se non è orfano, la transazione si limiterà a cancellare il link.
+
+    // 7. Log azione
     await logAzione(
       trx,
       'DM_FILE_DELETE',
-      idUtente,
+      req.user.id,
       idDitta,
       'dm_allegati_link',
-      link.id,
-      `Scollegato file: ${file.file_name_originale} (ID File: ${file.id}, Entità: ${link.entita_tipo}:${link.entita_id}). File fisico eliminato: ${fileEliminato}`
+      id_link,
+      `Scollegato file: ${file.file_name_originale} (ID File: ${file.id}, ID Link: ${id_link}). ${!altriLink ? 'File orfano eliminato da S3.' : ''}`
     );
     
-    // 6. Conferma transazione
     await trx.commit();
-    
-    res.json({ 
-      success: true, 
-      message: 'Collegamento eliminato.', 
-      fileEliminato: fileEliminato 
-    });
-    
+    res.json({ success: true, message: 'Allegato scollegato con successo.' });
+
   } catch (error) {
     await trx.rollback();
-    console.error("Errore durante l'eliminazione del link/file:", error);
-    
-    // Gestione errore S3 (es. file non trovato su S3)
-    if (error.name === 'NoSuchKey') {
-      await trx.commit(); // Confermiamo comunque l'eliminazione dal DB
-      return res.json({ success: true, message: 'Collegamento eliminato. File fisico non trovato su S3.' });
-    }
-    
-    res.status(500).json({ error: "Impossibile eliminare il collegamento." });
+    console.error("Errore eliminazione allegato:", error);
+    // Se l'errore proviene da S3 (es. file non trovato lì),
+    // la transazione DB viene annullata e il link *non* viene eliminato.
+    // Questo è corretto, meglio avere un link "rotto" che un dato inconsistente.
+    res.status(500).json({ error: "Errore interno del server (Eliminazione)." });
   }
 });
+
+
+// Funzione helper per formattare la dimensione (usata solo nei log e errori)
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 module.exports = router;
