@@ -1334,53 +1334,78 @@ router.put('/utenti/:id', [verifyToken, isDittaAdmin], async (req, res) => {
 // --- FINE ROTTA PUT /utenti/:id ---
 // La riga "module.exports = router;" dovrebbe essere alla fine del file, non qui.
 
-// --- GESTIONE QUOTA STORAGE DMS (NUOVA API) ---
-router.put('/ditte/:id/quota', verifyToken, checkPermission('DM_ADMIN_QUOTA'), async (req, res) => {
-  const { id } = req.params; // id della ditta da modificare
-  const { max_storage_mb } = req.body;
-  const idUtenteAdmin = req.user.id; // Chi sta facendo l'azione
-  
-  if (typeof max_storage_mb === 'undefined' || max_storage_mb === null || parseInt(max_storage_mb, 10) <= 0) {
-    return res.status(400).json({ error: 'Valore "max_storage_mb" mancante o non valido.' });
-  }
+// Ruolo SuperAdmin (ID 1)
+const SUPERADMIN_ROLE = 1; 
+// #############################################################
+// # INIZIO: NUOVA API GESTIONE DOCUMENTALE (DMS)
+// #############################################################
 
-  const storageMb = parseInt(max_storage_mb, 10);
-  const trx = await knex.transaction(); // Obbligo di transazione per il logging
+/**
+ * PUT /api/admin/ditte/:id/quota
+ * * Aggiorna la quota di archiviazione (in MB) per una ditta specifica.
+ * Richiede il permesso DM_ADMIN_QUOTA (che un SuperAdmin ha).
+ */
+router.put('/ditte/:id/quota', checkPermission('DM_ADMIN_QUOTA'), async (req, res) => {
+    const { id } = req.params;
+    const { max_storage_mb } = req.body;
 
-  try {
-    const ditta = await trx('ditte').where({ id }).first();
-    if (!ditta) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Ditta non trovata.' });
+    // 1. Validazione input
+    if (typeof max_storage_mb === 'undefined' || max_storage_mb === null || isNaN(parseInt(max_storage_mb)) || max_storage_mb < 0) {
+        return res.status(400).json({ error: "Valore 'max_storage_mb' non valido. Deve essere un numero positivo." });
     }
 
-    // Esegui l'aggiornamento
-    await trx('ditte')
-      .where({ id })
-      .update({
-        max_storage_mb: storageMb
-      });
+    // 2. CORREZIONE: La ditta in questo caso non serve prenderla dal token
+    // (essendo un SuperAdmin), ma l'ID è già nel req.params.
+    // L'ID utente per il log lo prendiamo da req.user (il payload)
+    // L'architettura v2.2 salva il payload utente in req.user.user
+    const idUtenteLoggato = req.user?.user?.id;
+    if (!idUtenteLoggato) {
+         return res.status(403).json({ error: 'Token utente non valido.' });
+    }
 
-    // Log Azione Obbligatorio
-    await logAzione(
-      trx,
-      'DM_ADMIN_QUOTA',
-      idUtenteAdmin,
-      ditta.id, // Logghiamo sull'ID della ditta target
-      'ditte',
-      id,
-      `Aggiornata quota storage a: ${storageMb} MB (da utente ${idUtenteAdmin})`
-    );
+    let trx;
+    try {
+        trx = await knex.transaction();
 
-    await trx.commit();
-    res.json({ success: true, message: `Quota ditta ${ditta.nome} aggiornata a ${storageMb} MB.` });
+        // 3. Aggiorna la ditta
+        const [updatedDitta] = await trx('ditte')
+            .where({ id })
+            .update({
+                max_storage_mb: parseInt(max_storage_mb)
+            })
+            .returning('*'); // Restituisce la ditta aggiornata
 
-  } catch (error) {
-    await trx.rollback();
-    console.error("Errore durante l'aggiornamento della quota ditta:", error);
-    res.status(500).json({ error: "Errore interno del server durante l'aggiornamento." });
-  }
+        if (!updatedDitta) {
+            await trx.rollback();
+            return res.status(404).json({ error: 'Ditta non trovata.' });
+        }
+
+        // 4. Registra l'azione (Logging Obbligatorio)
+        await logAzione(
+            idUtenteLoggato,
+            null, // Il SuperAdmin non ha una ditta attiva
+            'UPDATE_QUOTA_DITTA',
+            'ditte',
+            id,
+            { max_storage_mb: parseInt(max_storage_mb) },
+            trx // Passa la transazione al logger
+        );
+
+        // 5. Commit
+        await trx.commit();
+
+        res.json({ success: true, message: `Quota ditta ${updatedDitta.nome_ditta} aggiornata a ${max_storage_mb} MB.`, ditta: updatedDitta });
+
+    } catch (error) {
+        if (trx) await trx.rollback();
+        console.error("Errore durante l'aggiornamento della quota ditta:", error);
+        res.status(500).json({ error: "Errore interno del server durante l'aggiornamento della quota." });
+    }
 });
+
+// #############################################################
+// # FINE: NUOVA API GESTIONE DOCUMENTALE (DMS)
+// #############################################################
 
 
 module.exports = router;
