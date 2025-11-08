@@ -33,6 +33,7 @@ import InvitaUtenteModal from '../shared/InvitaUtenteModal';
 // --- MODIFICA: Import del nuovo modale ---
 import ShowLinkModal from '../shared/ShowLinkModal';
 
+import DmsTestTab from './dms-test/DmsTestTab';   //lo cancellero dopo il test
 
 // --- Componente Interno per la Gestione Utenti ---
 // (Questo componente non sembra utilizzato, lo lascio invariato)
@@ -1566,6 +1567,12 @@ function AdminPanel() {
             key: 'ruoli',
             label: 'Ruoli e Permessi',
             component: <GestioneRuoliPermessi />,
+            permission: 'ADMIN_RUOLI_VIEW'
+        },
+        {
+            key: 'test',
+            label: 'test',
+            component: <DmsTestTab />,
             permission: 'ADMIN_RUOLI_VIEW'
         },
         {

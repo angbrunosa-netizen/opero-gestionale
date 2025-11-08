@@ -1,20 +1,23 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 1.5.0 (Fix Rules of Hooks + Fix Conflitto Modal)
+ * Versione: 2.2 (Fix Destrutturazione Contesto)
  *
  * Descrizione: Componente React riutilizzabile per la gestione
- * degli allegati (upload, download, delete) collegati a
- * qualsiasi entità del gestionale (Beni, Scritture, ecc.).
- * Utilizza l'architettura S3 pre-firmata.
+ * degli allegati.
+ *
+ * NOTE v2.2:
+ * - Corretta la destrutturazione di `useAuth` per allinearla alla struttura
+ *   reale del contesto fornito da AuthContext.js.
+ * - Ora utilizza direttamente la funzione `hasPermission` dal contesto.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { api } from '../services/api'; // Import nominato
-import axios from 'axios'; // Necessario per l'upload diretto a S3
+import { api } from '../services/api';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import ConfirmationModal from './ConfirmationModal'; // Assumendo che esista
+import ConfirmationModal from './ConfirmationModal';
 
 // Import icone (lucide-react)
 import {
@@ -70,7 +73,8 @@ const formatFileDate = (dateString) => {
 
 const AllegatiManager = ({ entita_tipo, entita_id }) => {
     // 1. CHIAMATE HOOK (TUTTE ALL'INIZIO)
-    const { auth } = useAuth(); // Per i permessi
+    // --- MODIFICA CHIAVE: destrutturazione corretta ---
+    const { loading, hasPermission } = useAuth(); 
     
     // Stato dati
     const [allegati, setAllegati] = useState([]);
@@ -78,13 +82,12 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     const [error, setError] = useState(null);
 
     // Stato per l'upload
-    const [uploadingFiles, setUploadingFiles] = useState([]); // Array di { id, file, progress, error }
-
-    // Stato per il modal di conferma eliminazione (con nomi univoci per evitare conflitti)
+    const [uploadingFiles, setUploadingFiles] = useState([]);
     const [isAllegatoDeleteModalOpen, setIsAllegatoDeleteModalOpen] = useState(false);
     const [allegatoLinkToDelete, setAllegatoLinkToDelete] = useState(null);
 
-    // Hook per caricamento dati
+    // 2. FUNZIONI E LOGICA
+
     const fetchAllegati = useCallback(async () => {
         if (!entita_tipo || !entita_id) return;
         setIsLoading(true);
@@ -100,63 +103,44 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     }, [entita_tipo, entita_id]);
 
-    // Hook Effetto
     useEffect(() => {
-        if (auth) { // Esegui solo se l'auth è pronto
-            fetchAllegati();
-        }
-    }, [fetchAllegati, auth]); // Dipende da auth per rieseguire quando auth è pronto
-    
-    // Logica di UPLOAD (Flusso in 3 fasi)
+        if (!entita_tipo || !entita_id) return;
+        if (loading) return;
+        fetchAllegati();
+    }, [fetchAllegati, loading]);
+
     const handleUpload = (acceptedFiles) => {
-        if (!auth?.hasPermission('DM_FILE_UPLOAD')) return;
+        // Usa `hasPermission` direttamente
+        if (!hasPermission('DM_FILE_UPLOAD')) {
+            console.warn("Tentativo di upload senza permessi.");
+            return;
+        }
 
         const newUploads = acceptedFiles.map(file => ({
-            id: `${file.name}-${file.lastModified}`, // ID temporaneo
+            id: `${file.name}-${file.lastModified}`,
             file,
             progress: 0,
             error: null,
         }));
 
         setUploadingFiles(prev => [...prev, ...newUploads]);
-
-        newUploads.forEach(upload => {
-            performUpload(upload);
-        });
+        newUploads.forEach(upload => performUpload(upload));
     };
     
-    // Hook Dropzone (deve stare all'inizio con gli altri hook)
+    // Usa `hasPermission` direttamente
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop: handleUpload,
-        // Usiamo optional chaining 'auth?.' per evitare crash se auth è null al primo render
-        noClick: !auth?.hasPermission('DM_FILE_UPLOAD'),
-        noKeyboard: !auth?.hasPermission('DM_FILE_UPLOAD'),
-        disabled: !auth?.hasPermission('DM_FILE_UPLOAD'),
+        noClick: !hasPermission('DM_FILE_UPLOAD'),
+        noKeyboard: !hasPermission('DM_FILE_UPLOAD'),
+        disabled: !hasPermission('DM_FILE_UPLOAD'),
     });
-
-    // 3. GUARDIA DI SICUREZZA (DOPO TUTTI GLI HOOK)
-    // Se l'auth non è pronto, ci fermiamo qui per questo render.
-    if (!auth) {
-        return (
-            <div className="flex justify-center items-center py-4">
-                <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-                <span className="ml-2 text-gray-500">Caricamento permessi...</span>
-            </div>
-        );
-    }
-    // Da qui in poi, 'auth' esiste sicuramente.
-
-    // 4. ALTRE FUNZIONI (Handler e Logica)
 
     const performUpload = async (upload) => {
         const { file } = upload;
-
         const setUploadStatus = (progress, error = null) => {
             setUploadingFiles(prev =>
                 prev.map(u =>
-                    u.id === upload.id
-                        ? { ...u, progress, error: error ? error.toString() : null }
-                        : u
+                    u.id === upload.id ? { ...u, progress, error: error ? error.toString() : null } : u
                 )
             );
         };
@@ -164,13 +148,9 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         try {
             setUploadStatus(10); 
             const resUrl = await api.post('/documenti/generate-upload-url', {
-                fileName: file.name,
-                fileSize: file.size,
-                mimeType: file.type,
+                fileName: file.name, fileSize: file.size, mimeType: file.type,
             });
-
             const { uploadUrl, s3Key } = resUrl.data;
-
             setUploadStatus(30); 
             await axios.put(uploadUrl, file, {
                 headers: { 'Content-Type': file.type },
@@ -181,24 +161,14 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                     }
                 },
             });
-
             setUploadStatus(95);
             await api.post('/documenti/finalize-upload', {
-                s3Key,
-                fileName: file.name,
-                fileSize: file.size,
-                mimeType: file.type,
-                entita_tipo,
-                entita_id,
+                s3Key, fileName: file.name, fileSize: file.size, mimeType: file.type,
+                entita_tipo, entita_id,
             });
-
             setUploadStatus(100);
             fetchAllegati(); 
-
-            setTimeout(() => {
-                setUploadingFiles(prev => prev.filter(u => u.id !== upload.id));
-            }, 1000);
-
+            setTimeout(() => setUploadingFiles(prev => prev.filter(u => u.id !== upload.id)), 1000);
         } catch (err) {
             console.error("Errore durante l'upload:", err);
             const errMsg = err.response?.data?.error || err.message || "Errore sconosciuto";
@@ -207,7 +177,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     };
 
     const handleDownload = async (file) => {
-        if (!auth.hasPermission('DM_FILE_VIEW')) return;
+        if (!hasPermission('DM_FILE_VIEW')) return;
         try {
             const res = await api.get(`/documenti/generate-download-url/${file.id_file}`);
             const { downloadUrl } = res.data;
@@ -219,7 +189,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     };
 
     const handleDeleteClick = (link) => {
-        if (!auth.hasPermission('DM_FILE_DELETE')) return;
+        if (!hasPermission('DM_FILE_DELETE')) return;
         setAllegatoLinkToDelete(link);
         setIsAllegatoDeleteModalOpen(true);
     };
@@ -238,19 +208,33 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     };
 
-    // --- 5. RENDERING ---
+    // 3. RENDERING
+    if (loading) {
+        return (
+            <div className="w-full max-w-4xl mx-auto flex justify-center items-center py-8">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <span className="ml-3 text-gray-600">Caricamento permessi...</span>
+            </div>
+        );
+    }
+
+    // Controllo di sicurezza: se `hasPermission` non è una funzione, il contesto non è disponibile
+    if (typeof hasPermission !== 'function') {
+        return (
+            <div className="w-full max-w-4xl mx-auto text-center py-8 text-red-600">
+                Errore Critico: Contesto di autenticazione non disponibile. Assicurati che il componente sia avvolto da AuthProvider.
+            </div>
+        );
+    }
+
+    // --- 4. RENDERING DEL CONTENUTO ---
     return (
         <div className="w-full max-w-4xl mx-auto">
             <h3 className="text-lg font-semibold text-gray-700 mb-4">Gestione Allegati</h3>
 
             {/* Area di Upload (visibile solo con permesso) */}
-            {auth.hasPermission('DM_FILE_UPLOAD') && (
-                <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                        ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400'}
-                    `}
-                >
+            {hasPermission('DM_FILE_UPLOAD') && (
+                <div {...getRootProps()} className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400'}`}>
                     <input {...getInputProps()} />
                     <div className="flex flex-col items-center">
                         <UploadCloud className="w-12 h-12 text-gray-400" />
@@ -261,11 +245,16 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                 Trascina i file qui, o <span className="font-semibold text-blue-600">clicca per selezionare</span>
                             </p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
-                            (Documenti, Immagini, ZIP, ecc.)
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">(Documenti, Immagini, ZIP, ecc.)</p>
                     </div>
                 </div>
+            )}
+            
+            {/* Messaggio per permessi mancanti */}
+            {!hasPermission('DM_FILE_UPLOAD') && (
+                 <div className="border-2 border-dashed rounded-lg p-8 text-center bg-gray-50">
+                     <p className="text-gray-500">Non hai i permessi per caricare nuovi file.</p>
+                 </div>
             )}
 
             {/* Messaggio di Errore Globale */}
@@ -288,10 +277,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                     {up.progress === 100 && !up.error && <Loader2 className="w-5 h-5 text-green-500 animate-spin" />}
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                    <div
-                                        className={`h-2 rounded-full transition-all ${up.error ? 'bg-red-500' : 'bg-blue-500'}`}
-                                        style={{ width: up.error ? '100%' : `${up.progress}%` }}
-                                    ></div>
+                                    <div className={`h-2 rounded-full transition-all ${up.error ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: up.error ? '100%' : `${up.progress}%` }}></div>
                                 </div>
                                 {up.error && <p className="text-xs text-red-600 mt-1">{up.error}</p>}
                             </li>
@@ -308,26 +294,17 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                         <span className="ml-2 text-gray-500">Caricamento allegati...</span>
                     </div>
                 )}
-
                 {!isLoading && allegati.length === 0 && (
-                    <div className="text-center py-4 text-gray-500">
-                        Nessun allegato presente.
-                    </div>
+                    <div className="text-center py-4 text-gray-500">Nessun allegato presente.</div>
                 )}
-
                 {!isLoading && allegati.length > 0 && (
                     <ul className="space-y-3">
                         {allegati.map(file => (
-                            <li
-                                key={file.id_link}
-                                className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-md shadow-sm"
-                            >
+                            <li key={file.id_link} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-md shadow-sm">
                                 <div className="flex items-center min-w-0 flex-1">
                                     <FileIcon mimeType={file.mime_type} />
                                     <div className="ml-3 min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-gray-900 truncate">
-                                            {file.file_name_originale}
-                                        </p>
+                                        <p className="text-sm font-medium text-gray-900 truncate">{file.file_name_originale}</p>
                                         <p className="text-xs text-gray-500">
                                             {formatFileSize(file.file_size_bytes)}
                                             <span className="mx-1">·</span>
@@ -337,21 +314,13 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                                    {auth.hasPermission('DM_FILE_VIEW') && (
-                                        <button
-                                            onClick={() => handleDownload(file)}
-                                            title="Download"
-                                            className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
-                                        >
+                                    {hasPermission('DM_FILE_VIEW') && (
+                                        <button onClick={() => handleDownload(file)} title="Download" className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100">
                                             <Download className="w-5 h-5" />
                                         </button>
                                     )}
-                                    {auth.hasPermission('DM_FILE_DELETE') && (
-                                        <button
-                                            onClick={() => handleDeleteClick(file)}
-                                            title="Scollega"
-                                            className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
-                                        >
+                                    {hasPermission('DM_FILE_DELETE') && (
+                                        <button onClick={() => handleDeleteClick(file)} title="Scollega" className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50">
                                             <Trash2 className="w-5 h-5" />
                                         </button>
                                     )}
@@ -362,7 +331,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                 )}
             </div>
 
-            {/* Modale di Conferma Eliminazione Allegato (con nomi di stato univoci) */}
+            {/* Modale di Conferma Eliminazione */}
             {isAllegatoDeleteModalOpen && (
                 <ConfirmationModal
                     isOpen={isAllegatoDeleteModalOpen}
