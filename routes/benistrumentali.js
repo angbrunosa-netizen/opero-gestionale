@@ -135,19 +135,64 @@ router.post('/', async (req, res) => {
         res.status(500).json({ error: "Errore nella creazione del bene." });
     }
 });
+router.get('/:id', async (req, res) => {
+    const { id_ditta } = req.user;
+    const { id } = req.params;
+
+    try {
+        // Usiamo una join per recuperare anche la descrizione della categoria
+        const bene = await knex('bs_beni')
+            .leftJoin('bs_categorie', 'bs_beni.id_categoria', 'bs_categorie.id')
+            .where({ 'bs_beni.id': id, 'bs_beni.id_ditta': id_ditta })
+            .first(
+                'bs_beni.*', 
+                'bs_categorie.descrizione as categoria_descrizione'
+            );
+        
+        if (!bene) {
+            return res.status(404).json({ success: false, error: "Bene non trovato o non appartenente alla ditta." });
+        }
+        
+        res.json({ success: true, data: bene });
+
+    } catch (error) {
+        console.error("Errore nel recupero del bene:", error);
+        res.status(500).json({ success: false, error: "Errore nel recupero del bene." });
+    }
+});
 
 // <span style="color:green;">// NUOVO: PATCH per aggiornare un bene esistente</span>
 router.patch('/:id', async (req, res) => {
     const { id_ditta, id: id_utente } = req.user;
     const { id } = req.params;
-    const fieldsToUpdate = req.body;
 
-    // Rimuoviamo campi che non dovrebbero essere modificati direttamente
-    delete fieldsToUpdate.id;
-    delete fieldsToUpdate.id_ditta;
+    // --- INIZIO CORREZIONE: WHITELIST DEI CAMPI ---
+    // Definiamo esplicitamente quali campi sono aggiornabili.
+    // Questo è più sicuro e previene errori se il frontend invia dati extra.
+    const allowedFields = [
+        'codice_bene', 'descrizione', 'id_categoria', 'id_sottoconto_cespite', 
+        'id_sottoconto_costo', 'matricola', 'url_foto', 'data_acquisto', 
+        'valore_acquisto', 'id_fornitore', 'riferimento_fattura', 'stato', 
+        'ubicazione', 'data_dismissione', 'valore_dismissione', 'note'
+    ];
+
+    // Creiamo un oggetto contenente solo i campi permessi e presenti nel corpo della richiesta
+    const fieldsToUpdate = {};
+    for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+            fieldsToUpdate[field] = req.body[field];
+        }
+    }
+    // --- FINE CORREZIONE ---
+
+    // Se non ci sono campi validi da aggiornare, restituisci un errore
+    if (Object.keys(fieldsToUpdate).length === 0) {
+        return res.status(400).json({ error: 'Nessun campo valido fornito per l\'aggiornamento.' });
+    }
 
     try {
         const affectedRows = await knex.transaction(async (trx) => {
+            // Ora usiamo l'oggetto 'fieldsToUpdate' che è sicuro e filtrato
             const rows = await trx('bs_beni')
                 .where({ id, id_ditta })
                 .update(fieldsToUpdate);
