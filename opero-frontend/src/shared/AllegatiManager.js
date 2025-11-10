@@ -1,12 +1,19 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 2.7 (Fix Ordinamento Import ESLint)
+ * Versione: 3.3 (Stabile - Fix type=button)
  *
  * Descrizione:
- * - Corregge l'errore ESLint "Import in body of module".
- * - Tutte le importazioni sono ora raggruppate all'inizio del file.
+ * - Basato sulla v3.2 (Fix publicPath).
+ * - CORREGGE il bug 'chiusura BeneForm'.
+ * - Aggiunge 'type="button"' a tutti i pulsanti
+ * (Download, Delete, Camera, etc.) per impedire
+ * il 'submit' del form genitore.
  */
+
+// ======================================================================
+// IMPORTAZIONI
+// ======================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -14,11 +21,9 @@ import { api } from '../services/api';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ConfirmationModal';
-import { removeBackground } from "@imgly/background-removal";
 
-// Import icone (lucide-react) con alias per evitare conflitti
+// Icone da lucide-react
 import {
-    Paperclip,
     Download,
     Trash2,
     FileText,
@@ -28,22 +33,35 @@ import {
     AlertTriangle,
     UploadCloud,
     Loader2,
-    Eye,
-    Camera as CameraIcon,
-    Check as CheckIcon,
-    X as XIcon
+    Eye
 } from 'lucide-react';
 
+// --- COMPONENTI ICONA SVG INLINE ---
+const CameraIcon = (props) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+        <circle cx="12" cy="13" r="3"></circle>
+    </svg>
+);
 
-// --- MODIFICA DEFINITIVA: Controllo esplicito delle icone ---
-// Questo log ti aiuterà a capire se il problema è l'importazione
-console.log('Icone importate:', { CameraIcon, CheckIcon, XIcon });
-if (typeof CameraIcon !== 'function' || typeof CheckIcon !== 'function' || typeof XIcon !== 'function') {
-    console.error("ERRORE GRAVE: Le icone non sono state importate correttamente come componenti React!");
-}
+const CheckIcon = (props) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+);
 
-// --- Helper Interni (invariati) ---
-const FileIcon = ({ mimeType }) => {
+const XIcon = (props) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+);
+
+// ======================================================================
+// HELPER INTERNI
+// ======================================================================
+
+const FileIconHelper = ({ mimeType }) => {
     if (!mimeType) return <File className="w-6 h-6 text-gray-500" />;
     if (mimeType.startsWith('image/')) {
         return <FileImage className="w-6 h-6 text-blue-500" />;
@@ -77,27 +95,23 @@ const formatFileDate = (dateString) => {
     }
 };
 
-// --- Componente Principale ---
+// ======================================================================
+// COMPONENTE PRINCIPALE
+// ======================================================================
 
 const AllegatiManager = ({ entita_tipo, entita_id }) => {
     const { loading, hasPermission } = useAuth();
     
-    // Stato dati
     const [allegati, setAllegati] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
-
-    // Stato per l'upload
     const [uploadingFiles, setUploadingFiles] = useState([]);
     const [isAllegatoDeleteModalOpen, setIsAllegatoDeleteModalOpen] = useState(false);
     const [allegatoLinkToDelete, setAllegatoLinkToDelete] = useState(null);
-
-    // --- AGGIUNTA PER RIMOZIONE SFONDO ---
+    
     const [cameraFile, setCameraFile] = useState(null);
     const [isRemovingBg, setIsRemovingBg] = useState(false);
     const fileInputRef = useRef(null);
-
-    // --- FUNZIONI E LOGICA ---
 
     const fetchAllegati = useCallback(async () => {
         if (!entita_tipo || !entita_id) return;
@@ -110,8 +124,8 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                utente_upload: (a.utente_nome || a.utente_cognome)
                    ? `${a.utente_nome || ''} ${a.utente_cognome || ''}`.trim()
                    : (a.utente_nome === null ? 'Utente Eliminato' : 'N/D')
-           }));
-           setAllegati(allegatiConNome);
+            }));
+            setAllegati(allegatiConNome);
         } catch (err) {
             console.error("Errore nel caricamento degli allegati:", err);
             setError(err.response?.data?.error || "Impossibile caricare gli allegati.");
@@ -220,7 +234,6 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     };
     
-    // --- AGGIUNTA PER RIMOZIONE SFONDO ---
     const handleCameraClick = (e) => {
         e.stopPropagation();
         fileInputRef.current.click();
@@ -233,36 +246,93 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     };
 
-    const handleBackgroundRemoval = async () => {
-        if (!cameraFile) return;
+const handleBackgroundRemoval = async () => {
+    if (!cameraFile) {
+        console.log('Nessun file da processare');
+        return;
+    }
+    
+    setIsRemovingBg(true);
+    setError(null);
+
+    let imageUrl = null;
+
+    try {
+        console.log('1. Inizio rimozione sfondo...');
+        console.log('2. File da processare:', cameraFile);
         
-        setIsRemovingBg(true);
-        setError(null);
-
+        // Crea URL blob
         try {
-            const imageUrl = URL.createObjectURL(cameraFile);
-            const blob = await removeBackground(imageUrl);
-            URL.revokeObjectURL(imageUrl);
-
-            const bgRemovedFile = new File([blob], cameraFile.name, {
-                type: 'image/png',
-                lastModified: Date.now(),
-            });
-
-            handleUpload([bgRemovedFile]);
-
-            setCameraFile(null);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-
-        } catch (err) {
-            console.error("Errore nella rimozione dello sfondo:", err);
-            setError("Impossibile rimuovere lo sfondo dall'immagine.");
-        } finally {
-            setIsRemovingBg(false);
+            imageUrl = window.URL.createObjectURL(cameraFile);
+            console.log('3. URL immagine creato:', imageUrl);
+        } catch (urlErr) {
+            console.error('Errore nella creazione URL:', urlErr);
+            throw new Error('Impossibile creare URL per l\'immagine');
         }
-    };
+        
+        // Import dinamico della libreria
+        console.log('4. Caricamento modulo background-removal...');
+        const bgRemovalModule = await import("@imgly/background-removal");
+        console.log('5. Modulo caricato:', Object.keys(bgRemovalModule));
+        
+        const removeBackgroundFn = bgRemovalModule.removeBackground || bgRemovalModule.default || bgRemovalModule;
+        
+        if (typeof removeBackgroundFn !== 'function') {
+            console.error('Tipo di removeBackground:', typeof removeBackgroundFn);
+            throw new Error('La funzione removeBackground non è disponibile');
+        }
+        
+        console.log('6. Chiamata removeBackground...');
+        const blob = await removeBackgroundFn(imageUrl);
+        console.log('7. Blob creato:', blob);
+        
+        // Cleanup URL
+        if (imageUrl) {
+            window.URL.revokeObjectURL(imageUrl);
+            imageUrl = null;
+        }
+
+        // Crea nuovo file
+        const originalName = cameraFile.name.replace(/\.[^/.]+$/, '');
+        const bgRemovedFile = new window.File([blob], `${originalName}_nobg.png`, {
+            type: 'image/png',
+            lastModified: Date.now(),
+        });
+
+        console.log('8. Nuovo file creato:', bgRemovedFile);
+        
+        // Upload
+        handleUpload([bgRemovedFile]);
+
+        // Reset
+        setCameraFile(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+
+        console.log('9. Processo completato');
+
+    } catch (err) {
+        console.error("=== ERRORE DETTAGLIATO ===");
+        console.error("Messaggio:", err.message);
+        console.error("Stack:", err.stack);
+        console.error("Tipo errore:", err.constructor.name);
+        console.error("Errore completo:", err);
+        
+        setError(`Errore: ${err.message || 'Impossibile rimuovere lo sfondo'}`);
+        
+        // Cleanup in caso di errore
+        if (imageUrl) {
+            try {
+                window.URL.revokeObjectURL(imageUrl);
+            } catch (cleanupErr) {
+                console.error('Errore durante cleanup:', cleanupErr);
+            }
+        }
+    } finally {
+        setIsRemovingBg(false);
+    }
+};
     
     const handleKeepOriginal = () => {
         if (!cameraFile) return;
@@ -272,9 +342,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
             fileInputRef.current.value = '';
         }
     };
-    // --- FINE AGGIUNTA ---
 
-    // --- RENDERING ---
     if (loading) {
         return (
             <div className="w-full max-w-4xl mx-auto flex justify-center items-center py-8">
@@ -316,11 +384,10 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                         <p className="text-xs text-gray-500 mt-1">(Documenti, Immagini, ZIP, ecc.)</p>
                     </div>
 
-                    {/* --- MODIFICA DEFINITIVA: Usa gli alias delle icone --- */}
                     <div className="mt-6 pt-4 border-t border-gray-300">
                         <p className="text-sm text-gray-600 mb-3">Oppure scatta una foto:</p>
                         <button
-                            type="button"
+                            type="button" // --- CORREZIONE (v3.3) ---
                             onClick={handleCameraClick}
                             className="flex items-center justify-center w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                         >
@@ -380,10 +447,14 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                             <li key={file.id_link} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-md shadow-sm">
                                 <div className="flex items-center min-w-0 flex-1">
                                     {file.mime_type.startsWith('image/') && file.previewUrl ? (
-                                        <img src={file.previewUrl} alt={file.file_name_originale} className="w-10 h-10 object-cover rounded-md flex-shrink-0" />
+                                        <img 
+                                            src={file.previewUrl} 
+                                            alt={file.file_name_originale}
+                                            className="w-10 h-10 object-cover rounded-md flex-shrink-0"
+                                        />
                                     ) : (
                                         <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                                            <FileIcon mimeType={file.mime_type} />
+                                            <FileIconHelper mimeType={file.mime_type} />
                                         </div>
                                     )}
                                     <div className="ml-3 min-w-0 flex-1">
@@ -397,14 +468,33 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
+                                    
+                                    {/* --- CORREZIONE (v3.3) --- */}
                                     {file.previewUrl && hasPermission('DM_FILE_VIEW') && (
-                                        <button onClick={() => window.open(file.previewUrl, '_blank')} title="Anteprima" className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100"><Eye className="w-5 h-5" /></button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => window.open(file.previewUrl, '_blank')} 
+                                            title="Anteprima" 
+                                            className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100"
+                                        ><Eye className="w-5 h-5" /></button>
                                     )}
+                                    {/* --- CORREZIONE (v3.3) --- */}
                                     {hasPermission('DM_FILE_VIEW') && (
-                                        <button onClick={() => handleDownload(file)} title="Download" className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"><Download className="w-5 h-5" /></button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleDownload(file)} 
+                                            title="Download" 
+                                            className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
+                                        ><Download className="w-5 h-5" /></button>
                                     )}
+                                    {/* --- CORREZIONE (v3.3) --- */}
                                     {hasPermission('DM_FILE_DELETE') && (
-                                        <button onClick={() => handleDeleteClick(file)} title="Scollega" className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"><Trash2 className="w-5 h-5" /></button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleDeleteClick(file)} 
+                                            title="Scollega" 
+                                            className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
+                                        ><Trash2 className="w-5 h-5" /></button>
                                     )}
                                 </div>
                             </li>
@@ -422,9 +512,8 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                 style={{ display: 'none' }}
             />
 
-            {/* --- MODIFICA DEFINITIVA: Usa gli alias e aggiungi una key --- */}
             {cameraFile && (
-                <div key="background-modal" className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4">
+                <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full">
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">Rimuovere lo sfondo?</h3>
                         <img src={URL.createObjectURL(cameraFile)} alt="Anteprima" className="w-full h-auto rounded-md mb-4" />
@@ -432,22 +521,30 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                         
                         <div className="flex justify-end space-x-3">
                             <button
+                                type="button" // --- CORREZIONE (v3.3) ---
                                 onClick={handleKeepOriginal}
-                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition flex items-center"
                                 disabled={isRemovingBg}
                             >
-                                <XIcon className="w-4 h-4 inline mr-1" />
+                                <XIcon className="w-4 h-4 mr-1" />
                                 Mantieni Originale
                             </button>
                             <button
+                                type="button" // --- CORREZIONE (v3.3) ---
                                 onClick={handleBackgroundRemoval}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center"
                                 disabled={isRemovingBg}
                             >
                                 {isRemovingBg ? (
-                                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Elaborazione...</>
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Elaborazione...
+                                    </>
                                 ) : (
-                                    <><CheckIcon className="w-4 h-4 inline mr-1" />Rimuovi Sfondo</>
+                                    <>
+                                        <CheckIcon className="w-4 h-4 mr-1" />
+                                        Rimuovi Sfondo
+                                    </>
                                 )}
                             </button>
                         </div>

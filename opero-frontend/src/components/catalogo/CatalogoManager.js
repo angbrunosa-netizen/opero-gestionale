@@ -1,22 +1,32 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
  * @description Manager completo per l'anagrafica del catalogo.
- * - v6.7: La barra di ricerca è ora un elemento persistente e fisso in alto, visibile su tutte le dimensioni dello schermo.
- * @date 2024-05-21
- * @version 6.7 (ricerca persistente)
+ * - v7.1: Corretto 'entita_tipo' in 'ct_catalogo' per coerenza
+ * con il database (richiesta utente).
+ * @date 2025-11-11
+ * @version 7.1 (Fix entita_tipo)
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-import { PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, PencilIcon, ArchiveBoxIcon, BuildingOfficeIcon, QrCodeIcon, ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+// (MODIFICATO v6.9) Aggiunte CameraIcon e XMarkIcon
+import { 
+    PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, 
+    PencilIcon, ArchiveBoxIcon, BuildingOfficeIcon, QrCodeIcon, 
+    ChevronDownIcon, MagnifyingGlassIcon, CameraIcon, XMarkIcon 
+} from '@heroicons/react/24/outline';
 
 import ImportCsvModal from './ImportCsvModal';
 import ListiniManager from './ListiniManager';
 import CodiciFornitoreManager from './CodiciFornitoreManager';
 import EanManager from './EanManager';
 import EanMassImport from './EanMassImport';
+
+// --- (CORRETTO v7.0) ---
+// Import di AllegatiManager spostato qui per la regola 'import/first'
+import AllegatiManager from '../../shared/AllegatiManager';
 
 // --- Sotto-Componente: Form di Creazione/Modifica (Modal) ---
 const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
@@ -75,6 +85,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            {/* (MODIFICATO v6.9) Riportato a max-w-4xl */}
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità Catalogo' : 'Nuova Entità Catalogo'}</h2>
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
@@ -175,6 +186,8 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                         </div>
                     )}
 
+                    {/* --- (RIMOSSO v6.9) La sezione Gestione Immagini non è più qui --- */}
+
                     <div className="mt-6 pt-4 border-t flex justify-end gap-4">
                         <button type="button" onClick={onCancel} className="btn-secondary">Annulla</button>
                         <button type="submit" className="btn-primary">Salva</button>
@@ -185,10 +198,49 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
     );
 };
 
+// --- (NUOVO SOTTO-COMPONENTE v6.9) ---
+// Modale dedicato ESCLUSIVAMENTE alla gestione delle foto
+// (L'import è stato spostato in cima al file - v7.0)
+
+const CatalogoFotoModal = ({ item, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800">Gestione Immagini</h2>
+                    <p className="text-sm text-gray-600">
+                        Prodotto: <span className="font-medium">{item.codice_entita} - {item.descrizione}</span>
+                    </p>
+                </div>
+                <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
+                    <XMarkIcon className="h-6 w-6" /> 
+                </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-2">
+                {/* --- (CORREZIONE v7.1) --- */}
+                <AllegatiManager
+                    entita_tipo="ct_catalogo"
+                    entita_id={item.id}
+                />
+                {/* --- FINE CORREZIONE --- */}
+            </div>
+        </div>
+    </div>
+  );
+};
+// --- FINE NUOVO SOTTO-COMPONENTE ---
+
+
 // --- Componente per i pulsanti di azione nella vista Desktop ---
 const EntityActionButtons = ({ item, hasPermission, onEdit, onArchive, onOpenSubManager }) => (
     <div className="flex gap-2 items-center justify-end">
         {hasPermission('CT_MANAGE') && <button onClick={() => onEdit(item)} className="p-1 text-blue-600 hover:text-blue-800" title="Modifica"><PencilIcon className="h-5 w-5" /></button>}
+        
+        {/* --- (NUOVO PULSANTE v6.9) --- */}
+        {hasPermission('CT_MANAGE') && <button onClick={() => onOpenSubManager('foto', item)} className="p-1 text-teal-600 hover:text-teal-800" title="Gestisci Foto"><CameraIcon className="h-5 w-5" /></button>}
+        
         {hasPermission('CT_LISTINI_VIEW') && <button onClick={() => onOpenSubManager('listini', item)} className="p-1 text-green-600 hover:text-green-800" title="Gestisci Listini"><ListBulletIcon className="h-5 w-5" /></button>}
         {hasPermission('CT_EAN_VIEW') && <button onClick={() => onOpenSubManager('ean', item)} className="p-1 text-gray-600 hover:text-gray-900" title="Gestisci EAN"><QrCodeIcon className="h-5 w-5" /></button>}
         {hasPermission('CT_COD_FORN_VIEW') && <button onClick={() => onOpenSubManager('fornitori', item)} className="p-1 text-purple-600 hover:text-purple-800" title="Codici Fornitore"><BuildingOfficeIcon className="h-5 w-5" /></button>}
@@ -200,6 +252,10 @@ const EntityActionButtons = ({ item, hasPermission, onEdit, onArchive, onOpenSub
 const MobileEntityActionButtons = ({ item, hasPermission, onEdit, onArchive, onOpenSubManager }) => (
     <div className="flex flex-wrap gap-2 justify-end mt-4 pt-4 border-t border-gray-200">
         {hasPermission('CT_MANAGE') && <button onClick={() => onEdit(item)} className="flex items-center gap-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm font-medium" title="Modifica"><PencilIcon className="h-4 w-4" /> Modifica</button>}
+        
+        {/* --- (NUOVO PULSANTE v6.9) --- */}
+        {hasPermission('CT_MANAGE') && <button onClick={() => onOpenSubManager('foto', item)} className="flex items-center gap-1 px-3 py-2 bg-teal-100 text-teal-700 rounded-md hover:bg-teal-200 text-sm font-medium" title="Gestisci Foto"><CameraIcon className="h-4 w-4" /> Foto</button>}
+
         {hasPermission('CT_LISTINI_VIEW') && <button onClick={() => onOpenSubManager('listini', item)} className="flex items-center gap-1 px-3 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 text-sm font-medium" title="Gestisci Listini"><ListBulletIcon className="h-4 w-4" /> Listini</button>}
         {hasPermission('CT_EAN_VIEW') && <button onClick={() => onOpenSubManager('ean', item)} className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm font-medium" title="Gestisci EAN"><QrCodeIcon className="h-4 w-4" /> EAN</button>}
         {hasPermission('CT_COD_FORN_VIEW') && <button onClick={() => onOpenSubManager('fornitori', item)} className="flex items-center gap-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 text-sm font-medium" title="Codici Fornitore"><BuildingOfficeIcon className="h-4 w-4" /> Fornitori</button>}
@@ -242,6 +298,10 @@ const CatalogoManager = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
     const actionsMenuRef = useRef(null);
+    
+    // --- (NUOVO STATO v6.9) ---
+    const [isFotoModalOpen, setIsFotoModalOpen] = useState(false);
+
 
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     
@@ -353,6 +413,8 @@ const CatalogoManager = () => {
             case 'listini': setIsListiniModalOpen(true); break;
             case 'ean': setIsEanModalOpen(true); break;
             case 'fornitori': setIsCodiciFornitoreModalOpen(true); break;
+            // --- (NUOVA CASE v6.9) ---
+            case 'foto': setIsFotoModalOpen(true); break;
             default: break;
         }
     }, []);
@@ -500,10 +562,13 @@ const CatalogoManager = () => {
             {isImportModalOpen && <ImportCsvModal onClose={() => {setIsImportModalOpen(false); forceRefresh();}} onImportSuccess={forceRefresh} />}
             
             {isEanMassImportOpen && <EanMassImport onClose={() => setIsEanMassImportOpen(false)} onImportSuccess={forceRefresh} />}
-                              
+                                    
             {isListiniModalOpen && selectedItem && <ListiniManager entita={selectedItem} onClose={() => { setIsListiniModalOpen(false); forceRefresh(); }} aliquoteIva={supportData.aliquoteIva}/>}
             {isCodiciFornitoreModalOpen && selectedItem && <CodiciFornitoreManager itemId={selectedItem.id} onClose={() => setIsCodiciFornitoreModalOpen(false)} />}
             {isEanModalOpen && selectedItem && <EanManager itemId={selectedItem.id} onClose={() => setIsEanModalOpen(false)} />}
+            
+            {/* --- (NUOVO MODALE v6.9) --- */}
+            {isFotoModalOpen && selectedItem && <CatalogoFotoModal item={selectedItem} onClose={() => setIsFotoModalOpen(false)} />}
         </div>
     );
 };
