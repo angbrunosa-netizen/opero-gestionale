@@ -27,8 +27,15 @@ const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
 // 2. Validazione delle variabili
 if (!S3_ENDPOINT || !S3_ACCESS_KEY || !S3_SECRET_KEY || !S3_BUCKET_NAME) {
-  console.error("ERRORE CRITICO: Variabili ambiente S3 (ENDPOINT, KEY, SECRET, BUCKET) non configurate.");
+    console.error("ERRORE CRITICO: Variabili S3 non trovate nel file .env");
+    console.error("Assicurati che S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, e S3_BUCKET_NAME siano impostati.");
+    // In un'app di produzione, potresti voler terminare il processo
+    // process.exit(1); 
 }
+
+
+// Rimuovi 'http://' o 'https://' dall'endpoint per il client S3
+const endpointUrl = new URL(S3_ENDPOINT);
 
 // 3. Creazione e configurazione del client S3
 const s3Client = new S3Client({
@@ -44,9 +51,11 @@ const s3Client = new S3Client({
 // 4. Esporta tutto il necessario
 module.exports = {
   s3Client,
+  S3_ENDPOINT, // <-- (NUOVO EXPORT v1.1)
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
   getSignedUrl,
+  
   S3_BUCKET_NAME // Esportiamo anche il nome del bucket per comodità
 };

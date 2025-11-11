@@ -15,7 +15,7 @@ import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
 import { 
     PlusIcon, ArrowPathIcon, DocumentArrowUpIcon, ListBulletIcon, 
     PencilIcon, ArchiveBoxIcon, BuildingOfficeIcon, QrCodeIcon, 
-    ChevronDownIcon, MagnifyingGlassIcon, CameraIcon, XMarkIcon 
+    ChevronDownIcon, MagnifyingGlassIcon, CameraIcon, XMarkIcon ,PhotoIcon
 } from '@heroicons/react/24/outline';
 
 import ImportCsvModal from './ImportCsvModal';
@@ -27,7 +27,7 @@ import EanMassImport from './EanMassImport';
 // --- (CORRETTO v7.0) ---
 // Import di AllegatiManager spostato qui per la regola 'import/first'
 import AllegatiManager from '../../shared/AllegatiManager';
-
+import ImportFotoCatalogoModal from './ImportFotoCatalogoModal';
 // --- Sotto-Componente: Form di Creazione/Modifica (Modal) ---
 const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
     const [formData, setFormData] = useState({});
@@ -83,14 +83,12 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
         return options;
     };
 
-    return (
+   return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            {/* (MODIFICATO v6.9) Riportato a max-w-4xl */}
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità Catalogo' : 'Nuova Entità Catalogo'}</h2>
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
                     
-                    {/* --- SEZIONE DATI ANAGRAFICI --- */}
                     <div className="p-4 border rounded-md">
                         <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Anagrafici</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -141,7 +139,6 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                         </div>
                     </div>
 
-                    {/* --- SEZIONE DATI LOGISTICI (CONDIZIONALE) --- */}
                     {formData.gestito_a_magazzino && (
                         <div className="p-4 border rounded-md bg-gray-50">
                             <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Logistici</h3>
@@ -186,8 +183,6 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                         </div>
                     )}
 
-                    {/* --- (RIMOSSO v6.9) La sezione Gestione Immagini non è più qui --- */}
-
                     <div className="mt-6 pt-4 border-t flex justify-end gap-4">
                         <button type="button" onClick={onCancel} className="btn-secondary">Annulla</button>
                         <button type="submit" className="btn-primary">Salva</button>
@@ -197,6 +192,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
         </div>
     );
 };
+
 
 // --- (NUOVO SOTTO-COMPONENTE v6.9) ---
 // Modale dedicato ESCLUSIVAMENTE alla gestione delle foto
@@ -223,6 +219,7 @@ const CatalogoFotoModal = ({ item, onClose }) => {
                 <AllegatiManager
                     entita_tipo="ct_catalogo"
                     entita_id={item.id}
+                    defaultPrivacy="public"
                 />
                 {/* --- FINE CORREZIONE --- */}
             </div>
@@ -301,6 +298,7 @@ const CatalogoManager = () => {
     
     // --- (NUOVO STATO v6.9) ---
     const [isFotoModalOpen, setIsFotoModalOpen] = useState(false);
+    const [isImportFotoModalOpen, setIsImportFotoModalOpen] = useState(false);
 
 
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -478,6 +476,13 @@ const CatalogoManager = () => {
                             {isActionsMenuOpen && (
                                 <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
                                     <div className="py-1" role="menu" aria-orientation="vertical">
+                                          {hasPermission('CT_IMPORT_CSV') && hasPermission('DM_FILE_UPLOAD') && (
+                                            <a href="#" onClick={(e) => { e.preventDefault(); setIsImportFotoModalOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                                <PhotoIcon className="h-5 w-5 mr-3 text-gray-400" />
+                                                Importa Foto Massivo
+                                            </a>
+                                                                               )}
+
                                         {hasPermission('CT_IMPORT_CSV') && (
                                             <a href="#" onClick={(e) => { e.preventDefault(); setIsImportModalOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                                 <DocumentArrowUpIcon className="h-5 w-5 mr-3 text-gray-400" />
@@ -569,6 +574,7 @@ const CatalogoManager = () => {
             
             {/* --- (NUOVO MODALE v6.9) --- */}
             {isFotoModalOpen && selectedItem && <CatalogoFotoModal item={selectedItem} onClose={() => setIsFotoModalOpen(false)} />}
+            {isImportFotoModalOpen && <ImportFotoCatalogoModal onClose={() => {setIsImportFotoModalOpen(false); forceRefresh();}} onImportSuccess={forceRefresh} />}
         </div>
     );
 };

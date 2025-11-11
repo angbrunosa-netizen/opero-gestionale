@@ -12,6 +12,7 @@ const express = require('express');
 const router = express.Router();
 const { knex } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
 
 const { authenticate, checkPermission } = require('../utils/auth');
 
@@ -22,8 +23,16 @@ const {
     GetObjectCommand,
     DeleteObjectCommand,
     getSignedUrl,
-    S3_BUCKET_NAME
+    S3_BUCKET_NAME,
+     S3_ENDPOINT,
+    PutObjectAclCommand, // <-- (NUOVO IMPORT v3.7)
+
 } = require('../utils/s3Client');
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 20 * 1024 * 1024 }
+});
 
 // Middleware di autenticazione per tutte le rotte DMS
 router.use(authenticate);
@@ -89,19 +98,18 @@ router.post('/generate-upload-url', checkPermission('DM_FILE_UPLOAD'), async (re
 
 /**
  * API 2: POST /api/documenti/finalize-upload
- * ... (il resto del codice rimane invariato) ...
+ * (MODIFICATO v3.7 - Gestisce 'privacy')
  */
 router.post('/finalize-upload', checkPermission('DM_FILE_UPLOAD'), async (req, res) => {
-    const { s3Key, fileName, fileSize, mimeType, entita_tipo, entita_id } = req.body;
+    // --- (MODIFICA v3.7) ---
+    const { s3Key, fileName, fileSize, mimeType, entita_tipo, entita_id, privacy = 'private' } = req.body;
+    // ---
 
     const idDitta = req.user?.id_ditta;
-    if (!idDitta) {
-        return res.status(400).json({ error: 'Nessuna ditta selezionata (id_ditta non trovato nel token).' });
-    }
-    
     const idUtenteUpload = req.user?.id;
-    if (!idUtenteUpload) {
-         return res.status(403).json({ error: 'Token utente non valido (ID utente non trovato).' });
+    
+    if (!idDitta || !idUtenteUpload) {
+         return res.status(403).json({ error: 'Token utente non valido.' });
     }
 
     if (!s3Key || !fileName || !fileSize || !mimeType || !entita_tipo || !entita_id) {
@@ -123,6 +131,7 @@ router.post('/finalize-upload', checkPermission('DM_FILE_UPLOAD'), async (req, r
                     file_name_originale: fileName,
                     file_size_bytes: fileSize,
                     mime_type: mimeType,
+                    privacy: privacy, // <-- (NUOVO v3.7)
                     id_utente_upload: idUtenteUpload,
                 })
                 .returning('id');
@@ -152,7 +161,19 @@ router.post('/finalize-upload', checkPermission('DM_FILE_UPLOAD'), async (req, r
                 entita_id: parseInt(entita_id)
             })
             .returning('id');
-            
+        
+        // --- (NUOVO v3.7) ---
+        // Se 'public', rendi il file pubblico su S3
+        if (privacy === 'public') {
+            const aclCommand = new PutObjectAclCommand({
+                Bucket: S3_BUCKET_NAME,
+                Key: s3Key,
+                ACL: 'public-read'
+            });
+            await s3Client.send(aclCommand);
+        }
+        // ---
+
         await trx.commit();
 
         res.status(201).json({ success: true, message: 'Upload finalizzato e file collegato.', id_file: id_file, id_link: (newLink.id || newLink) });
@@ -167,18 +188,13 @@ router.post('/finalize-upload', checkPermission('DM_FILE_UPLOAD'), async (req, r
 
 /**
  * API 3: GET /api/documenti/list/:entita_tipo/:entita_id
- * ... (il resto del codice rimane invariato) ...
- */
-/**
- * API 3: GET /api/documenti/list/:entita_tipo/:entita_id
- * (MODIFICATO v3.4 - Aggiunge previewUrl)
+ * (MODIFICATO v3.7 - Legge 'privacy')
  */
 router.get('/list/:entita_tipo/:entita_id', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     const { entita_tipo, entita_id } = req.params;
-
     const idDitta = req.user?.id_ditta;
     if (!idDitta) {
-        return res.status(400).json({ error: 'Nessuna ditta selezionata (id_ditta non trovato nel token).' });
+        return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
     }
 
     try {
@@ -196,28 +212,38 @@ router.get('/list/:entita_tipo/:entita_id', checkPermission('DM_FILE_VIEW'), asy
                 'file.file_name_originale',
                 'file.file_size_bytes',
                 'file.mime_type',
+                'file.privacy', // <-- (NUOVO v3.7)
                 'file.created_at',
-                'file.s3_key', // <-- Aggiunto s3_key per generare URL
+                'file.s3_key',
                 'u.nome as utente_nome', 
                 'u.cognome as utente_cognome'
             )
             .orderBy('file.created_at', 'desc');
         
-        // --- MODIFICA v3.4: Genera URL anteprima ---
+        // Rimuove 'http://' o 'https://' dall'endpoint per l'URL pubblico
+          const cleanEndpoint = S3_ENDPOINT.replace(/^(https?:\/\/)/, '');
+        
         for (const file of allegati) {
             const mimeType = file.mime_type;
-            if (mimeType && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
+            
+            // --- (MODIFICA v3.7) ---
+            // Se è pubblico, costruisci l'URL permanente
+            if (file.privacy === 'public') {
+                file.previewUrl = `http://${cleanEndpoint}/${S3_BUCKET_NAME}/${file.s3_key}`;
+            
+            // Se è privato, genera un URL temporaneo (solo per anteprime)
+            } else if (mimeType && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
                 const command = new GetObjectCommand({
                     Bucket: S3_BUCKET_NAME,
                     Key: file.s3_key,
                     ResponseContentDisposition: `inline; filename="${file.file_name_originale}"`
                 });
-                file.previewUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 }); // 5 min
+                file.previewUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
             }
-            // Rimuoviamo s3_key per sicurezza prima di inviarlo al client
+            // ---
+            
             delete file.s3_key; 
         }
-        // --- FINE MODIFICA ---
         
         res.json(allegati);
 
@@ -226,6 +252,9 @@ router.get('/list/:entita_tipo/:entita_id', checkPermission('DM_FILE_VIEW'), asy
         res.status(500).json({ error: 'Impossibile recuperare la lista degli allegati.' });
     }
 });
+
+
+
 /**
  * API 4: GET /api/documenti/generate-download-url/:id_file
  * ... (il resto del codice rimane invariato) ...
@@ -387,6 +416,124 @@ router.get('/generate-preview-url/:id_file', checkPermission('DM_FILE_VIEW'), as
         res.status(500).json({ error: 'Impossibile generare l\'URL di anteprima.' });
     }
 });
+
+
+
+/**
+ * API 6: POST /api/documenti/upload-e-abbina-catalogo
+ * (MODIFICATO v3.7 - Gestisce 'privacy')
+ */
+router.post(
+    '/upload-e-abbina-catalogo',
+    [checkPermission('CT_MANAGE'), checkPermission('DM_FILE_UPLOAD'), upload.single('image')],
+    async (req, res) => {
+        
+        // --- (MODIFICATO v3.7) ---
+        // Decidiamo che l'import massivo è sempre 'public'
+        const { matchCode, matchBy, fileName } = req.body;
+        const privacy = 'public'; 
+        // ---
+        
+        const file = req.file;
+        const idDitta = req.user?.id_ditta;
+        const idUtenteUpload = req.user?.id;
+
+        if (!file) {
+            return res.status(400).json({ error: 'File immagine mancante.' });
+        }
+        if (!matchCode) {
+            return res.status(400).json({ error: 'Codice (EAN o Articolo) mancante.' });
+        }
+        if (!idDitta || !idUtenteUpload) {
+            return res.status(403).json({ error: 'Utente non valido.' });
+        }
+
+        const trx = await knex.transaction();
+        try {
+            // 2. Trova l'entità del catalogo (Invariato v3.6)
+            let entita = null;
+            if (matchBy === 'codice_ean') {
+                const eanRecord = await trx('ct_ean')
+                    .where({ codice_ean: matchCode, id_ditta: idDitta })
+                    .first('id_entita_catalogo');
+                if (eanRecord) {
+                    entita = { id: eanRecord.id_entita_catalogo };
+                }
+            } else {
+                entita = await trx('ct_catalogo')
+                    .where({ codice_entita: matchCode, id_ditta: idDitta })
+                    .first('id');
+            }
+            
+            if (!entita) {
+                await trx.rollback();
+                return res.status(404).json({ error: `Codice '${matchCode}' (tipo: ${matchBy}) non trovato per la tua ditta.` });
+            }
+            
+            const entita_id = entita.id;
+            const entita_tipo = 'ct_catalogo';
+
+            // 3. Prepara upload S3 (Invariato)
+            const s3Key = `${idDitta}/${uuidv4()}/${fileName}`;
+            const uploadParams = {
+                Bucket: S3_BUCKET_NAME,
+                Key: s3Key,
+                Body: file.buffer,
+                ContentType: file.mimetype,
+            };
+            
+            // 4. Carica su S3
+            await s3Client.send(new PutObjectCommand(uploadParams));
+
+            // 5. Salva in dm_files
+            const [newFile] = await trx('dm_files')
+                .insert({
+                    id_ditta: idDitta,
+                    s3_key: s3Key,
+                    file_name_originale: fileName,
+                    file_size_bytes: file.size,
+                    mime_type: file.mimetype,
+                    privacy: privacy, // <-- (NUOVO v3.7)
+                    id_utente_upload: idUtenteUpload,
+                })
+                .returning('id');
+            
+            const id_file = newFile.id || newFile;
+
+            // 6. Collega in dm_allegati_link (Invariato)
+            const [newLink] = await trx('dm_allegati_link')
+                .insert({
+                    id_ditta: idDitta,
+                    id_file: id_file,
+                    entita_tipo: entita_tipo,
+                    entita_id: parseInt(entita_id)
+                })
+                .returning('id');
+
+            // 7. Rendi Pubblico (NUOVO v3.7)
+            const aclCommand = new PutObjectAclCommand({
+                Bucket: S3_BUCKET_NAME,
+                Key: s3Key,
+                ACL: 'public-read'
+            });
+            await s3Client.send(aclCommand);
+
+            // 8. Commit
+            await trx.commit();
+            res.status(201).json({ 
+                success: true, 
+                message: `File ${fileName} caricato e collegato a ${matchCode}.`,
+                id_file: id_file, 
+                id_link: (newLink.id || newLink)
+            });
+
+        } catch (error) {
+            await trx.rollback();
+            console.error("Errore nell'import massivo foto:", error);
+            res.status(500).json({ error: 'Errore interno del server durante l\'abbinamento.' });
+        }
+    }
+);
 
 
 module.exports = router;
