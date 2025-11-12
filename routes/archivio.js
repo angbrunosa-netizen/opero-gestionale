@@ -33,7 +33,7 @@ router.use(authenticate);
  */
 /**
  * API: GET /api/archivio/all-files
- * (MODIFICATO v1.2 - Aggiunti JOIN per descrizioni)
+ * (MODIFICATO v1.4 - Patch 'nome_bene')
  */
 router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
@@ -42,19 +42,15 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     }
 
     try {
-        // --- (MODIFICA v1.2) ---
-        // Query aggiornata con JOIN su tabelle specifiche
-        // per recuperare le descrizioni.
         const files = await knex('dm_files as file')
             .leftJoin('utenti as u', 'file.id_utente_upload', 'u.id')
             .leftJoin('dm_allegati_link as link', 'file.id', 'link.id_file')
-            // Join per il Catalogo
             .leftJoin('ct_catalogo as cat', function() {
                 this.on('link.entita_tipo', '=', knex.raw('?', ['ct_catalogo']))
                     .andOn('link.entita_id', '=', 'cat.id');
             })
-            // Join per i Beni Strumentali
-            .leftJoin('bs_beni as bene', function() {
+            // Il join rimane, ma non è usato nel COALESCE
+            .leftJoin('bs_beni as bene', function() { 
                 this.on('link.entita_tipo', '=', knex.raw('?', ['BENE_STRUMENTALE']))
                     .andOn('link.entita_id', '=', 'bene.id');
             })
@@ -68,14 +64,17 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 'file.created_at',
                 'file.s3_key',
                 knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload"),
-                // Aggrega le descrizioni trovate, o torna al link grezzo
+                
+                // --- (PATCH v1.4) ---
+                // Rimosso 'bene.nome_bene' per fixare il crash.
+                // Per il fix definitivo, inserire il nome colonna corretto per 'bs_beni'.
                 knex.raw(
-                    "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, bene.nome_bene, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
+                    "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
                 )
+                // --- FINE PATCH ---
             )
             .groupBy('file.id')
             .orderBy('file.created_at', 'desc');
-        // --- FINE MODIFICA ---
 
         const cleanEndpoint = S3_ENDPOINT.replace(/^(https?:\/\/)/, '');
         
@@ -102,6 +101,7 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
         res.status(500).json({ error: 'Impossibile recuperare l\'archivio.' });
     }
 });
+
 
 /**
  * --- (NUOVA API v1.1) ---
