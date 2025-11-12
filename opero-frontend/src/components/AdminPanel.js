@@ -33,7 +33,8 @@ import InvitaUtenteModal from '../shared/InvitaUtenteModal';
 // --- MODIFICA: Import del nuovo modale ---
 import ShowLinkModal from '../shared/ShowLinkModal';
 
-import DmsTestTab from './dms-test/DmsTestTab';   //lo cancellero dopo il test
+//import DmsTestTab from './dms-test/DmsTestTab';   //lo cancellero dopo il test
+import ModuliManager from './admin/ModuliManager';
 
 // --- Componente Interno per la Gestione Utenti ---
 // (Questo componente non sembra utilizzato, lo lascio invariato)
@@ -1570,10 +1571,10 @@ function AdminPanel() {
             permission: 'ADMIN_RUOLI_VIEW'
         },
         {
-            key: 'test',
-            label: 'test',
-            component: <DmsTestTab />,
-            permission: 'ADMIN_RUOLI_VIEW'
+            key: 'Moduli_SYS',
+            label: 'Moduli_SYS',
+            component: <ModuliManager />,
+            permission: 'SUPER_ADMIN'
         },
         {
             key: 'monitoraggio',

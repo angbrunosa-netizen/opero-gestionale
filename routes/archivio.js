@@ -31,6 +31,10 @@ router.use(authenticate);
  * aggregando (GROUP_CONCAT) tutti i link polimorfici
  * dalla tabella 'dm_allegati_link'.
  */
+/**
+ * API: GET /api/archivio/all-files
+ * (MODIFICATO v1.2 - Aggiunti JOIN per descrizioni)
+ */
 router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
     if (!idDitta) {
@@ -38,10 +42,22 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     }
 
     try {
-        // Query complessa per aggregare i link
+        // --- (MODIFICA v1.2) ---
+        // Query aggiornata con JOIN su tabelle specifiche
+        // per recuperare le descrizioni.
         const files = await knex('dm_files as file')
             .leftJoin('utenti as u', 'file.id_utente_upload', 'u.id')
             .leftJoin('dm_allegati_link as link', 'file.id', 'link.id_file')
+            // Join per il Catalogo
+            .leftJoin('ct_catalogo as cat', function() {
+                this.on('link.entita_tipo', '=', knex.raw('?', ['ct_catalogo']))
+                    .andOn('link.entita_id', '=', 'cat.id');
+            })
+            // Join per i Beni Strumentali
+            .leftJoin('bs_beni as bene', function() {
+                this.on('link.entita_tipo', '=', knex.raw('?', ['BENE_STRUMENTALE']))
+                    .andOn('link.entita_id', '=', 'bene.id');
+            })
             .where('file.id_ditta', idDitta)
             .select(
                 'file.id as id_file',
@@ -52,14 +68,15 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 'file.created_at',
                 'file.s3_key',
                 knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload"),
-                // Aggrega tutti i link in una stringa separata da virgole
-                // Es: "ct_catalogo:12, BENE_STRUMENTALE:5"
-                knex.raw("GROUP_CONCAT(DISTINCT CONCAT(link.entita_tipo, ':', link.entita_id) SEPARATOR ', ') as links")
+                // Aggrega le descrizioni trovate, o torna al link grezzo
+                knex.raw(
+                    "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, bene.nome_bene, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
+                )
             )
             .groupBy('file.id')
             .orderBy('file.created_at', 'desc');
+        // --- FINE MODIFICA ---
 
-        // Post-processamento per generare URL (come in documenti.js)
         const cleanEndpoint = S3_ENDPOINT.replace(/^(https?:\/\/)/, '');
         
         for (const file of files) {
@@ -85,5 +102,64 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
         res.status(500).json({ error: 'Impossibile recuperare l\'archivio.' });
     }
 });
+
+/**
+ * --- (NUOVA API v1.1) ---
+ * API: PUT /api/archivio/file/:id_file/privacy
+ *
+ * Aggiorna la privacy di un file (nel DB e su S3).
+ */
+router.put('/file/:id_file/privacy', checkPermission('DM_FILE_MANAGE'), async (req, res) => {
+    const { id_file } = req.params;
+    const { privacy } = req.body; // 'public' o 'private'
+    const idDitta = req.user?.id_ditta;
+
+    if (!idDitta) {
+        return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
+    }
+    if (!privacy || (privacy !== 'public' && privacy !== 'private')) {
+        return res.status(400).json({ error: "Valore 'privacy' non valido." });
+    }
+
+    const trx = await knex.transaction();
+    try {
+        // 1. Trova il file
+        const file = await trx('dm_files')
+            .where({
+                id: parseInt(id_file),
+                id_ditta: idDitta
+            })
+            .first('s3_key');
+
+        if (!file) {
+            await trx.rollback();
+            return res.status(404).json({ error: 'File non trovato.' });
+        }
+
+        // 2. Aggiorna il DB
+        await trx('dm_files')
+            .where('id', parseInt(id_file))
+            .update({ privacy: privacy });
+
+        // 3. Imposta l'ACL (Permesso) su S3
+        const newAcl = (privacy === 'public') ? 'public-read' : 'private';
+        const aclCommand = new PutObjectAclCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: file.s3_key,
+            ACL: newAcl
+        });
+        await s3Client.send(aclCommand);
+
+        // 4. Conferma
+        await trx.commit();
+        res.json({ success: true, message: `Privacy aggiornata a ${privacy}.` });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore aggiornamento privacy file:", error);
+        res.status(500).json({ error: 'Impossibile aggiornare la privacy.' });
+    }
+});
+
 
 module.exports = router;
