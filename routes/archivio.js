@@ -33,7 +33,7 @@ router.use(authenticate);
  */
 /**
  * API: GET /api/archivio/all-files
- * (MODIFICATO v1.4 - Patch 'nome_bene')
+ * (MODIFICATO v1.5 - Fix 'bene.descrizione')
  */
 router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
@@ -49,7 +49,7 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 this.on('link.entita_tipo', '=', knex.raw('?', ['ct_catalogo']))
                     .andOn('link.entita_id', '=', 'cat.id');
             })
-            // Il join rimane, ma non è usato nel COALESCE
+            // Il join rimane
             .leftJoin('bs_beni as bene', function() { 
                 this.on('link.entita_tipo', '=', knex.raw('?', ['BENE_STRUMENTALE']))
                     .andOn('link.entita_id', '=', 'bene.id');
@@ -65,13 +65,13 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 'file.s3_key',
                 knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload"),
                 
-                // --- (PATCH v1.4) ---
-                // Rimosso 'bene.nome_bene' per fixare il crash.
-                // Per il fix definitivo, inserire il nome colonna corretto per 'bs_beni'.
+                // --- (FIX v1.5) ---
+                // Sostituito 'bene.nome_bene' (v1.3)
+                // con 'bene.descrizione' (v1.5).
                 knex.raw(
-                    "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
+                    "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, bene.descrizione, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
                 )
-                // --- FINE PATCH ---
+                // --- FINE FIX ---
             )
             .groupBy('file.id')
             .orderBy('file.created_at', 'desc');

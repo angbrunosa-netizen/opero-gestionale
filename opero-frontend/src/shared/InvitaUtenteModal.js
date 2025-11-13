@@ -1,9 +1,9 @@
 // #####################################################################
-// # Componente Modale Riutilizzabile per Invito Utenti - v4.0 (Scelta Statica)
+// # Componente Modale Riutilizzabile per Invito Utenti - v4.2 (Corretto)
 // # File: opero-frontend/src/shared/InvitaUtenteModal.js
-// # - MODIFICA: La scelta del tipo utente non è più dinamica (da API).
-// # - Viene presentata una scelta fissa tra "Utente Interno" (codice 1) e "Utente Esterno" (codice 2).
-// # - Il componente ora è più semplice e non dipende da un endpoint secondario.
+// # - MODIFICA: Aggiunta gestione specifica per l'errore 409 Conflict.
+// # - Se un utente è già associato, mostra un avviso (toast.warn) invece di un errore.
+// # - CORREZIONE: Aggiunta 'selectedDittaId' alle props per risolvere l'errore no-undef.
 // #####################################################################
 
 import React, { useState } from 'react'; // 'useEffect' non è più necessario
@@ -11,7 +11,8 @@ import { api } from '../services/api';
 import { toast } from 'react-toastify';
 import { PaperAirplaneIcon, ClipboardDocumentIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
-const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo }) => {
+// --- MODIFICA CHIAVE: Aggiungi 'selectedDittaId' alle props ---
+const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo, selectedDittaId }) => {
     const [email, setEmail] = useState('');
     // Impostiamo un valore di default per il tipo utente (1 = Interno)
     const [codiceTipoUtente, setCodiceTipoUtente] = useState('1'); 
@@ -22,7 +23,8 @@ const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo }) => {
     // Il useEffect per recuperare i tipi utente è stato rimosso
 
     const handleInvite = async () => {
-        if (!email || !id_ruolo ) {
+        // Ora 'selectedDittaId' è definita e non causerà più l'errore no-undef
+        if (!email || !id_ruolo || !selectedDittaId) { 
             setError('Tutti i campi sono obbligatori.');
             return;
         }
@@ -30,11 +32,11 @@ const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo }) => {
         setError('');
         
         try {
+            // INVIA ANCHE id_ditta nel corpo della richiesta
             const response = await api.post('/amministrazione/utenti/invita', {
                 email,
                 id_ruolo,
-                // Convertiamo la stringa in numero prima di inviarla
-                //Codice_Tipo_Utente: parseInt(codiceTipoUtente, 10),
+                id_ditta: selectedDittaId // Usa la prop ricevuta
             });
             
             toast.success(response.data.message);
@@ -46,9 +48,33 @@ const InvitaUtenteModal = ({ isOpen, onClose, onInviteSent, id_ruolo }) => {
             }
 
         } catch (err) {
-            const errorMessage = err.response?.data?.message || "Si è verificato un errore.";
-            setError(errorMessage);
-            toast.error(errorMessage);
+            // --- MODIFICA CHIAVE: Gestione specifica degli errori ---
+            console.error("Errore API durante l'invito:", err); // Utile per il debug
+            
+            if (err.response) {
+                // Il server ha risposto con uno stato di errore (es. 4xx, 5xx)
+                const status = err.response.status;
+                const message = err.response.data?.message || "Errore sconosciuto.";
+
+                if (status === 409) {
+                    // CONFLITTO: L'utente è già associato alla ditta.
+                    // Usiamo un avviso (toast.warn) perché è un'informazione, non un errore critico.
+                    toast.warn(message);
+                    setError(message); // Mostra anche l'errore nel form per chiarezza
+                } else {
+                    // Altri errori (es. 400, 500)
+                    toast.error(message);
+                    setError(message);
+                }
+            } else if (err.request) {
+                // La richiesta è stata fatta ma non c'è stata risposta (es. server offline)
+                toast.error('Nessuna risposta dal server. Controlla la connessione.');
+                setError('Nessuna risposta dal server.');
+            } else {
+                // Qualcos'altro è andato storto nell'impostare la richiesta
+                toast.error('Errore durante l\'invito. Riprova.');
+                setError('Errore durante l\'invito.');
+            }
         } finally {
             setIsLoading(false);
         }

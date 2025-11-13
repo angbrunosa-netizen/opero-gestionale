@@ -1,11 +1,11 @@
 /**
  * @file opero-frontend/src/components/admin/ModuliManager.js
  * @description Componente per gestire la tabella 'moduli'.
- * - v1.1: Aggiunta la possibilità di CREARE nuovi moduli
- * (Pulsante "Nuovo Modulo" e API POST).
- * - La 'chiave_componente' è modificabile solo alla creazione.
- * @date 2025-11-12
- * @version 1.1
+ * - v1.2: Fix ER_BAD_FIELD_ERROR.
+ * - Sostituito 'id' (errato) con 'codice' (corretto)
+ * come chiave primaria (nel form, nelle API, nella tabella).
+ * @date 2025-11-13
+ * @version 1.2
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,9 +22,10 @@ const iconNameList = Object.keys(iconMap)
 // Sotto-componente: Modale di Modifica/Creazione
 const ModuloFormModal = ({ modalState, onClose, onSave }) => {
     
-    // Lo stato iniziale dipende dalla modalità (nuovo o modifica)
+    // (MODIFICATO v1.2) Aggiunto 'codice'
     const [formData, setFormData] = useState(
         modalState.mode === 'new' ? {
+            codice: '', // <-- FIX: Aggiunto
             label: '',
             chiave_componente: '',
             permission_required: '',
@@ -60,6 +61,28 @@ const ModuloFormModal = ({ modalState, onClose, onSave }) => {
                     </div>
 
                     <div className="p-6 space-y-4 overflow-y-auto">
+                        
+                        {/* (NUOVO CAMPO v1.2) */}
+                        <div>
+                            <label htmlFor="codice" className="block text-sm font-medium text-gray-700">Codice (Chiave Primaria)</label>
+                            <input
+                                type="number"
+                                id="codice"
+                                name="codice"
+                                value={formData.codice}
+                                onChange={handleChange}
+                                disabled={!isNew}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm font-mono disabled:bg-gray-100 disabled:text-gray-500"
+                                placeholder="Es. 10, 20, 130..."
+                                required
+                            />
+                            {isNew && (
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Questo è l'ID univoco (PK) della tabella `moduli`.
+                                </p>
+                            )}
+                        </div>
+
                         <div>
                             <label htmlFor="label" className="block text-sm font-medium text-gray-700">Etichetta Menu (Descrizione)</label>
                             <input
@@ -73,7 +96,6 @@ const ModuloFormModal = ({ modalState, onClose, onSave }) => {
                             />
                         </div>
 
-                        {/* (MODIFICA v1.1) Campo chiave_componente */}
                         <div>
                             <label htmlFor="chiave_componente" className="block text-sm font-medium text-gray-700">Chiave Componente (da `moduleRegistry.js`)</label>
                             <input
@@ -82,19 +104,12 @@ const ModuloFormModal = ({ modalState, onClose, onSave }) => {
                                 name="chiave_componente"
                                 value={formData.chiave_componente}
                                 onChange={handleChange}
-                                // Modificabile solo se NUOVO, bloccato se MODIFICA
                                 disabled={!isNew}
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm font-mono disabled:bg-gray-100 disabled:text-gray-500"
                                 placeholder="Es. CT_VIEW, MG_VIEW..."
                                 required
                             />
-                            {isNew && (
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Attenzione: Questa chiave deve corrispondere *esattamente* a quella registrata nel codice dallo sviluppatore.
-                                </p>
-                            )}
                         </div>
-                        {/* --- */}
 
                         <div>
                             <label htmlFor="permission_required" className="block text-sm font-medium text-gray-700">Permesso Richiesto (per il menu)</label>
@@ -168,7 +183,6 @@ const ModuliManager = () => {
     const { hasPermission } = useAuth();
     const [moduli, setModuli] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    // (MODIFICA v1.1) Stato del modale
     const [modalState, setModalState] = useState({ mode: 'closed', data: null });
 
     const fetchModuli = useCallback(async () => {
@@ -184,7 +198,6 @@ const ModuliManager = () => {
     }, []);
 
     useEffect(() => {
-        // (Permesso aggiornato come da migrazione)
         if (hasPermission('ADMIN_PANEL_MDVIEW')) {
             fetchModuli();
         }
@@ -194,16 +207,16 @@ const ModuliManager = () => {
         setModalState({ mode: 'edit', data: modulo });
     };
 
-    // (NUOVO v1.1)
     const handleNew = () => {
         setModalState({ mode: 'new', data: null });
     };
 
-    // (MODIFICA v1.1) Gestisce sia POST (nuovo) che PUT (modifica)
+    // (MODIFICATO v1.2)
     const handleSave = async (formData, mode) => {
         const payload = {
+            codice: formData.codice, // <-- FIX: Aggiunto
             descrizione: formData.label,
-            chiave_componente: formData.chiave_componente, // Inviato solo per 'new'
+            chiave_componente: formData.chiave_componente,
             permission_required: formData.permission_required,
             icon_name: formData.icon_name,
             ordine: formData.ordine,
@@ -213,7 +226,7 @@ const ModuliManager = () => {
         try {
             if (mode === 'edit') {
                 // API PUT (Modifica)
-                await api.put(`/system/moduli/${formData.id}`, payload);
+                await api.put(`/system/moduli/${formData.codice}`, payload); // <-- FIX: Era formData.id
                 toast.success(`Modulo '${formData.label}' aggiornato.`);
             } else {
                 // API POST (Nuovo)
@@ -227,7 +240,6 @@ const ModuliManager = () => {
         }
     };
 
-    // (Permesso aggiornato come da migrazione)
     if (!hasPermission('ADMIN_PANEL_MDVIEW')) {
          return <div className="p-4">Accesso non autorizzato.</div>;
     }
@@ -240,7 +252,6 @@ const ModuliManager = () => {
         <div className="p-4 md:p-6">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">Gestione Moduli di Sistema</h2>
-                {/* (NUOVO PULSANTE v1.1) */}
                 <button
                     onClick={handleNew}
                     className="btn-primary"
@@ -256,12 +267,13 @@ const ModuliManager = () => {
                 <span className="font-semibold">Nota:</span> L'aggiunta di un componente (es. 'MG_VIEW') deve essere fatta nel codice (`moduleRegistry.js`) da uno sviluppatore.
             </p>
 
-            {/* Tabella (Invariata) */}
             <div className="bg-white shadow rounded-lg border overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
+                            {/* (MODIFICATO v1.2) Aggiunta colonna Codice */}
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Codice</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modulo (Etichetta)</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Icona</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permesso Richiesto</th>
@@ -273,7 +285,8 @@ const ModuliManager = () => {
                         {moduli.map(m => {
                             const IconComponent = iconMap[m.icon_name] || Icons.QuestionMarkCircleIcon;
                             return (
-                                <tr key={m.id}>
+                                // (MODIFICATO v1.2) Key ora usa 'codice'
+                                <tr key={m.codice}>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {m.attivo ? (
                                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Attivo</span>
@@ -281,6 +294,8 @@ const ModuliManager = () => {
                                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Nascosto</span>
                                         )}
                                     </td>
+                                    {/* (MODIFICATO v1.2) Aggiunta colonna Codice */}
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{m.codice}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="font-medium text-gray-900">{m.label}</div>
                                         <div className="text-sm text-gray-500">{m.chiave_componente}</div>
@@ -303,7 +318,6 @@ const ModuliManager = () => {
                 </table>
             </div>
 
-            {/* (MODIFICA v1.1) Il modale ora usa lo stato 'modalState' */}
             {modalState.mode !== 'closed' && (
                 <ModuloFormModal
                     modalState={modalState}

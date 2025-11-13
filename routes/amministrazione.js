@@ -1360,52 +1360,71 @@ router.get('/utenti-esterni', verifyToken, async (req, res) => {
  */
 // Nel tuo file routes/amministrazione.js
 
-router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
-    const { email, id_ruolo } = req.body;
-    const { id_ditta } = req.user;
+// File backend - Rotta /utenti/invita (VERSIONE CORRETTA)
 
-    if (!email || !id_ruolo ) {
-        return res.status(400).json({ success: false, message: 'Email, ruolo e tipo utente sono obbligatori.' });
+router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
+    // --- MODIFICA CHIAVE: Prendi id_ditta dal corpo della richiesta ---
+    const { email, id_ruolo, id_ditta } = req.body; 
+    
+    // --- CONTROLLO DI SICUREZZA CORRETTO ---
+    // Assicura che un admin non possa invitare utenti in ditte non sue
+    if (req.user.ruolo !== 'Amministratore_sistema' && req.user.id_ditta !== parseInt(id_ditta, 10)) {
+        return res.status(403).json({ success: false, message: 'Non hai i permessi per invitare utenti in questa ditta.' });
     }
 
-    // --- AGGIUNGI QUESTO CONTROLLO DI VALIDAZIONE ---
-    // Regex semplice per la validazione dell'email
+    // --- VALIDAZIONE AGGIORNATA ---
+    if (!email || !id_ruolo || !id_ditta) {
+        return res.status(400).json({ success: false, message: 'Email, ruolo e ditta sono obbligatori.' });
+    }
+
+    // --- INIZIO DEBUG ---
+    console.log('--- DEBUG INVITO UTENTE ---');
+    console.log('Email da invitare:', email);
+    console.log('ID Ditta usata per l\'invito (da req.body):', id_ditta); // Ora vedrai l'ID corretto!
+    console.log('-----------------------------');
+    // --- FINE DEBUG ---
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
         return res.status(400).json({ success: false, message: 'Il formato dell\'email non è valido.' });
     }
 
     try {
-        // ... il resto del tuo codice rimane esattamente uguale ...
-       const dittaInfo = await knex('ditte').where({ id: id_ditta }).first();
+        const dittaInfo = await knex('ditte').where({ id: id_ditta }).first();
         if (!dittaInfo) {
-            // Questo non dovrebbe mai accadere se il token è valido, ma è un controllo sicuro
             return res.status(404).json({ success: false, message: 'Dati della ditta non trovati.' });
         }
         const existingUser = await knex('utenti').where({ email }).first();
 
         if (existingUser) {
+            // --- INIZIO DEBUG ---
+            console.log('Utente esistente trovato:', existingUser);
+            // --- FINE DEBUG ---
+
             const existingAssociation = await knex('ad_utenti_ditte')
-                .where({ id_utente: existingUser.id, id_ditta: id_ditta })
+                .where({ id_utente: existingUser.id, id_ditta: id_ditta }) // Ora userà l'ID corretto
                 .first();
 
+            // --- INIZIO DEBUG ---
+            console.log('Risultato ricerca associazione:', existingAssociation);
+            // --- FINE DEBUG ---
+
             if (existingAssociation) {
-                return res.status(409).json({ success: false, message: 'Questo utente è già associato alla tua ditta.' });
+                // --- INIZIO DEBUG ---
+                console.log('CONFLITTO: L\'utente è già associato a questa ditta.');
+                // --- FINE DEBUG ---
+                return res.status(409).json({ success: false, message: 'Questo utente è già associato a questa ditta.' });
             }
 
             await knex('ad_utenti_ditte').insert({
                 id_utente: existingUser.id,
                 id_ditta: id_ditta,
                 id_ruolo: id_ruolo,
-               // Codice_Tipo_Utente: Codice_Tipo_Utente,
                 stato: 'attivo'
             });
             
             res.status(200).json({ success: true, message: `L'utente ${email} è stato associato con successo alla ditta.` });
 
-          //  mailer.sendAddedToDittaNotification(email, ditta.ragione_sociale, existingUser.nome)
-            //    .then(() => console.log(`Email di notifica inviata in background a: ${email}`))
-              //  .catch(err => console.error(`ERRORE: Invio email di notifica fallito per ${email}:`, err));
             mailer.sendAddedToDittaNotification(email, dittaInfo.ragione_sociale, existingUser.nome)
                 .then(() => console.log(`Email di notifica inviata in background a: ${email}`))
                 .catch(err => console.error(`ERRORE: Invio email di notifica fallito per ${email}:`, err));
@@ -1419,7 +1438,6 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
                 token,
                 scadenza: knex.raw('DATE_ADD(NOW(), INTERVAL 7 DAY)'),
                 id_ruolo,
-               // Codice_Tipo_Utente: Codice_Tipo_Utente 
             });
 
             res.status(200).json({ 
@@ -1431,7 +1449,6 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
             mailer.sendRegistrationInvite(email, dittaInfo.ragione_sociale, registrationLink)
                 .then(() => console.log(`Email di invito inviata con successo in background a: ${email}`))
                 .catch(err => console.error(`ERRORE: Invio email di invito in background fallito per ${email}:`, err));
-            // --- FINE CORREZIONE ---
         }
 
     } catch (error) {
@@ -1441,5 +1458,4 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
         }
     }
 });
-
 module.exports = router;

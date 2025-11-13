@@ -73,6 +73,7 @@ const UserManager = () => {
                 onClose={() => setIsInviteModalOpen(false)}
                 onInviteSent={handleInviteSuccess}
                 id_ruolo={3} // Invita come "Utente Esterno" (ID 3)
+                //selectedDittaId={selectedDittaId} // <-- AGGIUNGI QUESTA PROP
             />
         </div>
     );
@@ -190,7 +191,7 @@ const exportToPDF = (data, columns, fileName, ditta) => {
 // ====================================================================
 // Sotto-componente: Form di Creazione/Modifica Utente (Modal) (RIVISTO)
 // ====================================================================
-const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
+const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId, ditte }) => {
     const { user: currentUser } = useAuth();
     const [errors, setErrors] = useState({});
 
@@ -198,7 +199,16 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
     // Definiamo una funzione per creare lo stato iniziale basato sulle props.
     // Usiamo 'useMemo' per ricalcolarlo solo se 'user' o 'selectedDittaId' cambiano DAVVERO.
     const initialFormData = useMemo(() => {
-        // console.log("[UserFormModal] Calcolo initialFormData. User:", user); // DEBUG se necessario
+        // Per l'Amministratore di sistema, usa selectedDittaId se disponibile
+        // Altrimenti usa la ditta dell'utente
+        let dittaId = '';
+        if (currentUser?.ruolo === 'Amministratore_sistema') {
+            dittaId = selectedDittaId || user?.id_ditta || '';
+        } else {
+            // Per gli altri utenti, usa sempre la ditta dell'utente corrente
+            dittaId = user?.id_ditta || '';
+        }
+
         return {
             id: user?.id || "",
             nome: user?.nome || '',
@@ -208,9 +218,9 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
             livello: user?.livello || '',
             Codice_Tipo_Utente: user?.Codice_Tipo_Utente || '',
             stato: user?.stato || 'attivo',
-            id_ditta: selectedDittaId || user?.id_ditta || '', // Priorità a selectedDittaId
+            id_ditta: dittaId,
         };
-    }, [user, selectedDittaId]);
+    }, [user, selectedDittaId, currentUser]);
 
     // Inizializziamo lo stato con i valori calcolati.
     const [formData, setFormData] = useState(initialFormData);
@@ -219,17 +229,9 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
     // SE le props cambiano DOPO il montaggio iniziale.
     // È una salvaguardia, ma l'inizializzazione chiave è fatta sopra.
     useEffect(() => {
-        // console.log("[UserFormModal] useEffect [user, selectedDittaId] triggered."); // DEBUG se necessario
         setFormData(initialFormData); // Resetta allo stato calcolato dalle props correnti
         setErrors({}); // Resetta errori quando l'utente cambia
-    }, [initialFormData]); // Usiamo initialFormData come dipendenza, che a sua volta dipende da user/selectedDittaId
-
-    // --- DEBUG AGGIUNTIVO: Logga lo stato DOPO ogni potenziale aggiornamento ---
-    useEffect(() => {
-        console.log('[UserFormModal] Stato formData aggiornato:', formData);
-    }, [formData]);
-    // --- FINE DEBUG AGGIUNTIVO ---
-
+    }, [initialFormData]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -244,14 +246,17 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
     };
 
     const validateForm = () => {
-        // ... (Logica di validazione invariata) ...
-         const newErrors = {};
+        const newErrors = {};
         if (!formData.nome) newErrors.nome = 'Il nome è obbligatorio.';
         if (!formData.cognome) newErrors.cognome = 'Il cognome è obbligatorio.';
         if (formData.id_ruolo === undefined || formData.id_ruolo === '' || formData.id_ruolo === null) {
-             newErrors.id_ruolo = 'Il ruolo è obbligatorio.';
+            newErrors.id_ruolo = 'Il ruolo è obbligatorio.';
         }
 
+        // Validazione per l'Amministratore di sistema
+        if (currentUser?.ruolo === 'Amministratore_sistema' && !formData.id_ditta) {
+            newErrors.id_ditta = 'La ditta è obbligatoria.';
+        }
 
         let maxLevel = 80;
         if (currentUser?.id_ruolo === 2) maxLevel = 90;
@@ -263,7 +268,7 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
         }
         if (currentUser?.id_ruolo === 2) {
             if (livelloNum > 90) {
-                 newErrors.livello = 'Come Amministratore Ditta, non puoi impostare un livello superiore a 90.';
+                newErrors.livello = 'Come Amministratore Ditta, non puoi impostare un livello superiore a 90.';
             }
             if (formData.id_ruolo && parseInt(formData.id_ruolo, 10) <= 2) {
                 newErrors.id_ruolo = 'Non puoi assegnare ruoli di Amministratore.';
@@ -275,97 +280,116 @@ const UserFormModal = ({ user, onSave, onCancel, ruoli, selectedDittaId }) => {
     };
 
     const handleSubmit = (e) => {
-        // ... (Logica handleSubmit invariata) ...
-         e.preventDefault();
+        e.preventDefault();
         if (validateForm()) {
-            const dataToSave = { ...formData, id_ditta: selectedDittaId };
+            // Usa il valore di id_ditta dal form, non forzare selectedDittaId
+            const dataToSave = { ...formData };
             onSave(dataToSave);
         } else {
-             console.log('[UserFormModal] Validazione fallita:', errors);
-             toast.warn("Correggi gli errori nel form prima di salvare.");
+            console.log('[UserFormModal] Validazione fallita:', errors);
+            toast.warn("Correggi gli errori nel form prima di salvare.");
         }
     };
 
-    // Il JSX del return rimane identico alla versione precedente
     return (
-         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
                 <h3 className="text-lg font-bold mb-4">{user?.id ? 'Modifica Dati Utente' : 'Crea Nuovo Utente'}</h3>
-                 <form onSubmit={handleSubmit} className="space-y-4">
-                     {/* Nome e Cognome */}
-                     <div className="grid grid-cols-2 gap-4">
-                         <div>
-                             <label htmlFor="nome" className="block text-sm font-medium text-gray-700">Nome</label>
-                             <input type="text" id="nome" name="nome" value={formData.nome || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.nome ? 'border-red-500' : 'border-gray-300'}`} />
-                             {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
-                         </div>
-                         <div>
-                             <label htmlFor="cognome" className="block text-sm font-medium text-gray-700">Cognome</label>
-                             <input type="text" id="cognome" name="cognome" value={formData.cognome || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.cognome ? 'border-red-500' : 'border-gray-300'}`} />
-                             {errors.cognome && <p className="text-red-500 text-xs mt-1">{errors.cognome}</p>}
-                         </div>
-                     </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Nome e Cognome */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="nome" className="block text-sm font-medium text-gray-700">Nome</label>
+                            <input type="text" id="nome" name="nome" value={formData.nome || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.nome ? 'border-red-500' : 'border-gray-300'}`} />
+                            {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
+                        </div>
+                        <div>
+                            <label htmlFor="cognome" className="block text-sm font-medium text-gray-700">Cognome</label>
+                            <input type="text" id="cognome" name="cognome" value={formData.cognome || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.cognome ? 'border-red-500' : 'border-gray-300'}`} />
+                            {errors.cognome && <p className="text-red-500 text-xs mt-1">{errors.cognome}</p>}
+                        </div>
+                    </div>
 
-                     {/* Email (Readonly) */}
-                     <div>
-                         <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-                         <input type="email" id="email" name="email" value={formData.email || ''} readOnly className="mt-1 p-2 border rounded w-full bg-gray-100 cursor-not-allowed" />
-                     </div>
+                    {/* Email (Readonly) */}
+                    <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="email" name="email" value={formData.email || ''} readOnly className="mt-1 p-2 border rounded w-full bg-gray-100 cursor-not-allowed" />
+                    </div>
 
-                     {/* Livello */}
-                     <div>
-                         <label htmlFor="livello" className="block text-sm font-medium text-gray-700">Livello (1-{currentUser?.id_ruolo === 1 ? 100 : currentUser?.id_ruolo === 2 ? 90 : 80})</label>
-                         <input
-                             type="number"
-                             id="livello"
-                             name="livello"
-                             value={formData.livello || ''}
-                             onChange={handleChange}
-                             min="1"
-                             max={currentUser?.id_ruolo === 1 ? 100 : currentUser?.id_ruolo === 2 ? 90 : 80}
-                             className={`mt-1 p-2 border rounded w-full ${errors.livello ? 'border-red-500' : 'border-gray-300'}`}
-                         />
-                         {errors.livello && <p className="text-red-500 text-xs mt-1">{errors.livello}</p>}
-                     </div>
+                    {/* Campo Ditta - solo per Amministratore di sistema */}
+                    {currentUser?.ruolo === 'Amministratore_sistema' && (
+                        <div>
+                            <label htmlFor="id_ditta" className="block text-sm font-medium text-gray-700">Ditta</label>
+                            <select 
+                                id="id_ditta" 
+                                name="id_ditta" 
+                                value={formData.id_ditta || ''} 
+                                onChange={handleChange} 
+                                className={`mt-1 p-2 border rounded w-full ${errors.id_ditta ? 'border-red-500' : 'border-gray-300'}`}
+                            >
+                                <option value="">Seleziona una ditta</option>
+                                {ditte && ditte.map(d => (
+                                    <option key={d.id} value={d.id}>{d.ragione_sociale}</option>
+                                ))}
+                            </select>
+                            {errors.id_ditta && <p className="text-red-500 text-xs mt-1">{errors.id_ditta}</p>}
+                        </div>
+                    )}
 
-                     {/* Stato */}
-                     <div>
-                         <label htmlFor="stato" className="block text-sm font-medium text-gray-700">Stato</label>
-                         <select id="stato" name="stato" value={formData.stato || 'attivo'} onChange={handleChange} className="mt-1 p-2 border border-gray-300 rounded w-full">
-                             <option value="attivo">Attivo</option>
-                             <option value="bloccato">Bloccato</option>
-                         </select>
-                     </div>
+                    {/* Livello */}
+                    <div>
+                        <label htmlFor="livello" className="block text-sm font-medium text-gray-700">Livello (1-{currentUser?.id_ruolo === 1 ? 100 : currentUser?.id_ruolo === 2 ? 90 : 80})</label>
+                        <input
+                            type="number"
+                            id="livello"
+                            name="livello"
+                            value={formData.livello || ''}
+                            onChange={handleChange}
+                            min="1"
+                            max={currentUser?.id_ruolo === 1 ? 100 : currentUser?.id_ruolo === 2 ? 90 : 80}
+                            className={`mt-1 p-2 border rounded w-full ${errors.livello ? 'border-red-500' : 'border-gray-300'}`}
+                        />
+                        {errors.livello && <p className="text-red-500 text-xs mt-1">{errors.livello}</p>}
+                    </div>
 
-                     {/* Codice Tipo Utente */}
-                     <div>
-                         <label htmlFor="Codice_Tipo_Utente" className="block text-sm font-medium text-gray-700">Codice Tipo Utente</label>
-                         <input type="text" id="Codice_Tipo_Utente" name="Codice_Tipo_Utente" value={formData.Codice_Tipo_Utente || ''} onChange={handleChange} className="mt-1 p-2 border border-gray-300 rounded w-full" placeholder="Es. AGENTE, INTERNO (opzionale)" />
-                     </div>
+                    {/* Stato */}
+                    <div>
+                        <label htmlFor="stato" className="block text-sm font-medium text-gray-700">Stato</label>
+                        <select id="stato" name="stato" value={formData.stato || 'attivo'} onChange={handleChange} className="mt-1 p-2 border border-gray-300 rounded w-full">
+                            <option value="attivo">Attivo</option>
+                            <option value="bloccato">Bloccato</option>
+                        </select>
+                    </div>
 
-                     {/* Ruolo */}
-                     <div>
-                         <label htmlFor="id_ruolo" className="block text-sm font-medium text-gray-700">Ruolo</label>
-                         <select id="id_ruolo" name="id_ruolo" value={formData.id_ruolo || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.id_ruolo ? 'border-red-500' : 'border-gray-300'}`}>
-                             <option value="">Seleziona Ruolo</option>
-                             {ruoli
+                    {/* Codice Tipo Utente */}
+                    <div>
+                        <label htmlFor="Codice_Tipo_Utente" className="block text-sm font-medium text-gray-700">Codice Tipo Utente</label>
+                        <input type="text" id="Codice_Tipo_Utente" name="Codice_Tipo_Utente" value={formData.Codice_Tipo_Utente || ''} onChange={handleChange} className="mt-1 p-2 border border-gray-300 rounded w-full" placeholder="Es. AGENTE, INTERNO (opzionale)" />
+                    </div>
+
+                    {/* Ruolo */}
+                    <div>
+                        <label htmlFor="id_ruolo" className="block text-sm font-medium text-gray-700">Ruolo</label>
+                        <select id="id_ruolo" name="id_ruolo" value={formData.id_ruolo || ''} onChange={handleChange} className={`mt-1 p-2 border rounded w-full ${errors.id_ruolo ? 'border-red-500' : 'border-gray-300'}`}>
+                            <option value="">Seleziona Ruolo</option>
+                            {ruoli
                                 .filter(r => {
                                     if (currentUser?.id_ruolo === 1) return true;
                                     if (currentUser?.id_ruolo === 2) return r.id > 2;
                                     return false;
                                 })
                                 .map(r => <option key={r.id} value={r.id}>{r.ruolo}</option>)
-                             }
-                         </select>
-                         {errors.id_ruolo && <p className="text-red-500 text-xs mt-1">{errors.id_ruolo}</p>}
-                     </div>
+                            }
+                        </select>
+                        {errors.id_ruolo && <p className="text-red-500 text-xs mt-1">{errors.id_ruolo}</p>}
+                    </div>
 
-                     {/* Pulsanti */}
-                     <div className="flex justify-end gap-2 pt-4">
-                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Annulla</button>
-                         <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Salva</button>
-                     </div>
-                 </form>
+                    {/* Pulsanti */}
+                    <div className="flex justify-end gap-2 pt-4">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Salva</button>
+                    </div>
+                </form>
             </div>
         </div>
     );
@@ -442,7 +466,14 @@ const GestioneUtenti = () => {
                 setRuoli(ruoliRes.data.ruoli || ruoliRes.data || []);
                 if (user.ruolo === 'Amministratore_sistema') {
                     const ditteRes = await api.get('/admin/ditte');
-                    setDitte(ditteRes.data.ditte || ditteRes.data || []);
+                    const allDitte = ditteRes.data.ditte || ditteRes.data || [];
+
+                    // --- MODIFICA: Filtra le ditte per id_tipo_ditta ---
+                    // Carica solo le ditte che hanno id_tipo_ditta uguale a 1 (numero, non stringa)
+                    const filteredDitte = allDitte.filter(ditta => ditta.id_tipo_ditta === 1); 
+                    setDitte(filteredDitte);
+                    // --- FINE MODIFICA ---
+
                 } else {
                     setDitte([ditta]);
                     setSelectedDittaId(ditta.id);
@@ -466,12 +497,12 @@ const GestioneUtenti = () => {
         if (!searchTerm) return utenti;
         
         const lowerCaseTerm = searchTerm.toLowerCase();
-        return utenti.filter(user => {
-            const ruolo = ruoli.find(r => r.id === user.id_ruolo)?.ruolo || '';
+        return utenti.filter(utente => { // --- MIGLIORIA: Rinominato 'user' in 'utente' per evitare conflitti con la variabile 'user' di useAuth ---
+            const ruolo = ruoli.find(r => r.id === utente.id_ruolo)?.ruolo || '';
             return (
-                user.nome.toLowerCase().includes(lowerCaseTerm) ||
-                user.cognome.toLowerCase().includes(lowerCaseTerm) ||
-                user.email.toLowerCase().includes(lowerCaseTerm) ||
+                utente.nome.toLowerCase().includes(lowerCaseTerm) ||
+                utente.cognome.toLowerCase().includes(lowerCaseTerm) ||
+                utente.email.toLowerCase().includes(lowerCaseTerm) ||
                 ruolo.toLowerCase().includes(lowerCaseTerm)
             );
         });
@@ -721,9 +752,28 @@ const GestioneUtenti = () => {
             )}
 
             {/* Modali */}
-            {isModalOpen && <UserFormModal user={editingUser} onSave={handleSaveUser} onCancel={() => { setIsModalOpen(false); setEditingUser(null); }} ditte={ditte} ruoli={ruoli} selectedDittaId={selectedDittaId} />}
+            {isModalOpen && (
+                <UserFormModal 
+                    user={editingUser} 
+                    currentUser={user}
+                    onSave={handleSaveUser} 
+                    onCancel={() => { setIsModalOpen(false); setEditingUser(null); }} 
+                    ditte={ditte} // Questa prop conterrà l'elenco già filtrato
+                    ruoli={ruoli} 
+                    selectedDittaId={selectedDittaId} 
+                />
+            )}
             {editingPermissionsForUser && <GestionePermessiUtenteModal utente={editingPermissionsForUser} onClose={() => setEditingPermissionsForUser(null)} />}
-            <InvitaUtenteModal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} onInviteSent={handleInviteSuccess} id_ruolo={3} />
+            
+            {/* --- MODIFICA CHIAVE: Aggiungi la prop selectedDittaId --- */}
+            <InvitaUtenteModal 
+                isOpen={isInviteModalOpen} 
+                onClose={() => setIsInviteModalOpen(false)} 
+                onInviteSent={handleInviteSuccess} 
+                id_ruolo={3} 
+                selectedDittaId={selectedDittaId} 
+            />
+            
             {isRecoveryModalOpen && <ShowLinkModal isOpen={isRecoveryModalOpen} onClose={() => setIsRecoveryModalOpen(false)} title="Link di Recupero Password" link={generatedLink} />}
         </div>
     );

@@ -1,8 +1,9 @@
 /**
  * @file opero/routes/system.js
  * @description API per configurazioni di sistema (Menu, Moduli).
- * - v1.4: Aggiunta API POST /moduli per CREARE nuovi moduli
- * (usata da ModuliManager v1.1).
+ * - v1.5: Fix ER_BAD_FIELD_ERROR.
+ * - Sostituito 'id' (errato) con 'codice' (corretto)
+ * come chiave primaria in tutte le query (GET, PUT, POST).
  */
 const express = require('express');
 const router = express.Router();
@@ -36,14 +37,14 @@ router.get('/modules', async (req, res) => {
 
 /**
  * GET /api/system/modules/admin (PER ADMIN PANEL)
- * (Invariato v1.3)
+ * (MODIFICATO v1.5)
  */
 router.get('/modules/admin', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res) => {
     try {
         const modules = await knex('moduli')
             .orderBy('ordine', 'asc')
             .select(
-                'id',
+                'codice', // <-- FIX: Era 'id'
                 'descrizione as label',
                 'chiave_componente',
                 'icon_name',
@@ -60,11 +61,11 @@ router.get('/modules/admin', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, 
 });
 
 /**
- * PUT /api/system/moduli/:id (PER ADMIN PANEL)
- * (Invariato v1.3)
+ * PUT /api/system/moduli/:codice (PER ADMIN PANEL)
+ * (MODIFICATO v1.5)
  */
-router.put('/moduli/:id', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res) => {
-    const { id } = req.params;
+router.put('/moduli/:codice', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res) => {
+    const { codice } = req.params; // <-- FIX: Era 'id'
     const { descrizione, permission_required, icon_name, ordine, attivo } = req.body;
 
     if (!descrizione || !permission_required) {
@@ -73,7 +74,7 @@ router.put('/moduli/:id', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res
 
     try {
         await knex('moduli')
-            .where('id', id)
+            .where('codice', parseInt(codice)) // <-- FIX: Era 'id'
             .update({
                 descrizione: descrizione,
                 permission_required: permission_required,
@@ -90,12 +91,12 @@ router.put('/moduli/:id', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res
 });
 
 /**
- * --- (NUOVA API v1.4) ---
  * POST /api/system/moduli (PER ADMIN PANEL)
- * Crea un nuovo modulo.
+ * (MODIFICATO v1.5)
  */
 router.post('/moduli', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res) => {
     const { 
+        codice, // <-- FIX: Aggiunto
         descrizione, 
         chiave_componente, 
         permission_required, 
@@ -105,22 +106,24 @@ router.post('/moduli', checkPermission('ADMIN_PANEL_MDVIEW'), async (req, res) =
     } = req.body;
 
     // Validazione
-    if (!descrizione || !chiave_componente || !permission_required) {
-        return res.status(400).json({ error: 'Descrizione, Chiave Componente e Permesso sono obbligatori.' });
+    if (!codice || !descrizione || !chiave_componente || !permission_required) {
+        return res.status(400).json({ error: 'Codice, Descrizione, Chiave Componente e Permesso sono obbligatori.' });
     }
 
     try {
-        // Controlla se la chiave_componente esiste già (UNIQUE)
+        // Controlla se 'codice' o 'chiave_componente' esistono già
         const existing = await knex('moduli')
-            .where('chiave_componente', chiave_componente)
+            .where('codice', parseInt(codice))
+            .orWhere('chiave_componente', chiave_componente)
             .first();
         
         if (existing) {
-            return res.status(409).json({ error: `La chiave componente '${chiave_componente}' esiste già.` });
+            return res.status(409).json({ error: `La chiave componente o il codice esistono già.` });
         }
         
         // Crea la nuova riga
         await knex('moduli').insert({
+            codice: parseInt(codice), // <-- FIX: Aggiunto
             descrizione: descrizione,
             chiave_componente: chiave_componente,
             permission_required: permission_required,
