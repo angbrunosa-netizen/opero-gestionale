@@ -1376,7 +1376,11 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
     if (!email || !id_ruolo || !id_ditta) {
         return res.status(400).json({ success: false, message: 'Email, ruolo e ditta sono obbligatori.' });
     }
-
+  console.log('--- DEBUG PERMESSI INVITO ---');
+    console.log('Ruolo utente dal token (req.user.ruolo):', req.user.ruolo);
+    console.log('ID Ditta utente dal token (req.user.id_ditta):', req.user.id_ditta);
+    console.log('ID Ditta dalla richiesta (req.body.id_ditta):', req.body.id_ditta);
+    console.log('-------------------------------');
     // --- INIZIO DEBUG ---
     console.log('--- DEBUG INVITO UTENTE ---');
     console.log('Email da invitare:', email);
