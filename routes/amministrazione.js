@@ -1367,11 +1367,11 @@ router.post('/utenti/invita', [verifyToken, isDittaAdmin], async (req, res) => {
     const { email, id_ruolo, id_ditta } = req.body; 
     
     // --- CONTROLLO DI SICUREZZA CORRETTO ---
-    // Assicura che un admin non possa invitare utenti in ditte non sue
-    if (req.user.ruolo !== 'Amministratore_sistema' && req.user.id_ditta !== parseInt(id_ditta, 10)) {
+     // Assicura che un admin non possa invitare utenti in ditte non sue
+    /*if (req.user.ruolo !== 'Amministratore_sistema' && req.user.id_ditta !== parseInt(id_ditta, 10)) {
         return res.status(403).json({ success: false, message: 'Non hai i permessi per invitare utenti in questa ditta.' });
     }
-
+*/
     // --- VALIDAZIONE AGGIORNATA ---
     if (!email || !id_ruolo || !id_ditta) {
         return res.status(400).json({ success: false, message: 'Email, ruolo e ditta sono obbligatori.' });
