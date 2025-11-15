@@ -54,6 +54,8 @@ router.post('/ditte', [verifyToken, isSystemAdmin], async (req, res) => {
 // ++ INIZIO NUOVO CODICE: API PER MODIFICARE UNA DITTA (ES. CAMBIO STATO) ++
 router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
     const { id } = req.params;
+
+    // ++ MODIFICA 1: Aggiungi i nuovi campi e correggi 'email_gen' in 'mail_1' ++
     const {
         ragione_sociale,
         p_iva,
@@ -63,15 +65,17 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
         provincia,
         cap,
         tel1,
-        email_gen, // Assicurati che il nome corrisponda
+        mail_1, // ++ CAMBIATO DA 'email_gen' ++
         pec,
         id_tipo_ditta,
         stato,
-        max_utenti_interni, // ++ CAMPO AGGIUNTO ++
-        max_utenti_esterni  // ++ CAMPO AGGIUNTO ++
+        max_utenti_interni,
+        max_utenti_esterni,
+        max_storage_mb,         // ++ CAMPO AGGIUNTO ++
+        current_storage_bytes   // ++ CAMPO AGGIUNTO ++
     } = req.body;
 
-    // Costruiamo l'oggetto solo con i campi definiti per evitare di passare 'undefined'
+    // Costruiamo l'oggetto solo con i campi definiti
     const dittaData = {};
     if (ragione_sociale !== undefined) dittaData.ragione_sociale = ragione_sociale;
     if (p_iva !== undefined) dittaData.p_iva = p_iva;
@@ -81,31 +85,40 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
     if (provincia !== undefined) dittaData.provincia = provincia;
     if (cap !== undefined) dittaData.cap = cap;
     if (tel1 !== undefined) dittaData.tel1 = tel1;
-    if (email_gen !== undefined) dittaData.email = email_gen; // Nota: il campo nel DB è 'email'
+    // ++ MODIFICA 2: Mappa 'mail_1' sul campo corretto del DB (probabilmente 'mail_1') ++
+    if (mail_1 !== undefined) dittaData.mail_1 = mail_1; // Assicurati che la colonna nel DB sia 'mail_1'
     if (pec !== undefined) dittaData.pec = pec;
     if (id_tipo_ditta !== undefined) dittaData.id_tipo_ditta = id_tipo_ditta;
     if (stato !== undefined) dittaData.stato = stato;
-    // ++ INCLUDIAMO I CAMPI UTENTI NELL'AGGIORNAMENTO ++
     if (max_utenti_interni !== undefined) dittaData.max_utenti_interni = max_utenti_interni;
     if (max_utenti_esterni !== undefined) dittaData.max_utenti_esterni = max_utenti_esterni;
-    
+    // ++ MODIFICA 3: Includi i nuovi campi nell'oggetto di aggiornamento ++
+    if (max_storage_mb !== undefined) dittaData.max_storage_mb = max_storage_mb;
+    if (current_storage_bytes !== undefined) dittaData.current_storage_bytes = current_storage_bytes;
 
     try {
+        // ++ MODIFICA 4 (CRITICA): Sposta la logica di log PRIMA della risposta ++
         const result = await knex('ditte').where({ id }).update(dittaData);
+
         if (result) {
+            // Prepara i dettagli per il log
+            const dettagliLog = `Stato: ${stato}, Utenti Interni: ${max_utenti_interni}, Utenti Esterni: ${max_utenti_esterni}, Max Storage: ${max_storage_mb}MB`;
+            
+            // Esegui il log. Se fallisce, il catch bloccherà tutto e invierà un errore 500.
+            await knex('log_azioni').insert({
+                id_utente: req.user.id,
+                id_ditta: req.user.id_ditta,
+                azione: 'AGGIORNAMENTO_DITTA',
+                dettagli: `L'utente admin ${req.user.id} ha modificato la ditta ID ${id}. Dettagli: ${dettagliLog}`,
+                modulo: 'Admin',
+                funzione: 'AGGIORNO DITTA'
+            });
+
+            // ++ Invia la risposta SOLO DOPO che tutto è andato a buon fine ++
             res.json({ success: true, message: 'Ditta aggiornata con successo.' });
         } else {
             res.status(404).json({ success: false, message: 'Ditta non trovata.' });
         }
-           // Log dell'azione (opzionale ma consigliato)
-        const dettagliLog = `Stato: ${stato}, Utenti Interni: ${max_utenti_interni}, Utenti Esterni: ${max_utenti_esterni}`;
-        await knex('log_azioni').insert({
-            id_utente: req.user.id,
-            id_ditta: req.user.id_ditta,
-            azione: 'AGGIORNAMENTO_DITTA',
-            descrizione: `L'utente admin ${req.user.id} ha modificato la ditta ID ${id}. Dettagli: ${dettagliLog}`,
-            modulo: 'Admin'
-        });
         
     } catch (error) {
         console.error("Errore durante l'aggiornamento della ditta:", error);

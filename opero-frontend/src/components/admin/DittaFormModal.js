@@ -32,7 +32,9 @@ const DittaFormModal = ({ ditta, onSave, onCancel }) => {
                 stato: 1,
                 max_utenti_interni: 1,
                 max_utenti_esterni: 1,
-                email_amministratore: '' 
+                email_amministratore: '', 
+                max_storage_mb :1000,
+                current_storage_bytes :0
             });
         }
     }, [ditta]);
@@ -97,6 +99,14 @@ const DittaFormModal = ({ ditta, onSave, onCancel }) => {
                                 <div>
                                     <label htmlFor="max_utenti_esterni" className="text-sm font-medium text-gray-600">Max Utenti Esterni</label>
                                     <input id="max_utenti_esterni" type="number" name="max_utenti_esterni" value={formData.max_utenti_esterni || 1} onChange={handleChange} min="0" className="w-full p-2 border rounded" />
+                                </div>
+                                 <div>
+                                    <label htmlFor="Spazio di Archiviazione" className="text-sm font-medium text-gray-600">Spazio di archiviazione</label>
+                                    <input id="Spazio di Archiviazione" type="number" name="max_storage_mb" value={formData.max_storage_mb || 1000} onChange={handleChange} min="0" className="w-full p-2 border rounded" />
+                                </div>
+                                <div>
+                                    <label htmlFor="Utilizzo storage MB" className="text-sm font-medium text-gray-600">Utilizzo storage MB </label>
+                                    <input id="Utilizzo storage" type="number" name="currend_storage_bytes " value={formData.current_storage_bytes } onChange={handleChange} min="0" className="w-full p-2 border rounded" />
                                 </div>
                             </div>
                         </div>

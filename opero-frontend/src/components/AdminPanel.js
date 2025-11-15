@@ -1597,6 +1597,13 @@ function AdminPanel() {
             permission: 'ADMIN_DITTE_VIEW'
         },
         {
+            key: 'ditte1',
+            label: 'Setup Ditte',
+            component: <AdminDitte />,
+            permission: 'SUPER_ADMIN'
+        },
+        
+        {
             key: 'moduli',
             label: 'Associa Moduli Ditta',
             component: <AssociaModuliDitta />,
@@ -1631,8 +1638,8 @@ function AdminPanel() {
             label: 'Monitoraggio Sistema',
             component: <MonitoraggioSistema />,
             permission: ['ADMIN_LOGS_VIEW', 'ADMIN_SESSIONS_VIEW']
-        },
-    ]), []);
+        }, 
+        ]), []);
 
     // Filtra le tab in base ai permessi
     const visibleTabs = useMemo(() => {

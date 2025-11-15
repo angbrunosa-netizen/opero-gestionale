@@ -1,5 +1,5 @@
 // #####################################################################
-// # Componente GestioneRuoliPermessi - v4.0 (Fix Definitivo con Array)
+// # Componente GestioneRuoliPermessi - v4.1 (Con Raggruppamento e Stile _MDVIEW)
 // # File: opero-frontend/src/components/admin/GestioneRuoliPermessi.js
 // #####################################################################
 
@@ -11,7 +11,6 @@ const GestioneRuoliPermessi = () => {
     const [funzioniDisponibili, setFunzioniDisponibili] = useState([]);
     const [selectedRuoloId, setSelectedRuoloId] = useState('');
 
-    // ❗ FIX: Torniamo a un semplice Array, come nel componente funzionante
     const [permessiAssociati, setPermessiAssociati] = useState([]);
 
     const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +46,6 @@ const GestioneRuoliPermessi = () => {
             setIsLoading(true);
             try {
                 const response = await api.get(`/admin/ditta/permessi/${selectedRuoloId}`);
-                // ❗ FIX: Salviamo un array di numeri
                 setPermessiAssociati((response.data.permessi || []).map(Number));
             } catch (error) {
                 console.error(`Errore nel recupero dei permessi per il ruolo ${selectedRuoloId}:`, error);
@@ -58,19 +56,26 @@ const GestioneRuoliPermessi = () => {
         fetchPermessi();
     }, [selectedRuoloId]);
 
-    // Raggruppa le funzioni per una UI più chiara (invariato)
+    // ++ MODIFICA 1: Logica di raggruppamento modificata per _MDVIEW ++
     const groupedFunzioni = useMemo(() => {
         return funzioniDisponibili.reduce((acc, f) => {
-            const key = f.chiave_componente_modulo || 'Generale';
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(f);
+            // Controlla se il codice della funzione termina con '_MDVIEW'
+            if (f.codice.endsWith('_MDVIEW')) {
+                const key = '(Pannello Moduli)'; // Crea un nuovo raggruppamento
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(f);
+            } else {
+                // Mantiene la logica originale per le altre funzioni
+                const key = f.chiave_componente_modulo || 'Generale';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(f);
+            }
             return acc;
         }, {});
     }, [funzioniDisponibili]);
 
     const sortedModuleKeys = useMemo(() => Object.keys(groupedFunzioni).sort(), [groupedFunzioni]);
 
-    // ❗ FIX: Logica di gestione basata su Array e .includes()
     const handleCheckboxChange = (funzioneId) => {
         setPermessiAssociati(prev =>
             prev.includes(funzioneId)
@@ -131,12 +136,14 @@ const GestioneRuoliPermessi = () => {
                                         {groupedFunzioni[moduleKey].map(funzione => (
                                             <label key={funzione.id} className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded-md cursor-pointer">
                                                 <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1"
-                                                    // ❗ FIX: Utilizziamo .includes() sull'array
                                                     checked={permessiAssociati.includes(funzione.id)}
                                                     onChange={() => handleCheckboxChange(funzione.id)}
                                                 />
                                                 <div>
-                                                    <span className="font-semibold text-gray-800">{funzione.codice}</span>
+                                                    {/* ++ MODIFICA 2: Applica lo stile rosso condizionale ++ */}
+                                                    <span className={`font-semibold ${funzione.codice.endsWith('_MDVIEW') ? 'text-red-600' : 'text-gray-800'}`}>
+                                                        {funzione.codice}
+                                                    </span>
                                                     <p className="text-xs text-gray-500">{funzione.descrizione}</p>
                                                 </div>
                                             </label>
@@ -158,4 +165,3 @@ const GestioneRuoliPermessi = () => {
 };
 
 export default GestioneRuoliPermessi;
-

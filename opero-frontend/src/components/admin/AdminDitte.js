@@ -1,14 +1,21 @@
 /**
  * File: opero-frontend/src/components/admin/AdminDitte.js
- * Versione: 4.0 (Implementazione Diretta con useTable)
- * Descrizione: Sostituisce AdvancedDataGrid con un'implementazione diretta di react-table
- * per risolvere il problema persistente delle righe vuote, garantendo il rendering dei dati.
+ * Versione: 4.2 (Con Visualizzazione e Toggle Stato)
+ * Descrizione: Aggiunta visualizzazione dello stato e pulsante per cambiarlo.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useTable } from 'react-table'; // ++ IMPORT DIRETTO DA REACT-TABLE ++
+import { useTable } from 'react-table';
 import { toast } from 'react-toastify';
 import { api } from '../../services/api';
-import { PlusIcon, PencilIcon, LinkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { 
+    PlusIcon, 
+    PencilIcon, 
+    LinkIcon, 
+    ClipboardDocumentIcon,
+    // ++ ICONE PER IL TOGGLE STATO ++
+    LockClosedIcon, // Icona per sospendere (stato = 1)
+    LockOpenIcon    // Icona per attivare (stato = 0)
+} from '@heroicons/react/24/outline';
 import DittaFormModal from './DittaFormModal';
 
 const AdminDitte = () => {
@@ -52,7 +59,7 @@ const AdminDitte = () => {
     const handleSaveDitta = useCallback(async (formData) => {
         try {
             if (editingDitta) {
-                // await api.patch(`/admin/ditte/${editingDitta.id}`, formData);
+                await api.patch(`/admin/ditte/${editingDitta.id}`, formData);
                 toast.success('Ditta modificata con successo!');
             } else {
                 const response = await api.post('/admin/setup-ditta-proprietaria', formData);
@@ -70,6 +77,25 @@ const AdminDitte = () => {
         }
     }, [editingDitta, fetchDitte]);
     
+    // ++ NUOVA FUNZIONE PER IL TOGGLE DELLO STATO ++
+    const handleToggleStato = useCallback(async (ditta) => {
+        const nuovoStato = ditta.stato === 1 ? 0 : 1;
+        const azione = nuovoStato === 1 ? 'attivare' : 'sospendere';
+        
+        if (!window.confirm(`Sei sicuro di voler ${azione} la ditta "${ditta.ragione_sociale}"?`)) {
+            return;
+        }
+
+        try {
+            await api.patch(`/admin/ditte/${ditta.id}`, { stato: nuovoStato });
+            toast.success(`Stato della ditta aggiornato a "${nuovoStato === 1 ? 'Attivo' : 'Bloccato'}".`);
+            fetchDitte(); // Ricarica i dati per mostrare il cambio
+        } catch (error) {
+            toast.error("Errore durante l'aggiornamento dello stato della ditta.");
+            console.error(error);
+        }
+    }, [fetchDitte]);
+
     const handleGeneraLink = useCallback(async (idDitta) => {
         try {
             const response = await api.post('/amministrazione/utenti/genera-link-registrazione', { id_ditta: idDitta });
@@ -122,21 +148,54 @@ const AdminDitte = () => {
                 </span>
             )
         },
+        // ++ NUOVA COLONNA PER LA VISUALIZZAZIONE DELLO STATO ++
+        {
+            Header: 'Stato',
+            id: 'stato',
+            Cell: ({ row }) => (
+                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    row.original.stato === 1 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                }`}>
+                    {row.original.stato === 1 ? 'Attivo' : 'Bloccato'}
+                </span>
+            )
+        },
         {
             Header: 'Azioni',
             id: 'actions',
             Cell: ({ row }) => (
                 <div className="flex items-center space-x-2">
-                    <button onClick={() => handleEditDitta(row.original)} className="text-gray-500 hover:text-blue-600 p-1 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></button>
+                    <button onClick={() => handleEditDitta(row.original)} className="text-gray-500 hover:text-blue-600 p-1 rounded-full transition-colors" title="Modifica Ditta">
+                        <PencilIcon className="h-5 w-5" />
+                    </button>
+
+                    {/* ++ NUOVO PULSANTE PER IL TOGGLE STATO ++ */}
+                    <button 
+                        onClick={() => handleToggleStato(row.original)} 
+                        className={`p-1 rounded-full transition-colors ${
+                            row.original.stato === 1 
+                                ? 'text-yellow-600 hover:text-yellow-800' 
+                                : 'text-green-600 hover:text-green-800'
+                        }`} 
+                        title={row.original.stato === 1 ? 'Sospendi Ditta' : 'Attiva Ditta'}
+                    >
+                        {row.original.stato === 1 ? (
+                            <LockClosedIcon className="h-5 w-5" />
+                        ) : (
+                            <LockOpenIcon className="h-5 w-5" />
+                        )}
+                    </button>
+
                     <button onClick={() => handleGeneraLink(row.original.id)} className="text-gray-500 hover:text-green-600 p-1 rounded-full transition-colors" title="Genera link di registrazione">
                         <LinkIcon className="h-5 w-5" />
                     </button>
                 </div>
             ),
         },
-    ], [handleEditDitta, handleGeneraLink]);
+    ], [handleEditDitta, handleGeneraLink, handleToggleStato]); // Aggiungi handleToggleStato alle dipendenze
 
-    // ++ NUOVA LOGICA TABELLA con useTable ++
     const {
         getTableProps,
         getTableBodyProps,
@@ -165,7 +224,6 @@ const AdminDitte = () => {
                 </button>
             </div>
 
-            {/* ++ NUOVA TABELLA RENDERIZZATA DIRETTAMENTE ++ */}
             <div className="overflow-x-auto bg-white rounded-lg shadow">
                 <table {...getTableProps()} className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -234,4 +292,3 @@ const AdminDitte = () => {
 };
 
 export default AdminDitte;
-
