@@ -301,7 +301,7 @@ const AllegatiManager = ({
         try {
             setUploadStatus(10);
             
-            await api.post('/api/archivio/upload', formData, {
+            await api.post('/archivio/upload', formData, {
                 cancelToken: source.token,
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
