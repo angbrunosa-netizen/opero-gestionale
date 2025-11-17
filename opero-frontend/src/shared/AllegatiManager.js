@@ -1,14 +1,13 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 3.3 (Stabile - Fix type=button)
+ * Versione: 5.1 (Stabile con Proporzioni Personalizzate)
  *
  * Descrizione:
- * - Basato sulla v3.2 (Fix publicPath).
- * - CORREGGE il bug 'chiusura BeneForm'.
- * - Aggiunge 'type="button"' a tutti i pulsanti
- * (Download, Delete, Camera, etc.) per impedire
- * il 'submit' del form genitore.
+ * - Basato sulla v5.0.
+ * - AGGIUNTA una selezione di proporzioni personalizzate per coprire tutti i casi d'uso.
+ * - Include: Ritaglio, Ottimizzazione Immagine, Rimozione Sfondo.
+ * - Flusso: Scatta Foto -> Scegli Proporzione -> Ritaglia -> (Opzionale) Rimuovi Sfondo -> Upload.
  */
 
 // ======================================================================
@@ -21,6 +20,13 @@ import { api } from '../services/api';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ConfirmationModal';
+
+// Import di react-easy-crop
+import Cropper from 'react-easy-crop';
+import { Area } from 'react-easy-crop';
+
+// Import della libreria di compressione
+import imageCompression from 'browser-image-compression';
 
 // Icone da lucide-react
 import {
@@ -95,6 +101,55 @@ const formatFileDate = (dateString) => {
     }
 };
 
+// --- FUNZIONE HELPER ---
+const createImage = (url) =>
+    new Promise((resolve, reject) => {
+        const image = new Image();
+        image.addEventListener('load', () => resolve(image));
+        image.addEventListener('error', (error) => reject(error));
+        image.setAttribute('crossOrigin', 'anonymous');
+        image.src = url;
+    });
+
+const getCroppedImg = async (imageSrc, pixelCrop) => {
+    if (!pixelCrop || !pixelCrop.width || !pixelCrop.height) {
+        throw new Error('Area di ritaglio non valida o non definita.');
+    }
+
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+        throw new Error('Impossibile ottenere il contesto 2D del canvas.');
+    }
+
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+
+    ctx.drawImage(
+        image,
+        pixelCrop.x,
+        pixelCrop.y,
+        pixelCrop.width,
+        pixelCrop.height,
+        0,
+        0,
+        pixelCrop.width,
+        pixelCrop.height
+    );
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Impossibile creare il blob dal canvas.'));
+                return;
+            }
+            resolve(blob);
+        }, 'image/jpeg');
+    });
+};
+
 // ======================================================================
 // COMPONENTE PRINCIPALE
 // ======================================================================
@@ -109,9 +164,56 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     const [isAllegatoDeleteModalOpen, setIsAllegatoDeleteModalOpen] = useState(false);
     const [allegatoLinkToDelete, setAllegatoLinkToDelete] = useState(null);
     
-    const [cameraFile, setCameraFile] = useState(null);
-    const [isRemovingBg, setIsRemovingBg] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Stati per la gestione del ritaglio
+    const [cameraFile, setCameraFile] = useState(null);
+    const [imageToCrop, setImageToCrop] = useState(null);
+    const [isCroppingModalOpen, setIsCroppingModalOpen] = useState(false);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    
+    // Stato per il rapporto di aspetto, con un predefinito verticale
+    const [aspectRatio, setAspectRatio] = useState(3 / 4);
+
+    // Stati per la gestione della rimozione sfondo
+    const [croppedFileForBgRemoval, setCroppedFileForBgRemoval] = useState(null);
+    const [isRemovingBg, setIsRemovingBg] = useState(false);
+
+    const isCropReady = croppedAreaPixels && croppedAreaPixels.width > 0 && croppedAreaPixels.height > 0;
+
+    // Array di opzioni per l'aspect ratio personalizzate
+    const aspectRatios = [
+        { name: 'Quadrato (1:1)', value: 1 / 1 },
+        { name: 'Verticale (3:4)', value: 3 / 4 },
+        { name: 'Verticale Estrema (1:3)', value: 1.5 / 3 },
+        { name: 'Standard (4:3)', value: 4 / 3 },
+        { name: 'Panoramica (16:9)', value: 16 / 9 },
+    ];
+
+    // Funzione helper per ottimizzare l'immagine
+    const optimizeImage = async (file) => {
+        console.log('Dimensione file originale:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+        
+        const options = {
+            maxSizeMB: 0.5,
+            maxWidthOrHeight: 1200,
+            useWebWorker: true,
+            fileType: 'image/jpeg',
+        };
+
+        try {
+            const compressedFile = await imageCompression(file, options);
+            console.log('Dimensione file ottimizzato:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
+            console.log('Riduzione del:', ((1 - compressedFile.size / file.size) * 100).toFixed(2), '%');
+            return compressedFile;
+        } catch (error) {
+            console.error('Errore durante l\'ottimizzazione dell\'immagine:', error);
+            setError('Impossibile ottimizzare l\'immagine, verrà caricata l\'originale.');
+            return file;
+        }
+    };
 
     const fetchAllegati = useCallback(async () => {
         if (!entita_tipo || !entita_id) return;
@@ -141,10 +243,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     }, [fetchAllegati, loading]);
 
     const handleUpload = (acceptedFiles) => {
-        if (!hasPermission('DM_FILE_UPLOAD')) {
-            console.warn("Tentativo di upload senza permessi.");
-            return;
-        }
+        if (!hasPermission('DM_FILE_UPLOAD')) return;
         const newUploads = acceptedFiles.map(file => ({
             id: `${file.name}-${file.lastModified}`,
             file,
@@ -243,106 +342,105 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         const file = event.target.files[0];
         if (file) {
             setCameraFile(file);
+            const imageUrl = URL.createObjectURL(file);
+            setImageToCrop(imageUrl);
+            setIsCroppingModalOpen(true);
+            setCroppedAreaPixels(null);
+            setAspectRatio(3 / 4); // Imposta il predefinito verticale
+            setCrop({ x: 0, y: 0 });
         }
     };
 
-const handleBackgroundRemoval = async () => {
-    if (!cameraFile) {
-        console.log('Nessun file da processare');
-        return;
-    }
-    
-    setIsRemovingBg(true);
-    setError(null);
+    const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    }, []);
 
-    let imageUrl = null;
-
-    try {
-        console.log('1. Inizio rimozione sfondo...');
-        console.log('2. File da processare:', cameraFile);
-        
-        // Crea URL blob
+    const handleCropAndRemoveBg = async () => {
         try {
-            imageUrl = window.URL.createObjectURL(cameraFile);
-            console.log('3. URL immagine creato:', imageUrl);
-        } catch (urlErr) {
-            console.error('Errore nella creazione URL:', urlErr);
-            throw new Error('Impossibile creare URL per l\'immagine');
+            const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            const originalName = cameraFile.name.replace(/\.[^/.]+$/, "");
+            let croppedFile = new window.File([croppedBlob], `${originalName}_cropped.jpg`, { type: 'image/jpeg' });
+            
+            const optimizedFile = await optimizeImage(croppedFile);
+            setCroppedFileForBgRemoval(optimizedFile);
+            setIsCroppingModalOpen(false);
+        } catch (e) {
+            console.error("Errore in handleCropAndRemoveBg:", e);
+            setError(`Errore durante il ritaglio: ${e.message}`);
         }
-        
-        // Import dinamico della libreria
-        console.log('4. Caricamento modulo background-removal...');
-        const bgRemovalModule = await import("@imgly/background-removal");
-        console.log('5. Modulo caricato:', Object.keys(bgRemovalModule));
-        
-        const removeBackgroundFn = bgRemovalModule.removeBackground || bgRemovalModule.default || bgRemovalModule;
-        
-        if (typeof removeBackgroundFn !== 'function') {
-            console.error('Tipo di removeBackground:', typeof removeBackgroundFn);
-            throw new Error('La funzione removeBackground non è disponibile');
+    };
+
+    const handleCropAndUpload = async () => {
+        try {
+            const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            const originalName = cameraFile.name.replace(/\.[^/.]+$/, "");
+            let croppedFile = new window.File([croppedBlob], `${originalName}_cropped.jpg`, { type: 'image/jpeg' });
+            
+            const optimizedFile = await optimizeImage(croppedFile);
+            
+            handleUpload([optimizedFile]);
+            closeAllModals();
+        } catch (e) {
+            console.error("Errore in handleCropAndUpload:", e);
+            setError(`Errore durante il ritaglio: ${e.message}`);
         }
-        
-        console.log('6. Chiamata removeBackground...');
-        const blob = await removeBackgroundFn(imageUrl);
-        console.log('7. Blob creato:', blob);
-        
-        // Cleanup URL
-        if (imageUrl) {
-            window.URL.revokeObjectURL(imageUrl);
-            imageUrl = null;
-        }
-
-        // Crea nuovo file
-        const originalName = cameraFile.name.replace(/\.[^/.]+$/, '');
-        const bgRemovedFile = new window.File([blob], `${originalName}_nobg.png`, {
-            type: 'image/png',
-            lastModified: Date.now(),
-        });
-
-        console.log('8. Nuovo file creato:', bgRemovedFile);
-        
-        // Upload
-        handleUpload([bgRemovedFile]);
-
-        // Reset
-        setCameraFile(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-
-        console.log('9. Processo completato');
-
-    } catch (err) {
-        console.error("=== ERRORE DETTAGLIATO ===");
-        console.error("Messaggio:", err.message);
-        console.error("Stack:", err.stack);
-        console.error("Tipo errore:", err.constructor.name);
-        console.error("Errore completo:", err);
-        
-        setError(`Errore: ${err.message || 'Impossibile rimuovere lo sfondo'}`);
-        
-        // Cleanup in caso di errore
-        if (imageUrl) {
-            try {
-                window.URL.revokeObjectURL(imageUrl);
-            } catch (cleanupErr) {
-                console.error('Errore durante cleanup:', cleanupErr);
-            }
-        }
-    } finally {
-        setIsRemovingBg(false);
-    }
-};
+    };
     
-    const handleKeepOriginal = () => {
-        if (!cameraFile) return;
-        handleUpload([cameraFile]);
+    const closeAllModals = () => {
+        setIsCroppingModalOpen(false);
+        setCroppedFileForBgRemoval(null);
         setCameraFile(null);
+        if (imageToCrop) {
+            URL.revokeObjectURL(imageToCrop);
+            setImageToCrop(null);
+        }
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
     };
 
+    const handleBackgroundRemoval = async () => {
+        if (!croppedFileForBgRemoval) return;
+        
+        setIsRemovingBg(true);
+        setError(null);
+        let imageUrl = null;
+
+        try {
+            imageUrl = window.URL.createObjectURL(croppedFileForBgRemoval);
+            const bgRemovalModule = await import("@imgly/background-removal");
+            const removeBackgroundFn = bgRemovalModule.removeBackground || bgRemovalModule.default || bgRemovalModule;
+            
+            if (typeof removeBackgroundFn !== 'function') {
+                throw new Error('La funzione removeBackground non è disponibile');
+            }
+            
+            const blob = await removeBackgroundFn(imageUrl);
+            window.URL.revokeObjectURL(imageUrl);
+
+            const originalName = cameraFile.name.replace(/\.[^/.]+$/, '');
+            let bgRemovedFile = new window.File([blob], `${originalName}_cropped_nobg.png`, {
+                type: 'image/png',
+                lastModified: Date.now(),
+            });
+
+            const optimizedFile = await optimizeImage(bgRemovedFile);
+            
+            handleUpload([optimizedFile]);
+            closeAllModals();
+
+        } catch (err) {
+            console.error("=== ERRORE DETTAGLIATO ===", err);
+            setError(`Errore: ${err.message || 'Impossibile rimuovere lo sfondo'}`);
+            
+            if (imageUrl) {
+                window.URL.revokeObjectURL(imageUrl);
+            }
+        } finally {
+            setIsRemovingBg(false);
+        }
+    };
+    
     if (loading) {
         return (
             <div className="w-full max-w-4xl mx-auto flex justify-center items-center py-8">
@@ -387,7 +485,7 @@ const handleBackgroundRemoval = async () => {
                     <div className="mt-6 pt-4 border-t border-gray-300">
                         <p className="text-sm text-gray-600 mb-3">Oppure scatta una foto:</p>
                         <button
-                            type="button" // --- CORREZIONE (v3.3) ---
+                            type="button"
                             onClick={handleCameraClick}
                             className="flex items-center justify-center w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                         >
@@ -468,8 +566,6 @@ const handleBackgroundRemoval = async () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                                    
-                                    {/* --- CORREZIONE (v3.3) --- */}
                                     {file.previewUrl && hasPermission('DM_FILE_VIEW') && (
                                         <button 
                                             type="button" 
@@ -478,7 +574,6 @@ const handleBackgroundRemoval = async () => {
                                             className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100"
                                         ><Eye className="w-5 h-5" /></button>
                                     )}
-                                    {/* --- CORREZIONE (v3.3) --- */}
                                     {hasPermission('DM_FILE_VIEW') && (
                                         <button 
                                             type="button" 
@@ -487,7 +582,6 @@ const handleBackgroundRemoval = async () => {
                                             className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
                                         ><Download className="w-5 h-5" /></button>
                                     )}
-                                    {/* --- CORREZIONE (v3.3) --- */}
                                     {hasPermission('DM_FILE_DELETE') && (
                                         <button 
                                             type="button" 
@@ -512,25 +606,113 @@ const handleBackgroundRemoval = async () => {
                 style={{ display: 'none' }}
             />
 
-            {cameraFile && (
+            {/* Modale per il RITAGLIO */}
+            {isCroppingModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4">
+                    <div className="bg-white rounded-lg w-full h-full max-w-4xl max-h-[90vh] flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h3 className="text-lg font-semibold text-gray-800">Ritaglia l'immagine</h3>
+                            <button onClick={closeAllModals} className="text-gray-500 hover:text-gray-700">
+                                <XIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-2 border-b flex justify-center space-x-2 flex-wrap">
+                            {aspectRatios.map((ratio) => (
+                                <button
+                                    key={ratio.name}
+                                    type="button"
+                                    onClick={() => {
+                                        setAspectRatio(ratio.value);
+                                        setCrop({ x: 0, y: 0 });
+                                    }}
+                                    className={`px-3 py-1 text-xs rounded-md transition ${
+                                        aspectRatio === ratio.value
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    }`}
+                                >
+                                    {ratio.name}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative flex-1 bg-black" style={{ minHeight: '300px' }}>
+                            <Cropper
+                                image={imageToCrop}
+                                crop={crop}
+                                zoom={zoom}
+                                aspect={aspectRatio}
+                                onCropChange={setCrop}
+                                onCropComplete={onCropComplete}
+                                onZoomChange={setZoom}
+                            />
+                        </div>
+                        <div className="p-4 border-t flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+                            <button
+                                type="button"
+                                onClick={handleCropAndUpload}
+                                disabled={!isCropReady}
+                                className={`px-4 py-2 rounded-md transition flex items-center justify-center ${
+                                    isCropReady
+                                        ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                }`}
+                            >
+                                <CheckIcon className="w-4 h-4 mr-1" />
+                                Usa Immagine Ritagliata
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCropAndRemoveBg}
+                                disabled={!isCropReady}
+                                className={`px-4 py-2 rounded-md transition flex items-center justify-center ${
+                                    isCropReady
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                        : 'bg-blue-300 text-white cursor-not-allowed'
+                                }`}
+                            >
+                                {isRemovingBg ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Elaborazione...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-1" />
+                                        Rimuovi Sfondo
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        {!isCropReady && (
+                            <div className="px-4 pb-2 text-center text-sm text-gray-500">
+                                <Loader2 className="w-4 h-4 inline-block animate-spin mr-1" />
+                                Inizializzazione dell'area di ritaglio...
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Modale per la RIMOZIONE SFONDO */}
+            {croppedFileForBgRemoval && !isCroppingModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full">
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">Rimuovere lo sfondo?</h3>
-                        <img src={URL.createObjectURL(cameraFile)} alt="Anteprima" className="w-full h-auto rounded-md mb-4" />
-                        <p className="text-sm text-gray-600 mb-6">Vuoi rimuovere lo sfondo da questa foto per ottenere un'immagine trasparente?</p>
+                        <img src={URL.createObjectURL(croppedFileForBgRemoval)} alt="Anteprima ritagliata" className="w-full h-auto rounded-md mb-4" />
+                        <p className="text-sm text-gray-600 mb-6">Vuoi rimuovere lo sfondo da questa foto ritagliata?</p>
                         
                         <div className="flex justify-end space-x-3">
                             <button
-                                type="button" // --- CORREZIONE (v3.3) ---
-                                onClick={handleKeepOriginal}
+                                type="button"
+                                onClick={() => handleUpload([croppedFileForBgRemoval])}
                                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition flex items-center"
                                 disabled={isRemovingBg}
                             >
                                 <XIcon className="w-4 h-4 mr-1" />
-                                Mantieni Originale
+                                Mantieni Sfondo
                             </button>
                             <button
-                                type="button" // --- CORREZIONE (v3.3) ---
+                                type="button"
                                 onClick={handleBackgroundRemoval}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center"
                                 disabled={isRemovingBg}
