@@ -3,20 +3,29 @@
  * @description Nuova rotta per il modulo "Archivio Documentale".
  * - v1.0: Fornisce l'endpoint per la consultazione
  * di tutti i file (DMS Fase 1).
+ * - v1.1: Aggiunto endpoint per aggiornare la privacy di un file
+ * - v1.2: Aggiunto endpoint per l'upload di file
  * @date 2025-11-11
- * @version 1.0
+ * @version 1.2
  */
 
 const express = require('express');
 const router = express.Router();
 const { knex } = require('../config/db');
 const { authenticate, checkPermission } = require('../utils/auth');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+
+// Configurazione di multer per gestire l'upload in memoria
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Import S3 client e comandi
 const {
     s3Client,
     GetObjectCommand,
     getSignedUrl,
+    PutObjectCommand,
+    PutObjectAclCommand,
     S3_BUCKET_NAME,
     S3_ENDPOINT,
 } = require('../utils/s3Client');
@@ -30,10 +39,6 @@ router.use(authenticate);
  * unendo i dati dell'utente che ha caricato e
  * aggregando (GROUP_CONCAT) tutti i link polimorfici
  * dalla tabella 'dm_allegati_link'.
- */
-/**
- * API: GET /api/archivio/all-files
- * (MODIFICATO v1.5 - Fix 'bene.descrizione')
  */
 router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
@@ -49,7 +54,6 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 this.on('link.entita_tipo', '=', knex.raw('?', ['ct_catalogo']))
                     .andOn('link.entita_id', '=', 'cat.id');
             })
-            // Il join rimane
             .leftJoin('bs_beni as bene', function() { 
                 this.on('link.entita_tipo', '=', knex.raw('?', ['BENE_STRUMENTALE']))
                     .andOn('link.entita_id', '=', 'bene.id');
@@ -64,14 +68,9 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 'file.created_at',
                 'file.s3_key',
                 knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload"),
-                
-                // --- (FIX v1.5) ---
-                // Sostituito 'bene.nome_bene' (v1.3)
-                // con 'bene.descrizione' (v1.5).
                 knex.raw(
                     "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, bene.descrizione, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
                 )
-                // --- FINE FIX ---
             )
             .groupBy('file.id')
             .orderBy('file.created_at', 'desc');
@@ -102,9 +101,7 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     }
 });
 
-
 /**
- * --- (NUOVA API v1.1) ---
  * API: PUT /api/archivio/file/:id_file/privacy
  *
  * Aggiorna la privacy di un file (nel DB e su S3).
@@ -161,5 +158,106 @@ router.put('/file/:id_file/privacy', checkPermission('DM_FILE_MANAGE'), async (r
     }
 });
 
+/**
+ * API: POST /api/archivio/upload
+ *
+ * Carica un file su S3, crea il record nel DB e lo collega all'entità.
+ * Legge il campo 'privacy' dal FormData per impostare correttamente i permessi.
+ */
+/**
+ * API: POST /api/archivio/upload
+ *
+ * Carica un file su S3, crea il record nel DB e lo collega all'entità.
+ * Legge il campo 'privacy' dal FormData per impostare correttamente i permessi.
+ */
+router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'), async (req, res) => {
+    const idDitta = req.user?.id_ditta;
+    const idUtenteUpload = req.user?.id;
+    
+    if (!idDitta || !idUtenteUpload) {
+        return res.status(400).json({ error: 'Dati utente incompleti.' });
+    }
 
+    const file = req.file;
+    const { entitaId, entitaTipo, idDitta: idDittaForm, note, privacy } = req.body;
+
+    if (!file) {
+        return res.status(400).json({ error: 'Nessun file caricato.' });
+    }
+    if (!entitaId || !entitaTipo) {
+        return res.status(400).json({ error: 'ID o tipo entità mancante.' });
+    }
+
+    // Usa l'idDitta dal form se fornito, altrimenti usa quello dell'utente
+    const effectiveIdDitta = idDittaForm || idDitta;
+    
+    // Imposta 'private' come default se non specificato
+    const filePrivacy = privacy || 'private';
+
+    // --- AGGIUNGI QUESTI LOG PER DEBUG ---
+    console.log('BACKEND DEBUG - Corpo della richiesta ricevuto (req.body):', req.body);
+    console.log('BACKEND DEBUG - File ricevuto (req.file):', req.file ? req.file.originalname : 'NESSUNO');
+    // --- FINE LOG ---
+
+    const trx = await knex.transaction();
+    try {
+        // 1. Crea un record per il file nella tabella dm_files
+        const insertResult = await trx('dm_files').insert({
+            file_name_originale: file.originalname,
+            file_size_bytes: file.size,
+            mime_type: file.mimetype,
+            id_ditta: effectiveIdDitta,
+            id_utente_upload: idUtenteUpload,
+            privacy: filePrivacy,
+            s3_key: `s3-key-will-be-generated` // Placeholder
+        });
+        
+        // In MySQL, l'ID inserito è in insertResult[0]
+        const fileRecordId = insertResult[0];
+
+        const s3Key = `ditta-${effectiveIdDitta}/${fileRecordId}-${file.originalname}`;
+
+        // 2. Prepara i parametri per l'upload su S3
+        const uploadParams = {
+            Bucket: S3_BUCKET_NAME,
+            Key: s3Key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+            ACL: filePrivacy === 'public' ? 'public-read' : 'private'
+        };
+
+        // 3. Esegui l'upload su S3
+        await s3Client.send(new PutObjectCommand(uploadParams));
+
+        // 4. Aggiorna il record nel DB con la chiave S3 corretta
+        await trx('dm_files')
+            .where('id', fileRecordId)
+            .update({ s3_key: s3Key });
+
+        // 5. Crea il link polimorfico nella tabella dm_allegati_link
+        await trx('dm_allegati_link').insert({
+            id_file: fileRecordId,
+            entita_tipo: entitaTipo,
+            entita_id: entitaId,
+            note: note || null
+        });
+
+        // 6. Conferma la transazione
+        await trx.commit();
+
+        res.status(201).json({
+            message: 'File caricato con successo.',
+            file: {
+                id: fileRecordId,
+                fileName: file.originalname,
+                privacy: filePrivacy
+            }
+        });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore durante l'upload del file:", error);
+        res.status(500).json({ error: 'Impossibile caricare il file.' });
+    }
+});
 module.exports = router;

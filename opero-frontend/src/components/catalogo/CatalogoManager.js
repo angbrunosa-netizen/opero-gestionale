@@ -1,10 +1,10 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
  * @description Manager completo per l'anagrafica del catalogo.
- * - v7.1: Corretto 'entita_tipo' in 'ct_catalogo' per coerenza
- * con il database (richiesta utente).
- * @date 2025-11-11
- * @version 7.1 (Fix entita_tipo)
+ * - v7.3: Sincronizzato con la v7.1 dell'utente (architettura 'CatalogoFotoModal').
+ * - Include già la prop 'defaultPrivacy="public"' per AllegatiManager.
+ * @date 2025-11-17
+ * @version 7.3 (Sincronizzato con Utente)
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -215,10 +215,12 @@ const CatalogoFotoModal = ({ item, onClose }) => {
             </div>
             
             <div className="flex-1 overflow-y-auto p-2">
-                {/* --- (CORREZIONE v7.1) --- */}
+                {/* --- (CORREZIONE v7.1 / v7.3) --- */}
+                {/* Questo file passa già 'defaultPrivacy="public"' */}
                 <AllegatiManager
-                    entita_tipo="ct_catalogo"
+                    entita_tipo="ct_catalogo" 
                     entita_id={item.id}
+                    idDitta={item.id_ditta}
                     defaultPrivacy="public"
                 />
                 {/* --- FINE CORREZIONE --- */}
@@ -476,12 +478,12 @@ const CatalogoManager = () => {
                             {isActionsMenuOpen && (
                                 <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
                                     <div className="py-1" role="menu" aria-orientation="vertical">
-                                          {hasPermission('CT_IMPORT_CSV') && hasPermission('DM_FILE_UPLOAD') && (
+                                         {hasPermission('CT_IMPORT_CSV') && hasPermission('DM_FILE_UPLOAD') && (
                                             <a href="#" onClick={(e) => { e.preventDefault(); setIsImportFotoModalOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                                 <PhotoIcon className="h-5 w-5 mr-3 text-gray-400" />
                                                 Importa Foto Massivo
                                             </a>
-                                                                               )}
+                                                                        )}
 
                                         {hasPermission('CT_IMPORT_CSV') && (
                                             <a href="#" onClick={(e) => { e.preventDefault(); setIsImportModalOpen(true); setIsActionsMenuOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">

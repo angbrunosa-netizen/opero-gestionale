@@ -1,13 +1,14 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 5.1 (Stabile con Proporzioni Personalizzate)
+ * Versione: 5.6 (Privacy automatica per 'ct_catalogo' con debug migliorato)
  *
  * Descrizione:
- * - Basato sulla v5.0.
- * - AGGIUNTA una selezione di proporzioni personalizzate per coprire tutti i casi d'uso.
- * - Include: Ritaglio, Ottimizzazione Immagine, Rimozione Sfondo.
- * - Flusso: Scatta Foto -> Scegli Proporzione -> Ritaglia -> (Opzionale) Rimuovi Sfondo -> Upload.
+ * - Basato sulla v5.5.
+ * - Corretta la gestione della privacy per 'ct_catalogo'.
+ * - Aggiunto supporto per entrambi i formati di props (entitaTipo/entita_tipo).
+ * - Migliorato il debug per verificare i dati inviati al backend.
+ * - Rimossi componenti icona duplicati.
  */
 
 // ======================================================================
@@ -39,29 +40,12 @@ import {
     AlertTriangle,
     UploadCloud,
     Loader2,
-    Eye
+    Eye,
+    Camera,
+    Check,
+    Pencil,
+    X
 } from 'lucide-react';
-
-// --- COMPONENTI ICONA SVG INLINE ---
-const CameraIcon = (props) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-        <circle cx="12" cy="13" r="3"></circle>
-    </svg>
-);
-
-const CheckIcon = (props) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12"></polyline>
-    </svg>
-);
-
-const XIcon = (props) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
-);
 
 // ======================================================================
 // HELPER INTERNI
@@ -154,17 +138,40 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
 // COMPONENTE PRINCIPALE
 // ======================================================================
 
-const AllegatiManager = ({ entita_tipo, entita_id }) => {
-    const { loading, hasPermission } = useAuth();
+const AllegatiManager = ({
+    entitaId,
+    entitaTipo,
+    entita_tipo, // Supporto per snake_case
+    idDitta,
+    forceRefresh,
+    defaultPrivacy = 'private'
+}) => {
+    const { idDitta: dittaAuth, hasPermission } = useAuth();
+    
+    // Usa entita_tipo se disponibile, altrimenti usa entitaTipo
+    const entityType = entita_tipo || entitaTipo;
+    
+    // Se entityType è 'ct_catalogo', imposta automaticamente la privacy a 'public'
+    const effectivePrivacy = entityType === 'ct_catalogo' ? 'public' : defaultPrivacy;
+    
+    // Debug per verificare i valori
+    console.log('DEBUG: entitaTipo ricevuto:', entitaTipo);
+    console.log('DEBUG: entita_tipo ricevuto:', entita_tipo);
+    console.log('DEBUG: entityType calcolato:', entityType);
+    console.log('DEBUG: effectivePrivacy calcolato:', effectivePrivacy);
     
     const [allegati, setAllegati] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [uploadingFiles, setUploadingFiles] = useState([]);
+    const [effectiveIdDitta, setEffectiveIdDitta] = useState(idDitta);
     const [isAllegatoDeleteModalOpen, setIsAllegatoDeleteModalOpen] = useState(false);
     const [allegatoLinkToDelete, setAllegatoLinkToDelete] = useState(null);
+    const [editingAllegato, setEditingAllegato] = useState(null);
+    const [currentNote, setCurrentNote] = useState('');
     
     const fileInputRef = useRef(null);
+    const uploadCancelTokens = useRef(new Map());
 
     // Stati per la gestione del ritaglio
     const [cameraFile, setCameraFile] = useState(null);
@@ -215,32 +222,30 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     };
 
+    useEffect(() => {
+        setEffectiveIdDitta(idDitta || dittaAuth);
+    }, [idDitta, dittaAuth]);
+
     const fetchAllegati = useCallback(async () => {
-        if (!entita_tipo || !entita_id) return;
+        if (!entitaId || !entityType || !effectiveIdDitta) return;
         setIsLoading(true);
-        setError(null);
         try {
-            const res = await api.get(`/documenti/list/${entita_tipo}/${entita_id}`);
-            const allegatiConNome = res.data.map(a => ({
-               ...a,
-               utente_upload: (a.utente_nome || a.utente_cognome)
-                   ? `${a.utente_nome || ''} ${a.utente_cognome || ''}`.trim()
-                   : (a.utente_nome === null ? 'Utente Eliminato' : 'N/D')
-            }));
-            setAllegati(allegatiConNome);
+            const response = await api.get(`/api/archivio/entita/${entityType}/${entitaId}`, {
+                params: { idDitta: effectiveIdDitta }
+            });
+            setAllegati(response.data);
+            setError(null);
         } catch (err) {
-            console.error("Errore nel caricamento degli allegati:", err);
-            setError(err.response?.data?.error || "Impossibile caricare gli allegati.");
+            console.error("Errore nel recupero degli allegati:", err);
+            setError("Impossibile caricare gli allegati.");
         } finally {
             setIsLoading(false);
         }
-    }, [entita_tipo, entita_id]);
+    }, [entitaId, entityType, effectiveIdDitta]);
 
     useEffect(() => {
-        if (!entita_tipo || !entita_id) return;
-        if (loading) return;
         fetchAllegati();
-    }, [fetchAllegati, loading]);
+    }, [fetchAllegati]);
 
     const handleUpload = (acceptedFiles) => {
         if (!hasPermission('DM_FILE_UPLOAD')) return;
@@ -261,8 +266,30 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         disabled: !hasPermission('DM_FILE_UPLOAD'),
     });
 
-    const performUpload = async (upload) => {
-        const { file } = upload;
+    // =====================================================================
+    // FUNZIONE 'performUpload' (MODIFICATA v5.6)
+    // =====================================================================
+    const performUpload = useCallback(async (upload) => {
+        const { id, file } = upload;
+        const source = axios.CancelToken.source();
+        uploadCancelTokens.current.set(id, source);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('entitaId', entitaId);
+        formData.append('entitaTipo', entityType); // Usa entityType calcolato
+        formData.append('idDitta', effectiveIdDitta);
+        formData.append('note', ''); // In questa versione, la nota non viene chiesta all'inizio
+        
+        // Utilizza 'effectivePrivacy' calcolato internamente
+        formData.append('privacy', effectivePrivacy);
+        
+        // Debug per verificare i dati inviati
+        console.log('DEBUG: Dati FormData inviati al backend:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}:`, value);
+        }
+
         const setUploadStatus = (progress, error = null) => {
             setUploadingFiles(prev =>
                 prev.map(u =>
@@ -270,35 +297,40 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                 )
             );
         };
+
         try {
-            setUploadStatus(10); 
-            const resUrl = await api.post('/documenti/generate-upload-url', {
-                fileName: file.name, fileSize: file.size, mimeType: file.type,
-            });
-            const { uploadUrl, s3Key } = resUrl.data;
-            setUploadStatus(30); 
-            await axios.put(uploadUrl, file, {
-                headers: { 'Content-Type': file.type },
+            setUploadStatus(10);
+            
+            await api.post('/api/archivio/upload', formData, {
+                cancelToken: source.token,
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setUploadStatus(30 + (percent * 0.6)); 
+                        setUploadStatus(percent);
                     }
-                },
+                }
             });
-            setUploadStatus(95);
-            await api.post('/documenti/finalize-upload', {
-                s3Key, fileName: file.name, fileSize: file.size, mimeType: file.type,
-                entita_tipo, entita_id,
-            });
+            
             setUploadStatus(100);
-            fetchAllegati(); 
+            fetchAllegati();
+            if (forceRefresh) forceRefresh();
             setTimeout(() => setUploadingFiles(prev => prev.filter(u => u.id !== upload.id)), 1000);
         } catch (err) {
             console.error("Errore durante l'upload:", err);
             const errMsg = err.response?.data?.error || err.message || "Errore sconosciuto";
-            setUploadStatus(0, errMsg); 
+            setUploadStatus(0, errMsg);
+        } finally {
+            uploadCancelTokens.current.delete(id);
         }
+    }, [entitaId, entityType, effectiveIdDitta, forceRefresh, fetchAllegati, effectivePrivacy]);
+
+    const cancelUpload = (id) => {
+        const source = uploadCancelTokens.current.get(id);
+        if (source) {
+            source.cancel('Upload annullato dall\'utente.');
+        }
+        setUploadingFiles(prev => prev.filter(f => f.id !== id));
+        uploadCancelTokens.current.delete(id);
     };
 
     const handleDownload = async (file) => {
@@ -322,14 +354,37 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     const confirmDelete = async () => {
         if (!allegatoLinkToDelete) return;
         try {
-            await api.delete(`/documenti/link/${allegatoLinkToDelete.id_link}`);
-            setAllegati(prev => prev.filter(a => a.id_link !== allegatoLinkToDelete.id_link));
-        } catch (err) {
-            console.error("Errore nell'eliminazione dell'allegato:", err);
-            setError(err.response?.data?.error || "Impossibile eliminare l'allegato.");
-        } finally {
+            await api.delete(`/api/archivio/scollega/${allegatoLinkToDelete.id_link}`, {
+                params: { idDitta: effectiveIdDitta }
+            });
             setIsAllegatoDeleteModalOpen(false);
             setAllegatoLinkToDelete(null);
+            fetchAllegati();
+            if (forceRefresh) forceRefresh();
+        } catch (err) {
+            console.error("Errore durante l'eliminazione:", err);
+            setError(err.response?.data?.error || "Impossibile eliminare l'allegato.");
+        }
+    };
+
+    const handleEditNote = (allegato) => {
+        setEditingAllegato(allegato);
+        setCurrentNote(allegato.note || '');
+    };
+
+    const saveNote = async () => {
+        if (!editingAllegato) return;
+        try {
+            await api.put(`/api/archivio/note/${editingAllegato.id_link}`, {
+                note: currentNote,
+                idDitta: effectiveIdDitta
+            });
+            setEditingAllegato(null);
+            setCurrentNote('');
+            fetchAllegati();
+        } catch (err) {
+            console.error("Errore durante il salvataggio della nota:", err);
+            setError(err.response?.data?.error || "Impossibile salvare la nota.");
         }
     };
     
@@ -441,16 +496,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     };
     
-    if (loading) {
-        return (
-            <div className="w-full max-w-4xl mx-auto flex justify-center items-center py-8">
-                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                <span className="ml-3 text-gray-600">Caricamento permessi...</span>
-            </div>
-        );
-    }
-
-    if (typeof hasPermission !== 'function') {
+    if (!hasPermission) {
         return (
             <div className="w-full max-w-4xl mx-auto text-center py-8 text-red-600">
                 Errore Critico: Contesto di autenticazione non disponibile.
@@ -460,7 +506,17 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
 
     return (
         <div className="w-full max-w-4xl mx-auto">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">Gestione Allegati</h3>
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">
+                Gestione Allegati 
+                {/* Indicatore visivo della privacy */}
+                <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                    effectivePrivacy === 'public' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                }`}>
+                    {effectivePrivacy === 'public' ? 'Pubblico' : 'Privato'}
+                </span>
+            </h3>
 
             {hasPermission('DM_FILE_UPLOAD') && (
                 <div
@@ -489,7 +545,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                             onClick={handleCameraClick}
                             className="flex items-center justify-center w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                         >
-                            <CameraIcon className="w-6 h-6 mr-2" />
+                            <Camera className="w-6 h-6 mr-2" />
                             Apri Fotocamera
                         </button>
                     </div>
@@ -523,6 +579,14 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                     <div className={`h-2 rounded-full transition-all ${up.error ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: up.error ? '100%' : `${up.progress}%` }}></div>
                                 </div>
                                 {up.error && <p className="text-xs text-red-600 mt-1">{up.error}</p>}
+                                {!up.error && (
+                                    <button 
+                                        onClick={() => cancelUpload(up.id)} 
+                                        className="mt-2 text-xs text-red-500 hover:text-red-700"
+                                    >
+                                        Annulla upload
+                                    </button>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -563,6 +627,35 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                             Caricato il {formatFileDate(file.created_at)}
                                             {file.utente_upload && ` da ${file.utente_upload}`}
                                         </p>
+                                        {editingAllegato?.id_link === file.id_link ? (
+                                            <div className="mt-1 flex items-center">
+                                                <input
+                                                    type="text"
+                                                    value={currentNote}
+                                                    onChange={(e) => setCurrentNote(e.target.value)}
+                                                    className="text-xs border rounded px-1 py-0.5 mr-1"
+                                                    placeholder="Aggiungi nota..."
+                                                />
+                                                <button
+                                                    onClick={saveNote}
+                                                    className="text-green-600 hover:text-green-800"
+                                                    title="Salva"
+                                                >
+                                                    <Check className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingAllegato(null)}
+                                                    className="text-red-600 hover:text-red-800 ml-1"
+                                                    title="Annulla"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            file.note && (
+                                                <p className="text-xs text-gray-600 mt-1">Nota: {file.note}</p>
+                                            )
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
@@ -581,6 +674,14 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                             title="Download" 
                                             className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
                                         ><Download className="w-5 h-5" /></button>
+                                    )}
+                                    {hasPermission('DM_FILE_EDIT') && (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleEditNote(file)} 
+                                            title="Modifica nota" 
+                                            className="p-2 text-gray-500 hover:text-yellow-600 rounded-full hover:bg-gray-100"
+                                        ><Pencil className="w-5 h-5" /></button>
                                     )}
                                     {hasPermission('DM_FILE_DELETE') && (
                                         <button 
@@ -613,7 +714,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                         <div className="p-4 border-b flex justify-between items-center">
                             <h3 className="text-lg font-semibold text-gray-800">Ritaglia l'immagine</h3>
                             <button onClick={closeAllModals} className="text-gray-500 hover:text-gray-700">
-                                <XIcon className="w-6 h-6" />
+                                <X className="w-6 h-6" />
                             </button>
                         </div>
                         <div className="p-2 border-b flex justify-center space-x-2 flex-wrap">
@@ -657,7 +758,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                         : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 }`}
                             >
-                                <CheckIcon className="w-4 h-4 mr-1" />
+                                <Check className="w-4 h-4 mr-1" />
                                 Usa Immagine Ritagliata
                             </button>
                             <button
@@ -708,7 +809,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition flex items-center"
                                 disabled={isRemovingBg}
                             >
-                                <XIcon className="w-4 h-4 mr-1" />
+                                <X className="w-4 h-4 mr-1" />
                                 Mantieni Sfondo
                             </button>
                             <button
@@ -724,7 +825,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                                     </>
                                 ) : (
                                     <>
-                                        <CheckIcon className="w-4 h-4 mr-1" />
+                                        <Check className="w-4 h-4 mr-1" />
                                         Rimuovi Sfondo
                                     </>
                                 )}
