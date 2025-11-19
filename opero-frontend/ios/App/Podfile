@@ -11,6 +11,7 @@ install! 'cocoapods', :disable_input_output_paths => true
 def capacitor_pods
   pod 'Capacitor', :path => '../../../../../../Documents/app/opero/opero-frontend/node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../../../../../Documents/app/opero/opero-frontend/node_modules/@capacitor/ios'
+  pod 'CapacitorCamera', :path => '../../../../../../Documents/app/opero/opero-frontend/node_modules/@capacitor/camera'
   pod 'CapacitorFilesystem', :path => '../../../../../../Documents/app/opero/opero-frontend/node_modules/@capacitor/filesystem'
   pod 'CapacitorShare', :path => '../../../../../../Documents/app/opero/opero-frontend/node_modules/@capacitor/share'
   pod 'CapacitorToast', :path => '../../../../../../Documents/app/opero/opero-frontend/node_modules/@capacitor/toast'
