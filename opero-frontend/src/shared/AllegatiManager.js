@@ -141,6 +141,7 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
 const AllegatiManager = ({
     entitaId,
     entitaTipo,
+    entita_id, // Supporto per snake_case
     entita_tipo, // Supporto per snake_case
     idDitta,
     forceRefresh,
@@ -148,16 +149,20 @@ const AllegatiManager = ({
 }) => {
     const { idDitta: dittaAuth, hasPermission } = useAuth();
     
-    // Usa entita_tipo se disponibile, altrimenti usa entitaTipo
-    const entityType = entita_tipo || entitaTipo;
+    // Usa entita_id/entita_tipo se disponibili, altrimenti usa entitaId/entitaTipo
+    const effectiveEntitaId = entita_id || entitaId;
+    const effectiveEntitaTipo = entita_tipo || entitaTipo;
     
-    // Se entityType è 'ct_catalogo', imposta automaticamente la privacy a 'public'
-    const effectivePrivacy = entityType === 'ct_catalogo' ? 'public' : defaultPrivacy;
+    // Se effectiveEntitaTipo è 'ct_catalogo', imposta automaticamente la privacy a 'public'
+    const effectivePrivacy = effectiveEntitaTipo === 'ct_catalogo' ? 'public' : defaultPrivacy;
     
     // Debug per verificare i valori
+    console.log('DEBUG: entitaId ricevuto:', entitaId);
+    console.log('DEBUG: entita_id ricevuto:', entita_id);
     console.log('DEBUG: entitaTipo ricevuto:', entitaTipo);
     console.log('DEBUG: entita_tipo ricevuto:', entita_tipo);
-    console.log('DEBUG: entityType calcolato:', entityType);
+    console.log('DEBUG: effectiveEntitaId calcolato:', effectiveEntitaId);
+    console.log('DEBUG: effectiveEntitaTipo calcolato:', effectiveEntitaTipo);
     console.log('DEBUG: effectivePrivacy calcolato:', effectivePrivacy);
     
     const [allegati, setAllegati] = useState([]);
@@ -226,22 +231,27 @@ const AllegatiManager = ({
         setEffectiveIdDitta(idDitta || dittaAuth);
     }, [idDitta, dittaAuth]);
 
-    const fetchAllegati = useCallback(async () => {
-        if (!entitaId || !entityType || !effectiveIdDitta) return;
-        setIsLoading(true);
-        try {
-            const response = await api.get(`/api/archivio/entita/${entityType}/${entitaId}`, {
-                params: { idDitta: effectiveIdDitta }
-            });
-            setAllegati(response.data);
-            setError(null);
-        } catch (err) {
-            console.error("Errore nel recupero degli allegati:", err);
-            setError("Impossibile caricare gli allegati.");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [entitaId, entityType, effectiveIdDitta]);
+// =================================================================
+// CON QUESTO CODICE CORRETTO
+// =================================================================
+const fetchAllegati = useCallback(async () => {
+    // Usa le variabili "effettive" calcolate all'inizio del componente
+    if (!effectiveEntitaId || !effectiveEntitaTipo || !effectiveIdDitta) return;
+    setIsLoading(true);
+    try {
+        const response = await api.get(`/archivio/entita/${effectiveEntitaTipo}/${effectiveEntitaId}`, {
+            params: { idDitta: effectiveIdDitta }
+        });
+        setAllegati(response.data);
+        setError(null);
+    } catch (err) {
+        console.error("Errore nel recupero degli allegati:", err);
+        setError("Impossibile caricare gli allegati.");
+    } finally {
+        setIsLoading(false);
+    }
+}, [effectiveEntitaId, effectiveEntitaTipo, effectiveIdDitta]); // Aggiorna anche le dipendenze
+
 
     useEffect(() => {
         fetchAllegati();
@@ -274,10 +284,16 @@ const AllegatiManager = ({
         const source = axios.CancelToken.source();
         uploadCancelTokens.current.set(id, source);
 
+        // Controllo fondamentale per evitare errori
+        if (!effectiveEntitaId) {
+            console.error("ERRORE: effectiveEntitaId è undefined. Impossibile procedere con l'upload.");
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('entitaId', entitaId);
-        formData.append('entitaTipo', entityType); // Usa entityType calcolato
+        formData.append('entitaId', effectiveEntitaId);
+        formData.append('entitaTipo', effectiveEntitaTipo);
         formData.append('idDitta', effectiveIdDitta);
         formData.append('note', ''); // In questa versione, la nota non viene chiesta all'inizio
         
@@ -322,7 +338,7 @@ const AllegatiManager = ({
         } finally {
             uploadCancelTokens.current.delete(id);
         }
-    }, [entitaId, entityType, effectiveIdDitta, forceRefresh, fetchAllegati, effectivePrivacy]);
+    }, [effectiveEntitaId, effectiveEntitaTipo, effectiveIdDitta, forceRefresh, fetchAllegati, effectivePrivacy]);
 
     const cancelUpload = (id) => {
         const source = uploadCancelTokens.current.get(id);
@@ -354,7 +370,7 @@ const AllegatiManager = ({
     const confirmDelete = async () => {
         if (!allegatoLinkToDelete) return;
         try {
-            await api.delete(`/api/archivio/scollega/${allegatoLinkToDelete.id_link}`, {
+            await api.delete(`/archivio/scollega/${allegatoLinkToDelete.id_link}`, {
                 params: { idDitta: effectiveIdDitta }
             });
             setIsAllegatoDeleteModalOpen(false);
@@ -375,7 +391,7 @@ const AllegatiManager = ({
     const saveNote = async () => {
         if (!editingAllegato) return;
         try {
-            await api.put(`/api/archivio/note/${editingAllegato.id_link}`, {
+            await api.put(`/archivio/note/${editingAllegato.id_link}`, {
                 note: currentNote,
                 idDitta: effectiveIdDitta
             });

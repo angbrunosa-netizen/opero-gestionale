@@ -1,12 +1,12 @@
 /**
  * @file opero/routes/archivio.js
- * @description Nuova rotta per il modulo "Archivio Documentale".
- * - v1.0: Fornisce l'endpoint per la consultazione
- * di tutti i file (DMS Fase 1).
- * - v1.1: Aggiunto endpoint per aggiornare la privacy di un file
- * - v1.2: Aggiunto endpoint per l'upload di file
+ * @description Rotte per il modulo "Archivio Documentale".
+ * - v1.0: Fornisce l'endpoint per la consultazione di tutti i file (DMS Fase 1).
+ * - v1.1: Aggiunto endpoint per aggiornare la privacy di un file.
+ * - v1.2: Aggiunto endpoint per l'upload di file.
+ * - v1.3: Modificato la convenzione di nomina per includere ID ditta, ID entità e tipo entità.
  * @date 2025-11-11
- * @version 1.2
+ * @version 1.3
  */
 
 const express = require('express');
@@ -18,7 +18,8 @@ const { v4: uuidv4 } = require('uuid');
 
 // Configurazione di multer per gestire l'upload in memoria
 const upload = multer({ storage: multer.memoryStorage() });
-
+// URL della CDN configurata su Cloudflare
+const CDN_BASE_URL = 'https://cdn.operocloud.it';
 // Import S3 client e comandi
 const {
     s3Client,
@@ -32,14 +33,6 @@ const {
 
 router.use(authenticate);
 
-/**
- * API: GET /api/archivio/all-files
- *
- * Recupera TUTTI i file dalla tabella 'dm_files',
- * unendo i dati dell'utente che ha caricato e
- * aggregando (GROUP_CONCAT) tutti i link polimorfici
- * dalla tabella 'dm_allegati_link'.
- */
 router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
     if (!idDitta) {
@@ -70,19 +63,24 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 knex.raw("CONCAT(u.nome, ' ', u.cognome) as utente_upload"),
                 knex.raw(
                     "GROUP_CONCAT(DISTINCT COALESCE(cat.descrizione, bene.descrizione, CONCAT(link.entita_tipo, ':', link.entita_id)) SEPARATOR ', ') as links_descrizione"
+                ),
+                knex.raw(
+                    "GROUP_CONCAT(DISTINCT link.entita_tipo SEPARATOR ',') as entita_tipi"
                 )
             )
             .groupBy('file.id')
             .orderBy('file.created_at', 'desc');
 
-        const cleanEndpoint = S3_ENDPOINT.replace(/^(https?:\/\/)/, '');
-        
         for (const file of files) {
             const mimeType = file.mime_type;
             
             if (file.privacy === 'public') {
-                file.previewUrl = `http://${cleanEndpoint}/${S3_BUCKET_NAME}/${file.s3_key}`;
+                // *** LOGICA CDN ***
+                // Se è pubblico, costruiamo l'URL usando il dominio CDN.
+                // Esempio: https://cdn.operocloud.it/nome-bucket/chiave-file
+                file.previewUrl = `${CDN_BASE_URL}/${S3_BUCKET_NAME}/${file.s3_key}`;
             } else if (mimeType && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
+                // Se è privato, usiamo il link firmato S3 (scade in 5 min)
                 const command = new GetObjectCommand({
                     Bucket: S3_BUCKET_NAME,
                     Key: file.s3_key,
@@ -90,7 +88,7 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
                 });
                 file.previewUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
             }
-            delete file.s3_key;
+            delete file.s3_key; // Non esponiamo la chiave grezza se non serve
         }
         
         res.json(files);
@@ -102,43 +100,80 @@ router.get('/all-files', checkPermission('DM_FILE_VIEW'), async (req, res) => {
 });
 
 /**
+ * API: GET /api/archivio/entita/:entitaTipo/:entitaId
+ * Recupera allegati specifici per un'entità.
+ */
+router.get('/entita/:entitaTipo/:entitaId', checkPermission('DM_FILE_VIEW'), async (req, res) => {
+    const { entitaTipo, entitaId } = req.params;
+    const idDitta = req.user?.id_ditta;
+
+    if (!idDitta) return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
+
+    try {
+        const allegati = await knex('dm_allegati_link as link')
+            .join('dm_files as file', 'link.id_file', 'file.id')
+            .where({
+                'link.entita_tipo': entitaTipo,
+                'link.entita_id': entitaId,
+                'link.id_ditta': idDitta
+            })
+            .select(
+                'file.id as id_link',
+                'file.file_name_originale',
+                'file.file_size_bytes',
+                'file.mime_type',
+                'file.privacy',
+                'file.created_at',
+                'file.s3_key'
+            )
+            .orderBy('file.created_at', 'desc');
+
+        for (const allegato of allegati) {
+            const mimeType = allegato.mime_type;
+            
+            if (allegato.privacy === 'public') {
+                // *** LOGICA CDN ***
+                allegato.previewUrl = `${CDN_BASE_URL}/${S3_BUCKET_NAME}/${allegato.s3_key}`;
+            } else if (mimeType && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
+                const command = new GetObjectCommand({
+                    Bucket: S3_BUCKET_NAME,
+                    Key: allegato.s3_key,
+                    ResponseContentDisposition: `inline; filename="${allegato.file_name_originale}"`
+                });
+                allegato.previewUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+            }
+            delete allegato.s3_key;
+        }
+        res.json(allegati);
+    } catch (error) {
+        console.error("Errore nel recupero allegati entità:", error);
+        res.status(500).json({ error: 'Impossibile recuperare gli allegati.' });
+    }
+});
+/**
+/**
  * API: PUT /api/archivio/file/:id_file/privacy
- *
- * Aggiorna la privacy di un file (nel DB e su S3).
+ * Aggiorna la privacy (DB + S3 ACL).
  */
 router.put('/file/:id_file/privacy', checkPermission('DM_FILE_MANAGE'), async (req, res) => {
     const { id_file } = req.params;
-    const { privacy } = req.body; // 'public' o 'private'
+    const { privacy } = req.body;
     const idDitta = req.user?.id_ditta;
 
-    if (!idDitta) {
-        return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
-    }
+    if (!idDitta) return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
     if (!privacy || (privacy !== 'public' && privacy !== 'private')) {
         return res.status(400).json({ error: "Valore 'privacy' non valido." });
     }
 
     const trx = await knex.transaction();
     try {
-        // 1. Trova il file
-        const file = await trx('dm_files')
-            .where({
-                id: parseInt(id_file),
-                id_ditta: idDitta
-            })
-            .first('s3_key');
+        const file = await trx('dm_files').where({ id: parseInt(id_file), id_ditta: idDitta }).first('s3_key');
+        if (!file) { await trx.rollback(); return res.status(404).json({ error: 'File non trovato.' }); }
 
-        if (!file) {
-            await trx.rollback();
-            return res.status(404).json({ error: 'File non trovato.' });
-        }
+        // Aggiorna DB
+        await trx('dm_files').where('id', parseInt(id_file)).update({ privacy: privacy });
 
-        // 2. Aggiorna il DB
-        await trx('dm_files')
-            .where('id', parseInt(id_file))
-            .update({ privacy: privacy });
-
-        // 3. Imposta l'ACL (Permesso) su S3
+        // Aggiorna S3 ACL
         const newAcl = (privacy === 'public') ? 'public-read' : 'private';
         const aclCommand = new PutObjectAclCommand({
             Bucket: S3_BUCKET_NAME,
@@ -147,14 +182,77 @@ router.put('/file/:id_file/privacy', checkPermission('DM_FILE_MANAGE'), async (r
         });
         await s3Client.send(aclCommand);
 
-        // 4. Conferma
         await trx.commit();
         res.json({ success: true, message: `Privacy aggiornata a ${privacy}.` });
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore aggiornamento privacy:", error);
+        res.status(500).json({ error: 'Impossibile aggiornare la privacy.' });
+    }
+});
+
+/**
+ * API: DELETE /api/archivio/scollega/:entitaTipo/:entitaId
+ *
+ * Scollega un file da un'entità utilizzando la chiave primaria composita.
+ */
+router.delete('/scollega/:entitaTipo/:entitaId', checkPermission('DM_FILE_DELETE'), async (req, res) => {
+    const { entitaTipo, entitaId } = req.params;
+    const idDitta = req.user?.id_ditta;
+
+    if (!idDitta) {
+        return res.status(400).json({ error: 'Nessuna ditta selezionata.' });
+    }
+
+    const trx = await knex.transaction();
+    try {
+        // Trova il link da eliminare usando la chiave primaria composita
+        const linkToDelete = await trx('dm_allegati_link')
+            .where({
+                id_ditta: idDitta,
+                entita_tipo: entitaTipo,
+                entita_id: entitaId
+            })
+            .first();
+
+        if (!linkToDelete) {
+            await trx.rollback();
+            return res.status(404).json({ error: 'Link non trovato.' });
+        }
+
+        // Elimina il link
+        await trx('dm_allegati_link')
+            .where({
+                id_ditta: idDitta,
+                entita_tipo: entitaTipo,
+                entita_id: entitaId
+            })
+            .del();
+
+        // Controlla se il file è collegato ad altre entità
+        const otherLinksCount = await trx('dm_allegati_link')
+            .where({ id_file: linkToDelete.id_file })
+            .whereNot({
+                id_ditta: idDitta,
+                entita_tipo: entitaTipo,
+                entita_id: entitaId
+            })
+            .count();
+
+        // Se non è collegato ad altre entità, elimina anche il file
+        if (otherLinksCount === 0) {
+            await trx('dm_files')
+                .where({ id: linkToDelete.id_file })
+                .del();
+        }
+
+        await trx.commit();
+        res.json({ success: true, message: 'File scollegato con successo.' });
 
     } catch (error) {
         await trx.rollback();
-        console.error("Errore aggiornamento privacy file:", error);
-        res.status(500).json({ error: 'Impossibile aggiornare la privacy.' });
+        console.error("Errore durante l'eliminazione del link:", error);
+        res.status(500).json({ error: 'Impossibile scollegare il file.' });
     }
 });
 
@@ -162,13 +260,7 @@ router.put('/file/:id_file/privacy', checkPermission('DM_FILE_MANAGE'), async (r
  * API: POST /api/archivio/upload
  *
  * Carica un file su S3, crea il record nel DB e lo collega all'entità.
- * Legge il campo 'privacy' dal FormData per impostare correttamente i permessi.
- */
-/**
- * API: POST /api/archivio/upload
- *
- * Carica un file su S3, crea il record nel DB e lo collega all'entità.
- * Legge il campo 'privacy' dal FormData per impostare correttamente i permessi.
+ * Utilizza una convenzione di nomina strutturata per i file su S3.
  */
 router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
@@ -179,7 +271,7 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
     }
 
     const file = req.file;
-    const { entitaId, entitaTipo, idDitta: idDittaForm, note, privacy } = req.body;
+    const { entitaId, entitaTipo, idDitta: idDittaForm, privacy } = req.body;
 
     if (!file) {
         return res.status(400).json({ error: 'Nessun file caricato.' });
@@ -195,8 +287,8 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
     const filePrivacy = privacy || 'private';
 
     // --- AGGIUNGI QUESTI LOG PER DEBUG ---
-    console.log('BACKEND DEBUG - Corpo della richiesta ricevuto (req.body):', req.body);
-    console.log('BACKEND DEBUG - File ricevuto (req.file):', req.file ? req.file.originalname : 'NESSUNO');
+   // console.log('BACKEND DEBUG - Corpo della richiesta ricevuto (req.body):', req.body);
+   // console.log('BACKEND DEBUG - File ricevuto (req.file):', req.file ? req.file.originalname : 'NESSUNO');
     // --- FINE LOG ---
 
     const trx = await knex.transaction();
@@ -215,9 +307,11 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
         // In MySQL, l'ID inserito è in insertResult[0]
         const fileRecordId = insertResult[0];
 
-        const s3Key = `ditta-${effectiveIdDitta}/${fileRecordId}-${file.originalname}`;
+        // 2. Crea la chiave S3 con la nuova convenzione di nomina
+        // Formato: ditta-{idDitta};{entitaId};{entitaTipo};{fileRecordId}-{file.originalname}
+        const s3Key = `ditta-${effectiveIdDitta};${entitaId};${entitaTipo};${fileRecordId}-${file.originalname}`;
 
-        // 2. Prepara i parametri per l'upload su S3
+        // 3. Prepara i parametri per l'upload su S3
         const uploadParams = {
             Bucket: S3_BUCKET_NAME,
             Key: s3Key,
@@ -226,23 +320,24 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
             ACL: filePrivacy === 'public' ? 'public-read' : 'private'
         };
 
-        // 3. Esegui l'upload su S3
+        // 4. Esegui l'upload su S3
         await s3Client.send(new PutObjectCommand(uploadParams));
 
-        // 4. Aggiorna il record nel DB con la chiave S3 corretta
+        // 5. Aggiorna il record nel DB con la chiave S3 corretta
         await trx('dm_files')
             .where('id', fileRecordId)
             .update({ s3_key: s3Key });
 
-        // 5. Crea il link polimorfico nella tabella dm_allegati_link
+        // 6. Crea il link polimorfico nella tabella dm_allegati_link
         await trx('dm_allegati_link').insert({
+            id_ditta: effectiveIdDitta,
             id_file: fileRecordId,
             entita_tipo: entitaTipo,
             entita_id: entitaId,
-            note: note || null
+            
         });
 
-        // 6. Conferma la transazione
+        // 7. Conferma la transazione
         await trx.commit();
 
         res.status(201).json({
@@ -250,7 +345,8 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
             file: {
                 id: fileRecordId,
                 fileName: file.originalname,
-                privacy: filePrivacy
+                privacy: filePrivacy,
+                s3Key: s3Key // Aggiunto per riferimento
             }
         });
 
@@ -260,4 +356,5 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
         res.status(500).json({ error: 'Impossibile caricare il file.' });
     }
 });
+
 module.exports = router;
