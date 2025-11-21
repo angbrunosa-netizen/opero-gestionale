@@ -39,8 +39,7 @@ function useDebounce(value, delay) {
 }
 
 
-// Componente per la Visualizzazione Mobile con layout a griglia
-const MobileCatalogoView = ({ data, isLoading, hasPermission, onEdit, onArchive, onOpenSubManager, currentPage, totalPages, onPageChange }) => {
+const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit, onArchive, onOpenSubManager, currentPage, totalPages, onPageChange }) => {
     if (isLoading) {
         return <div className="flex justify-center items-center h-32"><div className="text-gray-500">Caricamento...</div></div>;
     }
@@ -51,6 +50,12 @@ const MobileCatalogoView = ({ data, isLoading, hasPermission, onEdit, onArchive,
 
     return (
         <>
+            {/* MODIFICATO: Aggiunta la prop totalCount per mostrare il messaggio informativo */}
+            {totalCount > data.length && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md text-sm">
+                    Trovati {totalCount} risultati. I primi {data.length} sono mostrati.
+                </div>
+            )}
             <div className="space-y-4 pb-4">
                 {data.map((item) => (
                     <div key={item.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 grid grid-rows-[auto_1fr_auto] gap-y-2">
@@ -535,7 +540,8 @@ const CatalogoManager = () => {
             <div className="flex-1 overflow-y-auto">
                 {isMobile ? (
                     <MobileCatalogoView
-                        data={enrichedData}
+                        data={displayedData}
+                        totalCount={5} // MODIFICATO: Passa totalCount al componente
                         isLoading={isLoading}
                         hasPermission={hasPermission}
                         onEdit={handleEdit}
