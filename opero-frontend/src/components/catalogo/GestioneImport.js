@@ -146,6 +146,7 @@ const GestioneImport = () => {
             
             {isImportFotoModalOpen && (
                 <ImportFotoCatalogoModal 
+                     isOpen={isImportFotoModalOpen} 
                     onClose={() => handleCloseImportModal('foto')} 
                     onImportSuccess={forceRefresh} 
                 />
