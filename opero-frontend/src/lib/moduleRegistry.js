@@ -32,7 +32,7 @@ const MailModule = React.lazy(() => import('../components/MailModule'));
 const AmministrazioneModule = React.lazy(() => import('../components/AmministrazioneModule'));
 const AdminPanel = React.lazy(() => import('../components/AdminPanel'));
 const BeniStrumentaliModule = React.lazy(() => import('../components/beni-strumentali/BeniManager'));
-const CatalogoModule = React.lazy(() => import('../components/catalogo/CatalogoManager'));
+const CatalogoModule = React.lazy(() => import('../components/CatalogoModule'));
 const ArchivioDocumentale = React.lazy(() => import('../components/archivio/ArchivioDocumentale'));
 const AddressBook = React.lazy(() => import('../components/AddressBook'));
 const FinanzeModule = React.lazy(() => import('../components/FinanzeModule'));

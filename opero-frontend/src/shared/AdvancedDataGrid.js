@@ -1,9 +1,9 @@
 /**
  * @file opero-frontend/src/shared/AdvancedDataGrid.js
- * @description Griglia dati avanzata responsive con menu azioni mobile
- * @version 5.2 (Menu azioni ottimizzato per mobile)
+ * @description Griglia dati con ricerca ultra-performante e isolata.
+ * @version 5.6 (Performance massima e fix ricerca)
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     useReactTable,
     getCoreRowModel,
@@ -23,39 +23,81 @@ import {
     EllipsisVerticalIcon
 } from '@heroicons/react/24/outline';
 
-// --- SEARCHBAR MIGLIORATA ---
-const SearchBar = ({ value, onSearchChange, resultsCount, showResults }) => {
+// --- SEARCHBAR COMPLETAMENTE ISOLATA ---
+const SearchBar = React.memo(({ 
+    value, 
+    onChange, 
+    placeholder = "Cerca..." 
+}) => {
+    // Stato locale isolato - non causa MAI re-render del parent
+    const [localValue, setLocalValue] = useState(value || '');
+
+    // Sincronizza solo se il valore esterno cambia (es. reset)
+    useEffect(() => {
+        if (value !== localValue) {
+            setLocalValue(value || '');
+        }
+    }, [value]);
+
+    const handleChange = useCallback((e) => {
+        const newValue = e.target.value;
+        setLocalValue(newValue);
+        
+        // Notifica il parent solo quando l'utente preme Invio o il pulsante cerca
+        if (e.key === 'Enter') {
+            onChange(newValue);
+        }
+    }, [onChange]);
+
+    const handleSearch = useCallback(() => {
+        onChange(localValue);
+    }, [localValue, onChange]);
+
+    const handleClear = useCallback(() => {
+        setLocalValue('');
+        onChange('');
+    }, [onChange]);
+
     return (
         <div className="relative w-full">
             <div className="relative">
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
-                    value={value || ''}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Cerca..."
-                    className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm"
+                    value={localValue}
+                    onChange={handleChange}
+                    onKeyDown={handleChange}
+                    placeholder={placeholder}
+                    className="w-full pl-10 pr-20 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm"
                 />
-                {value && (
+                <div className="absolute right-0 top-0 h-full flex">
+                    {localValue && (
+                        <button
+                            type="button"
+                            onClick={handleClear}
+                            className="px-2 text-gray-400 hover:text-gray-600"
+                            title="Cancella ricerca"
+                        >
+                            <XMarkIcon className="h-5 w-5" />
+                        </button>
+                    )}
                     <button
-                        onClick={() => onSearchChange('')}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        title="Cancella ricerca"
+                        type="button"
+                        onClick={handleSearch}
+                        className="px-3 text-blue-600 hover:text-blue-800 border-l border-gray-300"
+                        title="Esegui ricerca (Invio)"
                     >
-                        <XMarkIcon className="h-5 w-5" />
+                        <MagnifyingGlassIcon className="h-5 w-5" />
                     </button>
-                )}
-            </div>
-            {showResults && value && (
-                <div className="text-xs text-gray-500 mt-1.5 px-1">
-                    {resultsCount} {resultsCount === 1 ? 'risultato trovato' : 'risultati trovati'}
                 </div>
-            )}
+            </div>
         </div>
     );
-};
+});
+
+SearchBar.displayName = 'SearchBar';
 
 // --- MENU AZIONI MOBILE ---
-const MobileActionsMenu = ({ onNew, newButtonText, headerActions }) => {
+const MobileActionsMenu = React.memo(({ onNew, newButtonText, headerActions }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     if (!onNew && !headerActions) return null;
@@ -112,10 +154,12 @@ const MobileActionsMenu = ({ onNew, newButtonText, headerActions }) => {
             )}
         </div>
     );
-};
+});
+
+MobileActionsMenu.displayName = 'MobileActionsMenu';
 
 // --- PULSANTI DESKTOP ---
-const DesktopActions = ({ onNew, newButtonText, headerActions, hideDefaultNewButton }) => {
+const DesktopActions = React.memo(({ onNew, newButtonText, headerActions, hideDefaultNewButton }) => {
     if ((!onNew || hideDefaultNewButton) && !headerActions) return null;
 
     return (
@@ -132,10 +176,12 @@ const DesktopActions = ({ onNew, newButtonText, headerActions, hideDefaultNewBut
             {headerActions}
         </div>
     );
-};
+});
+
+DesktopActions.displayName = 'DesktopActions';
 
 // --- CARD VIEW PER MOBILE ---
-const MobileCard = ({ row, onEdit, onDelete }) => {
+const MobileCard = React.memo(({ row, onEdit, onDelete }) => {
     return (
         <div className="bg-white border border-gray-200 rounded-lg p-4 mb-3 shadow-sm">
             {row.getVisibleCells().map(cell => {
@@ -179,9 +225,11 @@ const MobileCard = ({ row, onEdit, onDelete }) => {
             )}
         </div>
     );
-};
+});
 
-const AdvancedDataGrid = ({ 
+MobileCard.displayName = 'MobileCard';
+
+const AdvancedDataGrid = React.memo(({ 
     columns, 
     data, 
     isLoading, 
@@ -193,13 +241,16 @@ const AdvancedDataGrid = ({
     newButtonText = "Nuovo",
     enableGlobalFilter = true,
     headerActions,
-    hideDefaultNewButton = false
+    hideDefaultNewButton = false,
+    searchConfig = {
+        enabled: true,
+        placeholder: "Cerca..."
+    }
 }) => {
     const [sorting, setSorting] = useState([]);
-    const [globalFilter, setGlobalFilter] = useState('');
     const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const handleResize = () => setIsMobileView(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
@@ -237,18 +288,14 @@ const AdvancedDataGrid = ({
         return (onEdit || onDelete) ? [...columns, actionColumn] : columns;
     }, [columns, onEdit, onDelete]);
 
-    const currentSearchTerm = searchTerm !== undefined ? searchTerm : globalFilter;
-    const handleSearchChange = onSearchChange || setGlobalFilter;
-
     const table = useReactTable({
         data: memoizedData,
         columns: tableColumns,
         state: { 
             sorting,
-            globalFilter: currentSearchTerm,
+            globalFilter: searchTerm,
         },
         onSortingChange: setSorting,
-        onGlobalFilterChange: handleSearchChange,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
@@ -265,12 +312,11 @@ const AdvancedDataGrid = ({
             <div className="mb-4">
                 {/* Layout Mobile: Search + Menu Azioni in colonna */}
                 <div className="flex flex-col gap-3 md:hidden">
-                    {enableGlobalFilter && (
+                    {enableGlobalFilter && searchConfig.enabled && (
                         <SearchBar 
-                            value={currentSearchTerm} 
-                            onSearchChange={handleSearchChange}
-                            resultsCount={resultsCount}
-                            showResults={!isLoading}
+                            value={searchTerm} 
+                            onChange={onSearchChange}
+                            placeholder={searchConfig.placeholder}
                         />
                     )}
                     {hasActions && (
@@ -284,13 +330,12 @@ const AdvancedDataGrid = ({
 
                 {/* Layout Desktop: Search + Pulsanti in riga */}
                 <div className="hidden md:flex md:items-start md:gap-4">
-                    {enableGlobalFilter && (
+                    {enableGlobalFilter && searchConfig.enabled && (
                         <div className="flex-grow max-w-md">
                             <SearchBar 
-                                value={currentSearchTerm} 
-                                onSearchChange={handleSearchChange}
-                                resultsCount={resultsCount}
-                                showResults={!isLoading}
+                                value={searchTerm} 
+                                onChange={onSearchChange}
+                                placeholder={searchConfig.placeholder}
                             />
                         </div>
                     )}
@@ -314,7 +359,7 @@ const AdvancedDataGrid = ({
             ) : table.getRowModel().rows.length === 0 ? (
                 <div className="text-center p-8 bg-white rounded-lg border border-gray-200">
                     <p className="text-gray-600">
-                        {currentSearchTerm ? 'Nessun risultato trovato per la ricerca.' : 'Nessun dato disponibile.'}
+                        {searchTerm ? 'Nessun risultato trovato per la ricerca.' : 'Nessun dato disponibile.'}
                     </p>
                 </div>
             ) : (
@@ -405,6 +450,8 @@ const AdvancedDataGrid = ({
             )}
         </div>
     );
-};
+});
+
+AdvancedDataGrid.displayName = 'AdvancedDataGrid';
 
 export default AdvancedDataGrid;

@@ -1,9 +1,9 @@
 /**
  * @file opero-frontend/src/components/CatalogoModule.js
  * @description Modulo principale per il Catalogo, con navigazione interna per le tabelle di supporto.
- * - v2.3: Il titolo dell'header mobile mostra dinamicamente la sezione attiva.
- * @date 2024-05-21
- * @version 2.3 (titolo dinamico)
+ * - v2.4: Aggiunta sezione Gestione Import separata
+ * @date 2025-11-17
+ * @version 2.4 (con Gestione Import)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -13,6 +13,7 @@ import {
     TagIcon, 
     CircleStackIcon, 
     CheckBadgeIcon,
+    DocumentArrowUpIcon,
     Bars3Icon,
     XMarkIcon 
 } from '@heroicons/react/24/outline';
@@ -23,10 +24,10 @@ import UnitaMisuraManager from './catalogo/UnitaMisuraManager';
 import StatiEntitaManager from './catalogo/StatiEntitaManager';
 import CatalogoManager from './catalogo/CatalogoManager';
 import MagazzinoModule from './MagazzinoModule';
+import GestioneImport from './catalogo/GestioneImport';
 
 
 // --- Sotto-componente per la vista "Tabelle di Supporto" ---
-// (La logica interna di TabelleSupportoView rimane invariata rispetto alla versione precedente)
 const TabelleSupportoView = () => {
     const [activeSubTab, setActiveSubTab] = useState('categorie');
     const { hasPermission } = useAuth();
@@ -112,10 +113,11 @@ const CatalogoModule = () => {
         { key: 'anagrafica', label: 'Anagrafica', icon: BuildingStorefrontIcon },
         { key: 'compositi', label: 'Compositi', icon: CircleStackIcon },
         { key: 'tabelle_supporto', label: 'Tabelle di Supporto', icon: TagIcon },
+        { key: 'gestione_import', label: 'Gestione Import', icon: DocumentArrowUpIcon },
         { key: 'magazzino', label: 'Magazzino', icon: CheckBadgeIcon },
     ];
 
-    // MODIFICATO: Calcola dinamicamente l'etichetta del tab attivo per il titolo mobile
+    // Calcola dinamicamente l'etichetta del tab attivo per il titolo mobile
     const activeTabLabel = tabs.find(tab => tab.key === activeTab)?.label || 'Catalogo';
 
     const renderActiveTabContent = () => {
@@ -126,6 +128,8 @@ const CatalogoModule = () => {
                 return <div className="p-4">Gestione Prodotti Compositi (da implementare)</div>;
             case 'tabelle_supporto':
                 return <TabelleSupportoView />;
+            case 'gestione_import':
+                return <GestioneImport />;
             case 'magazzino':
                 return <MagazzinoModule />;
             default:
@@ -176,7 +180,7 @@ const CatalogoModule = () => {
 
                 <div ref={mobileMenuRef} className="md:hidden">
                     <div className="flex justify-between items-center py-3 px-4">
-                        {/* MODIFICATO: Usa il titolo dinamico invece di uno statico */}
+                        {/* Usa il titolo dinamico invece di uno statico */}
                         <span className="text-lg font-semibold text-gray-700">{activeTabLabel}</span>
                         <button
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

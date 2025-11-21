@@ -13,7 +13,7 @@ const router = express.Router();
 const { knex } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
-
+const { verifyToken} = require('../utils/auth');
 const { authenticate, checkPermission } = require('../utils/auth');
 
 // Import S3 client e comandi
@@ -423,13 +423,15 @@ router.get('/generate-preview-url/:id_file', checkPermission('DM_FILE_VIEW'), as
  * API 6: POST /api/documenti/upload-e-abbina-catalogo
  * (MODIFICATO v3.7 - Gestisce 'privacy')
  */
+
 router.post(
     '/upload-e-abbina-catalogo',
-    [checkPermission('CT_MANAGE'), checkPermission('DM_FILE_UPLOAD'), upload.single('image')],
+    // 1. Verifichiamo i permessi corretti: CT_MANAGE per modificare il catalogo, DM_FILE_UPLOAD per caricare file
+    [verifyToken, checkPermission('CT_MANAGE'), checkPermission('DM_FILE_UPLOAD'), upload.single('image')],
     async (req, res) => {
         
         // --- (MODIFICATO v3.7) ---
-        // Decidiamo che l'import massivo è sempre 'public'
+        // Decidiamo che l'import massivo è sempre 'public' per visibilità catalogo
         const { matchCode, matchBy, fileName } = req.body;
         const privacy = 'public'; 
         // ---
@@ -450,14 +452,16 @@ router.post(
 
         const trx = await knex.transaction();
         try {
-            // 2. Trova l'entità del catalogo (Invariato v3.6)
+            // 2. Trova l'entità del catalogo
             let entita = null;
             if (matchBy === 'codice_ean') {
+                // CORREZIONE 20-11-2025: Usa 'id_catalogo' invece di 'id_entita_catalogo'
                 const eanRecord = await trx('ct_ean')
                     .where({ codice_ean: matchCode, id_ditta: idDitta })
-                    .first('id_entita_catalogo');
+                    .first('id_catalogo'); // <--- COLONNA CORRETTA
+                
                 if (eanRecord) {
-                    entita = { id: eanRecord.id_entita_catalogo };
+                    entita = { id: eanRecord.id_catalogo }; // <--- ASSEGNAZIONE CORRETTA
                 }
             } else {
                 entita = await trx('ct_catalogo')
@@ -476,7 +480,7 @@ router.post(
             // 3. Prepara upload S3 (Invariato)
             const s3Key = `${idDitta}/${uuidv4()}/${fileName}`;
             const uploadParams = {
-                Bucket: S3_BUCKET_NAME,
+                Bucket: process.env.S3_BUCKET_NAME, // Usa env var per sicurezza
                 Key: s3Key,
                 Body: file.buffer,
                 ContentType: file.mimetype,
@@ -486,37 +490,43 @@ router.post(
             await s3Client.send(new PutObjectCommand(uploadParams));
 
             // 5. Salva in dm_files
-            const [newFile] = await trx('dm_files')
+            const [newFileId] = await trx('dm_files')
                 .insert({
                     id_ditta: idDitta,
                     s3_key: s3Key,
                     file_name_originale: fileName,
                     file_size_bytes: file.size,
                     mime_type: file.mimetype,
-                    privacy: privacy, // <-- (NUOVO v3.7)
+                    privacy: privacy,
                     id_utente_upload: idUtenteUpload,
-                })
-                .returning('id');
+                }); // MySQL restituisce array con ID, non .returning()
             
-            const id_file = newFile.id || newFile;
+            // const id_file = newFile.id || newFile; // Fix per compatibilità pg/mysql
+            // Con MySQL/Knex standard:
+            const id_file = newFileId;
 
-            // 6. Collega in dm_allegati_link (Invariato)
-            const [newLink] = await trx('dm_allegati_link')
+            // 6. Collega in dm_allegati_link
+            const [newLinkId] = await trx('dm_allegati_link')
                 .insert({
                     id_ditta: idDitta,
                     id_file: id_file,
                     entita_tipo: entita_tipo,
                     entita_id: parseInt(entita_id)
-                })
-                .returning('id');
+                });
 
-            // 7. Rendi Pubblico (NUOVO v3.7)
-            const aclCommand = new PutObjectAclCommand({
-                Bucket: S3_BUCKET_NAME,
-                Key: s3Key,
-                ACL: 'public-read'
-            });
-            await s3Client.send(aclCommand);
+            // 7. Rendi Pubblico su S3 (ACL)
+            // Nota: Alcuni bucket S3 moderni bloccano ACL pubbliche.
+            // Se fallisce qui, verifica le impostazioni del bucket "Block Public Access".
+            try {
+                const aclCommand = new PutObjectAclCommand({
+                    Bucket: process.env.S3_BUCKET_NAME,
+                    Key: s3Key,
+                    ACL: 'public-read'
+                });
+                await s3Client.send(aclCommand);
+            } catch (aclError) {
+                console.warn("Warning: Impossibile impostare ACL pubblica (potrebbe essere bloccata dal bucket). L'URL potrebbe non essere accessibile pubblicamente.", aclError.message);
+            }
 
             // 8. Commit
             await trx.commit();
@@ -524,13 +534,13 @@ router.post(
                 success: true, 
                 message: `File ${fileName} caricato e collegato a ${matchCode}.`,
                 id_file: id_file, 
-                id_link: (newLink.id || newLink)
+                id_link: newLinkId
             });
 
         } catch (error) {
             await trx.rollback();
             console.error("Errore nell'import massivo foto:", error);
-            res.status(500).json({ error: 'Errore interno del server durante l\'abbinamento.' });
+            res.status(500).json({ error: 'Errore interno del server durante l\'abbinamento: ' + error.message });
         }
     }
 );

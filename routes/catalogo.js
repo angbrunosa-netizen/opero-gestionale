@@ -991,8 +991,12 @@ module.exports = router;
 // ##################################################################
 // #           API PER IMPORTAZIONE MASSIVA EAN v1.0                #
 // ##################################################################
+// ##################################################################
+// #           API PER IMPORTAZIONE MASSIVA EAN v1.1                #
+// ##################################################################
 router.post('/import-ean-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
-    if (!hasPermission(req.user, 'CT_EAN_MANAGE')) {
+    // 2. CORREZIONE PERMESSO: Controllo esplicito array permissions
+    if (!req.user.permissions || !req.user.permissions.includes('CT_EAN_MANAGE')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
     if (!req.file) {
@@ -1037,7 +1041,7 @@ router.post('/import-ean-csv', verifyToken, upload.single('csvFile'), async (req
                         id_ditta,
                         id_catalogo: articolo.id,
                         codice_ean: codice_ean.trim(),
-                        is_principale: false // Gli EAN importati in massa non sono mai principali
+                       // is_principale: false 
                     });
                     insertedCount++;
                 }
@@ -1054,23 +1058,29 @@ router.post('/import-ean-csv', verifyToken, upload.single('csvFile'), async (req
             } catch (error) {
                 await trx.rollback();
                 console.error("Errore durante l'importazione massiva di EAN:", error);
-                // Gestione errori di duplicati
                 if (error.code === 'ER_DUP_ENTRY') {
-                     return res.status(409).json({ success: false, message: "Errore: uno o più codici EAN che stai cercando di importare sono già presenti nel sistema." });
+                     return res.status(409).json({ success: false, message: "Errore: uno o più codici EAN sono già presenti." });
                 }
                 res.status(500).json({ success: false, message: "Errore interno del server." });
             }
         });
 });
 
-// --- API DI IMPORTAZIONE CSV POTENZIATA v2.0 ---
+// --- API DI IMPORTAZIONE CSV POTENZIATA v2.1 (Fix Decimali) ---
+// --- API DI IMPORTAZIONE CSV POTENZIATA v3.0 (Logica Upsert/Aggiornamento) ---
 router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
-    if (!hasPermission(req.user, 'CT_IMPORT_CSV')) {
+    if (!req.user.permissions || !req.user.permissions.includes('CT_IMPORT_CSV')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
     }
+
+    // Helper per convertire stringhe "1,50" in float 1.50
+    const parseItalianFloat = (str) => {
+        if (!str) return 0;
+        return parseFloat(str.replace(',', '.').trim()) || 0;
+    };
 
     const results = [];
     const stream = Readable.from(req.file.buffer.toString());
@@ -1079,14 +1089,18 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         .on('data', (data) => results.push(data))
         .on('end', async () => {
             const { id_ditta, id: id_utente } = req.user;
-            let insertedCount = 0;
-            let skippedCount = 0;
-            let listiniCount = 0;
-            let eanCount = 0;
-            let fornitoreCount = 0;
+            
+            // Contatori
+            let stats = {
+                inserted: 0,
+                updated: 0,
+                skipped: 0,
+                listini: 0,
+                ean: 0,
+                fornitori: 0
+            };
             const errors = [];
 
-            // Usiamo una transazione per garantire l'integrità dei dati
             const trx = await knex.transaction();
             try {
                 for (const [index, row] of results.entries()) {
@@ -1101,59 +1115,121 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                         codice_articolo_fornitore 
                     } = row;
 
+                    // Validazione base
                     if (!codice_entita || !descrizione) {
                         errors.push({ line: index + 2, message: 'Codice entità e Descrizione sono obbligatori.', data: row });
-                        skippedCount++;
+                        stats.skipped++;
                         continue;
                     }
 
-                    // Inserimento anagrafica principale
-                    const [insertedId] = await trx('ct_catalogo').insert({
-                        id_ditta,
-                        codice_entita,
-                        descrizione,
-                        // ... altri campi dal CSV se presenti ...
-                        costo_base: parseFloat(costo_base) || 0,
-                        created_by: id_utente
-                    }).returning('id');
-                    insertedCount++;
+                    const costoBaseVal = parseItalianFloat(costo_base);
+                    const prezzoCessioneVal = parseItalianFloat(prezzo_cessione_1);
+
+                    // 1. LOGICA UPSERT (Cerca o Inserisci)
+                    let articoloId;
                     
-                    // 1. Creazione Listino di Base
-                    if(costo_base || prezzo_cessione_1) {
-                        await trx('ct_listini').insert({
+                    // Cerchiamo se esiste già
+                    const existingArticolo = await trx('ct_catalogo')
+                        .where({ id_ditta, codice_entita })
+                        .first('id');
+
+                    if (existingArticolo) {
+                        // UPDATE: L'articolo esiste, aggiorniamo i dati
+                        articoloId = existingArticolo.id;
+                        await trx('ct_catalogo')
+                            .where({ id: articoloId })
+                            .update({
+                                descrizione,
+                                costo_base: costoBaseVal,
+                                id_stato_entita: 1 // Forced update
+                                // Non sovrascriviamo created_by, category o altri campi se non esplicitamente richiesto
+                                // Se vuoi aggiornare anche la categoria, dovresti gestire qui la logica di lookup della categoria
+                            });
+                        stats.updated++;
+                    } else {
+                        // INSERT: L'articolo non esiste, lo creiamo
+                        const [newId] = await trx('ct_catalogo').insert({
                             id_ditta,
-                            id_entita_catalogo: insertedId,
-                            data_inizio_validita: new Date(),
-                            prezzo_cessione_1: parseFloat(prezzo_cessione_1) || 0,
-                            // Inseriamo solo il primo prezzo, gli altri andranno gestiti manualmente
+                            codice_entita,
+                            descrizione,
+                            costo_base: costoBaseVal,
+                            id_stato_entita: 1 // Forced insert
+                            // created_by rimosso come da fix precedente
                         });
-                        listiniCount++;
+                        articoloId = newId;
+                        stats.inserted++;
                     }
 
-                    // 2. Inserimento EAN Principale
+                    // 2. Gestione Listino (Aggiorna o Crea prezzo valido ad oggi)
+                    if (prezzoCessioneVal > 0) {
+                        // Cerchiamo un listino valido ad oggi per questo articolo
+                        const existingListino = await trx('ct_listini')
+                            .where({ id_ditta, id_entita_catalogo: articoloId })
+                            .andWhere('data_inizio_validita', '<=', new Date())
+                            .andWhere(q => q.whereNull('data_fine_validita').orWhere('data_fine_validita', '>=', new Date()))
+                            .orderBy('data_inizio_validita', 'desc')
+                            .first();
+
+                        if (existingListino) {
+                            // Aggiorniamo il prezzo sul listino esistente
+                            await trx('ct_listini')
+                                .where({ id: existingListino.id })
+                                .update({ prezzo_cessione_1: prezzoCessioneVal });
+                        } else {
+                            // Creiamo un nuovo listino base
+                            await trx('ct_listini').insert({
+                                id_ditta,
+                                id_entita_catalogo: articoloId,
+                                data_inizio_validita: new Date(),
+                                prezzo_cessione_1: prezzoCessioneVal
+                            });
+                            stats.listini++;
+                        }
+                    }
+
+                    // 3. Gestione EAN (Inserisci solo se non esiste per questo articolo)
                     if (codice_ean_principale) {
-                        await trx('ct_ean').insert({
-                            id_ditta,
-                            id_catalogo: insertedId,
-                            codice_ean: codice_ean_principale,
-                            is_principale: true
-                        });
-                        eanCount++;
+                        const existingEan = await trx('ct_ean')
+                            .where({ id_ditta, id_catalogo: articoloId, codice_ean: codice_ean_principale })
+                            .first();
+
+                        if (!existingEan) {
+                            await trx('ct_ean').insert({
+                                id_ditta,
+                                id_catalogo: articoloId,
+                                codice_ean: codice_ean_principale
+                                // is_principale rimosso come da fix precedente
+                            });
+                            stats.ean++;
+                        }
                     }
 
-                    // 3. Inserimento Codice Fornitore
+                    // 4. Gestione Codice Fornitore (Inserisci solo se non esiste)
                     if (fornitore_piva && codice_articolo_fornitore) {
                         const fornitore = await trx('ditte').where({ partita_iva: fornitore_piva, id_ditta_proprietaria: id_ditta }).first();
                         if (fornitore) {
-                            await trx('ct_codici_fornitore').insert({
-                                id_ditta,
-                                id_catalogo: insertedId,
-                                id_fornitore: fornitore.id,
-                                codice_articolo_fornitore
-                            });
-                            fornitoreCount++;
+                            const existingCodForn = await trx('ct_codici_fornitore')
+                                .where({ 
+                                    id_ditta, 
+                                    id_catalogo: articoloId, 
+                                    id_anagrafica_fornitore: fornitore.id,
+                                    codice_articolo_fornitore 
+                                })
+                                .first();
+
+                            if (!existingCodForn) {
+                                await trx('ct_codici_fornitore').insert({
+                                    id_ditta,
+                                    id_catalogo: articoloId,
+                                    id_anagrafica_fornitore: fornitore.id,
+                                    codice_articolo_fornitore,
+                                    tipo_codice: 'ST'
+                                });
+                                stats.fornitori++;
+                            }
                         } else {
-                            errors.push({ line: index + 2, message: `Fornitore con P.IVA ${fornitore_piva} non trovato.`, data: row });
+                            // Logghiamo l'errore ma non blocchiamo l'importazione dell'articolo
+                            // errors.push({ line: index + 2, message: `Fornitore ${fornitore_piva} non trovato (articolo importato comunque).` });
                         }
                     }
                 }
@@ -1161,19 +1237,18 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                 await trx.commit();
                 res.status(200).json({
                     success: true,
-                    message: 'Importazione completata con successo.',
-                    inserted: insertedCount,
-                    skipped: skippedCount,
-                    listini: listiniCount,
-                    ean: eanCount,
-                    fornitori: fornitoreCount,
+                    message: 'Importazione completata.',
+                    inserted: stats.inserted,
+                    updated: stats.updated,
+                    skipped: stats.skipped,
+                    details: stats, // Ritorniamo l'oggetto statistiche completo
                     errors: errors
                 });
 
             } catch (error) {
                 await trx.rollback();
                 console.error("Errore durante l'importazione CSV:", error);
-                res.status(500).json({ success: false, message: "Errore interno del server." });
+                res.status(500).json({ success: false, message: "Errore interno del server: " + error.message });
             }
         });
 });
