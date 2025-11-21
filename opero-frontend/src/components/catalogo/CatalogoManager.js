@@ -1,8 +1,8 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
- * @description Manager con vista mobile dedicata e performance ottimizzate.
+ * @description Manager con vista mobile e ottimizzazioni di performance (debounce).
  * @date 2025-11-17
- * @version 9.3 (Completo e corretto)
+ * @version 9.4 (Fix scroll mobile)
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -23,8 +23,8 @@ import AllegatiManager from '../../shared/AllegatiManager';
 // Costanti per la paginazione
 const PAGE_SIZE = 10;
 const INITIAL_PAGE = 1;
-
-// Hook per il debounce di un valore
+const MOBILE_SEARCH_LIMIT = 5; // Limite per i risultati della ricerca su mobile
+// Hook per il debounce di un valore (usato solo per la ricerca)
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
@@ -38,7 +38,8 @@ function useDebounce(value, delay) {
     return debouncedValue;
 }
 
-// Componente per la Visualizzazione Mobile
+
+// Componente per la Visualizzazione Mobile con layout a griglia
 const MobileCatalogoView = ({ data, isLoading, hasPermission, onEdit, onArchive, onOpenSubManager, currentPage, totalPages, onPageChange }) => {
     if (isLoading) {
         return <div className="flex justify-center items-center h-32"><div className="text-gray-500">Caricamento...</div></div>;
@@ -52,19 +53,23 @@ const MobileCatalogoView = ({ data, isLoading, hasPermission, onEdit, onArchive,
         <>
             <div className="space-y-4 pb-4">
                 {data.map((item) => (
-                    <div key={item.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
-                        <div className="flex justify-between items-start mb-3">
+                    <div key={item.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 grid grid-rows-[auto_1fr_auto] gap-y-2">
+                        {/* Prima riga: Descrizione e Stato */}
+                        <div className="flex justify-between items-start">
                             <h3 className="font-semibold text-lg text-gray-800 flex-1 mr-2">{item.descrizione}</h3>
                             <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${item.stato_entita === 'ATTIVO' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                 {item.stato_entita}
                             </span>
                         </div>
-                        <div className="text-sm text-gray-600 space-y-1 mb-3">
-                            <p><span className="font-medium">P. Cessione:</span> {item.prezzo_cessione_1 ? `€ ${parseFloat(item.prezzo_cessione_1).toFixed(2)}` : 'N/D'}</p>
+                        
+                        {/* Seconda riga: Prezzi */}
+                        <div className="flex justify-around text-sm text-gray-600">
                             <p><span className="font-medium">P. Acquisto:</span> € {parseFloat(item.costo_base || 0).toFixed(2)}</p>
-                            <p><span className="font-medium">IVA:</span> {item.descrizione_iva || 'N/D'}</p>
+                            <p><span className="font-medium">P. Cessione:</span> {item.prezzo_cessione_1 ? `€ ${parseFloat(item.prezzo_cessione_1).toFixed(2)}` : 'N/D'}</p>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-gray-200">
+                        
+                        {/* Terza riga: Pulsanti di azione */}
+                        <div className="flex justify-center">
                             <EntityActionButtons
                                 item={item}
                                 hasPermission={hasPermission}
@@ -143,97 +148,32 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                     <div className="p-4 border rounded-md">
                         <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Anagrafici</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
-                                <input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" />
-                            </div>
-                            <div>
-                                <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
-                                <input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                            </div>
-                            <div className="col-span-2">
-                                <label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
-                                <select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                    <option value="">-- Seleziona --</option>
-                                    {supportData.categorie && renderCategoryOptions(supportData.categorie)}
-                                </select>
-                            </div>
-                            <div>
-                                <label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label>
-                                <input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                            </div>
-                            <div>
-                               <label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label>
-                                <select name="id_aliquota_iva" value={formData.id_aliquota_iva || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                    <option value="">-- Seleziona --</option>
-                                    {supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                               <label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label>
-                                <select name="id_unita_misura" value={formData.id_unita_misura || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                    <option value="">-- Seleziona --</option>
-                                    {supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                               <label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label>
-                                <select name="id_stato_entita" value={formData.id_stato_entita || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                    <option value="">-- Seleziona --</option>
-                                    {supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}
-                                </select>
-                            </div>
-                             <div className="col-span-2 flex items-center">
-                                <input type="checkbox" id="gestito_a_magazzino" name="gestito_a_magazzino" checked={formData.gestito_a_magazzino || false} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
-                                <label htmlFor="gestito_a_magazzino" className="ml-2 block text-sm text-gray-900">Gestito a Magazzino</label>
-                            </div>
+                            <div><label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label><input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" /></div>
+                            <div><label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label><input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                            <div className="col-span-2"><label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label><select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.categorie && renderCategoryOptions(supportData.categorie)}</select></div>
+                            <div><label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label><input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                            <div><label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label><select name="id_aliquota_iva" value={formData.id_aliquota_iva || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}</select></div>
+                            <div><label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label><select name="id_unita_misura" value={formData.id_unita_misura || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}</select></div>
+                            <div><label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label><select name="id_stato_entita" value={formData.id_stato_entita || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}</select></div>
+                            <div className="col-span-2 flex items-center"><input type="checkbox" id="gestito_a_magazzino" name="gestito_a_magazzino" checked={formData.gestito_a_magazzino || false} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/><label htmlFor="gestito_a_magazzino" className="ml-2 block text-sm text-gray-900">Gestito a Magazzino</label></div>
                         </div>
                     </div>
-
                     {formData.gestito_a_magazzino && (
                         <div className="p-4 border rounded-md bg-gray-50">
                             <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Logistici</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label htmlFor="peso_lordo_pz" className="block text-sm font-medium text-gray-700">Peso Lordo (Kg)</label>
-                                    <input type="number" step="0.001" name="peso_lordo_pz" value={formData.peso_lordo_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="volume_pz" className="block text-sm font-medium text-gray-700">Volume (m³)</label>
-                                    <input type="number" step="0.000001" name="volume_pz" value={formData.volume_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="s_im" className="block text-sm font-medium text-gray-700">Pz. per Sottoimballo</label>
-                                    <input type="number" name="s_im" value={formData.s_im || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="l_pz" className="block text-sm font-medium text-gray-700">Larghezza (cm)</label>
-                                    <input type="number" step="0.01" name="l_pz" value={formData.l_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="p_pz" className="block text-sm font-medium text-gray-700">Profondità (cm)</label>
-                                    <input type="number" step="0.01" name="p_pz" value={formData.p_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="h_pz" className="block text-sm font-medium text-gray-700">Altezza (cm)</label>
-                                    <input type="number" step="0.01" name="h_pz" value={formData.h_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                 <div>
-                                    <label htmlFor="pezzi_per_collo" className="block text-sm font-medium text-gray-700">Pezzi per Collo</label>
-                                    <input type="number" name="pezzi_per_collo" value={formData.pezzi_per_collo || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="colli_per_strato" className="block text-sm font-medium text-gray-700">Colli per Strato</label>
-                                    <input type="number" name="colli_per_strato" value={formData.colli_per_strato || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="strati_per_pallet" className="block text-sm font-medium text-gray-700">Strati per Pallet</label>
-                                    <input type="number" name="strati_per_pallet" value={formData.strati_per_pallet || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-                                </div>
+                                <div><label htmlFor="peso_lordo_pz" className="block text-sm font-medium text-gray-700">Peso Lordo (Kg)</label><input type="number" step="0.001" name="peso_lordo_pz" value={formData.peso_lordo_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="volume_pz" className="block text-sm font-medium text-gray-700">Volume (m³)</label><input type="number" step="0.000001" name="volume_pz" value={formData.volume_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="s_im" className="block text-sm font-medium text-gray-700">Pz. per Sottoimballo</label><input type="number" name="s_im" value={formData.s_im || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="l_pz" className="block text-sm font-medium text-gray-700">Larghezza (cm)</label><input type="number" step="0.01" name="l_pz" value={formData.l_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="p_pz" className="block text-sm font-medium text-gray-700">Profondità (cm)</label><input type="number" step="0.01" name="p_pz" value={formData.p_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="h_pz" className="block text-sm font-medium text-gray-700">Altezza (cm)</label><input type="number" step="0.01" name="h_pz" value={formData.h_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="pezzi_per_collo" className="block text-sm font-medium text-gray-700">Pezzi per Collo</label><input type="number" name="pezzi_per_collo" value={formData.pezzi_per_collo || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="colli_per_strato" className="block text-sm font-medium text-gray-700">Colli per Strato</label><input type="number" name="colli_per_strato" value={formData.colli_per_strato || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div><label htmlFor="strati_per_pallet" className="block text-sm font-medium text-gray-700">Strati per Pallet</label><input type="number" name="strati_per_pallet" value={formData.strati_per_pallet || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
                             </div>
                         </div>
                     )}
-
                     <div className="mt-6 pt-4 border-t flex justify-end gap-4">
                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-md hover:bg-gray-400">Annulla</button>
                         <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
@@ -245,8 +185,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
 };
 
 // Modale dedicato alla gestione delle foto
-const CatalogoFotoModal = ({ item, onClose }) => {
-  return (
+const CatalogoFotoModal = ({ item, onClose }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center mb-4 pb-4 border-b">
@@ -260,10 +199,9 @@ const CatalogoFotoModal = ({ item, onClose }) => {
                     <XMarkIcon className="h-6 w-6" />
                 </button>
             </div>
-            
             <div className="flex-1 overflow-y-auto p-2">
                 <AllegatiManager
-                    entita_tipo="ct_catalogo" 
+                    entita_tipo="ct_catalogo"
                     entita_id={item.id}
                     idDitta={item.id_ditta}
                     defaultPrivacy="public"
@@ -271,8 +209,7 @@ const CatalogoFotoModal = ({ item, onClose }) => {
             </div>
         </div>
     </div>
-  );
-};
+);
 
 // Componente per i pulsanti di azione
 const EntityActionButtons = ({ item, hasPermission, onEdit, onArchive, onOpenSubManager }) => (
@@ -314,18 +251,89 @@ const CatalogoManager = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isFotoModalOpen, setIsFotoModalOpen] = useState(false);
     const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
-
+    
     // STATO PER LA GESTIONE DELLA VISUALIZZAZIONE MOBILE
-    const [windowSize, setWindowSize] = useState(window.innerWidth);
-    const debouncedWindowSize = useDebounce(windowSize, 250);
-    const isMobile = debouncedWindowSize < 640;
-
-    // Effetto per il rilevamento della dimensione dello schermo
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
     useEffect(() => {
-        const handleResize = () => setWindowSize(window.innerWidth);
+        const handleResize = () => setIsMobile(window.innerWidth < 640);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    // Memoizzazione delle mappe per l'enrichment dei dati
+    const categoryMap = useMemo(() => {
+        const map = new Map();
+        const flatten = (nodes) => {
+            nodes.forEach(node => {
+                map.set(node.id, node.nome_categoria);
+                if (node.children) flatten(node.children);
+            });
+        };
+        flatten(supportData.categorie);
+        return map;
+    }, [supportData.categorie]);
+
+    const ivaMap = useMemo(() => {
+        return new Map(supportData.aliquoteIva.map(iva => [iva.id, iva.descrizione]));
+    }, [supportData.aliquoteIva]);
+
+    // Effetto per caricare i dati principali
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!hasPermission('CT_VIEW')) return;
+            setIsLoading(true);
+            try {
+                let response;
+                let url;
+                
+                if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
+                    url = `/catalogo/search/?term=${encodeURIComponent(debouncedSearchTerm.trim())}&page=${currentPage}&limit=${pageSize}&includeArchived=${includeArchived}`;
+                } else {
+                    const params = new URLSearchParams({
+                        page: currentPage,
+                        limit: pageSize,
+                        includeArchived,
+                    });
+                    if (selectedCategoryId) {
+                        params.set('id_categoria', selectedCategoryId);
+                    }
+                    url = `/catalogo/entita?${params.toString()}`;
+                }
+                
+                response = await api.get(url);
+                
+                let data = [];
+                let total = 0;
+                
+                if (response.data) {
+                    if (Array.isArray(response.data)) { // Caso della ricerca
+                        data = response.data;
+                        total = response.data.length;
+                    } else if (response.data.data && Array.isArray(response.data.data)) { // Caso della lista
+                        data = response.data.data;
+                        total = response.data.total || response.data.data.length;
+                    } else if (response.data.results && Array.isArray(response.data.results)) {
+                        data = response.data.results;
+                        total = response.data.total || response.data.results.length;
+                    } else if (response.data.items && Array.isArray(response.data.items)) {
+                        data = response.data.items;
+                        total = response.data.total || response.data.items.length;
+                    }
+                }
+                
+                setDisplayedData(data);
+                setTotalCount(total);
+                
+            } catch (error) {
+                console.error("[CatalogoManager] Errore durante il caricamento:", error);
+                setDisplayedData([]);
+                setTotalCount(0);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, [debouncedSearchTerm, selectedCategoryId, includeArchived, currentPage, pageSize, hasPermission, refreshKey]);
 
     // Effetto per caricare i dati di supporto
     useEffect(() => {
@@ -350,93 +358,16 @@ const CatalogoManager = () => {
         fetchSupportData();
     }, []);
 
-    // Effetto per caricare i dati principali
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!hasPermission('CT_VIEW')) return;
-
-            setIsLoading(true);
-            try {
-                let response;
-                let url;
-                
-                // Costruisci l'URL in base alla presenza di ricerca
-                if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
-                    url = `/catalogo/search/?term=${encodeURIComponent(debouncedSearchTerm.trim())}&page=${currentPage}&limit=${pageSize}&includeArchived=${includeArchived}`;
-                } else {
-                    const params = new URLSearchParams({
-                        page: currentPage,
-                        limit: pageSize,
-                        includeArchived,
-                    });
-                    if (selectedCategoryId) {
-                        params.set('id_categoria', selectedCategoryId);
-                    }
-                    url = `/catalogo/entita?${params.toString()}`;
-                }
-                
-                response = await api.get(url);
-                
-                let data = [];
-                let total = 0;
-                
-                if (response.data) {
-                    // Per la ricerca, i dati sono direttamente in response.data (array)
-                    if (Array.isArray(response.data)) {
-                        data = response.data;
-                        total = response.data.length;
-                    } 
-                    // Per la lista normale, i dati sono in response.data.data
-                    else if (response.data.data && Array.isArray(response.data.data)) {
-                        data = response.data.data;
-                        total = response.data.total || response.data.data.length;
-                    }
-                    // Fallback per altre strutture possibili
-                    else if (response.data.results && Array.isArray(response.data.results)) {
-                        data = response.data.results;
-                        total = response.data.total || response.data.results.length;
-                    }
-                    else if (response.data.items && Array.isArray(response.data.items)) {
-                        data = response.data.items;
-                        total = response.data.total || response.data.items.length;
-                    }
-                }
-                
-                setDisplayedData(data);
-                setTotalCount(total);
-                
-            } catch (error) {
-                console.error("[CatalogoManager] Errore durante il caricamento:", error);
-                setDisplayedData([]);
-                setTotalCount(0);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [debouncedSearchTerm, selectedCategoryId, includeArchived, currentPage, pageSize, hasPermission, refreshKey]);
-    
     // Dati arricchiti per la visualizzazione mobile
     const enrichedData = useMemo(() => {
         if (!isMobile) return displayedData;
-
-        const ivaMap = new Map(supportData.aliquoteIva.map(iva => [iva.id, iva.descrizione]));
-        const categoryMap = new Map();
-        const flatten = (nodes) => {
-            nodes.forEach(node => {
-                categoryMap.set(node.id, node.nome_categoria);
-                if (node.children) flatten(node.children);
-            });
-        };
-        flatten(supportData.categorie);
 
         return displayedData.map(item => ({
             ...item,
             nome_categoria: categoryMap.get(item.id_categoria) || 'N/D',
             descrizione_iva: ivaMap.get(item.id_aliquota_iva) || 'N/D'
         }));
-    }, [displayedData, isMobile, supportData.aliquoteIva, supportData.categorie]);
+    }, [displayedData, isMobile, categoryMap, ivaMap]);
 
     // Funzioni callback
     const forceRefresh = useCallback(() => {
@@ -468,13 +399,14 @@ const CatalogoManager = () => {
     }, [forceRefresh]);
 
     const handleArchive = useCallback(async (item) => {
-        if (window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
-            try {
-                await api.delete(`/catalogo/entita/${item.id}`);
-                forceRefresh();
-            } catch (err) {
-                alert('Errore: ' + (err.response?.data?.message || err.message));
-            }
+        if (!window.confirm(`Sei sicuro di voler archiviare l'entità "${item.descrizione}"?`)) {
+            return;
+        }
+        try {
+            await api.delete(`/catalogo/entita/${item.id}`);
+            forceRefresh();
+        } catch (err) {
+            alert('Errore: ' + (err.response?.data?.message || err.message));
         }
     }, [forceRefresh]);
 
@@ -551,19 +483,20 @@ const CatalogoManager = () => {
                         Nuovo
                     </button>
                 </div>
-                
                 <div className="flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-1">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                        <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                            </div>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => handleSearchChange(e.target.value)}
+                                placeholder="Cerca per descrizione..."
+                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            />
                         </div>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder="Cerca per descrizione..."
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
                     </div>
                     <select
                         value={selectedCategoryId}
@@ -576,13 +509,12 @@ const CatalogoManager = () => {
                     <button
                         type="button"
                         onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-                        className="p-2 border border-gray-300 rounded-md bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="ml-2 p-2 border border-gray-300 rounded-md bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         aria-expanded={isFiltersExpanded}
                     >
                         <FunnelIcon className="h-5 w-5" aria-hidden="true" />
                     </button>
                 </div>
-                
                 {isFiltersExpanded && (
                     <div className="p-3 bg-white border border-gray-200 rounded-md shadow-sm">
                         <div className="flex items-center">
@@ -600,7 +532,7 @@ const CatalogoManager = () => {
             </div>
             
             {/* Area del contenuto scrollabile */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
                 {isMobile ? (
                     <MobileCatalogoView
                         data={enrichedData}
@@ -631,11 +563,9 @@ const CatalogoManager = () => {
 
             {/* Modali */}
             {isFormModalOpen && <CatalogoFormModal item={editingItem} onSave={handleSave} onCancel={() => setIsFormModalOpen(false)} supportData={supportData} />}
-                                    
             {isListiniModalOpen && selectedItem && <ListiniManager entita={selectedItem} onClose={() => { setIsListiniModalOpen(false); forceRefresh(); }} aliquoteIva={supportData.aliquoteIva}/>}
             {isCodiciFornitoreModalOpen && selectedItem && <CodiciFornitoreManager itemId={selectedItem.id} onClose={() => setIsCodiciFornitoreModalOpen(false)} />}
             {isEanModalOpen && selectedItem && <EanManager itemId={selectedItem.id} onClose={() => setIsEanModalOpen(false)} />}
-            
             {isFotoModalOpen && selectedItem && <CatalogoFotoModal item={selectedItem} onClose={() => setIsFotoModalOpen(false)} />}
         </div>
     );
