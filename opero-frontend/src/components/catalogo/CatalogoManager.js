@@ -21,7 +21,7 @@ import EanManager from './EanManager';
 import AllegatiManager from '../../shared/AllegatiManager';
 
 // Costanti per la paginazione
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 const INITIAL_PAGE = 1;
 const MOBILE_SEARCH_LIMIT = 5; // Limite per i risultati della ricerca su mobile
 // Hook per il debounce di un valore (usato solo per la ricerca)
@@ -541,7 +541,7 @@ const CatalogoManager = () => {
                 {isMobile ? (
                     <MobileCatalogoView
                         data={displayedData}
-                        totalCount={5} // MODIFICATO: Passa totalCount al componente
+                        totalCount={totalCount} // MODIFICATO: Passa totalCount al componente
                         isLoading={isLoading}
                         hasPermission={hasPermission}
                         onEdit={handleEdit}

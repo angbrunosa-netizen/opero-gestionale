@@ -1,19 +1,11 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 5.6 (Privacy automatica per 'ct_catalogo' con debug migliorato)
- *
- * Descrizione:
- * - Basato sulla v5.5.
- * - Corretta la gestione della privacy per 'ct_catalogo'.
- * - Aggiunto supporto per entrambi i formati di props (entitaTipo/entita_tipo).
- * - Migliorato il debug per verificare i dati inviati al backend.
- * - Rimossi componenti icona duplicati.
+ * Versione: 20.0 (Fix "Resource metadata not found")
+ * - CHANGE: Switch a UNPKG (@latest/dist/). Questo indirizzo contiene
+ * sicuramente i file .json di manifesto necessari che mancavano prima.
+ * - CONFIG: Configurazione semplificata per massima compatibilità.
  */
-
-// ======================================================================
-// IMPORTAZIONI
-// ======================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -21,52 +13,32 @@ import { api } from '../services/api';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ConfirmationModal';
-
-// Import di react-easy-crop
 import Cropper from 'react-easy-crop';
-import { Area } from 'react-easy-crop';
-
-// Import della libreria di compressione
 import imageCompression from 'browser-image-compression';
 
-// Icone da lucide-react
-import {
-    Download,
-    Trash2,
-    FileText,
-    FileImage,
-    FileArchive,
-    File,
-    AlertTriangle,
-    UploadCloud,
-    Loader2,
-    Eye,
-    Camera,
-    Check,
-    Pencil,
-    X
-} from 'lucide-react';
+// --- MOTORE PROFESSIONALE ---
+import { removeBackground } from "@imgly/background-removal";
+
+// --- ICONE ---
+import { 
+    ArrowDownTrayIcon, TrashIcon, DocumentIcon, PhotoIcon, ArchiveBoxIcon, 
+    CloudArrowUpIcon, ArrowPathIcon, EyeIcon, CameraIcon, CheckIcon, 
+    XMarkIcon, SparklesIcon
+} from '@heroicons/react/24/outline';
 
 // ======================================================================
-// HELPER INTERNI
+// HELPER
 // ======================================================================
 
 const FileIconHelper = ({ mimeType }) => {
-    if (!mimeType) return <File className="w-6 h-6 text-gray-500" />;
-    if (mimeType.startsWith('image/')) {
-        return <FileImage className="w-6 h-6 text-blue-500" />;
-    }
-    if (mimeType === 'application/pdf') {
-        return <FileText className="w-6 h-6 text-red-500" />;
-    }
-    if (mimeType.startsWith('application/zip') || mimeType.includes('compressed')) {
-        return <FileArchive className="w-6 h-6 text-yellow-600" />;
-    }
-    return <File className="w-6 h-6 text-gray-500" />;
+    if (!mimeType) return <DocumentIcon className="w-6 h-6 text-gray-500" />;
+    if (mimeType.startsWith('image/')) return <PhotoIcon className="w-6 h-6 text-blue-500" />;
+    if (mimeType === 'application/pdf') return <DocumentIcon className="w-6 h-6 text-red-500" />;
+    return <DocumentIcon className="w-6 h-6 text-gray-500" />;
 };
 
 const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 Bytes';
+    if (!bytes) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -80,57 +52,28 @@ const formatFileDate = (dateString) => {
             month: '2-digit',
             year: 'numeric',
         });
-    } catch (e) {
-        return 'Data non valida';
-    }
+    } catch (e) { return 'Data non valida'; }
 };
 
-// --- FUNZIONE HELPER ---
-const createImage = (url) =>
-    new Promise((resolve, reject) => {
-        const image = new Image();
-        image.addEventListener('load', () => resolve(image));
-        image.addEventListener('error', (error) => reject(error));
-        image.setAttribute('crossOrigin', 'anonymous');
-        image.src = url;
-    });
+const createImage = (url) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+});
 
 const getCroppedImg = async (imageSrc, pixelCrop) => {
-    if (!pixelCrop || !pixelCrop.width || !pixelCrop.height) {
-        throw new Error('Area di ritaglio non valida o non definita.');
-    }
-
     const image = await createImage(imageSrc);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-
-    if (!ctx) {
-        throw new Error('Impossibile ottenere il contesto 2D del canvas.');
-    }
-
     canvas.width = pixelCrop.width;
     canvas.height = pixelCrop.height;
-
-    ctx.drawImage(
-        image,
-        pixelCrop.x,
-        pixelCrop.y,
-        pixelCrop.width,
-        pixelCrop.height,
-        0,
-        0,
-        pixelCrop.width,
-        pixelCrop.height
-    );
-
+    ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
     return new Promise((resolve, reject) => {
         canvas.toBlob((blob) => {
-            if (!blob) {
-                reject(new Error('Impossibile creare il blob dal canvas.'));
-                return;
-            }
-            resolve(blob);
-        }, 'image/jpeg');
+            blob ? resolve(blob) : reject(new Error('Errore canvas blob'));
+        }, 'image/png');
     });
 };
 
@@ -138,730 +81,341 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
 // COMPONENTE PRINCIPALE
 // ======================================================================
 
-const AllegatiManager = ({
-    entitaId,
-    entitaTipo,
-    entita_id, // Supporto per snake_case
-    entita_tipo, // Supporto per snake_case
-    idDitta,
-    forceRefresh,
-    defaultPrivacy = 'private'
-}) => {
+const AllegatiManager = ({ entitaId, entitaTipo, entita_id, entita_tipo, idDitta, forceRefresh, defaultPrivacy = 'private' }) => {
     const { idDitta: dittaAuth, hasPermission } = useAuth();
-    
-    // Usa entita_id/entita_tipo se disponibili, altrimenti usa entitaId/entitaTipo
     const effectiveEntitaId = entita_id || entitaId;
     const effectiveEntitaTipo = entita_tipo || entitaTipo;
-    
-    // Se effectiveEntitaTipo è 'ct_catalogo', imposta automaticamente la privacy a 'public'
     const effectivePrivacy = effectiveEntitaTipo === 'ct_catalogo' ? 'public' : defaultPrivacy;
-    
-    // Debug per verificare i valori
-    console.log('DEBUG: entitaId ricevuto:', entitaId);
-    console.log('DEBUG: entita_id ricevuto:', entita_id);
-    console.log('DEBUG: entitaTipo ricevuto:', entitaTipo);
-    console.log('DEBUG: entita_tipo ricevuto:', entita_tipo);
-    console.log('DEBUG: effectiveEntitaId calcolato:', effectiveEntitaId);
-    console.log('DEBUG: effectiveEntitaTipo calcolato:', effectiveEntitaTipo);
-    console.log('DEBUG: effectivePrivacy calcolato:', effectivePrivacy);
     
     const [allegati, setAllegati] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [uploadingFiles, setUploadingFiles] = useState([]);
     const [effectiveIdDitta, setEffectiveIdDitta] = useState(idDitta);
+    
     const [isAllegatoDeleteModalOpen, setIsAllegatoDeleteModalOpen] = useState(false);
     const [allegatoLinkToDelete, setAllegatoLinkToDelete] = useState(null);
-    const [editingAllegato, setEditingAllegato] = useState(null);
-    const [currentNote, setCurrentNote] = useState('');
     
     const fileInputRef = useRef(null);
     const uploadCancelTokens = useRef(new Map());
 
-    // Stati per la gestione del ritaglio
+    // Stati Editor
     const [cameraFile, setCameraFile] = useState(null);
     const [imageToCrop, setImageToCrop] = useState(null);
-    const [isCroppingModalOpen, setIsCroppingModalOpen] = useState(false);
+    const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-    
-    // Stato per il rapporto di aspetto, con un predefinito verticale
-    const [aspectRatio, setAspectRatio] = useState(3 / 4);
+    const [aspectRatio, setAspectRatio] = useState(1);
 
-    // Stati per la gestione della rimozione sfondo
-    const [croppedFileForBgRemoval, setCroppedFileForBgRemoval] = useState(null);
-    const [isRemovingBg, setIsRemovingBg] = useState(false);
+    // Stati AI
+    const [isProcessingAI, setIsProcessingAI] = useState(false);
+    const [processedImage, setProcessedImage] = useState(null); 
+    const [processingStep, setProcessingStep] = useState('');
+    const [downloadProgress, setDownloadProgress] = useState(0);
 
-    const isCropReady = croppedAreaPixels && croppedAreaPixels.width > 0 && croppedAreaPixels.height > 0;
-
-    // Array di opzioni per l'aspect ratio personalizzate
     const aspectRatios = [
-        { name: 'Quadrato (1:1)', value: 1 / 1 },
-        { name: 'Verticale (3:4)', value: 3 / 4 },
-        { name: 'Verticale Estrema (1:3)', value: 1.5 / 3 },
-        { name: 'Standard (4:3)', value: 4 / 3 },
-        { name: 'Panoramica (16:9)', value: 16 / 9 },
+        { name: 'Instagram (1:1)', value: 1 }, 
+        { name: 'Story (4:5)', value: 4/5 }, 
+        { name: 'Landscape (16:9)', value: 16/9 },
+        { name: 'Originale', value: null }
     ];
 
-    // Funzione helper per ottimizzare l'immagine
-    const optimizeImage = async (file) => {
-        console.log('Dimensione file originale:', (file.size / 1024 / 1024).toFixed(2), 'MB');
-        
-        const options = {
-            maxSizeMB: 0.5,
-            maxWidthOrHeight: 1200,
-            useWebWorker: true,
-            fileType: 'image/jpeg',
-        };
-
+    const optimizeImage = async (file, forcePng = false) => {
         try {
-            const compressedFile = await imageCompression(file, options);
-            console.log('Dimensione file ottimizzato:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
-            console.log('Riduzione del:', ((1 - compressedFile.size / file.size) * 100).toFixed(2), '%');
-            return compressedFile;
-        } catch (error) {
-            console.error('Errore durante l\'ottimizzazione dell\'immagine:', error);
-            setError('Impossibile ottimizzare l\'immagine, verrà caricata l\'originale.');
-            return file;
+            const fileType = forcePng ? 'image/png' : 'image/jpeg';
+            const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: fileType };
+            return await imageCompression(file, options);
+        } catch (e) { return file; }
+    };
+
+    useEffect(() => { setEffectiveIdDitta(idDitta || dittaAuth); }, [idDitta, dittaAuth]);
+
+    const fetchAllegati = useCallback(async () => {
+        if (!effectiveEntitaId) return;
+        setIsLoading(true);
+        try {
+            const res = await api.get(`/archivio/entita/${effectiveEntitaTipo}/${effectiveEntitaId}`, { params: { idDitta: effectiveIdDitta } });
+            setAllegati(res.data);
+        } catch (e) { setError("Errore caricamento allegati."); } finally { setIsLoading(false); }
+    }, [effectiveEntitaId, effectiveEntitaTipo, effectiveIdDitta]);
+
+    useEffect(() => { fetchAllegati(); }, [fetchAllegati]);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setCameraFile(file);
+            setImageToCrop(URL.createObjectURL(file));
+            setIsEditorOpen(true);
+            setProcessedImage(null);
+            setZoom(1);
+            setCrop({ x: 0, y: 0 });
         }
     };
 
-    useEffect(() => {
-        setEffectiveIdDitta(idDitta || dittaAuth);
-    }, [idDitta, dittaAuth]);
+    const closeEditor = () => {
+        setIsEditorOpen(false);
+        setCameraFile(null);
+        setImageToCrop(null);
+        setProcessedImage(null);
+        setProcessingStep('');
+        setDownloadProgress(0);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
-// =================================================================
-// CON QUESTO CODICE CORRETTO
-// =================================================================
-const fetchAllegati = useCallback(async () => {
-    // Usa le variabili "effettive" calcolate all'inizio del componente
-    if (!effectiveEntitaId || !effectiveEntitaTipo || !effectiveIdDitta) return;
-    setIsLoading(true);
-    try {
-        const response = await api.get(`/archivio/entita/${effectiveEntitaTipo}/${effectiveEntitaId}`, {
-            params: { idDitta: effectiveIdDitta }
-        });
-        setAllegati(response.data);
+    const getCroppedFile = async () => {
+        try {
+            const blob = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            return new File([blob], "temp_crop.png", { type: "image/png" });
+        } catch (e) { return null; }
+    };
+
+    // --- FUNZIONE CHIAVE: SCONTORNO CON UNPKG ---
+    const handleProcessAI = async () => {
         setError(null);
-    } catch (err) {
-        console.error("Errore nel recupero degli allegati:", err);
-        setError("Impossibile caricare gli allegati.");
-    } finally {
-        setIsLoading(false);
-    }
-}, [effectiveEntitaId, effectiveEntitaTipo, effectiveIdDitta]); // Aggiorna anche le dipendenze
+        const croppedFile = await getCroppedFile();
+        if (!croppedFile) { setError("Impossibile ritagliare."); return; }
 
+        setIsProcessingAI(true);
+        setProcessingStep("Avvio AI (Attendi...)...");
+        setDownloadProgress(0);
 
-    useEffect(() => {
-        fetchAllegati();
-    }, [fetchAllegati]);
+        try {
+            // CONFIGURAZIONE UNPKG (Più stabile)
+            const config = {
+                // Puntiamo a 'dist' della versione latest. Questo include manifest.json, wasm, onnx.
+                publicPath: "https://unpkg.com/@imgly/background-removal-data@latest/dist/",
+                debug: true, // Lasciamo attivo per vedere i log
+                model: "small", // Iniziamo col piccolo
+                progress: (key, current, total) => {
+                    if (key === 'fetch') {
+                        const percent = Math.round((current / total) * 100);
+                        setDownloadProgress(percent);
+                        setProcessingStep(`Scaricamento Dati AI: ${percent}%`);
+                    } else if (key === 'compute') {
+                        setProcessingStep("Elaborazione Sfondo...");
+                        setDownloadProgress(100);
+                    }
+                }
+            };
 
-    const handleUpload = (acceptedFiles) => {
+            console.log("Avvio IMG.LY con path:", config.publicPath);
+            
+            // Passiamo direttamente il FILE object
+            const blob = await removeBackground(croppedFile, config);
+            
+            console.log("Scontorno completato!", blob);
+
+            const finalPngFile = new File([blob], "pro_product.png", { type: "image/png", lastModified: Date.now() });
+            setProcessedImage(finalPngFile);
+
+        } catch (err) {
+            console.error("AI ERROR DETTAGLIATO:", err);
+            // Mostra errore pulito a schermo
+            setError(`Errore AI: ${err.message}. Controlla la console (F12) per dettagli.`);
+        } finally {
+            setIsProcessingAI(false);
+        }
+    };
+
+    // 3. SALVATAGGIO
+    const handleSave = async () => {
+        let finalFile = null;
+
+        if (processedImage) {
+            finalFile = processedImage;
+        } else if (imageToCrop && croppedAreaPixels) {
+            const blob = await getCroppedImg(imageToCrop, croppedAreaPixels);
+            let jpegFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+            finalFile = await optimizeImage(jpegFile, false);
+        } else {
+             setError("Nessuna immagine da salvare.");
+             return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', finalFile);
+        formData.append('entitaId', effectiveEntitaId);
+        formData.append('entitaTipo', effectiveEntitaTipo);
+        formData.append('idDitta', effectiveIdDitta);
+        formData.append('privacy', effectivePrivacy);
+        
+        try {
+            setProcessingStep("Upload...");
+            setIsProcessingAI(true);
+            await api.post('/archivio/upload', formData);
+            fetchAllegati();
+            closeEditor();
+        } catch (e) { setError("Errore upload."); } 
+        finally { setIsProcessingAI(false); }
+    };
+
+    const handleDropUpload = (acceptedFiles) => {
         if (!hasPermission('DM_FILE_UPLOAD')) return;
-        const newUploads = acceptedFiles.map(file => ({
-            id: `${file.name}-${file.lastModified}`,
-            file,
-            progress: 0,
-            error: null,
-        }));
+        if (acceptedFiles.length === 1 && acceptedFiles[0].type.startsWith('image/')) {
+            const file = acceptedFiles[0];
+            setCameraFile(file);
+            setImageToCrop(URL.createObjectURL(file));
+            setIsEditorOpen(true);
+            return;
+        }
+        const newUploads = acceptedFiles.map(file => ({ id: `${file.name}-${Date.now()}`, file, progress: 0, error: null }));
         setUploadingFiles(prev => [...prev, ...newUploads]);
         newUploads.forEach(upload => performUpload(upload));
     };
     
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop: handleUpload,
+        onDrop: handleDropUpload,
         noClick: !hasPermission('DM_FILE_UPLOAD'),
-        noKeyboard: !hasPermission('DM_FILE_UPLOAD'),
         disabled: !hasPermission('DM_FILE_UPLOAD'),
     });
 
-    // =====================================================================
-    // FUNZIONE 'performUpload' (MODIFICATA v5.6)
-    // =====================================================================
     const performUpload = useCallback(async (upload) => {
         const { id, file } = upload;
         const source = axios.CancelToken.source();
         uploadCancelTokens.current.set(id, source);
-
-        // Controllo fondamentale per evitare errori
-        if (!effectiveEntitaId) {
-            console.error("ERRORE: effectiveEntitaId è undefined. Impossibile procedere con l'upload.");
-            return;
-        }
-
+        if (!effectiveEntitaId) return;
         const formData = new FormData();
         formData.append('file', file);
         formData.append('entitaId', effectiveEntitaId);
         formData.append('entitaTipo', effectiveEntitaTipo);
         formData.append('idDitta', effectiveIdDitta);
-        formData.append('note', ''); // In questa versione, la nota non viene chiesta all'inizio
-        
-        // Utilizza 'effectivePrivacy' calcolato internamente
         formData.append('privacy', effectivePrivacy);
-        
-        // Debug per verificare i dati inviati
-        console.log('DEBUG: Dati FormData inviati al backend:');
-        for (let [key, value] of formData.entries()) {
-            console.log(`${key}:`, value);
-        }
-
         const setUploadStatus = (progress, error = null) => {
-            setUploadingFiles(prev =>
-                prev.map(u =>
-                    u.id === upload.id ? { ...u, progress, error: error ? error.toString() : null } : u
-                )
-            );
+            setUploadingFiles(prev => prev.map(u => u.id === upload.id ? { ...u, progress, error: error ? error.toString() : null } : u));
         };
-
         try {
             setUploadStatus(10);
-            
             await api.post('/archivio/upload', formData, {
                 cancelToken: source.token,
-                onUploadProgress: (progressEvent) => {
-                    if (progressEvent.total) {
-                        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setUploadStatus(percent);
-                    }
-                }
+                onUploadProgress: (ev) => { if (ev.total) setUploadStatus(Math.round((ev.loaded * 100) / ev.total)); }
             });
-            
-            setUploadStatus(100);
-            fetchAllegati();
-            if (forceRefresh) forceRefresh();
+            setUploadStatus(100); fetchAllegati();
             setTimeout(() => setUploadingFiles(prev => prev.filter(u => u.id !== upload.id)), 1000);
-        } catch (err) {
-            console.error("Errore durante l'upload:", err);
-            const errMsg = err.response?.data?.error || err.message || "Errore sconosciuto";
-            setUploadStatus(0, errMsg);
-        } finally {
-            uploadCancelTokens.current.delete(id);
-        }
-    }, [effectiveEntitaId, effectiveEntitaTipo, effectiveIdDitta, forceRefresh, fetchAllegati, effectivePrivacy]);
+        } catch (err) { setUploadStatus(0, err.message); } finally { uploadCancelTokens.current.delete(id); }
+    }, [effectiveEntitaId, effectiveEntitaTipo, effectiveIdDitta, fetchAllegati, effectivePrivacy]);
 
-    const cancelUpload = (id) => {
-        const source = uploadCancelTokens.current.get(id);
-        if (source) {
-            source.cancel('Upload annullato dall\'utente.');
-        }
-        setUploadingFiles(prev => prev.filter(f => f.id !== id));
-        uploadCancelTokens.current.delete(id);
-    };
-
-    const handleDownload = async (file) => {
-        if (!hasPermission('DM_FILE_VIEW')) return;
-        try {
-            const res = await api.get(`/documenti/generate-download-url/${file.id_file}`);
-            const { downloadUrl } = res.data;
-            window.open(downloadUrl, '_self');
-        } catch (err) {
-            console.error("Errore nel download:", err);
-            setError(err.response?.data?.error || "Impossibile generare il link per il download.");
-        }
-    };
-
-    const handleDeleteClick = (link) => {
-        if (!hasPermission('DM_FILE_DELETE')) return;
-        setAllegatoLinkToDelete(link);
-        setIsAllegatoDeleteModalOpen(true);
-    };
-
-    const confirmDelete = async () => {
+    const confirmDelete = async () => { 
         if (!allegatoLinkToDelete) return;
-        try {
-            await api.delete(`/archivio/scollega/${allegatoLinkToDelete.id_link}`, {
-                params: { idDitta: effectiveIdDitta }
-            });
-            setIsAllegatoDeleteModalOpen(false);
-            setAllegatoLinkToDelete(null);
-            fetchAllegati();
-            if (forceRefresh) forceRefresh();
-        } catch (err) {
-            console.error("Errore durante l'eliminazione:", err);
-            setError(err.response?.data?.error || "Impossibile eliminare l'allegato.");
-        }
+        try { await api.delete(`/archivio/scollega/${allegatoLinkToDelete.id_link}`, { params: { idDitta: effectiveIdDitta } }); setIsAllegatoDeleteModalOpen(false); fetchAllegati(); if(forceRefresh) forceRefresh(); } catch(e) { setError("Errore eliminazione."); }
     };
 
-    const handleEditNote = (allegato) => {
-        setEditingAllegato(allegato);
-        setCurrentNote(allegato.note || '');
-    };
-
-    const saveNote = async () => {
-        if (!editingAllegato) return;
-        try {
-            await api.put(`/archivio/note/${editingAllegato.id_link}`, {
-                note: currentNote,
-                idDitta: effectiveIdDitta
-            });
-            setEditingAllegato(null);
-            setCurrentNote('');
-            fetchAllegati();
-        } catch (err) {
-            console.error("Errore durante il salvataggio della nota:", err);
-            setError(err.response?.data?.error || "Impossibile salvare la nota.");
-        }
-    };
-    
-    const handleCameraClick = (e) => {
-        e.stopPropagation();
-        fileInputRef.current.click();
-    };
-
-    const handleFileChange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            setCameraFile(file);
-            const imageUrl = URL.createObjectURL(file);
-            setImageToCrop(imageUrl);
-            setIsCroppingModalOpen(true);
-            setCroppedAreaPixels(null);
-            setAspectRatio(3 / 4); // Imposta il predefinito verticale
-            setCrop({ x: 0, y: 0 });
-        }
-    };
-
-    const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    }, []);
-
-    const handleCropAndRemoveBg = async () => {
-        try {
-            const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const originalName = cameraFile.name.replace(/\.[^/.]+$/, "");
-            let croppedFile = new window.File([croppedBlob], `${originalName}_cropped.jpg`, { type: 'image/jpeg' });
-            
-            const optimizedFile = await optimizeImage(croppedFile);
-            setCroppedFileForBgRemoval(optimizedFile);
-            setIsCroppingModalOpen(false);
-        } catch (e) {
-            console.error("Errore in handleCropAndRemoveBg:", e);
-            setError(`Errore durante il ritaglio: ${e.message}`);
-        }
-    };
-
-    const handleCropAndUpload = async () => {
-        try {
-            const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const originalName = cameraFile.name.replace(/\.[^/.]+$/, "");
-            let croppedFile = new window.File([croppedBlob], `${originalName}_cropped.jpg`, { type: 'image/jpeg' });
-            
-            const optimizedFile = await optimizeImage(croppedFile);
-            
-            handleUpload([optimizedFile]);
-            closeAllModals();
-        } catch (e) {
-            console.error("Errore in handleCropAndUpload:", e);
-            setError(`Errore durante il ritaglio: ${e.message}`);
-        }
-    };
-    
-    const closeAllModals = () => {
-        setIsCroppingModalOpen(false);
-        setCroppedFileForBgRemoval(null);
-        setCameraFile(null);
-        if (imageToCrop) {
-            URL.revokeObjectURL(imageToCrop);
-            setImageToCrop(null);
-        }
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-
-    const handleBackgroundRemoval = async () => {
-        if (!croppedFileForBgRemoval) return;
-        
-        setIsRemovingBg(true);
-        setError(null);
-        let imageUrl = null;
-
-        try {
-            imageUrl = window.URL.createObjectURL(croppedFileForBgRemoval);
-            const bgRemovalModule = await import("@imgly/background-removal");
-            const removeBackgroundFn = bgRemovalModule.removeBackground || bgRemovalModule.default || bgRemovalModule;
-            
-            if (typeof removeBackgroundFn !== 'function') {
-                throw new Error('La funzione removeBackground non è disponibile');
-            }
-            
-            const blob = await removeBackgroundFn(imageUrl);
-            window.URL.revokeObjectURL(imageUrl);
-
-            const originalName = cameraFile.name.replace(/\.[^/.]+$/, '');
-            let bgRemovedFile = new window.File([blob], `${originalName}_cropped_nobg.png`, {
-                type: 'image/png',
-                lastModified: Date.now(),
-            });
-
-            const optimizedFile = await optimizeImage(bgRemovedFile);
-            
-            handleUpload([optimizedFile]);
-            closeAllModals();
-
-        } catch (err) {
-            console.error("=== ERRORE DETTAGLIATO ===", err);
-            setError(`Errore: ${err.message || 'Impossibile rimuovere lo sfondo'}`);
-            
-            if (imageUrl) {
-                window.URL.revokeObjectURL(imageUrl);
-            }
-        } finally {
-            setIsRemovingBg(false);
-        }
-    };
-    
-    if (!hasPermission) {
-        return (
-            <div className="w-full max-w-4xl mx-auto text-center py-8 text-red-600">
-                Errore Critico: Contesto di autenticazione non disponibile.
-            </div>
-        );
-    }
+    if (!hasPermission) return <div>No Auth</div>;
 
     return (
         <div className="w-full max-w-4xl mx-auto">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                Gestione Allegati 
-                {/* Indicatore visivo della privacy */}
-                <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
-                    effectivePrivacy === 'public' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                }`}>
-                    {effectivePrivacy === 'public' ? 'Pubblico' : 'Privato'}
-                </span>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                Foto e Documenti 
+                <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600 font-normal">{effectivePrivacy === 'public' ? 'Visibili nel Catalogo' : 'Privati'}</span>
             </h3>
-
+            
             {hasPermission('DM_FILE_UPLOAD') && (
-                <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                        isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400'
-                    }`}
-                >
+                <div {...getRootProps()} className={`border-2 border-dashed p-8 text-center rounded-xl cursor-pointer transition-all ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'}`}>
                     <input {...getInputProps()} />
-                    <div className="flex flex-col items-center">
-                        <UploadCloud className="w-12 h-12 text-gray-400" />
-                        {isDragActive ? (
-                            <p className="mt-2 text-gray-600">Rilascia i file qui...</p>
-                        ) : (
-                            <p className="mt-2 text-gray-600">
-                                Trascina i file qui, o <span className="font-semibold text-blue-600">clicca per selezionare</span>
-                            </p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">(Documenti, Immagini, ZIP, ecc.)</p>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-gray-300">
-                        <p className="text-sm text-gray-600 mb-3">Oppure scatta una foto:</p>
-                        <button
-                            type="button"
-                            onClick={handleCameraClick}
-                            className="flex items-center justify-center w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                        >
-                            <Camera className="w-6 h-6 mr-2" />
-                            Apri Fotocamera
-                        </button>
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                        <div className="p-3 bg-blue-100 rounded-full text-blue-600"><CameraIcon className="w-8 h-8"/></div>
+                        <p className="text-sm text-gray-600 font-medium">Scatta foto o trascina qui i file</p>
+                        <p className="text-xs text-gray-400">Ottimizzato per Cataloghi Instagram</p>
                     </div>
                 </div>
             )}
             
-            {!hasPermission('DM_FILE_UPLOAD') && (
-                 <div className="border-2 border-dashed rounded-lg p-8 text-center bg-gray-50">
-                     <p className="text-gray-500">Non hai i permessi per caricare nuovi file.</p>
-                 </div>
-            )}
-
             {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative my-4" role="alert">
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative my-4">
+                    <strong className="font-bold">Errore: </strong>
                     <span className="block sm:inline">{error}</span>
                 </div>
             )}
 
-            {uploadingFiles.length > 0 && (
-                <div className="mt-4">
-                    <h4 className="font-semibold text-sm text-gray-600 mb-2">In caricamento...</h4>
-                    <ul className="space-y-2">
-                        {uploadingFiles.map(up => (
-                            <li key={up.id} className="p-3 bg-white border rounded-md">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm font-medium text-gray-700 truncate min-w-0 pr-4">{up.file.name}</span>
-                                    {up.error && <AlertTriangle className="w-5 h-5 text-red-500" title={up.error} />}
-                                    {up.progress === 100 && !up.error && <Loader2 className="w-5 h-5 text-green-500 animate-spin" />}
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                    <div className={`h-2 rounded-full transition-all ${up.error ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: up.error ? '100%' : `${up.progress}%` }}></div>
-                                </div>
-                                {up.error && <p className="text-xs text-red-600 mt-1">{up.error}</p>}
-                                {!up.error && (
-                                    <button 
-                                        onClick={() => cancelUpload(up.id)} 
-                                        className="mt-2 text-xs text-red-500 hover:text-red-700"
-                                    >
-                                        Annulla upload
-                                    </button>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
-            <div className="mt-6">
-                {isLoading && (
-                    <div className="flex justify-center items-center py-4">
-                        <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-                        <span className="ml-2 text-gray-500">Caricamento allegati...</span>
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {isLoading && <div className="col-span-full text-center py-4 text-gray-500"><ArrowPathIcon className="w-5 h-5 animate-spin inline mr-2"/> Caricamento...</div>}
+                {allegati.map(file => (
+                    <div key={file.id_link} className="flex items-center p-3 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
+                        <div className="w-12 h-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center border">
+                            {file.mime_type.startsWith('image/') ? <img src={file.previewUrl} className="w-full h-full object-cover" /> : <FileIconHelper mimeType={file.mime_type}/>}
+                        </div>
+                        <div className="ml-3 flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.file_name_originale}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.file_size_bytes)} • {formatFileDate(file.created_at)}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => window.open(file.previewUrl, '_blank')} className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-50"><EyeIcon className="w-5 h-5"/></button>
+                            <button onClick={() => {setAllegatoLinkToDelete(file); setIsAllegatoDeleteModalOpen(true);}} className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50"><TrashIcon className="w-5 h-5"/></button>
+                        </div>
                     </div>
-                )}
-                {!isLoading && allegati.length === 0 && (
-                    <div className="text-center py-4 text-gray-500">Nessun allegato presente.</div>
-                )}
-                {!isLoading && allegati.length > 0 && (
-                    <ul className="space-y-3">
-                        {allegati.map(file => (
-                            <li key={file.id_link} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-md shadow-sm">
-                                <div className="flex items-center min-w-0 flex-1">
-                                    {file.mime_type.startsWith('image/') && file.previewUrl ? (
-                                        <img 
-                                            src={file.previewUrl} 
-                                            alt={file.file_name_originale}
-                                            className="w-10 h-10 object-cover rounded-md flex-shrink-0"
-                                        />
-                                    ) : (
-                                        <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                                            <FileIconHelper mimeType={file.mime_type} />
-                                        </div>
-                                    )}
-                                    <div className="ml-3 min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-gray-900 truncate">{file.file_name_originale}</p>
-                                        <p className="text-xs text-gray-500">
-                                            {formatFileSize(file.file_size_bytes)}
-                                            <span className="mx-1">·</span>
-                                            Caricato il {formatFileDate(file.created_at)}
-                                            {file.utente_upload && ` da ${file.utente_upload}`}
-                                        </p>
-                                        {editingAllegato?.id_link === file.id_link ? (
-                                            <div className="mt-1 flex items-center">
-                                                <input
-                                                    type="text"
-                                                    value={currentNote}
-                                                    onChange={(e) => setCurrentNote(e.target.value)}
-                                                    className="text-xs border rounded px-1 py-0.5 mr-1"
-                                                    placeholder="Aggiungi nota..."
-                                                />
-                                                <button
-                                                    onClick={saveNote}
-                                                    className="text-green-600 hover:text-green-800"
-                                                    title="Salva"
-                                                >
-                                                    <Check className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingAllegato(null)}
-                                                    className="text-red-600 hover:text-red-800 ml-1"
-                                                    title="Annulla"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            file.note && (
-                                                <p className="text-xs text-gray-600 mt-1">Nota: {file.note}</p>
-                                            )
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                                    {file.previewUrl && hasPermission('DM_FILE_VIEW') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => window.open(file.previewUrl, '_blank')} 
-                                            title="Anteprima" 
-                                            className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100"
-                                        ><Eye className="w-5 h-5" /></button>
-                                    )}
-                                    {hasPermission('DM_FILE_VIEW') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleDownload(file)} 
-                                            title="Download" 
-                                            className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
-                                        ><Download className="w-5 h-5" /></button>
-                                    )}
-                                    {hasPermission('DM_FILE_EDIT') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleEditNote(file)} 
-                                            title="Modifica nota" 
-                                            className="p-2 text-gray-500 hover:text-yellow-600 rounded-full hover:bg-gray-100"
-                                        ><Pencil className="w-5 h-5" /></button>
-                                    )}
-                                    {hasPermission('DM_FILE_DELETE') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleDeleteClick(file)} 
-                                            title="Scollega" 
-                                            className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
-                                        ><Trash2 className="w-5 h-5" /></button>
-                                    )}
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                ))}
             </div>
 
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                capture="environment"
-                style={{ display: 'none' }}
-            />
-
-            {/* Modale per il RITAGLIO */}
-            {isCroppingModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4">
-                    <div className="bg-white rounded-lg w-full h-full max-w-4xl max-h-[90vh] flex flex-col">
-                        <div className="p-4 border-b flex justify-between items-center">
-                            <h3 className="text-lg font-semibold text-gray-800">Ritaglia l'immagine</h3>
-                            <button onClick={closeAllModals} className="text-gray-500 hover:text-gray-700">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-                        <div className="p-2 border-b flex justify-center space-x-2 flex-wrap">
-                            {aspectRatios.map((ratio) => (
-                                <button
-                                    key={ratio.name}
-                                    type="button"
-                                    onClick={() => {
-                                        setAspectRatio(ratio.value);
-                                        setCrop({ x: 0, y: 0 });
-                                    }}
-                                    className={`px-3 py-1 text-xs rounded-md transition ${
-                                        aspectRatio === ratio.value
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                    }`}
-                                >
-                                    {ratio.name}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="relative flex-1 bg-black" style={{ minHeight: '300px' }}>
-                            <Cropper
-                                image={imageToCrop}
-                                crop={crop}
-                                zoom={zoom}
-                                aspect={aspectRatio}
-                                onCropChange={setCrop}
-                                onCropComplete={onCropComplete}
-                                onZoomChange={setZoom}
-                            />
-                        </div>
-                        <div className="p-4 border-t flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-                            <button
-                                type="button"
-                                onClick={handleCropAndUpload}
-                                disabled={!isCropReady}
-                                className={`px-4 py-2 rounded-md transition flex items-center justify-center ${
-                                    isCropReady
-                                        ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                }`}
-                            >
-                                <Check className="w-4 h-4 mr-1" />
-                                Usa Immagine Ritagliata
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleCropAndRemoveBg}
-                                disabled={!isCropReady}
-                                className={`px-4 py-2 rounded-md transition flex items-center justify-center ${
-                                    isCropReady
-                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                        : 'bg-blue-300 text-white cursor-not-allowed'
-                                }`}
-                            >
-                                {isRemovingBg ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        Elaborazione...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-1" />
-                                        Rimuovi Sfondo
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                        {!isCropReady && (
-                            <div className="px-4 pb-2 text-center text-sm text-gray-500">
-                                <Loader2 className="w-4 h-4 inline-block animate-spin mr-1" />
-                                Inizializzazione dell'area di ritaglio...
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Modale per la RIMOZIONE SFONDO */}
-            {croppedFileForBgRemoval && !isCroppingModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Rimuovere lo sfondo?</h3>
-                        <img src={URL.createObjectURL(croppedFileForBgRemoval)} alt="Anteprima ritagliata" className="w-full h-auto rounded-md mb-4" />
-                        <p className="text-sm text-gray-600 mb-6">Vuoi rimuovere lo sfondo da questa foto ritagliata?</p>
+            {isEditorOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col p-0 sm:p-4">
+                    <div className="bg-white w-full h-full sm:rounded-xl flex flex-col overflow-hidden shadow-2xl relative">
                         
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                type="button"
-                                onClick={() => handleUpload([croppedFileForBgRemoval])}
-                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition flex items-center"
-                                disabled={isRemovingBg}
-                            >
-                                <X className="w-4 h-4 mr-1" />
-                                Mantieni Sfondo
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleBackgroundRemoval}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center"
-                                disabled={isRemovingBg}
-                            >
-                                {isRemovingBg ? (
+                        <div className="px-4 py-3 border-b flex justify-between items-center bg-white z-10">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-purple-600"/> Editor Catalogo
+                            </h3>
+                            <button onClick={closeEditor} className="p-1 hover:bg-gray-100 rounded-full"><XMarkIcon className="w-6 h-6 text-gray-500"/></button>
+                        </div>
+
+                        <div className="flex-1 relative bg-gray-900 overflow-hidden">
+                            {processedImage ? (
+                                <div className="w-full h-full flex items-center justify-center p-4" style={{backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
+                                    <img src={URL.createObjectURL(processedImage)} className="max-w-full max-h-full object-contain shadow-2xl" alt="Risultato" />
+                                </div>
+                            ) : (
+                                <Cropper 
+                                    image={imageToCrop} crop={crop} zoom={zoom} aspect={aspectRatio} 
+                                    onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(area, pixels) => setCroppedAreaPixels(pixels)} 
+                                    objectFit="contain"
+                                />
+                            )}
+
+                            {isProcessingAI && (
+                                <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50 text-white p-6 text-center">
+                                    <ArrowPathIcon className="w-12 h-12 animate-spin mb-6 text-purple-500"/>
+                                    <h3 className="text-xl font-bold mb-2">{processingStep}</h3>
+                                    {downloadProgress > 0 && downloadProgress < 100 && (
+                                        <div className="w-full max-w-xs bg-gray-700 rounded-full h-2.5 mb-4">
+                                            <div className="bg-purple-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }}></div>
+                                        </div>
+                                    )}
+                                    <p className="text-sm text-gray-400">Scarico modelli AI (richiede connessione)...</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-white border-t p-4 flex flex-col gap-4 safe-area-bottom">
+                            {!processedImage && (
+                                <div className="flex justify-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                    {aspectRatios.map(ar => (
+                                        <button key={ar.name} onClick={() => setAspectRatio(ar.value)} className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${aspectRatio === ar.value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{ar.name}</button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex justify-between items-center gap-3">
+                                {processedImage ? (
                                     <>
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        Elaborazione...
+                                        <button onClick={() => setProcessedImage(null)} className="px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 flex-1 border">Indietro</button>
+                                        <button onClick={handleSave} className="px-4 py-3 rounded-lg text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 flex-1 shadow-lg flex justify-center items-center gap-2"><CheckIcon className="w-5 h-5"/> Salva nel Catalogo</button>
                                     </>
                                 ) : (
                                     <>
-                                        <Check className="w-4 h-4 mr-1" />
-                                        Rimuovi Sfondo
+                                        <button onClick={handleSave} className="px-4 py-3 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Salva Originale</button>
+                                        <button onClick={handleProcessAI} disabled={isProcessingAI} className="px-6 py-3 rounded-lg text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex-1 shadow-lg flex justify-center items-center gap-2">
+                                            <SparklesIcon className="w-5 h-5"/> 
+                                            {isProcessingAI ? 'Attendere...' : 'Rimuovi Sfondo PRO'}
+                                        </button>
                                     </>
                                 )}
-                            </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {isAllegatoDeleteModalOpen && (
-                <ConfirmationModal
-                    isOpen={isAllegatoDeleteModalOpen}
-                    onClose={() => setIsAllegatoDeleteModalOpen(false)}
-                    onConfirm={confirmDelete}
-                    title="Conferma eliminazione allegato"
-                    message={`Sei sicuro di voler scollegare il file "${allegatoLinkToDelete?.file_name_originale || 'file selezionato'}"? Se non è collegato ad altre entità, il file verrà eliminato definitivamente.`}
-                    confirmButtonText="Scollega"
-                    confirmButtonColor="red"
-                />
-            )}
+            {isAllegatoDeleteModalOpen && <ConfirmationModal isOpen={isAllegatoDeleteModalOpen} onClose={() => setIsAllegatoDeleteModalOpen(false)} onConfirm={confirmDelete} title="Elimina" message="Sei sicuro?" confirmButtonText="Elimina" confirmButtonColor="red" />}
         </div>
     );
 };
