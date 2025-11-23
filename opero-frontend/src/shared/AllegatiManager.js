@@ -1,26 +1,36 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 20.5 (Fix AI - Switch a JSDELIVR CDN & Fallback)
- * - CHANGE: Switch a cdn.jsdelivr.net (più affidabile per WASM/CORS).
- * - FIX: Se l'AI fallisce, l'errore viene gestito e l'utente può caricare l'originale.
+ * Versione: 24.0 (Fix AI Task & Restore Crop)
+ * - FIX AI: Uso 'image-matting' con 'Xenova/modnet' (modello pubblico corretto).
+ * - FIX: Risolve errore "Unauthorized access" e "Unsupported model type".
+ * - RESTORE: Funzione di ritaglio manuale sempre disponibile.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { api } from '../services/api';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ConfirmationModal';
 import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 
+// --- TRANSFORMERS.JS ---
+import { pipeline, env } from '@xenova/transformers';
+
 // --- ICONE ---
 import { 
     ArrowDownTrayIcon, TrashIcon, DocumentIcon, PhotoIcon, ArchiveBoxIcon, 
-    CloudArrowUpIcon, ArrowPathIcon, EyeIcon, CameraIcon, CheckIcon, 
-    XMarkIcon, SparklesIcon
+    CloudArrowUpIcon, ArrowPathIcon, CameraIcon, CheckIcon, 
+    XMarkIcon, VideoCameraIcon, SparklesIcon, ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+
+// ======================================================================
+// CONFIGURAZIONE AI
+// ======================================================================
+// Disabilitiamo i modelli locali per forzare il download dalla cache/CDN corretta
+env.allowLocalModels = false; 
+env.useBrowserCache = true;
 
 // ======================================================================
 // HELPER
@@ -30,10 +40,10 @@ const FileIconHelper = ({ mimeType }) => {
     if (!mimeType) return <DocumentIcon className="w-6 h-6 text-gray-500" />;
     if (mimeType.startsWith('image/')) return <PhotoIcon className="w-6 h-6 text-purple-500" />;
     if (mimeType === 'application/pdf') return <DocumentIcon className="w-6 h-6 text-red-500" />;
-    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <DocumentIcon className="w-6 h-6 text-green-500" />;
     return <DocumentIcon className="w-6 h-6 text-gray-500" />;
 };
 
+// Funzione per ottenere il blob dell'immagine ritagliata
 const getCroppedImg = async (imageSrc, pixelCrop) => {
     const image = new Image();
     image.src = imageSrc;
@@ -60,7 +70,7 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
     return new Promise((resolve) => {
         canvas.toBlob((blob) => {
             resolve(blob);
-        }, 'image/jpeg');
+        }, 'image/jpeg', 0.95);
     });
 };
 
@@ -69,21 +79,33 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
 // ======================================================================
 
 const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'private' }) => {
-    const { hasPermission, user } = useAuth();
+    const { hasPermission } = useAuth();
     const [allegati, setAllegati] = useState([]);
     const [loading, setLoading] = useState(false);
+    
+    // Modali
     const [isAllegatoDeleteModalOpen, setIsAllegatoDeleteModalOpen] = useState(false);
     const [allegatoToDelete, setAllegatoToDelete] = useState(null);
+    const [isEditorOpen, setIsEditorOpen] = useState(false);
     
-    // Stati Editor
+    // Stati Editor & Camera
     const [imageSrc, setImageSrc] = useState(null);
+    const [currentFile, setCurrentFile] = useState(null);
+    
+    // Cropper State
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-    const [isEditorOpen, setIsEditorOpen] = useState(false);
-    const [currentFile, setCurrentFile] = useState(null);
+    
+    // AI State
     const [isProcessingAI, setIsProcessingAI] = useState(false);
-    const [processedImageSrc, setProcessedImageSrc] = useState(null); 
+    const [processedImageSrc, setProcessedImageSrc] = useState(null);
+    const [aiError, setAiError] = useState(null);
+    
+    // Camera State
+    const [isCameraMode, setIsCameraMode] = useState(false);
+    const videoRef = useRef(null);
+    const [cameraStream, setCameraStream] = useState(null);
 
     // 1. Caricamento allegati
     const fetchAllegati = useCallback(async () => {
@@ -102,37 +124,162 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
         fetchAllegati();
     }, [fetchAllegati]);
 
-    // 2. Gestione Dropzone (Apertura Editor)
+    // Pulizia stream camera allo smontaggio
+    useEffect(() => {
+        return () => {
+            stopCamera();
+        };
+    }, []);
+
+    // 2. Gestione Dropzone
     const onDrop = useCallback(async (acceptedFiles) => {
         const file = acceptedFiles[0];
         if (!file) return;
         
-        // Se è un'immagine, apri l'editor
         if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.addEventListener('load', () => {
-                setImageSrc(reader.result);
-                setCurrentFile(file);
-                setIsEditorOpen(true);
-                setProcessedImageSrc(null); // Reset
-            });
-            reader.readAsDataURL(file);
+            openEditorWithFile(file);
         } else {
-            // Se non è immagine, carica diretto
             await uploadFile(file);
         }
     }, []);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
-    // 3. Upload Effettivo
+    // Helper: Apre l'editor con un file
+    const openEditorWithFile = (file) => {
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+            setImageSrc(reader.result);
+            setCurrentFile(file);
+            setIsEditorOpen(true);
+            setIsCameraMode(false); 
+            setProcessedImageSrc(null);
+            setAiError(null);
+        });
+        reader.readAsDataURL(file);
+    };
+
+    // 3. Gestione Fotocamera
+    const startCamera = async () => {
+        setIsCameraMode(true);
+        setIsEditorOpen(true);
+        setImageSrc(null); 
+        setProcessedImageSrc(null);
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            });
+            setCameraStream(stream);
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+        } catch (err) {
+            console.error("Errore accesso camera:", err);
+            alert("Impossibile accedere alla fotocamera.");
+            setIsCameraMode(false);
+            setIsEditorOpen(false);
+        }
+    };
+
+    const stopCamera = () => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+        }
+    };
+
+    const capturePhoto = () => {
+        if (!videoRef.current) return;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        ctx.drawImage(videoRef.current, 0, 0);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        setImageSrc(dataUrl);
+        
+        fetch(dataUrl)
+            .then(res => res.blob())
+            .then(blob => {
+                const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+                setCurrentFile(file);
+                setIsCameraMode(false); 
+                stopCamera();
+            });
+    };
+
+    // 4. Logica AI con Transformers.js (Corretta per 'modnet')
+    const handleProcessAI = async () => {
+        if (!imageSrc) return;
+        
+        setIsProcessingAI(true);
+        setAiError(null);
+
+        try {
+            // FIX: Usiamo 'image-matting' invece di 'image-segmentation' per MODNet
+            // Questo risolve l'errore "Unsupported model type"
+            const segmenter = await pipeline('image-matting', 'Xenova/modnet');
+            
+            // Eseguiamo la predizione
+            const output = await segmenter(imageSrc);
+            
+            // output[0] è la maschera alfa (RawImage)
+            const mask = output[0]; 
+            
+            const originalImg = new Image();
+            originalImg.src = imageSrc;
+            await new Promise(r => originalImg.onload = r);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = originalImg.width;
+            canvas.height = originalImg.height;
+            const ctx = canvas.getContext('2d');
+
+            // 1. Disegna immagine originale
+            ctx.drawImage(originalImg, 0, 0);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // 2. Prepara la maschera (ridimensionata al canvas originale)
+            const maskCanvas = mask.toCanvas(); 
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height);
+            const maskData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
+
+            // 3. Applica Alpha Channel dalla maschera all'immagine
+            for (let i = 0; i < imgData.data.length; i += 4) {
+                // Usa il canale rosso della maschera come alpha
+                const alpha = maskData.data[i]; 
+                imgData.data[i + 3] = alpha; 
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            const processedUrl = canvas.toDataURL('image/png');
+            setProcessedImageSrc(processedUrl);
+
+        } catch (error) {
+            console.error("Transformers.js Error:", error);
+            setAiError("Errore AI: " + (error.message || "Modello non supportato. Usa il ritaglio manuale."));
+        } finally {
+            setIsProcessingAI(false);
+        }
+    };
+
+    // 5. Upload Effettivo
     const uploadFile = async (fileToUpload) => {
         setLoading(true);
         const formData = new FormData();
         formData.append('file', fileToUpload);
         formData.append('entita_tipo', entita_tipo);
         formData.append('entita_id', entita_id);
-        formData.append('privacy', defaultPrivacy); // 'public' o 'private'
+        formData.append('privacy', defaultPrivacy);
 
         try {
             await api.post('/documenti/upload', formData, {
@@ -140,6 +287,7 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
             });
             fetchAllegati();
             setIsEditorOpen(false);
+            setProcessedImageSrc(null);
         } catch (error) {
             console.error("Errore upload:", error);
             alert("Errore durante l'upload del file.");
@@ -148,62 +296,40 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
         }
     };
 
-    // 4. Funzioni Editor Immagini
-    const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    }, []);
-
+    // Gestione salvataggio unificata
     const handleSave = async () => {
-        if (!imageSrc || !currentFile) return;
-        
+        if (!currentFile) return;
+
         try {
             let fileToUpload;
 
             if (processedImageSrc) {
+                // Salva risultato AI
                 const res = await fetch(processedImageSrc);
                 const blob = await res.blob();
-                fileToUpload = new File([blob], currentFile.name, { type: "image/png" });
+                fileToUpload = new File([blob], currentFile.name.replace(/\.[^/.]+$/, "") + "_nobg.png", { type: "image/png" });
+            } else if (imageSrc) {
+                // Salva ritaglio manuale (Fallback)
+                // Se non c'è pixelCrop (es. zoom e posiz. default), usa immagine intera
+                if (!croppedAreaPixels) {
+                     const res = await fetch(imageSrc);
+                     const blob = await res.blob();
+                     fileToUpload = new File([blob], currentFile.name, { type: currentFile.type });
+                } else {
+                    const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
+                    const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+                    const compressedFile = await imageCompression(croppedBlob, options);
+                    fileToUpload = new File([compressedFile], currentFile.name, { type: currentFile.type });
+                }
             } else {
-                const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
-                const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
-                const compressedFile = await imageCompression(croppedBlob, options);
-                fileToUpload = new File([compressedFile], currentFile.name, { type: currentFile.type });
+                fileToUpload = currentFile;
             }
 
             await uploadFile(fileToUpload);
 
         } catch (e) {
             console.error(e);
-            alert("Errore durante l'elaborazione dell'immagine.");
-        }
-    };
-
-    // 5. AI REMOVE BACKGROUND (FIX JSDELIVR)
-    const handleProcessAI = async () => {
-        if (!imageSrc) return;
-        setIsProcessingAI(true);
-        try {
-            const module = await import('@imgly/background-removal');
-            const removeBackground = module.removeBackground || module.default; 
-
-            // --- FIX v20.5: Uso JSDELIVR (spesso più affidabile di UNPKG per CORS) ---
-            const config = {
-                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.0.6/dist/', 
-                debug: true, 
-                model: 'small',
-            };
-
-            console.log("Avvio AI con JSDELIVR:", config.publicPath);
-
-            const blob = await removeBackground(imageSrc, config);
-            const url = URL.createObjectURL(blob);
-            setProcessedImageSrc(url); 
-        } catch (error) {
-            console.error("Errore AI Dettagliato:", error);
-            // Messaggio utente più chiaro con suggerimento
-            alert("Impossibile scaricare i modelli AI (Errore di Rete/CORS). Verifica la connessione o riprova più tardi. Puoi comunque salvare l'immagine originale.");
-        } finally {
-            setIsProcessingAI(false);
+            alert("Errore durante il salvataggio.");
         }
     };
 
@@ -235,9 +361,12 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
             }
         } catch (error) {
             console.error("Errore download:", error);
-            alert("Impossibile scaricare il file.");
         }
     };
+
+    const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    }, []);
 
     return (
         <div className="mt-4">
@@ -248,19 +377,31 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
                 <span className="text-xs text-gray-500">{allegati.length} file</span>
             </div>
 
-            {/* Dropzone */}
+            {/* Dropzone e Pulsante Camera */}
             {hasPermission('DM_FILE_UPLOAD') && (
-                <div {...getRootProps()} 
-                    className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                    ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}>
-                    <input {...getInputProps()} />
-                    <CloudArrowUpIcon className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="mt-2 text-xs text-gray-500">Clicca o trascina qui i file</p>
+                <div className="flex gap-2 mb-4">
+                    <div {...getRootProps()} 
+                        className={`flex-1 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors
+                        ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}>
+                        <input {...getInputProps()} />
+                        <div className="flex flex-col items-center justify-center">
+                            <CloudArrowUpIcon className="h-8 w-8 text-gray-400" />
+                            <span className="mt-1 text-xs text-gray-500">Carica File</span>
+                        </div>
+                    </div>
+                    
+                    <button 
+                        onClick={startCamera}
+                        className="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center hover:bg-gray-50 hover:border-gray-400 transition-colors text-gray-500"
+                    >
+                        <CameraIcon className="h-8 w-8" />
+                        <span className="mt-1 text-xs">Scatta Foto</span>
+                    </button>
                 </div>
             )}
 
             {/* Lista Allegati */}
-            <div className="mt-4 space-y-2">
+            <div className="space-y-2">
                 {loading && <div className="text-center text-xs text-gray-500">Caricamento...</div>}
                 {allegati.map((file) => (
                     <div key={file.id_link} className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow">
@@ -278,19 +419,11 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
-                            <button 
-                                onClick={() => handleDownload(file.id_file, file.file_name_originale)}
-                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" 
-                                title="Scarica/Visualizza"
-                            >
+                            <button onClick={() => handleDownload(file.id_file, file.file_name_originale)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full" title="Scarica">
                                 <ArrowDownTrayIcon className="w-4 h-4" />
                             </button>
                             {hasPermission('DM_FILE_DELETE') && (
-                                <button 
-                                    onClick={() => { setAllegatoToDelete(file); setIsAllegatoDeleteModalOpen(true); }}
-                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                                    title="Elimina"
-                                >
+                                <button onClick={() => { setAllegatoToDelete(file); setIsAllegatoDeleteModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full" title="Elimina">
                                     <TrashIcon className="w-4 h-4" />
                                 </button>
                             )}
@@ -299,97 +432,98 @@ const AllegatiManager = ({ entita_tipo, entita_id, idDitta, defaultPrivacy = 'pr
                 ))}
             </div>
 
-            {/* MODALE EDITOR / CROPPER / AI */}
+            {/* MODALE UNIFICATO: CAMERA + EDITOR */}
             {isEditorOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
-                    <div className="w-full max-w-5xl h-[90vh] bg-white rounded-xl overflow-hidden flex flex-col">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-95">
+                    <div className="w-full max-w-4xl h-[90vh] bg-black md:bg-white md:rounded-xl overflow-hidden flex flex-col">
+                        
                         {/* Header */}
-                        <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
-                            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                                <CameraIcon className="w-5 h-5"/> Editor Immagine
+                        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-800 md:border-gray-200 bg-black md:bg-white text-white md:text-gray-800">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                {isCameraMode ? <VideoCameraIcon className="w-5 h-5"/> : <CameraIcon className="w-5 h-5"/>}
+                                {isCameraMode ? 'Scatta Foto' : 'Modifica Immagine'}
                             </h3>
-                            <button onClick={() => setIsEditorOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                            <button onClick={() => { setIsEditorOpen(false); stopCamera(); }} className="p-2 hover:bg-gray-700 md:hover:bg-gray-200 rounded-full">
                                 <XMarkIcon className="w-6 h-6"/>
                             </button>
                         </div>
 
-                        {/* Area di lavoro */}
-                        <div className="flex-1 relative bg-gray-900 overflow-hidden">
-                            {processedImageSrc ? (
+                        {/* Area Centrale */}
+                        <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+                            {isCameraMode ? (
+                                // VISTA FOTOCAMERA
+                                <div className="relative w-full h-full flex items-center justify-center">
+                                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                    <button onClick={capturePhoto} className="absolute bottom-8 w-16 h-16 bg-white rounded-full border-4 border-gray-300 shadow-lg hover:bg-gray-100 transition-transform active:scale-95 flex items-center justify-center" />
+                                </div>
+                            ) : processedImageSrc ? (
+                                // VISTA AI RESULT (Trasparenza)
                                 <div className="w-full h-full flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/checkered-light-emboss.png')]">
                                     <img src={processedImageSrc} alt="Processed" className="max-h-full max-w-full object-contain shadow-2xl" />
                                 </div>
                             ) : (
+                                // VISTA CROPPER (Sempre disponibile se no AI result)
                                 <Cropper
                                     image={imageSrc}
                                     crop={crop}
                                     zoom={zoom}
-                                    aspect={4 / 3} 
+                                    aspect={4 / 3}
                                     onCropChange={setCrop}
                                     onCropComplete={onCropComplete}
                                     onZoomChange={setZoom}
                                 />
                             )}
-                        </div>
 
-                        {/* Footer Controlli */}
-                        <div className="p-4 bg-white border-t">
-                            {!processedImageSrc && (
-                                <div className="mb-4 flex items-center gap-4">
-                                    <span className="text-sm text-gray-600 w-16">Zoom</span>
-                                    <input
-                                        type="range"
-                                        value={zoom}
-                                        min={1}
-                                        max={3}
-                                        step={0.1}
-                                        aria-labelledby="Zoom"
-                                        onChange={(e) => setZoom(e.target.value)}
-                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                    />
+                            {/* Messaggio Errore AI (Non bloccante) */}
+                            {aiError && (
+                                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2 shadow-lg backdrop-blur-sm z-50">
+                                    <ExclamationTriangleIcon className="w-5 h-5" />
+                                    {aiError}
+                                    <button onClick={() => setAiError(null)} className="ml-2 font-bold">&times;</button>
                                 </div>
                             )}
-
-                            <div className="flex justify-end gap-3">
-                                <button onClick={() => setIsEditorOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium">Annulla</button>
-                                
-                                {processedImageSrc ? (
-                                    <>
-                                        <button onClick={() => setProcessedImageSrc(null)} className="px-4 py-2 text-blue-600 hover:underline font-medium">Torna all'originale</button>
-                                        <button onClick={handleSave} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md flex items-center gap-2">
-                                            <CheckIcon className="w-5 h-5"/> Conferma e Salva
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button 
-                                            onClick={handleProcessAI} 
-                                            disabled={isProcessingAI}
-                                            className="px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg font-medium flex items-center gap-2 transition-colors"
-                                        >
-                                            {isProcessingAI ? (
-                                                <>
-                                                    <ArrowPathIcon className="w-5 h-5 animate-spin"/> Elaborazione AI...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <SparklesIcon className="w-5 h-5"/> Rimuovi Sfondo
-                                                </>
-                                            )}
-                                        </button>
-
-                                        <button onClick={handleSave} disabled={isProcessingAI} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-md">
-                                            Salva Ritaglio
-                                        </button>
-                                    </>
-                                )}
-                            </div>
                         </div>
+
+                        {/* Footer Controlli (Solo per Editor) */}
+                        {!isCameraMode && (
+                            <div className="p-4 bg-white border-t border-gray-200 flex flex-col gap-4">
+                                {!processedImageSrc && (
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-sm text-gray-600 w-12">Zoom</span>
+                                        <input type="range" value={zoom} min={1} max={3} step={0.1} onChange={(e) => setZoom(e.target.value)} className="flex-1 h-2 bg-gray-200 rounded-lg cursor-pointer" />
+                                    </div>
+                                )}
+                                <div className="flex justify-end gap-3">
+                                    <button onClick={() => setIsEditorOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium">Annulla</button>
+                                    
+                                    {processedImageSrc ? (
+                                        <>
+                                            <button onClick={() => setProcessedImageSrc(null)} className="px-4 py-2 text-blue-600 hover:underline font-medium">Torna all'originale</button>
+                                            <button onClick={handleSave} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md flex items-center gap-2">
+                                                <CheckIcon className="w-5 h-5"/> Salva AI
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button onClick={handleProcessAI} disabled={isProcessingAI} className="px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg font-medium flex items-center gap-2">
+                                                {isProcessingAI ? <ArrowPathIcon className="w-5 h-5 animate-spin"/> : <SparklesIcon className="w-5 h-5"/>}
+                                                {isProcessingAI ? 'Elaborazione...' : 'Rimuovi Sfondo'}
+                                            </button>
+                                            
+                                            {/* PULSANTE SALVA RITAGLIO SEMPRE VISIBILE */}
+                                            <button onClick={handleSave} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-md flex items-center gap-2">
+                                                <CheckIcon className="w-5 h-5"/> Salva Ritaglio
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
-            {isAllegatoDeleteModalOpen && <ConfirmationModal isOpen={isAllegatoDeleteModalOpen} onClose={() => setIsAllegatoDeleteModalOpen(false)} onConfirm={confirmDelete} title="Elimina" message="Sei sicuro di voler eliminare questo file?" confirmButtonText="Elimina" confirmButtonColor="red" />}
+            {isAllegatoDeleteModalOpen && <ConfirmationModal isOpen={isAllegatoDeleteModalOpen} onClose={() => setIsAllegatoDeleteModalOpen(false)} onConfirm={confirmDelete} title="Elimina" message="Sei sicuro?" confirmButtonText="Elimina" confirmButtonColor="red" />}
         </div>
     );
 };
