@@ -367,16 +367,45 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     };
 
     // --- RIVISTA: Funzione per la rimozione dello sfondo ---
-    const handleBackgroundRemoval = async () => {
+const handleBackgroundRemoval = async () => {
         if (!imageToCrop || !isCropReady) return;
         
         setIsRemovingBg(true);
         setError(null);
 
         try {
-            // Per la rimozione dello sfondo, usiamo l'immagine già ritagliata
+            // Riduciamo la dimensione dell'immagine prima della rimozione dello sfondo per velocizzare
             const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const imageUrl = URL.createObjectURL(croppedBlob);
+            
+            // Ridimensioniamo l'immagine a massimo 1024px sul lato più lungo
+            const resizedBlob = await new Promise((resolve) => {
+                const img = new Image();
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                img.onload = () => {
+                    const maxSize = 1024;
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height && width > maxSize) {
+                        height = (height * maxSize) / width;
+                        width = maxSize;
+                    } else if (height > maxSize) {
+                        width = (width * maxSize) / height;
+                        height = maxSize;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(resolve, 'image/png');
+                };
+                
+                img.src = URL.createObjectURL(croppedBlob);
+            });
+            
+            const imageUrl = URL.createObjectURL(resizedBlob);
             
             const bgRemovalModule = await import("@imgly/background-removal");
             const removeBackgroundFn = bgRemovalModule.removeBackground || bgRemovalModule.default || bgRemovalModule;
@@ -385,7 +414,11 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                 throw new Error('La funzione removeBackground non è disponibile');
             }
             
-            const blob = await removeBackgroundFn(imageUrl);
+            // Configurazione ottimizzata per velocità
+            const blob = await removeBackgroundFn(imageUrl, {
+                model: 'small', // Usa il modello più piccolo e veloce
+                output: { quality: 0.8, type: 'image/png' }
+            });
             URL.revokeObjectURL(imageUrl);
 
             // Convertiamo il Blob risultante (con sfondo trasparente) in un dataURL
@@ -411,7 +444,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
             setIsRemovingBg(false);
         }
     };
-    
+
     const closeAllModals = () => {
         setIsCroppingModalOpen(false);
         setCameraFile(null);
