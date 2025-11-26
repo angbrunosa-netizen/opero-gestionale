@@ -75,49 +75,41 @@ async function pulisciSessioniScadute(connection) {
  * @returns {Promise<object>} Una Promise che risolve con un oggetto contenente token, utente, ditta, moduli e permessi.
  */
 async function finalizzaLogin(connection, req, userContext, id_ditta_scelta) {
-    // 1. LOGGA L'ACCESSO INIZIALE
-    // Registra l'evento di login riuscito nella tabella log_accessi.
-    // 'id_funzione_accessibile' è NULL perché l'azione è il login stesso, non l'accesso a una funzione specifica.
+    // 1. LOGGA L'ACCESSO
     const logAccessoQuery = `
         INSERT INTO log_accessi (id_utente, id_ditta, indirizzo_ip, data_ora_accesso, id_funzione_accessibile, dettagli_azione) 
         VALUES (?, ?, ?, NOW(), NULL, 'LOGIN_SUCCESSFUL')
     `;
     await connection.query(logAccessoQuery, [userContext.id, id_ditta_scelta, req.ip]);
 
-    // 2. REGISTRA LA SESSIONE ATTIVA
-    // Usa REPLACE INTO per gestire sia l'inserimento di una nuova sessione sia l'aggiornamento di una esistente
-    // (es. in caso di logout non pulito correttamente).
+    // 2. REGISTRA SESSIONE
     const registraSessioneQuery = `
         REPLACE INTO utenti_sessioni_attive (id_utente, id_ditta_attiva, login_timestamp, last_heartbeat_timestamp)
         VALUES (?, ?, NOW(), NOW())
     `;
     await connection.query(registraSessioneQuery, [userContext.id, id_ditta_scelta]);
 
-    // 3. COSTRUISCE LA MAPPA DEI PERMESSI
-    // Chiama la nuova funzione che calcola i permessi basandosi sulle funzioni attive per la ditta.
+    // 3. PERMESSI
     const permissions = await _buildPermissionsV2(connection, userContext.id, userContext.id_ruolo, id_ditta_scelta);
 
-    // 4. CREA IL PAYLOAD PER IL TOKEN JWT
-    // Il payload contiene le informazioni essenziali che il frontend userà per le richieste successive.
+    // 4. PAYLOAD TOKEN
     const payload = {
         id: userContext.id,
         id_ditta: id_ditta_scelta,
         id_ruolo: userContext.id_ruolo,
         permissions: permissions,
-        jti: uuidv4() // ID univoco per il token, utile per future blacklist
+        jti: uuidv4()
     };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' }); // Il token scade dopo 8 ore
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
 
-    // 5. RECUPERA I DATI COMPLETI DELLA DITTA
-    // Necessari per il frontend per mostrare nome, logo, tipo, etc.
+    // 5. DATI DITTA
     const [dittaRows] = await connection.query(`
         SELECT d.id, d.ragione_sociale, d.logo_url, td.tipo AS tipo_ditta 
         FROM ditte d
         LEFT JOIN tipo_ditta td ON d.id_tipo_ditta = td.id
         WHERE d.id = ?`, [id_ditta_scelta]);
 
-    // 6. RECUPERA I MODULI ATTIVI PER LA DITTA
-    // Il frontend userà questa lista per costruire il menu di navigazione.
+    // 6. MODULI
     const [moduleRows] = await connection.query(
         `SELECT m.codice, m.descrizione, m.chiave_componente 
          FROM ditte_moduli dm 
@@ -126,21 +118,18 @@ async function finalizzaLogin(connection, req, userContext, id_ditta_scelta) {
         [id_ditta_scelta]
     );
 
-    // 7. PULISCE L'OGGETTO UTENTE
-    // Rimuovi dati sensibili e prepara un oggetto pulito da inviare al frontend.
-    delete userContext.password; // FONDAMENTALE: non inviare mai l'hash della password al client!
+    delete userContext.password;
     
     const finalUserObject = {
-        ...userContext, // Contiene id, nome, cognome, email, Codice_Tipo_Utente, livello...
-        ruolo: userContext.nome_ruolo // Usa il campo 'nome_ruolo' già recuperato dalla JOIN
+        ...userContext,
+        ruolo: userContext.nome_ruolo
     };
 
-    // 8. ASSEMBLA E RESTITUISCE L'OGGETTO DI RISPOSTA COMPLETO
     return {
         success: true,
         token: token,
         user: finalUserObject,
-        ditta: dittaRows[0] || null, // Restituisce null se per qualche motivo la ditta non viene trovata
+        ditta: dittaRows[0] || null,
         modules: moduleRows,
         permissions: permissions
     };
@@ -244,7 +233,7 @@ async function handleSuccessfulLogin(connection, userId) {
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
-        return res.status(400).json({ success: false, message: 'Email e password sono obbligatori.' });
+        return res.status(400).json({ success: false, message: 'Email e password obbligatori.' });
     }
 
     let connection;
@@ -253,7 +242,15 @@ router.post('/login', async (req, res) => {
         await connection.beginTransaction();
         await pulisciSessioniScadute(connection);
 
-        const userQuery = `SELECT u.id, u.nome, u.cognome, u.email, u.password, u.stato, u.tentativi_falliti, u.id_ditta, u.id_ruolo, u.Codice_Tipo_Utente, r.tipo as nome_ruolo FROM utenti u LEFT JOIN ruoli r ON u.id_ruolo = r.id WHERE u.email = ?`;
+        // 1. Recupero Utente BASE (incluso livello di default dalla tabella utenti)
+        const userQuery = `
+            SELECT u.id, u.nome, u.cognome, u.email, u.password, u.stato, 
+                   u.tentativi_falliti, u.id_ditta, u.id_ruolo, u.livello, 
+                   u.Codice_Tipo_Utente, r.tipo as nome_ruolo 
+            FROM utenti u 
+            LEFT JOIN ruoli r ON u.id_ruolo = r.id 
+            WHERE u.email = ?`;
+        
         const [userRows] = await connection.query(userQuery, [email]);
 
         if (userRows.length === 0) {
@@ -265,7 +262,7 @@ router.post('/login', async (req, res) => {
 
         if (user.stato === 'bloccato') {
             await connection.rollback();
-            return res.status(423).json({ success: false, message: 'Account bloccato per troppi tentativi falliti. Per favore, procedi con il recupero password.', requiresPasswordReset: true });
+            return res.status(423).json({ success: false, message: 'Account bloccato.', requiresPasswordReset: true });
         }
 
         const [sessioneEsistente] = await connection.query('SELECT id_utente FROM utenti_sessioni_attive WHERE id_utente = ?', [user.id]);
@@ -276,7 +273,6 @@ router.post('/login', async (req, res) => {
         
         const passwordIsValid = await bcrypt.compare(password, user.password);
         if (!passwordIsValid) {
-            // ++ MODIFICA: Passa l'IP alla funzione di gestione fallimenti ++
             await handleFailedLogin(connection, user, req.ip);
             await connection.commit();
             return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
@@ -284,59 +280,66 @@ router.post('/login', async (req, res) => {
 
         await handleSuccessfulLogin(connection, user.id);
         
-       const ditteAssociateQuery = `
-    /* Blocco 1: Cerca nella NUOVA tabella 'ad_utenti_ditte' */
-    (SELECT
-        d.id, d.ragione_sociale AS denominazione, d.logo_url,
-        aud.livello  /* Prende il livello specifico da questa tabella */
-    FROM ad_utenti_ditte aud
-    JOIN ditte d ON aud.id_ditta = d.id 
-    WHERE aud.id_utente = ? AND aud.stato = 'attivo')
-    
-    UNION  /* Unisce i risultati, eliminando duplicati */
-    
-    /* Blocco 2: Cerca nella VECCHIA colonna 'utenti.id_ditta' (Legacy) */
-    (SELECT
-        d.id, d.ragione_sociale AS denominazione, d.logo_url,
-        50 as livello /* Fornisce un livello di default (50) per la ditta legacy */
-    FROM utenti u
-    JOIN ditte d ON u.id_ditta = d.id 
-    WHERE u.id = ? AND u.id_ditta IS NOT NULL
-    /* Esclude ditte GIA' trovate nel Blocco 1 (per evitare duplicati) */
-    AND d.id NOT IN (SELECT id_ditta FROM ad_utenti_ditte WHERE id_utente = ? AND stato = 'attivo')
-    )
-`;
+        // 2. Ricerca Ditte Associate con calcolo livello corretto
+        const ditteAssociateQuery = `
+            /* Blocco 1: Ditte in ad_utenti_ditte (Usa livello specifico) */
+            (SELECT
+                d.id, d.ragione_sociale AS denominazione, d.logo_url,
+                aud.livello
+            FROM ad_utenti_ditte aud
+            JOIN ditte d ON aud.id_ditta = d.id 
+            WHERE aud.id_utente = ? AND aud.stato = 'attivo')
+            
+            UNION
+            
+            /* Blocco 2: Ditta legacy in utenti (Usa livello base dalla tabella utenti) */
+            (SELECT
+                d.id, d.ragione_sociale AS denominazione, d.logo_url,
+                u.livello /* QUI VIENE PRESO IL LIVELLO BASE */
+            FROM utenti u
+            JOIN ditte d ON u.id_ditta = d.id 
+            WHERE u.id = ? AND u.id_ditta IS NOT NULL
+            AND d.id NOT IN (SELECT id_ditta FROM ad_utenti_ditte WHERE id_utente = ? AND stato = 'attivo')
+            )
+        `;
 
         const [ditteRows] = await connection.query(ditteAssociateQuery, [user.id, user.id, user.id]);
 
         if (ditteRows.length === 0) {
             await connection.rollback();
-            return res.status(403).json({ success: false, message: 'Nessuna ditta associata a questo utente.' });
+            return res.status(403).json({ success: false, message: 'Nessuna ditta associata.' });
         }
 
         if (ditteRows.length === 1) {
+            // CASO AUTOMATICO (Singola Ditta)
             const id_ditta_scelta = ditteRows[0].id;
-            const [dittaInfoRows] = await connection.query('SELECT stato, max_utenti_interni, max_utenti_esterni FROM ditte WHERE id = ?', [id_ditta_scelta]);
+            
+            // Sovrascriviamo user.livello con quello determinato dalla query (specifico o base)
+            user.livello = ditteRows[0].livello; 
+
+            const [dittaInfoRows] = await connection.query('SELECT stato FROM ditte WHERE id = ?', [id_ditta_scelta]);
             if (dittaInfoRows[0].stato === 0) {
                 await connection.rollback();
                 return res.status(403).json({ success: false, message: 'La ditta associata non è attiva.' });
             }
-            // ... (logica portineria e finalizzazione) ...
+            
             const response = await finalizzaLogin(connection, req, user, id_ditta_scelta);
             await connection.commit();
             res.json(response);
 
         } else {
+            // CASO SELEZIONE (Multi Ditta)
             delete user.password;
-            const userForFrontend = { ...user, ruolo: user.nome_ruolo, livello: ditteRows[0]?.livello || 50 };
+            // Inviamo al frontend le ditte con i rispettivi livelli già calcolati
+            // Il frontend dovrà rimandare indietro l'ID ditta scelto allo step 2
             await connection.commit();
-            res.json({ success: true, needsDittaSelection: true, ditte: ditteRows, user: userForFrontend });
+            res.json({ success: true, needsDittaSelection: true, ditte: ditteRows, user: user });
         }
 
     } catch (error) {
         if (connection) await connection.rollback();
-        console.error('Errore durante il login iniziale:', error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+        console.error('Errore login:', error);
+        res.status(500).json({ success: false, message: 'Errore interno.' });
     } finally {
         if (connection) connection.release();
     }
@@ -345,11 +348,10 @@ router.post('/login', async (req, res) => {
 // --- MODIFICA 3: Rimuoviamo il middleware 'verifyToken' ---
 // --- MODIFICA 4: La rotta ora si aspetta email, password e id_ditta_scelta nel body ---
 
-// STEP 2: SELEZIONE DELLA DITTA
 router.post('/select-ditta', async (req, res) => {
     const { email, password, id_ditta_scelta } = req.body;
     if (!email || !password || !id_ditta_scelta) {
-        return res.status(400).json({ success: false, message: 'Email, password e la selezione di una ditta sono obbligatori.' });
+        return res.status(400).json({ success: false, message: 'Dati mancanti.' });
     }
 
     let connection;
@@ -358,14 +360,16 @@ router.post('/select-ditta', async (req, res) => {
         await connection.beginTransaction();
         await pulisciSessioniScadute(connection);
 
-        const userQuery = `SELECT id, nome, cognome, email, password, stato, tentativi_falliti, id_ditta, id_ruolo, Codice_Tipo_Utente FROM utenti WHERE email = ?`;
+        // 1. Recupero user BASE (con livello di default)
+        const userQuery = `
+            SELECT id, nome, cognome, email, password, stato, 
+                   tentativi_falliti, id_ditta, id_ruolo, livello, Codice_Tipo_Utente 
+            FROM utenti WHERE email = ?`;
         const [userRows] = await connection.query(userQuery, [email]);
         
         if (userRows.length === 0 || !await bcrypt.compare(password, userRows[0].password)) {
-            if(userRows.length > 0) {
-                // ++ MODIFICA: Passa l'IP alla funzione di gestione fallimenti ++
-                await handleFailedLogin(connection, userRows[0], req.ip);
-            }
+            // Gestione fallimento...
+            if(userRows.length > 0) await handleFailedLogin(connection, userRows[0], req.ip);
             await connection.commit();
             return res.status(401).json({ success: false, message: 'Credenziali non valide.' });
         }
@@ -373,15 +377,34 @@ router.post('/select-ditta', async (req, res) => {
 
         if (user.stato === 'bloccato') {
             await connection.rollback();
-            return res.status(423).json({ success: false, message: 'Account bloccato. Procedi con il recupero password.', requiresPasswordReset: true });
+            return res.status(423).json({ success: false, message: 'Account bloccato.', requiresPasswordReset: true });
         }
         await handleSuccessfulLogin(connection, user.id);
         
-        // ... (resto della logica di associazione, controllo stato ditta, portineria e finalizzazione) ...
-        const [dittaInfoRows] = await connection.query('SELECT stato, max_utenti_interni, max_utenti_esterni FROM ditte WHERE id = ?', [id_ditta_scelta]);
-        if (dittaInfoRows[0].stato === 0) {
+        // 2. Determinazione Livello Effettivo
+        // Cerchiamo se esiste un override specifico per questa ditta
+        const [permessoDitta] = await connection.query(
+            'SELECT livello FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ? AND stato = "attivo"', 
+            [user.id, id_ditta_scelta]
+        );
+
+        if (permessoDitta.length > 0) {
+            // ESISTE SPECIFICO: Usiamo il livello dalla tabella di relazione
+            user.livello = permessoDitta[0].livello;
+        } else {
+            // NON ESISTE SPECIFICO (Legacy): Usiamo il livello base utente
+            // Verifica di sicurezza: l'utente deve essere collegato alla ditta legacy
+            if (user.id_ditta != id_ditta_scelta) {
+                 await connection.rollback();
+                 return res.status(403).json({ success: false, message: 'Accesso non autorizzato a questa ditta.' });
+            }
+            // user.livello rimane quello caricato dalla tabella 'utenti' (DEFAULT)
+        }
+
+        const [dittaInfoRows] = await connection.query('SELECT stato FROM ditte WHERE id = ?', [id_ditta_scelta]);
+        if (dittaInfoRows.length === 0 || dittaInfoRows[0].stato === 0) {
             await connection.rollback();
-            return res.status(403).json({ success: false, message: 'La ditta selezionata non è attiva.' });
+            return res.status(403).json({ success: false, message: 'Ditta non attiva.' });
         }
         
         const response = await finalizzaLogin(connection, req, user, id_ditta_scelta);
@@ -390,8 +413,8 @@ router.post('/select-ditta', async (req, res) => {
 
     } catch (error) {
         if (connection) await connection.rollback();
-        console.error('Errore nella selezione della ditta:', error);
-        res.status(500).json({ success: false, message: 'Errore interno del server.' });
+        console.error('Errore selezione ditta:', error);
+        res.status(500).json({ success: false, message: 'Errore interno.' });
     } finally {
         if (connection) connection.release();
     }
@@ -565,89 +588,43 @@ router.post('/request-password-reset', async (req, res) => {
 });
 
 
-// 2. Reset Effettivo della Password
 router.post('/reset-password', async (req, res) => {
-    // ... logica invariata ...
     const { token, newPassword } = req.body;
-    console.log('--- Richiesta /reset-password ricevuta ---'); // LOG 1
-    console.log('Token ricevuto:', token);                   // LOG 2
-    console.log('Password ricevuta (lunghezza):', newPassword?.length); // LOG 3
-
-    if (!token || !newPassword) {
-        return res.status(400).json({ success: false, message: 'Token e nuova password sono obbligatori.' });
-    }
-    if (newPassword.length < 8) {
-         return res.status(400).json({ success: false, message: 'La password deve contenere almeno 8 caratteri.' });
-    }
+    if (!token || !newPassword) return res.status(400).json({ success: false, message: 'Dati mancanti.' });
+    if (newPassword.length < 8) return res.status(400).json({ success: false, message: 'Password troppo corta.' });
 
     let connection;
     try {
-        console.log('Ottenimento connessione al DB...'); // LOG 4
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
 
-        // --- CORREZIONE: Usa confronto diretto del token nella query ---
-        const [tokenRows] = await connection.query(
-            'SELECT id, id_utente FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
-            [token] // Confronto diretto token in chiaro
-        );
-        // --- RIMUOVI IL CICLO E BCRYPT.COMPARE (come suggerito precedentemente) ---
-        /*
-        let foundTokenData = null;
-        for (const row of tokenRows) {
-             if (await bcrypt.compare(token, row.token)) { // ERRATO
-                 foundTokenData = row;
-                 break;
-             }
-        }
-             */
+        const [tokenRows] = await connection.query('SELECT id, id_utente FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()', [token]);
         
-        const foundTokenData = tokenRows[0]; // Prendi la prima (e unica) riga se trovata
-
-        if (!foundTokenData) {
+        if (tokenRows.length === 0) {
             await connection.rollback();
-            // Chiudi la connessione anche in caso di errore prima di return
             if (connection) connection.release();
             return res.status(400).json({ success: false, message: 'Token non valido o scaduto.' });
         }
 
+        const foundTokenData = tokenRows[0];
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await connection.query('UPDATE utenti SET password = ? WHERE id = ?', [hashedPassword, foundTokenData.id_utente]);
+        
+        // FIX: Azzera tentativi_falliti e imposta stato = 'attivo'
+        await connection.query(
+            'UPDATE utenti SET password = ?, tentativi_falliti = 0 WHERE id = ?', 
+            [hashedPassword, foundTokenData.id_utente]
+        );
+        
         await connection.query('DELETE FROM password_reset_tokens WHERE id = ?', [foundTokenData.id]);
 
-        // Esegui il commit
         await connection.commit();
-
-        // --- MODIFICA CHIAVE: Invia la risposta di successo QUI ---
-        res.json({ success: true, message: 'Password aggiornata con successo.' });
-        // Ora il frontend ha ricevuto la risposta corretta.
-
-        // Il rilascio della connessione avverrà nel blocco finally.
+        res.json({ success: true, message: 'Password aggiornata e account sbloccato.' });
 
     } catch (error) {
-        // Se si verifica un errore DURANTE la transazione, fai il rollback
-        if (connection) {
-            try {
-                await connection.rollback();
-            } catch (rollbackError) {
-                console.error('Errore durante il rollback:', rollbackError);
-            }
-        }
-        console.error('Errore durante il reset della password:', error);
-        // Evita di inviare una seconda risposta se `res.json` è già stato chiamato
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, message: 'Errore interno del server.' });
-        }
+        if (connection) try { await connection.rollback(); } catch (e) {}
+        if (!res.headersSent) res.status(500).json({ success: false, message: 'Errore interno.' });
     } finally {
-        // --- MODIFICA CHIAVE: Sposta release() qui dentro un try...catch ---
-        if (connection) {
-            try {
-                connection.release(); // Rilascia sempre la connessione
-            } catch (releaseError) {
-                console.error('Errore durante il rilascio della connessione:', releaseError);
-                // Non fare nulla qui, perché la risposta è già stata inviata (o un errore è stato inviato nel catch principale)
-            }
-        }
+        if (connection) try { connection.release(); } catch (e) {}
     }
 });
 module.exports = router;

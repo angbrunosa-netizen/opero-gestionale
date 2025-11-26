@@ -235,7 +235,7 @@ const ContSmartModule = () => {
     const sections = [
         { key: 'registrazioni', label: 'Registrazioni', icon: PencilSquareIcon, minLevel: 50, component: NuovaRegistrazione },
         { key: 'report', label: 'Report', icon: ChartBarIcon, minLevel: 30, component: ReportView },
-        { key: 'pdc', label: 'Manutenzione PDC', icon: WrenchScrewdriverIcon, minLevel: 90, component: PianoContiManager },
+        { key: 'pdc', label: 'Manutenzione PDC', icon: WrenchScrewdriverIcon, minLevel: 80, component: PianoContiManager },
         { key: 'funzioni', label: 'Funzioni Contabili', icon: Cog6ToothIcon, minLevel: 80, component: FunzioniContabiliManager },
     ];
 
