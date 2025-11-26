@@ -1,12 +1,12 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 5.2 (Rimozione Sfondo con Trasparenza e Zoom Post-Processo)
+ * Versione: 5.6 (Base v5.2 + CDN Logic)
  *
  * Descrizione:
- * - FIX: La rimozione dello sfondo ora produce correttamente immagini PNG con sfondo trasparente.
- * - FEATURE: Dopo la rimozione dello sfondo, l'utente può ritagliare, zoomare e modificare nuovamente l'immagine prima del salvataggio.
- * - UX: Semplificato il flusso con un unico modale di editing e pulsanti di azione più chiari.
+ * - RESTORE: Ripristinata la base logica v5.2 (Fotocamera, Crop, @imgly/background-removal).
+ * - MOD: Aggiornato performUpload per usare /archivio/upload (compatibile CDN) invece del flusso S3 diretto.
+ * - FEAT: Supporto prop 'isPublic' per caricamenti CDN pubblici.
  */
 
 // ======================================================================
@@ -20,7 +20,6 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ConfirmationModal';
 import Cropper from 'react-easy-crop';
-import { Area } from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 
 // Icone da lucide-react
@@ -34,32 +33,14 @@ import {
     AlertTriangle,
     UploadCloud,
     Loader2,
-    Eye
+    CheckIcon,
+    Eye,
+    X, // Fix icona
+    Camera
 } from 'lucide-react';
 
-// --- COMPONENTI ICONA SVG INLINE (COMPLETI) ---
-const CameraIcon = (props) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-        <circle cx="12" cy="13" r="3"></circle>
-    </svg>
-);
-
-const CheckIcon = (props) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12"></polyline>
-    </svg>
-);
-
-const XIcon = (props) => (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
-);
-
 // ======================================================================
-// HELPER INTERNI (COMPLETI)
+// HELPER INTERNI
 // ======================================================================
 
 const FileIconHelper = ({ mimeType }) => {
@@ -105,7 +86,6 @@ const createImage = (url) =>
         image.src = url;
     });
 
-// --- MODIFICATO: Usa 'image/png' per supportare la trasparenza
 const getCroppedImg = async (imageSrc, pixelCrop) => {
     if (!pixelCrop || !pixelCrop.width || !pixelCrop.height) {
         throw new Error('Area di ritaglio non valida o non definita.');
@@ -122,7 +102,6 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
     canvas.width = pixelCrop.width;
     canvas.height = pixelCrop.height;
 
-    // --- RIGA AGGIUNTA: PULISCE IL CANVAS RENDENDOLO COMPLETAMENTE TRASPARENTE ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.drawImage(
@@ -138,19 +117,17 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
     );
 
     return new Promise((resolve) => {
-        // Usiamo 'image/png' per preservare la trasparenza
         canvas.toBlob((blob) => {
             resolve(blob);
         }, 'image/png');
     });
-
 };
 
 // ======================================================================
 // COMPONENTE PRINCIPALE
 // ======================================================================
 
-const AllegatiManager = ({ entita_tipo, entita_id }) => {
+const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
     const { loading, hasPermission } = useAuth();
     
     const [allegati, setAllegati] = useState([]);
@@ -169,11 +146,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-    
-    // Stato per il rapporto di aspetto, con un predefinito verticale
     const [aspectRatio, setAspectRatio] = useState(3 / 4);
-
-    // Stato per gestire il caricamento del processo AI all'interno dell'editor
     const [isRemovingBg, setIsRemovingBg] = useState(false);
 
     const isCropReady = croppedAreaPixels && croppedAreaPixels.width > 0 && croppedAreaPixels.height > 0;
@@ -186,9 +159,8 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         { name: 'Panoramica (16:9)', value: 16 / 9 },
     ];
 
-    // --- MODIFICATO: La funzione di ottimizzazione ora accetta un formato di output ---
     const optimizeImage = async (file, outputFormat = 'image/jpeg') => {
-        console.log('Dimensione file originale:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+        // console.log('Dimensione file originale:', (file.size / 1024 / 1024).toFixed(2), 'MB');
         const options = {
             maxSizeMB: 0.5,
             maxWidthOrHeight: 1200,
@@ -197,7 +169,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         };
         try {
             const compressedFile = await imageCompression(file, options);
-            console.log('Dimensione file ottimizzato:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
+            // console.log('Dimensione file ottimizzato:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
             return compressedFile;
         } catch (error) {
             console.error('Errore durante l\'ottimizzazione dell\'immagine:', error);
@@ -215,8 +187,8 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
             const allegatiConNome = res.data.map(a => ({
                ...a,
                utente_upload: (a.utente_nome || a.utente_cognome)
-                   ? `${a.utente_nome || ''} ${a.utente_cognome || ''}`.trim()
-                   : (a.utente_nome === null ? 'Utente Eliminato' : 'N/D')
+                    ? `${a.utente_nome || ''} ${a.utente_cognome || ''}`.trim()
+                    : (a.utente_nome === null ? 'Utente Eliminato' : 'N/D')
             }));
             setAllegati(allegatiConNome);
         } catch (err) {
@@ -252,6 +224,7 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         disabled: !hasPermission('DM_FILE_UPLOAD'),
     });
 
+    // --- MODIFICATO PER SUPPORTARE LA LOGICA CDN ---
     const performUpload = async (upload) => {
         const { file } = upload;
         const setUploadStatus = (progress, error = null) => {
@@ -261,30 +234,37 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
                 )
             );
         };
+
         try {
-            setUploadStatus(10); 
-            const resUrl = await api.post('/documenti/generate-upload-url', {
-                fileName: file.name, fileSize: file.size, mimeType: file.type,
-            });
-            const { uploadUrl, s3Key } = resUrl.data;
-            setUploadStatus(30); 
-            await axios.put(uploadUrl, file, {
-                headers: { 'Content-Type': file.type },
+            setUploadStatus(10);
+            
+            // Usiamo FormData per passare file + metadati (inclusa privacy) in un colpo solo
+            const formData = new FormData();
+            formData.append('file', file);
+            // Mappiamo le props snake_case (es. ct_catalogo) al camelCase atteso dal backend (entitaTipo)
+            formData.append('entitaTipo', entita_tipo); 
+            formData.append('entitaId', entita_id);
+            
+            // === LOGICA PRIVACY RICHIESTA ===
+            if (isPublic) {
+                formData.append('privacy', 'public');
+            }
+
+            // Upload diretto al proxy backend (che gestisce S3 e ACL)
+            await api.post('/archivio/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setUploadStatus(30 + (percent * 0.6)); 
+                        setUploadStatus(percent);
                     }
                 },
             });
-            setUploadStatus(95);
-            await api.post('/documenti/finalize-upload', {
-                s3Key, fileName: file.name, fileSize: file.size, mimeType: file.type,
-                entita_tipo, entita_id,
-            });
+
             setUploadStatus(100);
             fetchAllegati(); 
             setTimeout(() => setUploadingFiles(prev => prev.filter(u => u.id !== upload.id)), 1000);
+
         } catch (err) {
             console.error("Errore durante l'upload:", err);
             const errMsg = err.response?.data?.error || err.message || "Errore sconosciuto";
@@ -346,7 +326,6 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 
-    // --- NUOVA FUNZIONE: Gestisce il salvataggio finale dell'immagine corrente nell'editor ---
     const handleSave = async () => {
         if (!imageToCrop || !isCropReady) return;
         
@@ -355,9 +334,9 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
             const originalName = cameraFile.name.replace(/\.[^/.]+$/, "");
             let finalFile = new window.File([croppedBlob], `${originalName}_edited.png`, { type: 'image/png' });
 
-            // Ottimizziamo sempre in PNG per preservare eventuali trasparenze
             const optimizedFile = await optimizeImage(finalFile, 'image/png');
             
+            // Avvolgiamo in array perché handleUpload si aspetta un array di file
             handleUpload([optimizedFile]);
             closeAllModals();
         } catch (e) {
@@ -366,25 +345,25 @@ const AllegatiManager = ({ entita_tipo, entita_id }) => {
         }
     };
 
-    // --- RIVISTA: Funzione per la rimozione dello sfondo ---
-const handleBackgroundRemoval = async () => {
+    // --- LOGICA RIMOZIONE SFONDO (CLIENT SIDE) ---
+    // --- LOGICA RIMOZIONE SFONDO OTTIMIZZATA ---
+    const handleBackgroundRemoval = async () => {
         if (!imageToCrop || !isCropReady) return;
         
         setIsRemovingBg(true);
         setError(null);
 
         try {
-            // Riduciamo la dimensione dell'immagine prima della rimozione dello sfondo per velocizzare
             const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
             
-            // Ridimensioniamo l'immagine a massimo 1024px sul lato più lungo
+            // Ridimensioniamo drasticamente per performance
             const resizedBlob = await new Promise((resolve) => {
                 const img = new Image();
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
                 img.onload = () => {
-                    const maxSize = 1024;
+                    const maxSize = 512; // Ridotto da 1024 per velocità 3x/4x
                     let width = img.width;
                     let height = img.height;
                     
@@ -414,14 +393,12 @@ const handleBackgroundRemoval = async () => {
                 throw new Error('La funzione removeBackground non è disponibile');
             }
             
-            // Configurazione ottimizzata per velocità
             const blob = await removeBackgroundFn(imageUrl, {
-                model: 'small', // Usa il modello più piccolo e veloce
+                model: 'small', 
                 output: { quality: 0.8, type: 'image/png' }
             });
             URL.revokeObjectURL(imageUrl);
 
-            // Convertiamo il Blob risultante (con sfondo trasparente) in un dataURL
             const resultDataURL = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result);
@@ -429,11 +406,9 @@ const handleBackgroundRemoval = async () => {
                 reader.readAsDataURL(blob);
             });
 
-            // Aggiorniamo l'immagine nell'editor con quella senza sfondo
             setImageToCrop(resultDataURL);
             
-            // Diamo all'utente il controllo totale per modificare ulteriormente
-            setAspectRatio(undefined); // Aspect ratio libero
+            setAspectRatio(undefined); 
             setZoom(1);
             setCrop({ x: 0, y: 0 });
 
@@ -444,7 +419,6 @@ const handleBackgroundRemoval = async () => {
             setIsRemovingBg(false);
         }
     };
-
     const closeAllModals = () => {
         setIsCroppingModalOpen(false);
         setCameraFile(null);
@@ -476,7 +450,14 @@ const handleBackgroundRemoval = async () => {
 
     return (
         <div className="w-full max-w-4xl mx-auto">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">Gestione Allegati</h3>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-700">Gestione Allegati</h3>
+                {isPublic && (
+                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium border border-green-200 flex items-center">
+                        <UploadCloud className="w-3 h-3 mr-1"/> CDN Pubblico
+                    </span>
+                )}
+            </div>
 
             {hasPermission('DM_FILE_UPLOAD') && (
                 <div
@@ -505,7 +486,7 @@ const handleBackgroundRemoval = async () => {
                             onClick={handleCameraClick}
                             className="flex items-center justify-center w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                         >
-                            <CameraIcon className="w-6 h-6 mr-2" />
+                            <Camera className="w-6 h-6 mr-2" />
                             Apri Fotocamera
                         </button>
                     </div>
@@ -629,7 +610,7 @@ const handleBackgroundRemoval = async () => {
                         <div className="p-4 border-b flex justify-between items-center">
                             <h3 className="text-lg font-semibold text-gray-800">Modifica Immagine</h3>
                             <button onClick={closeAllModals} className="text-gray-500 hover:text-gray-700">
-                                <XIcon className="w-6 h-6" />
+                                <X className="w-6 h-6" />
                             </button>
                         </div>
                         

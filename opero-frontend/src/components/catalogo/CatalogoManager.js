@@ -202,6 +202,7 @@ const CatalogoFotoModal = ({ item, onClose }) => (
                     entita_id={item.id}
                     idDitta={item.id_ditta}
                     defaultPrivacy="public"
+                    isPublic={true} 
                 />
             </div>
         </div>

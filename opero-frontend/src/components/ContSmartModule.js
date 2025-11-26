@@ -209,7 +209,7 @@ const DeleteConfirmationModal = ({ onConfirm, onCancel, message }) => {
 // Componente Principale Responsive
 const ContSmartModule = () => {
     const { user } = useAuth();
-    const [activeSection, setActiveSection] = useState('pdc');
+    const [activeSection, setActiveSection] = useState('registrazioni');
     const [windowSize, setWindowSize] = useState({
         width: window.innerWidth,
         height: window.innerHeight
