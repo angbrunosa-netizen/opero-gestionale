@@ -1,8 +1,8 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
- * @description Manager con vista mobile e ottimizzazioni di performance (debounce).
- * @date 2025-11-17
- * @version 9.4 (Fix scroll mobile)
+ * @description Manager con vista mobile e ottimizzazioni di performance (debounce + hard limit).
+ * @date 2025-11-26
+ * @version 9.9 (Fix definitivo performance mobile e paginazione ricerca)
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -21,9 +21,9 @@ import EanManager from './EanManager';
 import AllegatiManager from '../../shared/AllegatiManager';
 
 // Costanti per la paginazione
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 const INITIAL_PAGE = 1;
-const MOBILE_SEARCH_LIMIT = 5; // Limite per i risultati della ricerca su mobile
+
 // Hook per il debounce di un valore (usato solo per la ricerca)
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -50,30 +50,24 @@ const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit
 
     return (
         <>
-            {/* MODIFICATO: Aggiunta la prop totalCount per mostrare il messaggio informativo */}
             {totalCount > data.length && (
                 <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md text-sm">
-                    Trovati {totalCount} risultati. I primi {data.length} sono mostrati.
+                    Trovati {totalCount} risultati totali. Visualizzati {data.length} elementi (pagina {currentPage} di {totalPages}).
                 </div>
             )}
             <div className="space-y-4 pb-4">
                 {data.map((item) => (
                     <div key={item.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 grid grid-rows-[auto_1fr_auto] gap-y-2">
-                        {/* Prima riga: Descrizione e Stato */}
                         <div className="flex justify-between items-start">
                             <h3 className="font-semibold text-lg text-gray-800 flex-1 mr-2">{item.descrizione}</h3>
                             <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${item.stato_entita === 'ATTIVO' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                 {item.stato_entita}
                             </span>
                         </div>
-                        
-                        {/* Seconda riga: Prezzi */}
                         <div className="flex justify-around text-sm text-gray-600">
                             <p><span className="font-medium">P. Acquisto:</span> € {parseFloat(item.costo_base || 0).toFixed(2)}</p>
                             <p><span className="font-medium">P. Cessione:</span> {item.prezzo_cessione_1 ? `€ ${parseFloat(item.prezzo_cessione_1).toFixed(2)}` : 'N/D'}</p>
                         </div>
-                        
-                        {/* Terza riga: Pulsanti di azione */}
                         <div className="flex justify-center">
                             <EntityActionButtons
                                 item={item}
@@ -86,15 +80,13 @@ const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit
                     </div>
                 ))}
             </div>
-
-            {/* Paginazione Semplice per Mobile */}
             <div className="flex justify-between items-center p-4 bg-white border-t border-gray-200 rounded-b-lg">
                 <button
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                     className="flex items-center px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <ChevronLeftIcon className="h-4 w-4 mr-1" /> Pagina -
+                    <ChevronLeftIcon className="h-4 w-4 mr-1" /> Precedente
                 </button>
                 <span className="text-sm text-gray-700">
                     Pagina {currentPage} di {totalPages}
@@ -104,7 +96,7 @@ const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit
                     disabled={currentPage === totalPages}
                     className="flex items-center px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Pagina + <ChevronRightIcon className="h-4 w-4 ml-1" />
+                    Successiva <ChevronRightIcon className="h-4 w-4 ml-1" />
                 </button>
             </div>
         </>
@@ -234,6 +226,7 @@ const CatalogoManager = () => {
     
     // STATI DI GESTIONE DATI
     const [displayedData, setDisplayedData] = useState([]);
+    const [allSearchResults, setAllSearchResults] = useState([]);
     const [totalCount, setTotalCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -282,63 +275,109 @@ const CatalogoManager = () => {
         return new Map(supportData.aliquoteIva.map(iva => [iva.id, iva.descrizione]));
     }, [supportData.aliquoteIva]);
 
-    // Effetto per caricare i dati principali
+    // --- CORREZIONE FINALE: LOGICA DI FETCHING SEPARATA ---
+
+    // 1. Effetto per gestire la RICERCA (non dipende da currentPage)
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchSearchData = async () => {
+            // Esegui solo se c'è un termine di ricerca
+            if (!debouncedSearchTerm || debouncedSearchTerm.trim() === '') {
+                return;
+            }
             if (!hasPermission('CT_VIEW')) return;
+
             setIsLoading(true);
             try {
-                let response;
-                let url;
+                const url = `/catalogo/search/?term=${encodeURIComponent(debouncedSearchTerm.trim())}&includeArchived=${includeArchived}`;
+                const response = await api.get(url);
                 
-                if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
-                    url = `/catalogo/search/?term=${encodeURIComponent(debouncedSearchTerm.trim())}&page=${currentPage}&limit=${pageSize}&includeArchived=${includeArchived}`;
-                } else {
-                    const params = new URLSearchParams({
-                        page: currentPage,
-                        limit: pageSize,
-                        includeArchived,
-                    });
-                    if (selectedCategoryId) {
-                        params.set('id_categoria', selectedCategoryId);
-                    }
-                    url = `/catalogo/entita?${params.toString()}`;
+                let allResults = [];
+                if (response.data && Array.isArray(response.data.data)) {
+                    allResults = response.data.data;
+                } else if (Array.isArray(response.data)) {
+                    allResults = response.data;
                 }
+
+                setAllSearchResults(allResults);
+                setTotalCount(allResults.length);
                 
-                response = await api.get(url);
-                
-                let data = [];
-                let total = 0;
-                
-                if (response.data) {
-                    if (Array.isArray(response.data)) { // Caso della ricerca
-                        data = response.data;
-                        total = response.data.length;
-                    } else if (response.data.data && Array.isArray(response.data.data)) { // Caso della lista
-                        data = response.data.data;
-                        total = response.data.total || response.data.data.length;
-                    } else if (response.data.results && Array.isArray(response.data.results)) {
-                        data = response.data.results;
-                        total = response.data.total || response.data.results.length;
-                    } else if (response.data.items && Array.isArray(response.data.items)) {
-                        data = response.data.items;
-                        total = response.data.total || response.data.items.length;
-                    }
-                }
-                
-                setDisplayedData(data);
-                setTotalCount(total);
-                
+                // OTTIMIZZAZIONE MOBILE: Imposta subito displayedData con la slice della prima pagina
+                // Questo previene che l'UI riceva il set completo (es. 1000 record) prima che lo useEffect di paginazione intervenga.
+                setCurrentPage(1); 
+                setDisplayedData(allResults.slice(0, pageSize));
+
             } catch (error) {
-                console.error("[CatalogoManager] Errore durante il caricamento:", error);
+                console.error("[CatalogoManager] Errore durante la ricerca:", error);
+                setAllSearchResults([]);
                 setDisplayedData([]);
                 setTotalCount(0);
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchData();
-    }, [debouncedSearchTerm, selectedCategoryId, includeArchived, currentPage, pageSize, hasPermission, refreshKey]);
+        fetchSearchData();
+    // NOTA: `currentPage` è stato RIMOSSO dalle dipendenze, aggiunto pageSize
+    }, [debouncedSearchTerm, includeArchived, hasPermission, pageSize]);
+
+    // 2. Effetto per gestire la LISTA NORMALE (dipende da currentPage)
+    useEffect(() => {
+        const fetchListData = async () => {
+            // Esegui solo se NON c'è un termine di ricerca
+            if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
+                return;
+            }
+            if (!hasPermission('CT_VIEW')) return;
+
+            setIsLoading(true);
+            try {
+                const params = new URLSearchParams({
+                    page: currentPage,
+                    limit: pageSize,
+                    includeArchived,
+                });
+                if (selectedCategoryId) {
+                    params.set('id_categoria', selectedCategoryId);
+                }
+                const url = `/catalogo/entita?${params.toString()}`;
+                const response = await api.get(url);
+
+                let data = [];
+                let total = 0;
+                if (response.data.data && Array.isArray(response.data.data)) {
+                    data = response.data.data;
+                    total = response.data.total || response.data.data.length;
+                }
+                
+                setAllSearchResults([]); // Svuota i risultati di ricerca
+                setDisplayedData(data);
+                setTotalCount(total);
+                
+            } catch (error) {
+                console.error("[CatalogoManager] Errore durante il caricamento della lista:", error);
+                setDisplayedData([]);
+                setTotalCount(0);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchListData();
+    // NOTA: `debouncedSearchTerm` è stato RIMOSSO, ma `currentPage` è presente
+    }, [selectedCategoryId, includeArchived, currentPage, pageSize, hasPermission, refreshKey]);
+
+    // 3. Effetto per gestire la paginazione lato client dei risultati di ricerca
+    useEffect(() => {
+        // Questo effetto gestisce i cambi pagina successivi al primo per i risultati di ricerca
+        if (allSearchResults.length > 0) {
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedData = allSearchResults.slice(startIndex, endIndex);
+
+            setDisplayedData(paginatedData);
+        }
+    }, [currentPage, allSearchResults, pageSize]);
+
+    // --- FINE CORREZIONE ---
+
 
     // Effetto per caricare i dati di supporto
     useEffect(() => {
@@ -367,12 +406,18 @@ const CatalogoManager = () => {
     const enrichedData = useMemo(() => {
         if (!isMobile) return displayedData;
 
-        return displayedData.map(item => ({
+        // FIX CRITICO MOBILE: Hard-slice dei dati.
+        // Anche se displayedData dovesse contenere erroneamente tutti i record (es. 1000),
+        // ne passiamo alla vista mobile solo un numero pari a PAGE_SIZE.
+        // Questo è il "firewall" finale contro i problemi di performance.
+        const safeData = displayedData.length > pageSize ? displayedData.slice(0, pageSize) : displayedData;
+
+        return safeData.map(item => ({
             ...item,
             nome_categoria: categoryMap.get(item.id_categoria) || 'N/D',
             descrizione_iva: ivaMap.get(item.id_aliquota_iva) || 'N/D'
         }));
-    }, [displayedData, isMobile, categoryMap, ivaMap]);
+    }, [displayedData, isMobile, categoryMap, ivaMap, pageSize]);
 
     // Funzioni callback
     const forceRefresh = useCallback(() => {
@@ -536,12 +581,11 @@ const CatalogoManager = () => {
                 )}
             </div>
             
-            {/* Area del contenuto scrollabile */}
             <div className="flex-1 overflow-y-auto">
                 {isMobile ? (
                     <MobileCatalogoView
-                        data={displayedData}
-                        totalCount={totalCount} // MODIFICATO: Passa totalCount al componente
+                        data={enrichedData}
+                        totalCount={totalCount}
                         isLoading={isLoading}
                         hasPermission={hasPermission}
                         onEdit={handleEdit}
@@ -578,3 +622,22 @@ const CatalogoManager = () => {
 };
 
 export default CatalogoManager;
+/*
+### 🏁 Fase 4: Chiusura Sessione
+
+**Messaggio di Commit:**
+`fix(frontend): risolto problema performance ricerca su mobile in CatalogoManager tramite ottimizzazione paginazione e hard-slice dei dati`
+
+**Riepilogo Attività:**
+
+| Data Modifica | Modulo | Verbo | Endpoint | Funzione Principale | Componente Frontend | Permesso Richiesto | Tabelle Coinvolte | Note Sviluppo |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 26/11/2025 | Catalogo | - | - | `MobileCatalogoView`, `enrichedData` | `CatalogoManager.js` | `CT_VIEW` | - | Fix performance mobile: implementato hard-slice in `enrichedData` e aggiornato `setDisplayedData` immediato in ricerca. |
+
+**Note Finali:**
+Il problema era causato dal fatto che la logica di ricerca restituiva tutti i record (`allSearchResults`) e il componente mobile tentava di renderizzarli tutti prima che l'effetto di paginazione (che dipende da `currentPage`) potesse ridurne il numero.
+Con queste modifiche:
+1.  `fetchSearchData` ora imposta immediatamente `displayedData` con solo la prima pagina (`.slice(0, pageSize)`), garantendo un render iniziale leggero.
+2.  `enrichedData` (specifico per mobile) ha una protezione aggiuntiva che taglia forzatamente l'array a `PAGE_SIZE` se per errore arrivano troppi dati.
+
+Ora la ricerca su mobile dovrebbe essere fluida e reattiva. Fammi sapere se ci sono altri moduli con comportamenti simili! 🚀 */
