@@ -239,6 +239,9 @@ const CatalogoManager = () => {
     const [includeArchived, setIncludeArchived] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     
+ // NUOVO: Stato per tracciare un termine di ricerca immediato (dallo scanner)
+    const [immediateSearchTerm, setImmediateSearchTerm] = useState(null);
+
     // Stati per la paginazione
     const [currentPage, setCurrentPage] = useState(INITIAL_PAGE);
     const [pageSize] = useState(PAGE_SIZE);
@@ -255,7 +258,49 @@ const CatalogoManager = () => {
     
     // NUOVO: Stato per la gestione del modale dello scanner
     const [isScannerOpen, setIsScannerOpen] = useState(false);
-    
+     // NUOVO: Funzione di fetch riutilizzabile
+    const performSearch = useCallback(async (term) => {
+        if (!term || term.trim() === '') {
+            return;
+        }
+        if (!hasPermission('CT_VIEW')) return;
+
+        setIsLoading(true);
+        try {
+            const url = `/catalogo/search/?term=${encodeURIComponent(term.trim())}&includeArchived=${includeArchived}`;
+            const response = await api.get(url);
+            
+            let allResults = [];
+            if (response.data && Array.isArray(response.data.data)) {
+                allResults = response.data.data;
+            } else if (Array.isArray(response.data)) {
+                allResults = response.data;
+            }
+
+            setAllSearchResults(allResults);
+            setTotalCount(allResults.length);
+            setCurrentPage(1); 
+            setDisplayedData(allResults.slice(0, pageSize));
+
+        } catch (error) {
+            console.error("[CatalogoManager] Errore durante la ricerca:", error);
+            setAllSearchResults([]);
+            setDisplayedData([]);
+            setTotalCount(0);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [includeArchived, hasPermission, pageSize]);
+
+ // NUOVO: Effetto per gestire la RICERCA IMMEDIATA (dallo scanner)
+    useEffect(() => {
+        if (immediateSearchTerm) {
+            performSearch(immediateSearchTerm);
+            // Resetta lo stato immediato dopo aver eseguito la ricerca
+            setImmediateSearchTerm(null);
+        }
+    }, [immediateSearchTerm, performSearch]);
+
     // STATO PER LA GESTIONE DELLA VISUALIZZAZIONE MOBILE
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
     useEffect(() => {
@@ -497,11 +542,12 @@ const CatalogoManager = () => {
     }, []);
 
     // NUOVO: Funzioni per la gestione dello scanner
-    const handleScan = useCallback((scannedCode) => {
-        setSearchTerm(scannedCode);
+   const handleScan = useCallback((scannedCode) => {
+        setSearchTerm(scannedCode); // Aggiorna il campo di ricerca per feedback visivo
+        setImmediateSearchTerm(scannedCode); // Scatena la ricerca immediata
         setIsScannerOpen(false);
-        // handleSearchChange già si occupa di resettare la pagina a 1
     }, []);
+
 
     const handleOpenScanner = useCallback(() => {
         setIsScannerOpen(true);
