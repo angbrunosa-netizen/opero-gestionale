@@ -30,6 +30,7 @@
     "pg": "^8.16.3",
     "puppeteer": "^24.22.3",
     "react-dropzone": "^14.3.8",
+    "react-qr-barcode-scanner": "^2.1.19",
     "uuid": "^9.0.1"
   }
 }

@@ -19,6 +19,7 @@ import ListiniManager from './ListiniManager';
 import CodiciFornitoreManager from './CodiciFornitoreManager';
 import EanManager from './EanManager';
 import AllegatiManager from '../../shared/AllegatiManager';
+import BarcodeScannerModal from '../../shared/BarcodeScannerModal'; // <--- IMPORT GIÀ PRESENTE
 
 // Costanti per la paginazione
 const PAGE_SIZE = 10;
@@ -39,7 +40,8 @@ function useDebounce(value, delay) {
 }
 
 
-const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit, onArchive, onOpenSubManager, currentPage, totalPages, onPageChange }) => {
+// MODIFICATO: Aggiunta della prop onOpenScanner
+const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit, onArchive, onOpenSubManager, currentPage, totalPages, onPageChange, onOpenScanner }) => {
     if (isLoading) {
         return <div className="flex justify-center items-center h-32"><div className="text-gray-500">Caricamento...</div></div>;
     }
@@ -250,6 +252,9 @@ const CatalogoManager = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isFotoModalOpen, setIsFotoModalOpen] = useState(false);
     const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+    
+    // NUOVO: Stato per la gestione del modale dello scanner
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
     
     // STATO PER LA GESTIONE DELLA VISUALIZZAZIONE MOBILE
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
@@ -491,6 +496,21 @@ const CatalogoManager = () => {
         setCurrentPage(INITIAL_PAGE);
     }, []);
 
+    // NUOVO: Funzioni per la gestione dello scanner
+    const handleScan = useCallback((scannedCode) => {
+        setSearchTerm(scannedCode);
+        setIsScannerOpen(false);
+        // handleSearchChange già si occupa di resettare la pagina a 1
+    }, []);
+
+    const handleOpenScanner = useCallback(() => {
+        setIsScannerOpen(true);
+    }, []);
+
+    const handleCloseScanner = useCallback(() => {
+        setIsScannerOpen(false);
+    }, []);
+
     const columns = useMemo(() => [
         { header: 'Codice', accessorKey: 'codice_entita' },
         { header: 'Descrizione', accessorKey: 'descrizione' },
@@ -534,20 +554,19 @@ const CatalogoManager = () => {
                         Nuovo
                     </button>
                 </div>
+                {/* MODIFICATO: Aggiunto pulsante scanner per Desktop */}
                 <div className="flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-1">
-                        <div className="relative flex-1">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                            </div>
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => handleSearchChange(e.target.value)}
-                                placeholder="Cerca per descrizione..."
-                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            />
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
                         </div>
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => handleSearchChange(e.target.value)}
+                            placeholder="Cerca per descrizione o EAN..."
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
                     </div>
                     <select
                         value={selectedCategoryId}
@@ -557,6 +576,15 @@ const CatalogoManager = () => {
                         <option value="">Tutte le categorie</option>
                         {supportData.categorie.map(cat => <option key={cat.id} value={cat.id}>{cat.nome_categoria}</option>)}
                     </select>
+                    {/* NUOVO: Pulsante Scanner Desktop */}
+                    <button
+                        type="button"
+                        onClick={handleOpenScanner}
+                        className="ml-2 p-2 border border-gray-300 rounded-md bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        title="Scannerizza EAN/Barcode"
+                    >
+                        <QrCodeIcon className="h-5 w-5" aria-hidden="true" />
+                    </button>
                     <button
                         type="button"
                         onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
@@ -595,6 +623,8 @@ const CatalogoManager = () => {
                         currentPage={currentPage}
                         totalPages={totalPages}
                         onPageChange={handlePageChange}
+                        // NUOVO: Passa la funzione per aprire lo scanner alla vista mobile
+                        onOpenScanner={handleOpenScanner}
                     />
                 ) : (
                     <AdvancedDataGrid
@@ -618,27 +648,17 @@ const CatalogoManager = () => {
             {isCodiciFornitoreModalOpen && selectedItem && <CodiciFornitoreManager itemId={selectedItem.id} onClose={() => setIsCodiciFornitoreModalOpen(false)} />}
             {isEanModalOpen && selectedItem && <EanManager itemId={selectedItem.id} onClose={() => setIsEanModalOpen(false)} />}
             {isFotoModalOpen && selectedItem && <CatalogoFotoModal item={selectedItem} onClose={() => setIsFotoModalOpen(false)} />}
+            
+            {/* NUOVO: Modale dello Scanner */}
+            {isScannerOpen && (
+                <BarcodeScannerModal
+                    isOpen={isScannerOpen}
+                    onClose={handleCloseScanner}
+                    onScan={handleScan}
+                />
+            )}
         </div>
     );
 };
 
 export default CatalogoManager;
-/*
-### 🏁 Fase 4: Chiusura Sessione
-
-**Messaggio di Commit:**
-`fix(frontend): risolto problema performance ricerca su mobile in CatalogoManager tramite ottimizzazione paginazione e hard-slice dei dati`
-
-**Riepilogo Attività:**
-
-| Data Modifica | Modulo | Verbo | Endpoint | Funzione Principale | Componente Frontend | Permesso Richiesto | Tabelle Coinvolte | Note Sviluppo |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 26/11/2025 | Catalogo | - | - | `MobileCatalogoView`, `enrichedData` | `CatalogoManager.js` | `CT_VIEW` | - | Fix performance mobile: implementato hard-slice in `enrichedData` e aggiornato `setDisplayedData` immediato in ricerca. |
-
-**Note Finali:**
-Il problema era causato dal fatto che la logica di ricerca restituiva tutti i record (`allSearchResults`) e il componente mobile tentava di renderizzarli tutti prima che l'effetto di paginazione (che dipende da `currentPage`) potesse ridurne il numero.
-Con queste modifiche:
-1.  `fetchSearchData` ora imposta immediatamente `displayedData` con solo la prima pagina (`.slice(0, pageSize)`), garantendo un render iniziale leggero.
-2.  `enrichedData` (specifico per mobile) ha una protezione aggiuntiva che taglia forzatamente l'array a `PAGE_SIZE` se per errore arrivano troppi dati.
-
-Ora la ricerca su mobile dovrebbe essere fluida e reattiva. Fammi sapere se ci sono altri moduli con comportamenti simili! 🚀 */
