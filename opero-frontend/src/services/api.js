@@ -1,33 +1,44 @@
 // #####################################################################
-// # Servizio API Centralizzato - v6.0 (Smart Fallback)
+// # Servizio API Centralizzato - v6.2 (Force Production on App)
 // # File: opero-frontend/src/services/api.js
 // #####################################################################
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core'; // Importiamo Capacitor per un controllo sicuro
 
 // ---------------------------------------------------------------------
-// CONFIGURAZIONE DINAMICA (SMART)
+// CONFIGURAZIONE URL
 // ---------------------------------------------------------------------
-// La logica segue una priorità a cascata per garantire che funzioni sempre,
-// sia che tu abbia configurato il file .env, sia che tu te ne sia dimenticato.
 
-// 1. Recupera la variabile d'ambiente (da .env.development o .env)
-const envBaseUrl = process.env.REACT_APP_API_BASE_URL;
+// URL del tuo server di PRODUZIONE (HTTPS)
+const PROD_URL = 'https://www.operocloud.it/api';
 
-// 2. Determina in che modalità sta girando React
-const isDev = process.env.NODE_ENV === 'development';
+// URL per lo sviluppo locale (PC)
+const DEV_URL = 'http://localhost:3001/api';
 
-// 3. Definisci i comportamenti di default (Paracadute)
-// - In Sviluppo (npm start): Punta a localhost:5000 se non specificato altro.
-// - In Produzione (npm run build): Usa il percorso relativo '/api' per sfruttare Nginx.
-const devFallback = 'http://localhost:5000/api';
-const prodFallback = '/api';
+// ---------------------------------------------------------------------
+// LOGICA DI SELEZIONE (SMART)
+// ---------------------------------------------------------------------
 
-// 4. Calcola l'URL Finale
-const baseURL = envBaseUrl || (isDev ? devFallback : prodFallback);
+let baseURL;
 
-// Log di debug visibile nella Console del Browser (F12) per diagnosi immediata
-console.log(`[Opero Config] Environment: ${process.env.NODE_ENV}`);
-console.log(`[Opero Config] API Target: ${baseURL}`);
+// 1. Se siamo su un dispositivo nativo (Android/iOS), USIAMO SEMPRE LA PRODUZIONE.
+// Questo risolve definitivamente il problema di "localhost" sul telefono.
+if (Capacitor.isNativePlatform()) {
+  console.log('[API Config] Rilevata App Nativa: Forzo URL Produzione');
+  baseURL = PROD_URL;
+} 
+// 2. Se siamo in sviluppo sul PC (npm start), usiamo localhost.
+else if (process.env.NODE_ENV === 'development') {
+  console.log('[API Config] Rilevato Sviluppo Web: Uso Localhost');
+  baseURL = DEV_URL;
+} 
+// 3. Se siamo in produzione sul Web (Browser), usiamo percorso relativo.
+else {
+  console.log('[API Config] Rilevato Web Produzione: Uso percorso relativo');
+  baseURL = '/api';
+}
+
+console.log(`[Opero API] Base URL impostato su: ${baseURL}`);
 
 // Creazione istanza Axios
 const api = axios.create({
@@ -38,7 +49,7 @@ const api = axios.create({
 });
 
 // ---------------------------------------------------------------------
-// INTERCETTORI (Gestione Token e Errori)
+// INTERCETTORI
 // ---------------------------------------------------------------------
 
 api.interceptors.request.use(
@@ -57,10 +68,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Gestione intelligente errore 401 (Token scaduto o non valido)
     if (error.response && error.response.status === 401) {
-      // Opzionale: logica di logout automatico o redirect
-      // window.location.href = '/login'; 
+      console.warn('[API] Token scaduto o non valido.');
     }
     return Promise.reject(error);
   }
