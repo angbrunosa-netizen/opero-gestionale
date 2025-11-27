@@ -138,6 +138,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
             height={500}
             onUpdate={handleUpdate}
             facingMode="environment"
+             tryHarder={true} 
           />
           
           {/* Overlay Reticolo */}
