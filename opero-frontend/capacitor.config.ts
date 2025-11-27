@@ -8,10 +8,10 @@ const config: CapacitorConfig = {
   // --- INIZIO MODIFICA: FORZA HTTP ---
   // Sovrascriviamo qualsiasi impostazione nascosta che
   // forza 'https' e diciamo all'app di girare su 'http'.
-  server: {
+ /* server: {
     androidScheme: 'http'
   }
-  // --- FINE MODIFICA ---
+  // --- FINE MODIFICA ---*/
 };
 
 export default config;

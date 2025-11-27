@@ -294,13 +294,17 @@ const CatalogoManager = () => {
 
  // NUOVO: Effetto per gestire la RICERCA IMMEDIATA (dallo scanner)
     useEffect(() => {
+        // Esegui solo se non c'è una ricerca immediata in corso
         if (immediateSearchTerm) {
-            performSearch(immediateSearchTerm);
-            // Resetta lo stato immediato dopo aver eseguito la ricerca
-            setImmediateSearchTerm(null);
+            return;
         }
-    }, [immediateSearchTerm, performSearch]);
-
+        // Se il termine di ricerca debounced è vuoto, non fare nulla.
+        // La logica per caricare la lista normale è nell'effetto successivo.
+        if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
+            performSearch(debouncedSearchTerm);
+        }
+    }, [debouncedSearchTerm, performSearch, immediateSearchTerm]);
+    
     // STATO PER LA GESTIONE DELLA VISUALIZZAZIONE MOBILE
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
     useEffect(() => {
@@ -329,7 +333,7 @@ const CatalogoManager = () => {
     // --- CORREZIONE FINALE: LOGICA DI FETCHING SEPARATA ---
 
     // 1. Effetto per gestire la RICERCA (non dipende da currentPage)
-    useEffect(() => {
+useEffect(() => {
         const fetchSearchData = async () => {
             // Esegui solo se c'è un termine di ricerca
             if (!debouncedSearchTerm || debouncedSearchTerm.trim() === '') {
@@ -369,7 +373,6 @@ const CatalogoManager = () => {
         fetchSearchData();
     // NOTA: `currentPage` è stato RIMOSSO dalle dipendenze, aggiunto pageSize
     }, [debouncedSearchTerm, includeArchived, hasPermission, pageSize]);
-
     // 2. Effetto per gestire la LISTA NORMALE (dipende da currentPage)
     useEffect(() => {
         const fetchListData = async () => {
