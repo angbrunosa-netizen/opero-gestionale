@@ -259,39 +259,48 @@ const CatalogoManager = () => {
     // NUOVO: Stato per la gestione del modale dello scanner
     const [isScannerOpen, setIsScannerOpen] = useState(false);
      // NUOVO: Funzione di fetch riutilizzabile
-    const performSearch = useCallback(async (term) => {
-        if (!term || term.trim() === '') {
-            return;
+const performSearch = useCallback(async (term) => {
+    console.log("3. performSearch chiamata con il termine:", term);
+    if (!term || term.trim() === '') {
+        console.log("   -> Termine di ricerca vuoto, esco.");
+        return;
+    }
+    if (!hasPermission('CT_VIEW')) {
+        console.log("   -> Utente senza permessi, esco.");
+        return;
+    }
+
+    console.log("   -> Inizio la ricerca, imposto isLoading a true.");
+    setIsLoading(true);
+    try {
+        const url = `/catalogo/search/?term=${encodeURIComponent(term.trim())}&includeArchived=${includeArchived}`;
+        console.log("   -> Chiamo l'API a questo URL:", url);
+        const response = await api.get(url);
+        
+        let allResults = [];
+        if (response.data && Array.isArray(response.data.data)) {
+            allResults = response.data.data;
+        } else if (Array.isArray(response.data)) {
+            allResults = response.data;
         }
-        if (!hasPermission('CT_VIEW')) return;
 
-        setIsLoading(true);
-        try {
-            const url = `/catalogo/search/?term=${encodeURIComponent(term.trim())}&includeArchived=${includeArchived}`;
-            const response = await api.get(url);
-            
-            let allResults = [];
-            if (response.data && Array.isArray(response.data.data)) {
-                allResults = response.data.data;
-            } else if (Array.isArray(response.data)) {
-                allResults = response.data;
-            }
+        console.log("   -> API ha risposto con", allResults.length, "risultati.");
+        setAllSearchResults(allResults);
+        setTotalCount(allResults.length);
+        setCurrentPage(1); 
+        setDisplayedData(allResults.slice(0, pageSize));
 
-            setAllSearchResults(allResults);
-            setTotalCount(allResults.length);
-            setCurrentPage(1); 
-            setDisplayedData(allResults.slice(0, pageSize));
-
-        } catch (error) {
-            console.error("[CatalogoManager] Errore durante la ricerca:", error);
-            setAllSearchResults([]);
-            setDisplayedData([]);
-            setTotalCount(0);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [includeArchived, hasPermission, pageSize]);
-
+    } catch (error) {
+        console.error("   -> ERRORE durante la ricerca:", error);
+        setAllSearchResults([]);
+        setDisplayedData([]);
+        setTotalCount(0);
+    } finally {
+        console.log("   -> Ricerca terminata, imposto isLoading a false.");
+        setIsLoading(false);
+    }
+}, [includeArchived, hasPermission, pageSize]);
+// ...
  // NUOVO: Effetto per gestire la RICERCA IMMEDIATA (dallo scanner)
     useEffect(() => {
         // Esegui solo se non c'è una ricerca immediata in corso
@@ -545,11 +554,13 @@ useEffect(() => {
     }, []);
 
     // NUOVO: Funzioni per la gestione dello scanner
-   const handleScan = useCallback((scannedCode) => {
-        setSearchTerm(scannedCode); // Aggiorna il campo di ricerca per feedback visivo
-        setImmediateSearchTerm(scannedCode); // Scatena la ricerca immediata
-        setIsScannerOpen(false);
-    }, []);
+const handleScan = useCallback((scannedCode) => {
+    console.log("1. handleScan chiamata con il codice:", scannedCode);
+    setSearchTerm(scannedCode); // Aggiorna il campo di ricerca per feedback visivo
+    console.log("2. searchTerm impostato. Ora imposto immediateSearchTerm.");
+    setImmediateSearchTerm(scannedCode); // Scatena la ricerca immediata
+    setIsScannerOpen(false);
+}, []);
 
 
     const handleOpenScanner = useCallback(() => {
