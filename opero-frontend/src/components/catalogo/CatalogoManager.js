@@ -1,8 +1,8 @@
 /**
  * @file opero-frontend/src/components/catalogo/CatalogoManager.js
- * @description Manager con vista mobile e ottimizzazioni di performance (debounce + hard limit).
- * @date 2025-11-26
- * @version 9.9 (Fix definitivo performance mobile e paginazione ricerca)
+ * @description Manager con vista mobile e ottimizzazioni di performance (debounce).
+ * @date 2025-11-17
+ * @version 11.0 (Refactoring completo e finale per paginazione)
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -19,10 +19,10 @@ import ListiniManager from './ListiniManager';
 import CodiciFornitoreManager from './CodiciFornitoreManager';
 import EanManager from './EanManager';
 import AllegatiManager from '../../shared/AllegatiManager';
-import BarcodeScannerModal from '../../shared/BarcodeScannerModal'; // <--- IMPORT GIÀ PRESENTE
+import BarcodeScannerModal from '../../shared/BarcodeScannerModal';
 
 // Costanti per la paginazione
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 const INITIAL_PAGE = 1;
 
 // Hook per il debounce di un valore (usato solo per la ricerca)
@@ -39,8 +39,6 @@ function useDebounce(value, delay) {
     return debouncedValue;
 }
 
-
-// MODIFICATO: Aggiunta della prop onOpenScanner
 const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit, onArchive, onOpenSubManager, currentPage, totalPages, onPageChange, onOpenScanner }) => {
     if (isLoading) {
         return <div className="flex justify-center items-center h-32"><div className="text-gray-500">Caricamento...</div></div>;
@@ -204,7 +202,7 @@ const CatalogoFotoModal = ({ item, onClose }) => (
                     entita_id={item.id}
                     idDitta={item.id_ditta}
                     defaultPrivacy="public"
-                    isPublic={true} 
+                    isPublic={true}
                 />
             </div>
         </div>
@@ -229,7 +227,6 @@ const CatalogoManager = () => {
     
     // STATI DI GESTIONE DATI
     const [displayedData, setDisplayedData] = useState([]);
-    const [allSearchResults, setAllSearchResults] = useState([]);
     const [totalCount, setTotalCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -239,9 +236,6 @@ const CatalogoManager = () => {
     const [includeArchived, setIncludeArchived] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     
- // NUOVO: Stato per tracciare un termine di ricerca immediato (dallo scanner)
-    const [immediateSearchTerm, setImmediateSearchTerm] = useState(null);
-
     // Stati per la paginazione
     const [currentPage, setCurrentPage] = useState(INITIAL_PAGE);
     const [pageSize] = useState(PAGE_SIZE);
@@ -255,64 +249,7 @@ const CatalogoManager = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isFotoModalOpen, setIsFotoModalOpen] = useState(false);
     const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
-    
-    // NUOVO: Stato per la gestione del modale dello scanner
     const [isScannerOpen, setIsScannerOpen] = useState(false);
-     // NUOVO: Funzione di fetch riutilizzabile
-const performSearch = useCallback(async (term) => {
-    console.log("3. performSearch chiamata con il termine:", term);
-    if (!term || term.trim() === '') {
-        console.log("   -> Termine di ricerca vuoto, esco.");
-        return;
-    }
-    if (!hasPermission('CT_VIEW')) {
-        console.log("   -> Utente senza permessi, esco.");
-        return;
-    }
-
-    console.log("   -> Inizio la ricerca, imposto isLoading a true.");
-    setIsLoading(true);
-    try {
-        const url = `/catalogo/search/?term=${encodeURIComponent(term.trim())}&includeArchived=${includeArchived}`;
-        console.log("   -> Chiamo l'API a questo URL:", url);
-        const response = await api.get(url);
-        
-        let allResults = [];
-        if (response.data && Array.isArray(response.data.data)) {
-            allResults = response.data.data;
-        } else if (Array.isArray(response.data)) {
-            allResults = response.data;
-        }
-
-        console.log("   -> API ha risposto con", allResults.length, "risultati.");
-        setAllSearchResults(allResults);
-        setTotalCount(allResults.length);
-        setCurrentPage(1); 
-        setDisplayedData(allResults.slice(0, pageSize));
-
-    } catch (error) {
-        console.error("   -> ERRORE durante la ricerca:", error);
-        setAllSearchResults([]);
-        setDisplayedData([]);
-        setTotalCount(0);
-    } finally {
-        console.log("   -> Ricerca terminata, imposto isLoading a false.");
-        setIsLoading(false);
-    }
-}, [includeArchived, hasPermission, pageSize]);
-// ...
- // NUOVO: Effetto per gestire la RICERCA IMMEDIATA (dallo scanner)
-    useEffect(() => {
-        // Esegui solo se non c'è una ricerca immediata in corso
-        if (immediateSearchTerm) {
-            return;
-        }
-        // Se il termine di ricerca debounced è vuoto, non fare nulla.
-        // La logica per caricare la lista normale è nell'effetto successivo.
-        if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
-            performSearch(debouncedSearchTerm);
-        }
-    }, [debouncedSearchTerm, performSearch, immediateSearchTerm]);
     
     // STATO PER LA GESTIONE DELLA VISUALIZZAZIONE MOBILE
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
@@ -339,107 +276,65 @@ const performSearch = useCallback(async (term) => {
         return new Map(supportData.aliquoteIva.map(iva => [iva.id, iva.descrizione]));
     }, [supportData.aliquoteIva]);
 
-    // --- CORREZIONE FINALE: LOGICA DI FETCHING SEPARATA ---
-
-    // 1. Effetto per gestire la RICERCA (non dipende da currentPage)
-useEffect(() => {
-        const fetchSearchData = async () => {
-            // Esegui solo se c'è un termine di ricerca
-            if (!debouncedSearchTerm || debouncedSearchTerm.trim() === '') {
-                return;
-            }
+    // --- SOLUZIONE FINALE: UNICO useEffect PER TUTTA LA LOGICA DI FETCH ---
+    // Questo effetto gestisce in modo pulito sia la ricerca che la lista normale,
+    // applicando la paginazione lato client o server dove necessario.
+    useEffect(() => {
+        const fetchData = async () => {
             if (!hasPermission('CT_VIEW')) return;
-
             setIsLoading(true);
             try {
-                const url = `/catalogo/search/?term=${encodeURIComponent(debouncedSearchTerm.trim())}&includeArchived=${includeArchived}`;
-                const response = await api.get(url);
-                
-                let allResults = [];
-                if (response.data && Array.isArray(response.data.data)) {
-                    allResults = response.data.data;
-                } else if (Array.isArray(response.data)) {
-                    allResults = response.data;
-                }
+                let dataToDisplay = [];
+                let totalItems = 0;
 
-                setAllSearchResults(allResults);
-                setTotalCount(allResults.length);
+                // --- CASO 1: RICERCA ATTIVA (paginazione lato client) ---
+                if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
+                    const url = `/catalogo/search/?term=${encodeURIComponent(debouncedSearchTerm.trim())}&includeArchived=${includeArchived}`;
+                    const response = await api.get(url);
+                    
+                    const allResults = Array.isArray(response.data) ? response.data : response.data.data || [];
+                    totalItems = allResults.length;
+                    
+                    // Applichiamo la paginazione LATO CLIENT sull'array completo
+                    const startIndex = (currentPage - 1) * pageSize;
+                    const endIndex = startIndex + pageSize;
+                    dataToDisplay = allResults.slice(startIndex, endIndex);
+
+                } 
+                // --- CASO 2: LISTA NORMALE (paginazione lato server) ---
+                else {
+                    const params = new URLSearchParams({
+                        page: currentPage,
+                        limit: pageSize,
+                        includeArchived,
+                    });
+                    if (selectedCategoryId) {
+                        params.set('id_categoria', selectedCategoryId);
+                    }
+                    const url = `/catalogo/entita?${params.toString()}`;
+                    const response = await api.get(url);
+
+                    dataToDisplay = response.data.data || [];
+                    totalItems = response.data.total || dataToDisplay.length;
+                }
                 
-                // OTTIMIZZAZIONE MOBILE: Imposta subito displayedData con la slice della prima pagina
-                // Questo previene che l'UI riceva il set completo (es. 1000 record) prima che lo useEffect di paginazione intervenga.
-                setCurrentPage(1); 
-                setDisplayedData(allResults.slice(0, pageSize));
+                // Aggiorniamo lo stato finale in un unico punto
+                setDisplayedData(dataToDisplay);
+                setTotalCount(totalItems);
 
             } catch (error) {
-                console.error("[CatalogoManager] Errore durante la ricerca:", error);
-                setAllSearchResults([]);
+                console.error("[CatalogoManager] Errore durante il caricamento:", error);
                 setDisplayedData([]);
                 setTotalCount(0);
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchSearchData();
-    // NOTA: `currentPage` è stato RIMOSSO dalle dipendenze, aggiunto pageSize
-    }, [debouncedSearchTerm, includeArchived, hasPermission, pageSize]);
-    // 2. Effetto per gestire la LISTA NORMALE (dipende da currentPage)
-    useEffect(() => {
-        const fetchListData = async () => {
-            // Esegui solo se NON c'è un termine di ricerca
-            if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
-                return;
-            }
-            if (!hasPermission('CT_VIEW')) return;
 
-            setIsLoading(true);
-            try {
-                const params = new URLSearchParams({
-                    page: currentPage,
-                    limit: pageSize,
-                    includeArchived,
-                });
-                if (selectedCategoryId) {
-                    params.set('id_categoria', selectedCategoryId);
-                }
-                const url = `/catalogo/entita?${params.toString()}`;
-                const response = await api.get(url);
-
-                let data = [];
-                let total = 0;
-                if (response.data.data && Array.isArray(response.data.data)) {
-                    data = response.data.data;
-                    total = response.data.total || response.data.data.length;
-                }
-                
-                setAllSearchResults([]); // Svuota i risultati di ricerca
-                setDisplayedData(data);
-                setTotalCount(total);
-                
-            } catch (error) {
-                console.error("[CatalogoManager] Errore durante il caricamento della lista:", error);
-                setDisplayedData([]);
-                setTotalCount(0);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchListData();
-    // NOTA: `debouncedSearchTerm` è stato RIMOSSO, ma `currentPage` è presente
-    }, [selectedCategoryId, includeArchived, currentPage, pageSize, hasPermission, refreshKey]);
-
-    // 3. Effetto per gestire la paginazione lato client dei risultati di ricerca
-    useEffect(() => {
-        // Questo effetto gestisce i cambi pagina successivi al primo per i risultati di ricerca
-        if (allSearchResults.length > 0) {
-            const startIndex = (currentPage - 1) * pageSize;
-            const endIndex = startIndex + pageSize;
-            const paginatedData = allSearchResults.slice(startIndex, endIndex);
-
-            setDisplayedData(paginatedData);
-        }
-    }, [currentPage, allSearchResults, pageSize]);
-
-    // --- FINE CORREZIONE ---
+        fetchData();
+    // Le dipendenze includono tutto ciò che può influenzare i dati mostrati.
+    }, [debouncedSearchTerm, selectedCategoryId, includeArchived, currentPage, pageSize, hasPermission, refreshKey]);
+    // --- FINE SOLUZIONE ---
 
 
     // Effetto per caricare i dati di supporto
@@ -469,18 +364,12 @@ useEffect(() => {
     const enrichedData = useMemo(() => {
         if (!isMobile) return displayedData;
 
-        // FIX CRITICO MOBILE: Hard-slice dei dati.
-        // Anche se displayedData dovesse contenere erroneamente tutti i record (es. 1000),
-        // ne passiamo alla vista mobile solo un numero pari a PAGE_SIZE.
-        // Questo è il "firewall" finale contro i problemi di performance.
-        const safeData = displayedData.length > pageSize ? displayedData.slice(0, pageSize) : displayedData;
-
-        return safeData.map(item => ({
+        return displayedData.map(item => ({
             ...item,
             nome_categoria: categoryMap.get(item.id_categoria) || 'N/D',
             descrizione_iva: ivaMap.get(item.id_aliquota_iva) || 'N/D'
         }));
-    }, [displayedData, isMobile, categoryMap, ivaMap, pageSize]);
+    }, [displayedData, isMobile, categoryMap, ivaMap]);
 
     // Funzioni callback
     const forceRefresh = useCallback(() => {
@@ -540,7 +429,7 @@ useEffect(() => {
 
     const handleSearchChange = useCallback((newSearchTerm) => {
         setSearchTerm(newSearchTerm);
-        setCurrentPage(INITIAL_PAGE);
+        setCurrentPage(INITIAL_PAGE); // Resetta la pagina quando inizia una nuova ricerca
     }, []);
 
     const handleCategoryChange = useCallback((newCategoryId) => {
@@ -553,15 +442,10 @@ useEffect(() => {
         setCurrentPage(INITIAL_PAGE);
     }, []);
 
-    // NUOVO: Funzioni per la gestione dello scanner
-const handleScan = useCallback((scannedCode) => {
-    console.log("1. handleScan chiamata con il codice:", scannedCode);
-    setSearchTerm(scannedCode); // Aggiorna il campo di ricerca per feedback visivo
-    console.log("2. searchTerm impostato. Ora imposto immediateSearchTerm.");
-    setImmediateSearchTerm(scannedCode); // Scatena la ricerca immediata
-    setIsScannerOpen(false);
-}, []);
-
+    const handleScan = useCallback((scannedCode) => {
+        setSearchTerm(scannedCode);
+        setIsScannerOpen(false);
+    }, []);
 
     const handleOpenScanner = useCallback(() => {
         setIsScannerOpen(true);
@@ -614,19 +498,20 @@ const handleScan = useCallback((scannedCode) => {
                         Nuovo
                     </button>
                 </div>
-                {/* MODIFICATO: Aggiunto pulsante scanner per Desktop */}
                 <div className="flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-1">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                        <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                            </div>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => handleSearchChange(e.target.value)}
+                                placeholder="Cerca per descrizione o EAN..."
+                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            />
                         </div>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder="Cerca per descrizione o EAN..."
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        />
                     </div>
                     <select
                         value={selectedCategoryId}
@@ -636,7 +521,6 @@ const handleScan = useCallback((scannedCode) => {
                         <option value="">Tutte le categorie</option>
                         {supportData.categorie.map(cat => <option key={cat.id} value={cat.id}>{cat.nome_categoria}</option>)}
                     </select>
-                    {/* NUOVO: Pulsante Scanner Desktop */}
                     <button
                         type="button"
                         onClick={handleOpenScanner}
@@ -683,7 +567,6 @@ const handleScan = useCallback((scannedCode) => {
                         currentPage={currentPage}
                         totalPages={totalPages}
                         onPageChange={handlePageChange}
-                        // NUOVO: Passa la funzione per aprire lo scanner alla vista mobile
                         onOpenScanner={handleOpenScanner}
                     />
                 ) : (
@@ -708,8 +591,6 @@ const handleScan = useCallback((scannedCode) => {
             {isCodiciFornitoreModalOpen && selectedItem && <CodiciFornitoreManager itemId={selectedItem.id} onClose={() => setIsCodiciFornitoreModalOpen(false)} />}
             {isEanModalOpen && selectedItem && <EanManager itemId={selectedItem.id} onClose={() => setIsEanModalOpen(false)} />}
             {isFotoModalOpen && selectedItem && <CatalogoFotoModal item={selectedItem} onClose={() => setIsFotoModalOpen(false)} />}
-            
-            {/* NUOVO: Modale dello Scanner */}
             {isScannerOpen && (
                 <BarcodeScannerModal
                     isOpen={isScannerOpen}

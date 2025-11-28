@@ -38,8 +38,9 @@ const ImportCsvModal = ({ onClose, onImportSuccess }) => {
     };
 
     const generateTemplate = () => {
-        const header = "codice_entita;descrizione;categoria;costo_base;prezzo_cessione_1;codice_ean_principale;fornitore_piva;codice_articolo_fornitore";
-        const exampleRow = "ART001;Descrizione Articolo 1;CAT01;10.50;15.75;8012345678901;IT01234567890;FORN-ART-001";
+        // MODIFICATO: Aggiunto il campo 'iva' all'intestazione e alla riga d'esempio
+  const header = "codice_entita;descrizione;categoria;costo_base;prezzo_cessione_1;codice_ean_principale;fornitore_piva;codice_articolo_fornitore;aliquota_iva";
+        const exampleRow = "ART001;Descrizione Articolo 1;CAT01;10.50;15.75;8012345678901;IT01234567890;FORN-ART-001;22";
         const csvContent = "data:text/csv;charset=utf-8," + header + "\n" + exampleRow;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -64,7 +65,8 @@ const ImportCsvModal = ({ onClose, onImportSuccess }) => {
                         <li>Usa il punto e virgola (;) come separatore.</li>
                         <li>La prima riga deve contenere le intestazioni delle colonne.</li>
                         <li><b>Campi Obbligatori:</b> `codice_entita`, `descrizione`.</li>
-                        <li><b>Campi Opzionali:</b> `costo_base`, `prezzo_cessione_1`, `codice_ean_principale`, `fornitore_piva`, `codice_articolo_fornitore`.</li>
+                        {/* MODIFICATO: Aggiunta descrizione per il nuovo campo 'iva' */}
+                        <li><b>Campi Opzionali:</b> `costo_base`, `prezzo_cessione_1`, `codice_ean_principale`, `fornitore_piva`, `codice_articolo_fornitore`, `aliquota_iva` (inserire il valore, es. "22" o "22%").</li>
                     </ul>
                     <button onClick={generateTemplate} className="text-sm text-blue-600 hover:underline mt-3 font-semibold">
                         Scarica Template CSV

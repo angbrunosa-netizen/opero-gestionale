@@ -1076,7 +1076,6 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
     }
 
-    // Helper per convertire stringhe "1,50" in float 1.50
     const parseItalianFloat = (str) => {
         if (!str) return 0;
         return parseFloat(str.replace(',', '.').trim()) || 0;
@@ -1090,7 +1089,6 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         .on('end', async () => {
             const { id_ditta, id: id_utente } = req.user;
             
-            // Contatori
             let stats = {
                 inserted: 0,
                 updated: 0,
@@ -1112,53 +1110,76 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                         prezzo_cessione_1,
                         codice_ean_principale,
                         fornitore_piva,
-                        codice_articolo_fornitore 
+                        codice_articolo_fornitore,
+                        // NUOVO: Estraiamo l'aliquota IVA dalla riga
+                        aliquota_iva 
                     } = row;
 
-                    // Validazione base
                     if (!codice_entita || !descrizione) {
                         errors.push({ line: index + 2, message: 'Codice entità e Descrizione sono obbligatori.', data: row });
                         stats.skipped++;
                         continue;
                     }
 
+                    // NUOVO: Funzione per trovare l'ID dell'aliquota IVA dal suo valore
+                    const findAliquotaIvaId = async (aliquotaStr) => {
+                        if (!aliquotaStr) return null;
+                        
+                        // Pulisce la stringa (es. "22%" -> "22")
+                        const cleanedAliquota = aliquotaStr.toString().replace('%', '').trim();
+                        
+                        // Cerca l'ID nella tabella delle aliquote IVA
+                        // ATTENZIONE: Assumo che la tabella si chiami `iva_contabili` e la colonna `aliquota`.
+                        // Potrebbe essere necessario adattare questi nomi.
+                        const ivaRecord = await trx('iva_contabili')
+                            .where('aliquota', cleanedAliquota)
+                            .first('id');
+                        
+                        return ivaRecord ? ivaRecord.id : null;
+                    };
+
+                    // Trova l'ID dell'aliquota IVA da usare
+                    const id_aliquota_iva = await findAliquotaIvaId(aliquota_iva);
+
+                    if (aliquota_iva && !id_aliquota_iva) {
+                        errors.push({ line: index + 2, message: `Aliquota IVA "${aliquota_iva}" non trovata nel sistema. Il campo sarà lasciato vuoto.`, data: row });
+                    }
+
                     const costoBaseVal = parseItalianFloat(costo_base);
                     const prezzoCessioneVal = parseItalianFloat(prezzo_cessione_1);
 
-                    // 1. LOGICA UPSERT (Cerca o Inserisci)
                     let articoloId;
                     
-                    // Cerchiamo se esiste già
                     const existingArticolo = await trx('ct_catalogo')
                         .where({ id_ditta, codice_entita })
                         .first('id');
 
                     if (existingArticolo) {
-                        // UPDATE: L'articolo esiste, aggiorniamo i dati
                         articoloId = existingArticolo.id;
+                        // MODIFICATO: Aggiunto id_aliquota_iva nell'update
                         await trx('ct_catalogo')
                             .where({ id: articoloId })
                             .update({
                                 descrizione,
                                 costo_base: costoBaseVal,
-                                id_stato_entita: 1 // Forced update
-                                // Non sovrascriviamo created_by, category o altri campi se non esplicitamente richiesto
-                                // Se vuoi aggiornare anche la categoria, dovresti gestire qui la logica di lookup della categoria
+                                id_aliquota_iva: id_aliquota_iva, // <--- QUI USA L'ID TROVATO
+                                id_stato_entita: 1
                             });
                         stats.updated++;
                     } else {
-                        // INSERT: L'articolo non esiste, lo creiamo
+                        // MODIFICATO: Aggiunto id_aliquota_iva nell'insert
                         const [newId] = await trx('ct_catalogo').insert({
                             id_ditta,
                             codice_entita,
                             descrizione,
                             costo_base: costoBaseVal,
-                            id_stato_entita: 1 // Forced insert
-                            // created_by rimosso come da fix precedente
+                            id_aliquota_iva: id_aliquota_iva, // <--- QUI USA L'ID TROVATO
+                            id_stato_entita: 1
                         });
                         articoloId = newId;
                         stats.inserted++;
                     }
+
 
                     // 2. Gestione Listino (Aggiorna o Crea prezzo valido ad oggi)
                     if (prezzoCessioneVal > 0) {
