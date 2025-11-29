@@ -1323,7 +1323,8 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                             await trx('ct_ean').insert({
                                 id_ditta,
                                 id_catalogo: articoloId,
-                                codice_ean: codice_ean_principale
+                                codice_ean: codice_ean_principale,
+                                created_by: id_utente // <--- FIX: Aggiunto campo obbligatorio
                             });
                             stats.ean++;
                         }
@@ -1348,7 +1349,8 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                                     id_catalogo: articoloId,
                                     id_anagrafica_fornitore: fornitore.id,
                                     codice_articolo_fornitore,
-                                    tipo_codice: 'ST'
+                                    tipo_codice: 'ST',
+                                    created_by: id_utente // <--- FIX: Aggiunto preventivamente anche qui
                                 });
                                 stats.fornitori++;
                             }
