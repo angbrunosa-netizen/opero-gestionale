@@ -1305,7 +1305,7 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                                 id_ditta,
                                 id_entita_catalogo: articoloId,
                                 data_inizio_validita: new Date(),
-                                prezzo_pubblico_1: prezzoPubblicoVal
+                                prezzo_pubblico_1: prezzoPubblicoVal,
                                 nome_listino: 'Listino Base da import' // <--- FIX: Aggiunto campo obbligatorio
                             });
                             stats.listini++;
