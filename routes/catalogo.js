@@ -1279,7 +1279,8 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                                 id_ditta,
                                 id_entita_catalogo: articoloId,
                                 data_inizio_validita: new Date(),
-                                prezzo_cessione_1: prezzoCessioneVal
+                                prezzo_cessione_1: prezzoCessioneVal,
+                                nome_listino: 'Listino Base da import' // <--- FIX: Aggiunto campo obbligatorio
                             });
                             stats.listini++;
                         }
@@ -1305,6 +1306,7 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                                 id_entita_catalogo: articoloId,
                                 data_inizio_validita: new Date(),
                                 prezzo_pubblico_1: prezzoPubblicoVal
+                                nome_listino: 'Listino Base da import' // <--- FIX: Aggiunto campo obbligatorio
                             });
                             stats.listini++;
                         }
@@ -1489,5 +1491,5 @@ router.get('/search', verifyToken, async (req, res) => {
         console.error("Errore durante la ricerca nel catalogo:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
-});
+}); 
 module.exports = router;
