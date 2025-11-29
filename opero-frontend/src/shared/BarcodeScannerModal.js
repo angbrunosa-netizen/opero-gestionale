@@ -1,37 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import { Scanner } from '@yudiel/react-qr-scanner';
-import { XMarkIcon, CameraIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { BrowserMultiFormatReader } from '@zxing/browser'; // <--- IMPORT CORRETTO
+import { XMarkIcon, CameraIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
   const [error, setError] = useState(null);
-  // Aggiungiamo una chiave per forzare il remount del componente Scanner
-  const [scannerKey, setScannerKey] = useState(0);
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const videoRef = useRef(null);
+
+  // Funzione per avviare lo scanner
+  const startScanner = useCallback(async () => {
+    if (!videoRef.current || !selectedDeviceId) return;
+
+    try {
+      // Chiedi i permessi per la fotocamera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: selectedDeviceId },
+          facingMode: "environment",
+        }
+      });
+
+      // Collega lo stream all'elemento video
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+
+      // Crea il lettore di codici
+      const reader = new BrowserMultiFormatReader();
+
+      // Leggi continuamente dal video
+      reader.decodeFromVideoDevice(stream, selectedDeviceId, (result, err) => {
+        if (result) {
+          console.log("Codice scansionato:", result.text);
+          onScan(result.text);
+          onClose();
+        }
+        // La libreria passa un errore per ogni frame in cui non trova un codice.
+        // È un comportamento normale, quindi non mostriamo l'errore all'utente.
+        if (err) {
+          console.error("Errore di scansione (normale):", err);
+        }
+      });
+
+    } catch (err) {
+      console.error("Errore accesso fotocamera:", err);
+      setError("Impossibile accedere alla fotocamera. Controlla i permessi.");
+    }
+  }, [onScan, onClose, selectedDeviceId]);
+
+  // Funzione per ottenere la lista delle fotocamere
+  const getDevices = useCallback(async () => {
+    try {
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
+      setDevices(videoDevices);
+      if (videoDevices.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(videoDevices[0].deviceId);
+      }
+    } catch (err) {
+      console.error("Errore elenco dispositivi:", err);
+    }
+  }, [selectedDeviceId]);
 
   useEffect(() => {
-    console.log("BarcodeScannerModal: il modale è aperto?", isOpen);
     if (isOpen) {
       setError(null);
-      // Forza il remount dello scanner ogni volta che il modale si apre
-      setScannerKey(prev => prev + 1);
+      getDevices();
     }
-  }, [isOpen]);
+  }, [isOpen, getDevices]);
 
-  const handleDecode = (result) => {
-    console.log("handleDecode chiamato con:", result);
-    if (result && result.length > 0) {
-      const code = result[0].rawValue;
-      console.log("Codice trovato:", code);
-      if (code) {
-        onScan(code);
-        onClose();
+  useEffect(() => {
+    if (isOpen && selectedDeviceId) {
+      startScanner();
+    }
+
+    // Funzione di cleanup
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
       }
-    }
-  };
-
-  const handleError = (error) => {
-    console.error("Errore inizializzazione scanner:", error);
-    setError("Errore: " + error.message);
-  };
+    };
+  }, [isOpen, selectedDeviceId, startScanner]);
 
   if (!isOpen) {
     return null;
@@ -54,16 +104,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
 
         {/* Viewport Camera */}
         <div className="relative bg-black flex-1 min-h-[300px] flex items-center justify-center overflow-hidden">
-          {/* 
-            MODIFICHE CHIAVE:
-            1. Aggiunto `key={scannerKey}` per forzare un reset completo.
-            2. Rimosso completamente l'oggetto `constraints` per usare le impostazioni di default del browser.
-          */}
-          <Scanner
-            key={scannerKey}
-            onDecode={handleDecode}
-            onError={handleError}
-          />
+          <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline />
           
           {error && (
             <div className="absolute bottom-4 left-4 right-4 bg-red-600/90 text-white p-3 rounded-lg text-sm text-center shadow-lg backdrop-blur-md">
@@ -73,8 +114,21 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-800 text-xs text-gray-400 text-center border-t border-gray-700">
-          Inquadra il codice a barre.
+        <div className="p-4 bg-gray-800 text-xs text-gray-400 text-center border-t border-gray-700 space-y-2">
+          {devices.length > 1 && (
+            <select
+              value={selectedDeviceId}
+              onChange={(e) => setSelectedDeviceId(e.target.value)}
+              className="w-full p-1 rounded bg-gray-700 text-white border border-gray-600"
+            >
+              {devices.map(device => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Fotocamera (${device.deviceId.substring(0, 5)}...)`}
+                </option>
+              ))}
+            </select>
+          )}
+          <p>Assicurati che il codice sia ben illuminato e nitido.</p>
         </div>
       </div>
     </div>

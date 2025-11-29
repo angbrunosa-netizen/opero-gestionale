@@ -19,7 +19,48 @@ const { Readable } = require('stream');
 // Configurazione di Multer per gestire il file in memoria
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+/**
+ * NUOVA FUNZIONE: Trova l'ID dell'aliquota IVA a partire dal suo valore testuale.
+ * È più robusta perché converte sia l'input che il valore del DB in numeri
+ * prima del confronto, evitando problemi di formato (es. "22" vs "22.00").
+ */
+const findAliquotaIvaId = async (trx, aliquotaStr) => {
+    if (!aliquotaStr) return null;
+    
+    // Pulisce la stringa (es. "22%" -> "22")
+    const cleanedAliquota = aliquotaStr.toString().replace('%', '').trim();
+    
+    // Converte la stringa pulita in un numero
+    // parseFloat("22") -> 22
+    // parseFloat("22.00") -> 22
+    const aliquotaNumber = parseFloat(cleanedAliquota);
 
+    if (isNaN(aliquotaNumber)) {
+        console.warn(`[findAliquotaIvaId] Impossibile convertire l'aliquota "${aliquotaStr}" in un numero valido.`);
+        return null;
+    }
+    
+    console.log(`[findAliquotaIvaId] Cerco l'aliquota con valore numerico: ${aliquotaNumber}`);
+
+    // Esegue una query più robusta.
+    // Confrontiamo il valore numerico invece della stringa.
+    // Usiamo knex.raw per fare un cast del campo DB a DECIMAL, rendendo il confronto più affidabile.
+    // ATTENZIONE: Assumo che la tabella si chiami `iva_contabili` e la colonna `aliquota`.
+    // Potrebbe essere necessario adattare questi nomi.
+    const ivaRecord = await trx('iva_contabili')
+        .where(
+            trx.raw('CAST(aliquota AS DECIMAL(10, 2))'), '=', aliquotaNumber
+        )
+        .first('id');
+
+    if (ivaRecord) {
+        console.log(`[findAliquotaIvaId] Trovata corrispondenza per ${aliquotaNumber}: ID ${ivaRecord.id}`);
+        return ivaRecord.id;
+    } else {
+        console.warn(`[findAliquotaIvaId] NESSUNA corrispondenza trovata per l'aliquota: ${aliquotaNumber} (da input: "${aliquotaStr}")`);
+        return null;
+    }
+};
 
 
 // Funzione di utility per la validazione del check digit EAN-13
@@ -535,51 +576,85 @@ router.get('/entita', verifyToken, async (req, res) => {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
     }
     try {
-        const { includeArchived } = req.query;
-        
-        let query = knex('ct_catalogo as cat')
+        const { page = 1, limit = 20, includeArchived, id_categoria } = req.query;
+        const { id_ditta } = req.user;
+
+        // 1. Costruisci la subquery per il prezzo cessione
+        const prezzoCessioneSubquery = knex('ct_listini as l')
+            .select('l.prezzo_cessione_1')
+            .where('l.id_ditta', id_ditta)
+            .whereRaw('l.id_entita_catalogo = cat.id') // Riferimento alla tabella esterna 'cat'
+            .whereRaw('l.data_inizio_validita <= NOW()')
+            .whereRaw('(l.data_fine_validita IS NULL OR l.data_fine_validita >= NOW())')
+            .orderBy('l.data_inizio_validita', 'desc')
+            .limit(1)
+            .as('prezzo_cessione_1'); // Alias per la subquery
+
+        // 2. Costruisci la subquery per il prezzo pubblico
+        const prezzoPubblicoSubquery = knex('ct_listini as l')
+            .select('l.prezzo_pubblico_1')
+            .where('l.id_ditta', id_ditta)
+            .whereRaw('l.id_entita_catalogo = cat.id') // Riferimento alla tabella esterna 'cat'
+            .whereRaw('l.data_inizio_validita <= NOW()')
+            .whereRaw('(l.data_fine_validita IS NULL OR l.data_fine_validita >= NOW())')
+            .orderBy('l.data_inizio_validita', 'desc')
+            .limit(1)
+            .as('prezzo_pubblico_1'); // Alias per la subquery
+
+        // 3. Costruisci la query principale per il conteggio totale
+        const countQuery = knex('ct_catalogo as cat')
+            .count('* as total')
             .leftJoin('ct_categorie as a', 'cat.id_categoria', 'a.id')
             .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
-          /*  .leftJoin('ct_listini as l', function() {
-                this.on('cat.id', '=', 'l.id_entita_catalogo')
-                    .andOn(knex.raw('l.data_inizio_validita <= CURDATE()'))
-                    .andOn(knex.raw('(l.data_fine_validita IS NULL OR l.data_fine_validita >= CURDATE())'));
-            })
-            */
-            .leftJoin('ct_logistica as log', 'cat.id', 'log.id_catalogo')
-            .where('cat.id_ditta', req.user.id_ditta);
+            .where('cat.id_ditta', id_ditta);
 
+        if (includeArchived !== 'true') {
+            countQuery.whereNot('se.codice', 'DEL');
+        }
+        if (id_categoria) {
+            countQuery.where('cat.id_categoria', id_categoria);
+        }
+        const countResult = await countQuery;
+        const totalItems = countResult[0] ? countResult[0].total : 0;
+
+        // 4. Costruisci la query principale per i dati paginati
+        let query = knex('ct_catalogo as cat')
+            .select([
+                'cat.*', // Seleziona tutte le colonne da ct_catalogo
+                'a.descrizione as nome_categoria',
+                'se.descrizione as stato_entita',
+                'se.codice as codice_stato',
+                prezzoCessioneSubquery, // Aggiunge la subquery come colonna
+                prezzoPubblicoSubquery, // Aggiunge la subquery come colonna
+                'log.peso_lordo_pz', 'log.volume_pz', 'log.h_pz', 'log.l_pz', 'log.p_pz',
+                'log.s_im', 'log.pezzi_per_collo', 'log.colli_per_strato', 'log.strati_per_pallet'
+            ])
+            .leftJoin('ct_categorie as a', 'cat.id_categoria', 'a.id')
+            .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
+            .leftJoin('ct_logistica as log', 'cat.id', 'log.id_catalogo')
+            .where('cat.id_ditta', id_ditta);
+
+        // Applica i filtri anche alla query principale
         if (includeArchived !== 'true') {
             query = query.whereNot('se.codice', 'DEL');
         }
+        if (id_categoria) {
+            query = query.where('cat.id_categoria', id_categoria);
+        }
 
-        const entita = await query.select(
-            'cat.*',
-            'a.descrizione as nome_categoria',
-            'se.descrizione as stato_entita',
-            'se.codice as codice_stato',
-            knex.raw(`(
-                SELECT l.prezzo_cessione_1 
-                FROM ct_listini as l
-                WHERE l.id_entita_catalogo = cat.id
-                  AND l.data_inizio_validita <= CURDATE()
-                  AND (l.data_fine_validita IS NULL OR l.data_fine_validita >= CURDATE())
-                ORDER BY l.data_inizio_validita DESC
-                LIMIT 1
-            ) as prezzo_cessione_1`),
-            // --- FINE MODIFICA ---
-            //'l.prezzo_cessione_1',
-            'log.peso_lordo_pz', 'log.volume_pz', 'log.h_pz', 'log.l_pz', 'log.p_pz',
-            'log.s_im', 'log.pezzi_per_collo', 'log.colli_per_strato', 'log.strati_per_pallet'
-        ).groupBy('cat.id');
-        
-        res.json({ success: true, data: entita });
+        // Esegui la query paginata
+        const entita = await query
+            .orderBy('cat.descrizione', 'asc')
+            .limit(limit)
+            .offset((page - 1) * limit);
+
+        res.json({ success: true, data: entita, total: totalItems });
+
     } catch (error) {
         console.error("Errore nel recupero delle entità del catalogo:", error);
         res.status(500).json({ success: false, message: 'Errore interno del server.' });
     }
 });
-
 router.post('/entita', verifyToken, async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_MANAGE')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
@@ -742,7 +817,7 @@ router.patch('/listini/:listinoId', verifyToken, async (req, res) => {
         dataToUpdate.data_fine_validita = new Date(data_fine_validita).toISOString().split('T')[0];
     } else if (req.body.hasOwnProperty('data_fine_validita')) {
         // Se il campo è presente ma vuoto (es. ""), lo impostiamo a NULL
-        dataToUpdate.data_fine_validita = null;
+        dataToUpdate.data_fine_validita = null; 
     }
     try {
         const updated = await knex('ct_listini').where({ id: listinoId, id_ditta }).update(dataToUpdate);
@@ -1068,6 +1143,10 @@ router.post('/import-ean-csv', verifyToken, upload.single('csvFile'), async (req
 
 // --- API DI IMPORTAZIONE CSV POTENZIATA v2.1 (Fix Decimali) ---
 // --- API DI IMPORTAZIONE CSV POTENZIATA v3.0 (Logica Upsert/Aggiornamento) ---
+// --- API DI IMPORTAZIONE CSV POTENZIATA v3.1 (Corretta e Completa) ---
+
+
+
 router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, res) => {
     if (!req.user.permissions || !req.user.permissions.includes('CT_IMPORT_CSV')) {
         return res.status(403).json({ success: false, message: 'Azione non autorizzata.' });
@@ -1076,6 +1155,7 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         return res.status(400).json({ success: false, message: 'Nessun file CSV fornito.' });
     }
 
+    // Helper per convertire stringhe "1,50" in float 1.50
     const parseItalianFloat = (str) => {
         if (!str) return 0;
         return parseFloat(str.replace(',', '.').trim()) || 0;
@@ -1089,6 +1169,7 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
         .on('end', async () => {
             const { id_ditta, id: id_utente } = req.user;
             
+            // Contatori
             let stats = {
                 inserted: 0,
                 updated: 0,
@@ -1108,78 +1189,74 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                         categoria, 
                         costo_base,
                         prezzo_cessione_1,
+                        prezzo_pubblico_1, // <--- MODIFICA: Estrai il nuovo campo dalla riga
                         codice_ean_principale,
                         fornitore_piva,
                         codice_articolo_fornitore,
-                        // NUOVO: Estraiamo l'aliquota IVA dalla riga
-                        aliquota_iva 
+                        aliquota_iva // <--- MODIFICA: Estrai l'aliquota IVA dalla riga
                     } = row;
 
+                    // Validazione base
                     if (!codice_entita || !descrizione) {
                         errors.push({ line: index + 2, message: 'Codice entità e Descrizione sono obbligatori.', data: row });
                         stats.skipped++;
                         continue;
                     }
 
-                    // NUOVO: Funzione per trovare l'ID dell'aliquota IVA dal suo valore
-                    const findAliquotaIvaId = async (aliquotaStr) => {
-                        if (!aliquotaStr) return null;
-                        
-                        // Pulisce la stringa (es. "22%" -> "22")
-                        const cleanedAliquota = aliquotaStr.toString().replace('%', '').trim();
-                        
-                        // Cerca l'ID nella tabella delle aliquote IVA
-                        // ATTENZIONE: Assumo che la tabella si chiami `iva_contabili` e la colonna `aliquota`.
-                        // Potrebbe essere necessario adattare questi nomi.
-                        const ivaRecord = await trx('iva_contabili')
-                            .where('aliquota', cleanedAliquota)
-                            .first('id');
-                        
-                        return ivaRecord ? ivaRecord.id : null;
-                    };
-
                     // Trova l'ID dell'aliquota IVA da usare
-                    const id_aliquota_iva = await findAliquotaIvaId(aliquota_iva);
+                    const id_aliquota_iva = await findAliquotaIvaId(trx, aliquota_iva);
 
                     if (aliquota_iva && !id_aliquota_iva) {
-                        errors.push({ line: index + 2, message: `Aliquota IVA "${aliquota_iva}" non trovata nel sistema. Il campo sarà lasciato vuoto.`, data: row });
+                        errors.push({ line: index + 2, message: `Aliquota IVA "${aliquota_iva}" non trovata nel sistema. Il campo IVA sarà lasciato vuoto.`, data: row });
+                    }
+                    const prezzoPubblicoVal = parseItalianFloat(prezzo_pubblico_1);
+
+                    // NUOVO: Controllo non bloccante sul formato
+                    if (prezzo_pubblico_1 && isNaN(prezzoPubblicoVal)) {
+                        errors.push({ line: index + 2, message: `Formato non valido per 'prezzo_pubblico_1': "${prezzo_pubblico_1}". Il prezzo sarà ignorato.`, data: row });
                     }
 
                     const costoBaseVal = parseItalianFloat(costo_base);
                     const prezzoCessioneVal = parseItalianFloat(prezzo_cessione_1);
+                    
 
+                    // 1. LOGICA UPSERT (Cerca o Inserisci)
                     let articoloId;
                     
+                    // Cerchiamo se esiste già
                     const existingArticolo = await trx('ct_catalogo')
                         .where({ id_ditta, codice_entita })
                         .first('id');
 
                     if (existingArticolo) {
+                        // UPDATE: L'articolo esiste, aggiorniamo i dati
                         articoloId = existingArticolo.id;
-                        // MODIFICATO: Aggiunto id_aliquota_iva nell'update
                         await trx('ct_catalogo')
                             .where({ id: articoloId })
                             .update({
                                 descrizione,
                                 costo_base: costoBaseVal,
-                                id_aliquota_iva: id_aliquota_iva, // <--- QUI USA L'ID TROVATO
-                                id_stato_entita: 1
+                                id_aliquota_iva: id_aliquota_iva, // <--- MODIFICA: Usa l'ID trovato
+                               
+                                id_stato_entita: 1 // Forced update
+                                // CORRETTO: Rimosso l'aggiornamento di prezzo_cessione_1 qui, gestito in ct_listini
                             });
                         stats.updated++;
                     } else {
-                        // MODIFICATO: Aggiunto id_aliquota_iva nell'insert
+                        // INSERT: L'articolo non esiste, lo creiamo
                         const [newId] = await trx('ct_catalogo').insert({
                             id_ditta,
                             codice_entita,
                             descrizione,
                             costo_base: costoBaseVal,
-                            id_aliquota_iva: id_aliquota_iva, // <--- QUI USA L'ID TROVATO
-                            id_stato_entita: 1
+                            id_aliquota_iva: id_aliquota_iva, // <--- MODIFICA: Usa l'ID trovato
+                            
+                            id_stato_entita: 1 // Forced insert
+                            
                         });
                         articoloId = newId;
                         stats.inserted++;
                     }
-
 
                     // 2. Gestione Listino (Aggiorna o Crea prezzo valido ad oggi)
                     if (prezzoCessioneVal > 0) {
@@ -1206,7 +1283,33 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                             });
                             stats.listini++;
                         }
+
                     }
+                     if (prezzoPubblicoVal > 0) {
+                        const existingListino = await trx('ct_listini')
+                            .where({ id_ditta, id_entita_catalogo: articoloId })
+                            .andWhere('data_inizio_validita', '<=', knex.fn.now())
+                            .andWhere(q => q.whereNull('data_fine_validita').orWhere('data_fine_validita', '>=', knex.fn.now()))
+                            .orderBy('data_inizio_validita', 'desc')
+                            .first();
+
+                        if (existingListino) {
+                            // Aggiorna il prezzo pubblico sul listino esistente
+                            await trx('ct_listini')
+                                .where({ id: existingListino.id })
+                                .update({ prezzo_pubblico_1: prezzoPubblicoVal });
+                        } else {
+                            // Crea un nuovo listino base con solo il prezzo pubblico
+                            await trx('ct_listini').insert({
+                                id_ditta,
+                                id_entita_catalogo: articoloId,
+                                data_inizio_validita: new Date(),
+                                prezzo_pubblico_1: prezzoPubblicoVal
+                            });
+                            stats.listini++;
+                        }
+                    }
+
 
                     // 3. Gestione EAN (Inserisci solo se non esiste per questo articolo)
                     if (codice_ean_principale) {
@@ -1219,7 +1322,6 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                                 id_ditta,
                                 id_catalogo: articoloId,
                                 codice_ean: codice_ean_principale
-                                // is_principale rimosso come da fix precedente
                             });
                             stats.ean++;
                         }
@@ -1248,9 +1350,6 @@ router.post('/import-csv', verifyToken, upload.single('csvFile'), async (req, re
                                 });
                                 stats.fornitori++;
                             }
-                        } else {
-                            // Logghiamo l'errore ma non blocchiamo l'importazione dell'articolo
-                            // errors.push({ line: index + 2, message: `Fornitore ${fornitore_piva} non trovato (articolo importato comunque).` });
                         }
                     }
                 }
@@ -1309,10 +1408,9 @@ router.get('/', verifyToken, async (req, res) => {
 // (es. CT_SEARCH). La logica è che questa API sarà invocata da componenti frontend
 // che hanno già i propri controlli di accesso (es. un utente in una schermata di
 // creazione fattura ha già il permesso di accedere a tali dati).
-router.get('/search', async (req, res) => {
-    
+router.get('/search', verifyToken, async (req, res) => {
     const { id_ditta } = req.user;
-    const { term } = req.query;
+    const { term, includeArchived } = req.query;
 
     if (!term || term.length < 2) {
         return res.json([]);
@@ -1320,9 +1418,6 @@ router.get('/search', async (req, res) => {
 
     try {
         const searchTerm = `%${term}%`;
-
-        // ## CORREZIONE DEFINITIVA: Utilizzo di sotto-query ##
-        // Questo approccio è più robusto perché isola la ricerca sulle tabelle collegate.
 
         // 1. Trova gli ID degli articoli che corrispondono alla ricerca per EAN
         const eanIdsQuery = knex('ct_ean')
@@ -1333,27 +1428,62 @@ router.get('/search', async (req, res) => {
         // 2. Trova gli ID degli articoli che corrispondono alla ricerca per Codice Fornitore
         const fornitoreIdsQuery = knex('ct_codici_fornitore')
             .where('codice_articolo_fornitore', 'like', searchTerm)
-            .andWhere('id_ditta', id_ditta)
+            .innerJoin('ditte', 'ct_codici_fornitore.id_anagrafica_fornitore', 'ditte.id')
+            .andWhere('ditte.id_ditta_proprietaria', id_ditta)
             .select('id_catalogo');
 
-        // 3. Esegui la query principale
-        const results = await knex('ct_catalogo as cat')
+        const eanIds = await eanIdsQuery;
+        const fornitoreIds = await fornitoreIdsQuery;
+        
+        const allIds = new Set();
+        eanIds.forEach(e => allIds.add(e.id_catalogo));
+        fornitoreIds.forEach(f => allIds.add(f.id_catalogo));
+        const uniqueIds = Array.from(allIds);
+
+        // 3. Esegui la query principale per trovare gli articoli
+        let query = knex('ct_catalogo as cat')
+            .select([
+                'cat.*',
+                'a.descrizione as nome_categoria',
+                'se.descrizione as stato_entita',
+                'se.codice as codice_stato',
+                
+                // MODIFICA 1: Corretta la sintassi e il binding dei parametri per le sotto-query.
+                // Le parentesi esterne sono state rimosse e il parametro id_ditta viene passato
+                // in modo esplicito come secondo argomento di knex.raw.
+                knex.raw(`(SELECT l.prezzo_cessione_1 
+                     FROM ct_listini AS l
+                     WHERE l.id_ditta = ?
+                     AND l.id_entita_catalogo = cat.id
+                     AND l.data_inizio_validita <= NOW()
+                     AND (l.data_fine_validita IS NULL OR l.data_fine_validita >= NOW())
+                     ORDER BY l.data_inizio_validita DESC
+                     LIMIT 1
+                ) as prezzo_cessione_1`, [id_ditta]), // <-- PASSAGGIO ESPLICITO DEL PARAMETRO
+
+                knex.raw(`(SELECT l.prezzo_pubblico_1 
+                     FROM ct_listini AS l
+                     WHERE l.id_ditta = ?
+                     AND l.id_entita_catalogo = cat.id
+                     AND l.data_inizio_validita <= NOW()
+                     AND (l.data_fine_validita IS NULL OR l.data_fine_validita >= NOW())
+                     ORDER BY l.data_inizio_validita DESC
+                     LIMIT 1
+                ) as prezzo_pubblico_1`, [id_ditta]) // <-- PASSAGGIO ESPLICITO DEL PARAMETRO
+            ])
             .leftJoin('ct_categorie as a', 'cat.id_categoria', 'a.id')
-            .where('cat.id_ditta', id_ditta)
+            .leftJoin('ct_stati_entita as se', 'cat.id_stato_entita', 'se.id')
+            .leftJoin('ct_logistica as log', 'cat.id', 'log.id_catalogo')
+            .where('cat.id_ditta', id_ditta) // Ora questa clausola funzionerà correttamente
             .andWhere(function() {
-                // Cerca direttamente sulle tabelle principali (catalogo e categorie)
                 this.where('cat.descrizione', 'like', searchTerm)
                     .orWhere('cat.codice_entita', 'like', searchTerm)
-                    .orWhere('a.descrizione', 'like', searchTerm)
-                    // OPPURE cerca tra gli ID trovati nelle sotto-query
-                    .orWhereIn('cat.id', eanIdsQuery)
-                    .orWhereIn('cat.id', fornitoreIdsQuery);
-            })
-            .select('cat.*', 'a.descrizione as nome_categoria')
-            .groupBy('cat.id') // Manteniamo il groupBy per sicurezza
-            .limit(100); 
+                    .orWhereIn('cat.id', uniqueIds);
+            });
 
-        res.json(results);
+        const results = await query.limit(100);
+
+        res.json({ success: true, data: results });
 
     } catch (error) {
         console.error("Errore durante la ricerca nel catalogo:", error);

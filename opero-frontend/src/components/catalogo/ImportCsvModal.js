@@ -36,42 +36,37 @@ const ImportCsvModal = ({ onClose, onImportSuccess }) => {
             setIsUploading(false);
         }
     };
+const generateTemplate = () => {
+    // MODIFICATO: La colonna nel CSV è 'prezzo_pubblico_1'
+    const header = "codice_entita;descrizione;categoria;costo_base;prezzo_cessione_1;prezzo_pubblico_1;codice_ean_principale;fornitore_piva;codice_articolo_fornitore;aliquota_iva";
+    const exampleRow = "ART001;Descrizione Articolo 1;CAT01;10.50;15.75;25.99;8012345678901;IT01234567890;FORN-ART-001;22";
+    const csvContent = "data:text/csv;charset=utf-8," + header + "\n" + exampleRow;
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "template_import_catalogo.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
 
-    const generateTemplate = () => {
-        // MODIFICATO: Aggiunto il campo 'iva' all'intestazione e alla riga d'esempio
-  const header = "codice_entita;descrizione;categoria;costo_base;prezzo_cessione_1;codice_ean_principale;fornitore_piva;codice_articolo_fornitore;aliquota_iva";
-        const exampleRow = "ART001;Descrizione Articolo 1;CAT01;10.50;15.75;8012345678901;IT01234567890;FORN-ART-001;22";
-        const csvContent = "data:text/csv;charset=utf-8," + header + "\n" + exampleRow;
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "template_import_catalogo.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-xl">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Importa Anagrafica da CSV</h2>
-                    <button onClick={onClose}><XMarkIcon className="h-6 w-6" /></button>
-                </div>
-                
-                <div className="text-sm bg-blue-50 p-4 rounded-md border border-blue-200 mb-4">
-                    <h4 className="font-semibold text-blue-800 mb-2">Istruzioni per il file CSV:</h4>
-                    <ul className="list-disc list-inside text-blue-700 space-y-1">
-                        <li>Usa il punto e virgola (;) come separatore.</li>
-                        <li>La prima riga deve contenere le intestazioni delle colonne.</li>
-                        <li><b>Campi Obbligatori:</b> `codice_entita`, `descrizione`.</li>
-                        {/* MODIFICATO: Aggiunta descrizione per il nuovo campo 'iva' */}
-                        <li><b>Campi Opzionali:</b> `costo_base`, `prezzo_cessione_1`, `codice_ean_principale`, `fornitore_piva`, `codice_articolo_fornitore`, `aliquota_iva` (inserire il valore, es. "22" o "22%").</li>
-                    </ul>
-                    <button onClick={generateTemplate} className="text-sm text-blue-600 hover:underline mt-3 font-semibold">
-                        Scarica Template CSV
-                    </button>
-                </div>
+return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-xl">
+            {/* ... */}
+            <div className="text-sm bg-blue-50 p-4 rounded-md border border-blue-200 mb-4">
+                <h4 className="font-semibold text-blue-800 mb-2">Istruzioni per il file CSV:</h4>
+                <ul className="list-disc list-inside text-blue-700 space-y-1">
+                    <li>Usa il punto e virgola (;) come separatore.</li>
+                    <li>La prima riga deve contenere le intestazioni delle colonne.</li>
+                    <li><b>Campi Obbligatori:</b> `codice_entita`, `descrizione`.</li>
+                    {/* MODIFICATO: La descrizione del campo è più chiara */}
+                    <li><b>Campi Opzionali:</b> `costo_base`, `prezzo_cessione_1`, `prezzo_pubblico_1` (prezzo per listini), `codice_ean_principale`, `fornitore_piva`, `codice_articolo_fornitore`, `aliquota_iva` (inserire il valore, es. "22" o "22%").</li>
+                </ul>
+                <button onClick={generateTemplate} className="text-sm text-blue-600 hover:underline mt-3 font-semibold">
+                    Scarica Template CSV
+                </button>
+            </div>
 
                 <div className="mt-4">
                     <input type="file" accept=".csv" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>

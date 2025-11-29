@@ -22,7 +22,7 @@ import AllegatiManager from '../../shared/AllegatiManager';
 import BarcodeScannerModal from '../../shared/BarcodeScannerModal';
 
 // Costanti per la paginazione
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const INITIAL_PAGE = 1;
 
 // Hook per il debounce di un valore (usato solo per la ricerca)
@@ -67,6 +67,7 @@ const MobileCatalogoView = ({ data, isLoading, totalCount, hasPermission, onEdit
                         <div className="flex justify-around text-sm text-gray-600">
                             <p><span className="font-medium">P. Acquisto:</span> € {parseFloat(item.costo_base || 0).toFixed(2)}</p>
                             <p><span className="font-medium">P. Cessione:</span> {item.prezzo_cessione_1 ? `€ ${parseFloat(item.prezzo_cessione_1).toFixed(2)}` : 'N/D'}</p>
+                            <p><span className="font-medium">P. Pubblico:</span> {item.prezzo_pubblico_1 ? `€ ${parseFloat(item.prezzo_pubblico_1).toFixed(2)}` : 'N/D'}</p>
                         </div>
                         <div className="flex justify-center">
                             <EntityActionButtons
@@ -462,6 +463,8 @@ const CatalogoManager = () => {
         { header: 'Stato', accessorKey: 'stato_entita' },
         { header: 'Costo Base', accessorKey: 'costo_base', cell: info => `€ ${parseFloat(info.getValue() || 0).toFixed(2)}` },
         { header: 'P. Cess. 1', accessorKey: 'prezzo_cessione_1', cell: info => info.getValue() ? `€ ${parseFloat(info.getValue()).toFixed(2)}` : 'N/D' },
+        { header: 'P. Pubbl. 1', accessorKey: 'prezzo_pubblico_1', cell: info => info.getValue() ? `€ ${parseFloat(info.getValue()).toFixed(2)}` : 'N/D' },
+
         {
             header: 'Azioni',
             id: 'actions',
