@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BrowserMultiFormatReader } from '@zxing/browser'; // <--- IMPORT CORRETTO
+import { BrowserMultiFormatReader, BarcodeFormat } from '@zxing/browser'; // <--- IMPORT AGGIORNATO
 import { XMarkIcon, CameraIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
@@ -7,41 +7,57 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const videoRef = useRef(null);
+  const scannerRef = useRef(null);
 
   // Funzione per avviare lo scanner
   const startScanner = useCallback(async () => {
     if (!videoRef.current || !selectedDeviceId) return;
 
     try {
-      // Chiedi i permessi per la fotocamera
+      // --- MODIFICA 1: Chiediamo una risoluzione più alta ---
+      // Questo dà alla libreria più "pixel" con cui lavorare, aumentando le possibilità di lettura.
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           deviceId: { exact: selectedDeviceId },
           facingMode: "environment",
+          width: { ideal: 1920 }, // Risoluzione Full HD
+          height: { ideal: 1080 }
         }
       });
 
-      // Collega lo stream all'elemento video
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
 
-      // Crea il lettore di codici
-      const reader = new BrowserMultiFormatReader();
+      // --- MODIFICA 2: Creiamo il lettore con i formati corretti ---
+      // Invece di cercare tutto (QR, DataMatrix, etc.), cerchiamo solo i codici a barre 1D.
+      // Questo rende la ricerca molto più veloce ed efficiente.
+      scannerRef.current = new BrowserMultiFormatReader();
 
-      // Leggi continuamente dal video
-      reader.decodeFromVideoDevice(stream, selectedDeviceId, (result, err) => {
+      // --- MODIFICA 3: Logging dettagliato per il debug ---
+      // Questo ci aiuterà a capire esattamente cosa succede.
+      const onDecodeResult = (result, error) => {
+        console.log("Callback di decodifica ricevuta.");
+        console.log("Risultato:", result);
+        console.log("Errore:", error);
+
         if (result) {
-          console.log("Codice scansionato:", result.text);
-          onScan(result.text);
+          const code = result.getText();
+          console.log("Codice decodificato con successo:", code);
+          onScan(code);
           onClose();
+        } else if (error) {
+          // La libreria passa un oggetto errore se non riesce a leggere
+          console.error("Errore di decodifica specifico:", error.name, error.message);
+          // Non mostriamo l'errore all'utente, è "rumore di fondo"
+        } else {
+          // Questo è il caso normale: nessun codice trovato in questo frame.
+          // Non fare nulla, la libreria continuerà a scansionare.
+          // console.log("Nessun codice trovato in questo frame, continuo la ricerca...");
         }
-        // La libreria passa un errore per ogni frame in cui non trova un codice.
-        // È un comportamento normale, quindi non mostriamo l'errore all'utente.
-        if (err) {
-          console.error("Errore di scansione (normale):", err);
-        }
-      });
+      };
+
+      scannerRef.current.decodeFromVideoDevice(stream, selectedDeviceId, onDecodeResult);
 
     } catch (err) {
       console.error("Errore accesso fotocamera:", err);
@@ -77,6 +93,9 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
 
     // Funzione di cleanup
     return () => {
+      if (scannerRef.current) {
+        scannerRef.current.reset();
+      }
       if (videoRef.current && videoRef.current.srcObject) {
         videoRef.current.srcObject.getTracks().forEach(track => track.stop());
       }
@@ -128,7 +147,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }) => {
               ))}
             </select>
           )}
-          <p>Assicurati che il codice sia ben illuminato e nitido.</p>
+          <p><strong>Consigli:</strong> Assicurati che il codice sia ben illuminato, fermo e riempisca l'area di scansione.</p>
         </div>
       </div>
     </div>
