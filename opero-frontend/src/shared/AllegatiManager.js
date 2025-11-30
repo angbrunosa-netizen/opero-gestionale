@@ -1,12 +1,13 @@
 /**
  * File: /opero-frontend/src/shared/AllegatiManager.js
  *
- * Versione: 5.6 (Base v5.2 + CDN Logic)
+ * Versione: 6.0 (Base v5.6 + Ottimizzazioni UI/UX e fix nome file)
  *
  * Descrizione:
- * - RESTORE: Ripristinata la base logica v5.2 (Fotocamera, Crop, @imgly/background-removal).
- * - MOD: Aggiornato performUpload per usare /archivio/upload (compatibile CDN) invece del flusso S3 diretto.
- * - FEAT: Supporto prop 'isPublic' per caricamenti CDN pubblici.
+ * - FIX: Risolto problema nome file "blob" preservando il nome originale
+ * - UI/UX: Migliorata visualizzazione file su una sola riga
+ * - MOBILE: Ottimizzata visualizzazione per dispositivi mobili
+ * - CDN: Implementata corretta gestione URL CDN per anteprime e download
  */
 
 // ======================================================================
@@ -35,7 +36,7 @@ import {
     Loader2,
     CheckIcon,
     Eye,
-    X, // Fix icona
+    X,
     Camera
 } from 'lucide-react';
 
@@ -160,7 +161,6 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
     ];
 
     const optimizeImage = async (file, outputFormat = 'image/jpeg') => {
-        // console.log('Dimensione file originale:', (file.size / 1024 / 1024).toFixed(2), 'MB');
         const options = {
             maxSizeMB: 0.5,
             maxWidthOrHeight: 1200,
@@ -169,7 +169,6 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
         };
         try {
             const compressedFile = await imageCompression(file, options);
-            // console.log('Dimensione file ottimizzato:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB');
             return compressedFile;
         } catch (error) {
             console.error('Errore durante l\'ottimizzazione dell\'immagine:', error);
@@ -183,7 +182,8 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await api.get(`/documenti/list/${entita_tipo}/${entita_id}`);
+            // Utilizziamo l'endpoint che restituisce già i previewUrl corretti
+            const res = await api.get(`/archivio/entita/${entita_tipo}/${entita_id}`);
             const allegatiConNome = res.data.map(a => ({
                ...a,
                utente_upload: (a.utente_nome || a.utente_cognome)
@@ -224,7 +224,6 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
         disabled: !hasPermission('DM_FILE_UPLOAD'),
     });
 
-    // --- MODIFICATO PER SUPPORTARE LA LOGICA CDN ---
     const performUpload = async (upload) => {
         const { file } = upload;
         const setUploadStatus = (progress, error = null) => {
@@ -272,9 +271,17 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
         }
     };
 
+    // Modificato per utilizzare direttamente previewUrl per il download
     const handleDownload = async (file) => {
         if (!hasPermission('DM_FILE_VIEW')) return;
         try {
+            // Se è un file pubblico, usiamo direttamente il previewUrl
+            if (file.privacy === 'public' && file.previewUrl) {
+                window.open(file.previewUrl, '_blank');
+                return;
+            }
+            
+            // Per file privati, generiamo un URL firmato
             const res = await api.get(`/documenti/generate-download-url/${file.id_file}`);
             const { downloadUrl } = res.data;
             window.open(downloadUrl, '_self');
@@ -326,13 +333,26 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 
+    // FIX: Risolto problema del nome "blob" preservando il nome originale
     const handleSave = async () => {
         if (!imageToCrop || !isCropReady) return;
         
         try {
             const croppedBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
-            const originalName = cameraFile.name.replace(/\.[^/.]+$/, "");
-            let finalFile = new window.File([croppedBlob], `${originalName}_edited.png`, { type: 'image/png' });
+            
+            // Estraiamo il nome originale dal file della fotocamera
+            // Se il nome è "blob" o undefined, generiamo un nome basato sulla data
+            let originalName = cameraFile.name;
+            if (!originalName || originalName === 'blob') {
+                const now = new Date();
+                originalName = `foto_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+            } else {
+                // Rimuoviamo l'estensione originale
+                originalName = originalName.replace(/\.[^/.]+$/, "");
+            }
+            
+            // Creiamo un nuovo file con un nome appropriato
+            const finalFile = new window.File([croppedBlob], `${originalName}_edited.png`, { type: 'image/png' });
 
             const optimizedFile = await optimizeImage(finalFile, 'image/png');
             
@@ -346,7 +366,6 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
     };
 
     // --- LOGICA RIMOZIONE SFONDO (CLIENT SIDE) ---
-    // --- LOGICA RIMOZIONE SFONDO OTTIMIZZATA ---
     const handleBackgroundRemoval = async () => {
         if (!imageToCrop || !isCropReady) return;
         
@@ -363,7 +382,7 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
                 const ctx = canvas.getContext('2d');
                 
                 img.onload = () => {
-                    const maxSize = 512; // Ridotto da 1024 per velocità 3x/4x
+                    const maxSize = 512;
                     let width = img.width;
                     let height = img.height;
                     
@@ -419,6 +438,7 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
             setIsRemovingBg(false);
         }
     };
+    
     const closeAllModals = () => {
         setIsCroppingModalOpen(false);
         setCameraFile(null);
@@ -537,56 +557,73 @@ const AllegatiManager = ({ entita_tipo, entita_id, isPublic = false }) => {
                     <div className="text-center py-4 text-gray-500">Nessun allegato presente.</div>
                 )}
                 {!isLoading && allegati.length > 0 && (
-                    <ul className="space-y-3">
+                    <ul className="space-y-2">
                         {allegati.map(file => (
-                            <li key={file.id_link} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-md shadow-sm">
-                                <div className="flex items-center min-w-0 flex-1">
-                                    {file.mime_type.startsWith('image/') && file.previewUrl ? (
-                                        <img 
-                                            src={file.previewUrl} 
-                                            alt={file.file_name_originale}
-                                            className="w-10 h-10 object-cover rounded-md flex-shrink-0"
-                                        />
-                                    ) : (
-                                        <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                                            <FileIconHelper mimeType={file.mime_type} />
-                                        </div>
-                                    )}
-                                    <div className="ml-3 min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-gray-900 truncate">{file.file_name_originale}</p>
-                                        <p className="text-xs text-gray-500">
-                                            {formatFileSize(file.file_size_bytes)}
-                                            <span className="mx-1">·</span>
-                                            Caricato il {formatFileDate(file.created_at)}
-                                            {file.utente_upload && ` da ${file.utente_upload}`}
-                                        </p>
+                            <li key={file.id_link} className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
+                                {/* Layout a singola riga per desktop, stack per mobile */}
+                                <div className="flex flex-col sm:flex-row sm:items-center p-3">
+                                    {/* Icona/anteprima del file */}
+                                    <div className="flex-shrink-0 mr-3 mb-2 sm:mb-0">
+                                        {file.mime_type.startsWith('image/') && file.previewUrl ? (
+                                            <img 
+                                                src={file.previewUrl} 
+                                                alt={file.file_name_originale}
+                                                className="w-12 h-12 object-cover rounded-md"
+                                            />
+                                        ) : (
+                                            <div className="w-12 h-12 flex items-center justify-center">
+                                                <FileIconHelper mimeType={file.mime_type} />
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                                <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                                    {file.previewUrl && hasPermission('DM_FILE_VIEW') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => window.open(file.previewUrl, '_blank')} 
-                                            title="Anteprima" 
-                                            className="p-2 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100"
-                                        ><Eye className="w-5 h-5" /></button>
-                                    )}
-                                    {hasPermission('DM_FILE_VIEW') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleDownload(file)} 
-                                            title="Download" 
-                                            className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
-                                        ><Download className="w-5 h-5" /></button>
-                                    )}
-                                    {hasPermission('DM_FILE_DELETE') && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleDeleteClick(file)} 
-                                            title="Scollega" 
-                                            className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
-                                        ><Trash2 className="w-5 h-5" /></button>
-                                    )}
+                                    
+                                    {/* Informazioni del file */}
+                                    <div className="flex-grow min-w-0">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0 flex-grow pr-2">
+                                                <p className="text-sm font-medium text-gray-900 truncate">{file.file_name_originale}</p>
+                                                <div className="flex flex-wrap items-center text-xs text-gray-500 mt-1">
+                                                    <span>{formatFileSize(file.file_size_bytes)}</span>
+                                                    <span className="mx-1 hidden sm:inline">·</span>
+                                                    <span>Caricato il {formatFileDate(file.created_at)}</span>
+                                                    {file.utente_upload && (
+                                                        <>
+                                                            <span className="mx-1 hidden sm:inline">·</span>
+                                                            <span>da {file.utente_upload}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Pulsanti azione */}
+                                            <div className="flex items-center space-x-1 mt-2 sm:mt-0 sm:ml-2">
+                                                {file.previewUrl && hasPermission('DM_FILE_VIEW') && (
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => window.open(file.previewUrl, '_blank')} 
+                                                        title="Anteprima" 
+                                                        className="p-1.5 text-gray-500 hover:text-green-600 rounded-full hover:bg-gray-100"
+                                                    ><Eye className="w-4 h-4" /></button>
+                                                )}
+                                                {hasPermission('DM_FILE_VIEW') && (
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleDownload(file)} 
+                                                        title="Download" 
+                                                        className="p-1.5 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
+                                                    ><Download className="w-4 h-4" /></button>
+                                                )}
+                                                {hasPermission('DM_FILE_DELETE') && (
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleDeleteClick(file)} 
+                                                        title="Scollega" 
+                                                        className="p-1.5 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
+                                                    ><Trash2 className="w-4 h-4" /></button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </li>
                         ))}
