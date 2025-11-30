@@ -611,7 +611,7 @@ router.post('/reset-password', async (req, res) => {
         
         // FIX: Azzera tentativi_falliti e imposta stato = 'attivo'
         await connection.query(
-            'UPDATE utenti SET password = ?, tentativi_falliti = 0 WHERE id = ?', 
+            'UPDATE utenti SET password = ?, tentativi_falliti = 0, stato= "attivo" WHERE id = ?', 
             [hashedPassword, foundTokenData.id_utente]
         );
         
