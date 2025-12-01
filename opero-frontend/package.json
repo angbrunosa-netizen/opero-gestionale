@@ -23,6 +23,7 @@
     "@testing-library/user-event": "^13.5.0",
     "@xenova/transformers": "^2.17.2",
     "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "ag-grid-community": "^34.1.1",
     "ag-grid-react": "^34.1.1",
     "axios": "^1.13.2",

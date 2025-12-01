@@ -1415,8 +1415,13 @@ router.get('/', verifyToken, async (req, res) => {
 router.get('/search', verifyToken, async (req, res) => {
     const { id_ditta } = req.user;
     const { term, includeArchived } = req.query;
+    console.log('--- DEBUG SEARCH CATALOGO ---');
+    console.log('1. UTENTE LOGGATO:', req.user); // Controlla se l'utente è definito e se ha id_ditta
+    console.log('2. ID DITTA ESTRATTO:', id_ditta);
 
     if (!term || term.length < 2) {
+               console.log('3. Termine di ricerca mancante o troppo corto. Restituisco array vuoto.');
+
         return res.json([]);
     }
 
