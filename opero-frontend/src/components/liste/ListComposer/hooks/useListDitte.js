@@ -22,8 +22,35 @@ export const useListDitte = (idCausale) => {
     const fetchDitte = async () => {
       try {
         setIsLoading(true);
-        const response = await api.get(`/liste/ditte-per-causale/${idCausale}`);
-        setDitte(response.data);
+
+        // Recuperiamo tutte le causali e troviamo quella con l'ID richiesto
+        const causaliResponse = await api.get('/magazzino/causali');
+        const causale = causaliResponse.data.find(c => c.id == idCausale);
+
+        if (!causale) {
+          console.warn(`Causale con ID ${idCausale} non trovata`);
+          setDitte([]);
+          return;
+        }
+
+        // Usiamo la stessa logica del componente registrazione contabili
+        let params = {};
+
+        if (causale.tipo === 'scarico') {
+          // Documento ATTIVO: Cerca Clienti (C) o Enti Convenzionati (E)
+          params.relazioni = 'C,E';
+        } else if (causale.tipo === 'carico') {
+          // Documento PASSIVO: Cerca Fornitori (F)
+          params.relazioni = 'F,E';
+        } else {
+          // Per altri tipi, non servono ditte esterne
+          setDitte([]);
+          return;
+        }
+
+        // Usiamo l'API sicura e testata del componente registrazione contabili
+        const response = await api.get('/amministrazione/ditte', { params });
+        setDitte(response.data?.data || []);
         setError(null);
       } catch (err) {
         console.error("Errore nel caricamento delle ditte:", err);

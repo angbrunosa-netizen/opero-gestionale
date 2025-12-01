@@ -43,8 +43,10 @@ const SearchableCatalogoInput = ({ value, onChange, placeholder = "Cerca articol
       setIsLoading(true);
       try {
         // Usiamo l'endpoint che sappiamo funzionare
-        const response = await api.get(`/catalogo/search?q=${encodeURIComponent(debouncedQuery)}&limit=50`);
-        setResults(response.data);
+        const response = await api.get(`/catalogo/search?term=${encodeURIComponent(debouncedQuery)}&limit=50`);
+        // L'API restituisce { success: true, data: results }
+        const results = response.data.data || [];
+        setResults(results);
       } catch (error) {
         console.error("Errore nella ricerca:", error);
         setResults([]);

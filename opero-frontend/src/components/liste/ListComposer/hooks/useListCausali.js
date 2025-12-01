@@ -11,7 +11,8 @@ export const useListCausali = () => {
     const fetchCausali = async () => {
       try {
         setIsLoading(true);
-        const response = await api.get('/liste/causali');
+        // Usiamo l'API sicura del magazzino invece di quella delle liste
+        const response = await api.get('/magazzino/causali');
         setCausali(response.data);
         setError(null);
       } catch (err) {
