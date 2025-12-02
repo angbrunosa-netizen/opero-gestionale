@@ -29,6 +29,8 @@ const beniStrumentaliRoutes = require('./routes/benistrumentali');
 const catalogoRoutes = require('./routes/catalogo'); // <-- NUOVA INTEGRAZIONE
 const magazzinoRoutes = require('./routes/magazzino');
 const venditeRoutes = require('./routes/vendite'); // <-- NUOVA INTEGRAZIONE
+const anagraficaRoutes = require('./routes/anagrafica'); // <-- NUOVA INTEGRAZIONE
+const listeRoutes = require('./routes/liste'); // <-- ROTTA PREZZI E LISTINI
 const AcquistiRoutes = require('./routes/acquisti'); // <-- NUOVA INTEGRAZIONE
 const documentiRoutes = require('./routes/documenti');
 const archivioRoutes = require('./routes/archivio');
@@ -96,6 +98,8 @@ app.use('/api/benistrumentali', verifyToken, beniStrumentaliRoutes);
 app.use('/api/catalogo', verifyToken, catalogoRoutes); // <-- NUOVA INTEGRAZIONE
 app.use('/api/magazzino', magazzinoRoutes); // <-- NUOVA RIGA DA AGGIUNGERE
 app.use('/api/vendite', venditeRoutes); // <-- AGGIUNGI QUESTA RIGA
+app.use('/api/anagrafica', verifyToken, anagraficaRoutes); // <-- NUOVA ROTTA AGGIUNTA
+app.use('/api/liste', verifyToken, listeRoutes); // <-- ROTTA PREZZI E LISTINI
 app.use('/api/acquisti', AcquistiRoutes); // <-- AGGIUNGI QUESTA RIGA
 app.use('/api/documenti', documentiRoutes);
 app.use('/api/archivio', verifyToken, archivioRoutes);

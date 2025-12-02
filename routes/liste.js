@@ -1,5 +1,12 @@
 // routes/liste.js
 
+const express = require('express');
+const router = express.Router();
+
+// Import configurazioni
+const { knex: db } = require('../config/db');
+const { verifyToken } = require('../utils/auth');
+
 // Import utility per progressivi
 const { getNextProgressivo } = require('../utils/progressivi');
 
@@ -230,10 +237,7 @@ router.post('/:id/processa', async (req, res) => {
       const lista = await trx('ls_liste_testata')
         .join('mg_causali_movimento', 'ls_liste_testata.id_causale_movimento', 'mg_causali_movimento.id')
         .where({ 'ls_liste_testata.id': id, 'ls_liste_testata.id_ditta': id_ditta })
-        .first({
-          'ls_liste_testata.*',
-          'causale_tipo': 'mg_causali_movimento.tipo'
-        });
+        .first();
       
       if (!lista) {
         await trx.rollback();
@@ -303,6 +307,172 @@ router.post('/:id/processa', async (req, res) => {
       throw error;
     }
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/liste/prezzi/:idArticolo/:idCliente - Ottieni prezzi per articolo e cliente
+router.get('/prezzi/:idArticolo/:idCliente', verifyToken, async (req, res) => {
+  try {
+    const { idArticolo, idCliente } = req.params;
+    const { id_ditta } = req.user;
+
+    // 1. Recupera le informazioni del cliente
+    const cliente = await db('va_clienti_anagrafica')
+      .where({ id: idCliente })
+      .first();
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente non trovato' });
+    }
+
+    // 2. Recupera i listini dell'articolo
+    const listino = await db('ct_listini')
+      .where({
+        id_entita_catalogo: idArticolo,
+        id_ditta: id_ditta
+      })
+      .first();
+
+    if (!listino) {
+      return res.status(404).json({ error: 'Listino non trovato per questo articolo' });
+    }
+
+    // 3. Calcola i prezzi in base al listino del cliente
+    let prezzoCessione = 0;
+    let prezzoPubblico = 0;
+    let listinoCessioneUsato = cliente.listino_cessione || 1;
+    let listinoPubblicoUsato = cliente.listino_pubblico || 1;
+
+    // Se non c'è un listino per il cliente, proponi tutti i listini disponibili
+    if (!cliente.listino_cessione || !cliente.listino_pubblico) {
+      return res.json({
+        cliente: {
+          id: idCliente,
+          listino_cessione: cliente.listino_cessione,
+          listino_pubblico: cliente.listino_pubblico
+        },
+        listino: {
+          prezzo_cessione_1: listino.prezzo_cessione_1,
+          prezzo_pubblico_1: listino.prezzo_pubblico_1,
+          prezzo_cessione_2: listino.prezzo_cessione_2,
+          prezzo_pubblico_2: listino.prezzo_pubblico_2,
+          prezzo_cessione_3: listino.prezzo_cessione_3,
+          prezzo_pubblico_3: listino.prezzo_pubblico_3,
+          prezzo_cessione_4: listino.prezzo_cessione_4,
+          prezzo_pubblico_4: listino.prezzo_pubblico_4,
+          prezzo_cessione_5: listino.prezzo_cessione_5,
+          prezzo_pubblico_5: listino.prezzo_pubblico_5,
+          prezzo_cessione_6: listino.prezzo_cessione_6,
+          prezzo_pubblico_6: listino.prezzo_pubblico_6
+        },
+        prezziCalcolati: null,
+        richiestaSceltaListini: true
+      });
+    }
+
+    // Calcola i prezzi in base ai listini del cliente
+    prezzoCessione = listino[`prezzo_cessione_${listinoCessioneUsato}`] || 0;
+    prezzoPubblico = listino[`prezzo_pubblico_${listinoPubblicoUsato}`] || 0;
+
+    res.json({
+      cliente: {
+        id: idCliente,
+        listino_cessione: cliente.listino_cessione,
+        listino_pubblico: cliente.listino_pubblico
+      },
+      listino: listino,
+      prezziCalcolati: {
+        prezzo_cessione: prezzoCessione,
+        prezzo_pubblico: prezzoPubblico,
+        listino_cessione_usato: listinoCessioneUsato,
+        listino_pubblico_usato: listinoPubblicoUsato
+      },
+      richiestaSceltaListini: false
+    });
+
+  } catch (error) {
+    console.error("Errore nel recupero prezzi:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/liste/prezzi-disponibili/:idArticolo - Ottieni tutti i listini disponibili per un articolo
+router.get('/prezzi-disponibili/:idArticolo', verifyToken, async (req, res) => {
+  try {
+    const { idArticolo } = req.params;
+    const { id_ditta } = req.user;
+
+    const listino = await db('ct_listini')
+      .where({
+        id_entita_catalogo: idArticolo,
+        id_ditta: id_ditta
+      })
+      .first();
+
+    if (!listino) {
+      return res.status(404).json({ error: 'Listino non trovato per questo articolo' });
+    }
+
+    // Estrai tutti i prezzi disponibili
+    const listiniDisponibili = [];
+    for (let i = 1; i <= 6; i++) {
+      const prezzoCessione = listino[`prezzo_cessione_${i}`];
+      const prezzoPubblico = listino[`prezzo_pubblico_${i}`];
+
+      if (prezzoCessione > 0 || prezzoPubblico > 0) {
+        listiniDisponibili.push({
+          numero: i,
+          prezzo_cessione: prezzoCessione,
+          prezzo_pubblico: prezzoPubblico,
+          disponibile: true
+        });
+      }
+    }
+
+    res.json({
+      id_articolo: idArticolo,
+      listini_disponibili: listiniDisponibili
+    });
+
+  } catch (error) {
+    console.error("Errore nel recupero listini disponibili:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/liste/articoli-catalogo - Ricerca articoli per il catalogo
+router.get('/articoli-catalogo', verifyToken, async (req, res) => {
+  try {
+    const { q, limit = 50 } = req.query;
+    const { id_ditta } = req.user;
+
+    let query = db('ct_catalogo')
+      .select([
+        'ct_catalogo.id',
+        'ct_catalogo.codice_articolo',
+        'ct_catalogo.descrizione',
+        'ct_catalogo.unita_misura',
+        'ct_categorie.descrizione as categoria_descrizione'
+      ])
+      .leftJoin('ct_categorie', 'ct_catalogo.id_categoria', 'ct_categorie.id')
+      .where('ct_catalogo.id_ditta', id_ditta)
+      .where('ct_catalogo.attivo', true)
+      .limit(limit);
+
+    if (q) {
+      query = query.where(function() {
+        this.where('ct_catalogo.codice_articolo', 'like', `%${q}%`)
+            .orWhere('ct_catalogo.descrizione', 'like', `%${q}%`);
+      });
+    }
+
+    const articoli = await query.orderBy('ct_catalogo.descrizione');
+
+    res.json(articoli);
+
+  } catch (error) {
+    console.error("Errore nella ricerca articoli:", error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -9,6 +9,17 @@ export const useListData = (listId) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Helper per gestire gli errori in modo consistente
+  const handleError = useCallback((err, defaultMessage) => {
+    console.error("Errore in useListData:", err);
+    const errorMessage = err.response?.data?.error ||
+                       err.response?.data?.message ||
+                       err.message ||
+                       defaultMessage;
+    setError(errorMessage);
+    return new Error(errorMessage);
+  }, []);
+
   // Funzione per caricare una lista esistente
   const loadList = useCallback(async () => {
     if (!listId) return null;
@@ -18,13 +29,11 @@ export const useListData = (listId) => {
       const response = await api.get(`/liste/${listId}`);
       return response.data; // { testata: {...}, righe: [...] }
     } catch (err) {
-      console.error("Errore nel caricamento della lista:", err);
-      setError(err.response?.data?.error || 'Errore nel caricamento della lista.');
-      throw err;
+      throw handleError(err, 'Errore nel caricamento della lista');
     } finally {
       setIsLoading(false);
     }
-  }, [listId]);
+  }, [listId, handleError]);
 
   // Funzione per salvare (creare o aggiornare) una lista
   const saveList = useCallback(async (testata, righe) => {

@@ -5,7 +5,12 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(npm run build)",
+      "Bash(timeout 2 npm start:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run)",
+      "Bash(tasklist:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,0 +1,121 @@
+ALTER TABLE `va_clienti_anagrafica` DROP FOREIGN KEY `va_clienti_anagrafica_id_ditta_foreign`;
+id_punto_consegna_predefinito
+ALTER TABLE `va_clienti_anagrafica` DROP FOREIGN KEY `va_clienti_anagrafica_id_punto_consegna_predefinito`;
+
+
+Certamente. Ecco un riepilogo chiaro, sicuro e dettagliato di tutte le operazioni che dovrai eseguire manualmente sul tuo **database di produzione**.
+
+Considera questa guida come un sostituto della migrazione Knex che non siamo riusciti a creare.
+
+---
+
+### ⚠️ PRE-REQUISITO FONDAMENTALE (CRITICAL) ⚠️
+
+**1. BACKUP COMPLETO DEL DATABASE**
+Prima di toccare qualsiasi cosa in produzione, esegui un backup completo e verificato del database `operodb`. Se qualcosa dovesse andare storto, questo è l'unico modo per tornare indietro senza perdere dati.
+
+**2. FINESTRA DI MANUTENZIONE**
+Annuncia una breve finestra di manutenzione ai tuoi utenti. Queste operazioni, anche se veloci, potrebbero causare un'interruzione del servizio o comportamenti inaspettati.
+
+---
+
+### RIEPILOGO DEI COMANDI SQL (DA ESEGUIRE IN ORDINE ESATTO)
+
+Apri il tuo client SQL (MySQL Workbench, DBeaver, phpMyAdmin) connesso al database di **produzione** ed esegui questi comandi uno dopo l'altro.
+
+#### Passo 1: Trovare il Nome Esatto del Vincolo (Foreign Key)
+
+Questo è il passo più importante. Il nome del vincolo in produzione potrebbe essere diverso da quello di sviluppo.
+
+```sql
+SHOW CREATE TABLE `va_clienti_anagrafica`;
+```
+
+**Cosa fare:**
+*   Guarda l'output del comando.
+*   Cerca la riga che inizia con `CONSTRAINT` e che contiene `id_punto_consegna_predefinito`.
+*   Copia il nome del vincolo che si trova tra i primi backticks \`\`.
+*   **Esempio di riga da trovare:** `CONSTRAINT \`va_clienti_anagrafica_id_punto_consegna_predefinito_foreign\` FOREIGN KEY (\`id_punto_consegna_predefinito\`) ...`
+*   In questo esempio, il nome da copiare è `va_clienti_anagrafica_id_punto_consegna_predefinito_foreign`.
+
+#### Passo 2: Rimuovere il Vincolo Esterno (Foreign Key)
+
+Usa il nome esatto che hai trovato al Passo 1.
+
+```sql
+ALTER TABLE `va_clienti_anagrafica` DROP FOREIGN KEY `IL_NOME_ESATTO_TROVATO_AL_PASSO_1`;
+```
+
+*Sostituisci `IL_NOME_ESATTO_TROVATO_AL_PASSO_1` con il nome che hai copiato.*
+
+#### Passo 3: Rimuovere la Vecchia Chiave Primaria
+
+Ora che il vincolo è rimosso, puoi eliminare la vecchia chiave primaria.
+
+```sql
+ALTER TABLE `va_clienti_anagrafica` DROP PRIMARY KEY;
+```
+
+#### Passo 4: Aggiungere la Nuova Colonna `id`
+
+Questo è il comando che risolve il problema alla radice.
+
+```sql
+ALTER TABLE `va_clienti_anagrafica` ADD `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+```
+
+#### Passo 5: Verifica Finale della Struttura
+
+Assicurati che tutto sia andato a buon fine.
+
+```sql
+DESCRIBE va_clienti_anagrafica;
+```
+
+**Cosa dovresti vedere:**
+*   La prima riga dovrebbe essere la colonna `id` con `Extra` impostato su `auto_increment` e `Key` su `PRI`.
+*   La colonna `id_ditta` dovrebbe essere ancora presente.
+
+---
+
+### OPERAZIONI POST-AGGIORNAMENTO (SUL SERVER BACKEND)
+
+Una volta che il database è stato modificato con successo, devi allineare il tuo backend.
+
+#### Passo 6: Pulire lo Stato di Knex
+
+Il tuo backend ha ancora in memoria i tentativi falliti delle migrazioni. Devi pulirlo.
+
+1.  **Cancella i file di migrazione falliti** dalla cartella `migrations/` del tuo progetto backend.
+2.  Esegui questa query SQL sul database di produzione per pulire la tabella di tracking di Knex:
+    ```sql
+    DELETE FROM `knex_migrations` WHERE `name` LIKE '%va_clienti_anagrafica%';
+    ```
+
+#### Passo 7: Riavviare il Backend
+
+Riavvia il processo `node server.js` sul tuo server di produzione per caricare la nuova struttura del database.
+
+#### Passo 8: Testare l'Applicazione
+
+Accedi al tuo frontend e prova a selezionare un cliente. L'errore `500` dovrebbe essere sparito e i prezzi dovrebbero finalmente apparire.
+
+---
+
+### PIANO DI ROLLBACK (IN CASO DI DISASTRO)
+
+Se qualcosa va storto dopo il Passo 4 e devi tornare indietro, ecco i comandi per ripristinare la situazione originale (dopo aver ripristinato il backup).
+
+```sql
+-- 1. Rimuovi la nuova colonna 'id'
+ALTER TABLE `va_clienti_anagrafica` DROP PRIMARY KEY,
+DROP COLUMN `id`;
+
+-- 2. Ripristina la vecchia chiave primaria
+ALTER TABLE `va_clienti_anagrafica` ADD PRIMARY KEY (`id_ditta`);
+
+-- 3. Ripristina il vincolo esterno (usa il nome che avevi trovato)
+ALTER TABLE `va_clienti_anagrafica` ADD CONSTRAINT `IL_NOME_ESATTO_TROVATO_AL_PASSO_1` FOREIGN KEY (`id_punto_consegna_predefinito`) REFERENCES `va_punti_consegna` (`id`) ON DELETE SET NULL;
+```
+
+Seguendo questa guida alla lettera, modificherai il tuo database di produzione in modo sicuro e risolverai definitivamente il problema.

@@ -26,12 +26,63 @@ const ListComposer = () => {
   });
   
   const [listItems, setListItems] = useState([]);
-  
+  const [isDirty, setIsDirty] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
+
   const { isLoading, error, loadList, saveList, processList, deleteList, cloneList } = useListData(id);
+
+  // Blocco navigazione quando ci sono modifiche non salvate (alternativa compatibile)
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = ''; // Standard per la maggior parte dei browser
+        return '';
+      }
+    };
+
+    // Gestione navigazione con React Router
+    const unblock = navigate.block ? navigate.block((location) => {
+      if (isDirty && location.pathname !== window.location.pathname) {
+        setShowConfirmDialog(true);
+        setPendingNavigation(() => () => navigate(location));
+        return false; // Blocca la navigazione
+      }
+      return true; // Permetti la navigazione
+    }) : null;
+
+    // Event listener per beforeunload (chiusura tab/finestra)
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (unblock) unblock();
+    };
+  }, [isDirty, navigate]);
+
+  // Gestione conferma navigazione
+  const handleConfirmNavigation = (confirmed) => {
+    setShowConfirmDialog(false);
+    if (confirmed && pendingNavigation) {
+      setIsDirty(false);
+      pendingNavigation();
+    }
+    setPendingNavigation(null);
+  };
+
+  // Tracciamento modifiche
+  useEffect(() => {
+    const hasUnsavedChanges = listItems.length > 0 ||
+                              listData.descrizione !== '' ||
+                              listData.id_causale_movimento !== '';
+    setIsDirty(hasUnsavedChanges);
+  }, [listData, listItems]);
 
   const handleSave = async () => {
     try {
       await saveList(listData, listItems);
+      setIsDirty(false); // Resetta stato dirty dopo salvataggio
       showNotification('Lista salvata con successo', 'success');
     } catch (err) {
       showNotification(err.message || 'Errore durante il salvataggio', 'error');
@@ -83,6 +134,24 @@ const ListComposer = () => {
 
   return (
     <div className={styles.listComposer}>
+        {/* Indicatore stato modifiche non salvate */}
+        {isDirty && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  <span className="font-medium">Modifiche non salvate</span> - Ricorda di salvare prima di uscire
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header con pulsante "Crea Nuova Lista" quando siamo in modalità creazione */}
         {!id && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -105,7 +174,12 @@ const ListComposer = () => {
         )}
 
         <ListHeader listData={listData} setListData={setListData} />
-        <EntitySelector listItems={listItems} setListItems={setListItems} listType={listData.tipo_documento} />
+        <EntitySelector
+          listItems={listItems}
+          setListItems={setListItems}
+          listType={listData.tipo_documento}
+          idDittaDestinataria={listData.id_ditta_destinataria}
+        />
         <ListActions listData={listData} onSave={handleSave} onProcess={handleProcess} onPrint={handlePrint} onDelete={handleDelete} onClone={handleClone} />
 
         {error && (
@@ -114,8 +188,36 @@ const ListComposer = () => {
             <span className="block sm:inline"> {error}</span>
           </div>
         )}
+
+        {/* Dialogo di conferma per navigazione con modifiche non salvate */}
+        {showConfirmDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Modifiche non salvate
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Hai delle modifiche non salvate. Sei sicuro di voler uscire senza salvare?
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => handleConfirmNavigation(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={() => handleConfirmNavigation(true)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                >
+                  Esci senza salvare
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    
+
   );
 };
 

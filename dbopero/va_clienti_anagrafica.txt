@@ -1,0 +1,38 @@
+===Database operodb
+
+== Struttura della tabella va_clienti_anagrafica
+
+|------
+|Colonna|Tipo|Null|Predefinito
+|------
+|//**id_ditta**//|int(10)|No|
+|listino_cessione|int(11)|Sì|NULL
+|listino_pubblico|int(11)|Sì|NULL
+|id_categoria_cliente|int(10)|Sì|NULL
+|id_gruppo_cliente|int(10)|Sì|NULL
+|id_referente|int(10)|Sì|NULL
+|id_referente_allert|int(10)|Sì|NULL
+|id_referente_ppa|int(10)|Sì|NULL
+|id_agente|int(10)|Sì|NULL
+|giorno_di_consegna|enum(&#039;Lunedì&#039;, &#039;Martedì&#039;, &#039;Mercoledì&#039;, &#039;Giovedì&#039;, &#039;Venerdì&#039;, &#039;Sabato&#039;, &#039;Domenica&#039;)|Sì|NULL
+|giro_consegna|varchar(100)|Sì|NULL
+|id_trasportatore_assegnato|int(10)|Sì|NULL
+|metodo_di_consegna|varchar(255)|Sì|NULL
+|allestimento_logistico|text|Sì|NULL
+|tipo_fatturazione|enum(&#039;Immediata&#039;, &#039;Fine Mese&#039;, &#039;A Consegna&#039;)|Sì|NULL
+|id_tipo_pagamento|int(11)|Sì|NULL
+|stato|enum(&#039;Attivo&#039;, &#039;Sospeso&#039;, &#039;Bloccato&#039;)|Sì|Attivo
+|sito_web|varchar(255)|Sì|NULL
+|pagina_facebook|varchar(255)|Sì|NULL
+|pagina_instagram|varchar(255)|Sì|NULL
+|url_link|varchar(255)|Sì|NULL
+|google_maps|text|Sì|NULL
+|concorrenti|text|Sì|NULL
+|foto_url|varchar(255)|Sì|NULL
+|fatturato_anno_pr|decimal(15,2)|Sì|NULL
+|fatturato_anno_cr|decimal(15,2)|Sì|NULL
+|id_contratto|int(10)|Sì|NULL
+|id_punto_consegna_predefinito|int(10)|Sì|NULL
+|id_matrice_sconti|int(10)|Sì|NULL
+== Dump dei dati per la tabella va_clienti_anagrafica
+
