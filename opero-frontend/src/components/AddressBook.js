@@ -4,6 +4,7 @@
 // #####################################################################
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ContactForm from './ContactForm'; 
@@ -142,7 +143,12 @@ const AddressBook = ({ isModal = false, onClose = () => {}, onSelectContact = ()
                                 <ul className="divide-y divide-gray-200">
                                     {liste.map(l => (
                                         <li key={l.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
-                                            <p className="font-semibold">{l.nome_lista}</p>
+                                            <div className="flex items-center gap-3">
+                                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
+                                                    {l.numero || 'N.D.'}
+                                                </span>
+                                                <p className="font-semibold">{l.nome_lista}</p>
+                                            </div>
                                             <div className="flex items-center gap-2">
                                                 {isModal && <button onClick={() => { onSelectList(l); onClose(); }} className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">Seleziona</button>}
                                                 {hasPermission('RUBRICA_MANAGE') && (

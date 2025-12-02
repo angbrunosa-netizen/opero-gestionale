@@ -28,21 +28,6 @@ const ListComposer = () => {
   const [listItems, setListItems] = useState([]);
   
   const { isLoading, error, loadList, saveList, processList, deleteList, cloneList } = useListData(id);
-  
-  useEffect(() => {
-    if (id) {
-      loadList()
-        .then(data => {
-          if (data) {
-            setListData(data.testata);
-            setListItems(data.righe || []);
-          }
-        })
-        .catch(err => {
-          showNotification(err.message || 'Errore nel caricamento della lista', 'error');
-        });
-    }
-  }, [id, loadList]);
 
   const handleSave = async () => {
     try {
@@ -98,17 +83,39 @@ const ListComposer = () => {
 
   return (
     <div className={styles.listComposer}>
-      <ListHeader listData={listData} setListData={setListData} />
-      <EntitySelector listItems={listItems} setListItems={setListItems} listType={listData.tipo_documento} />
-      <ListActions listData={listData} onSave={handleSave} onProcess={handleProcess} onPrint={handlePrint} onDelete={handleDelete} onClone={handleClone} />
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4" role="alert">
-          <strong className="font-bold">Errore:</strong>
-          <span className="block sm:inline"> {error}</span>
-        </div>
-      )}
-    </div>
+        {/* Header con pulsante "Crea Nuova Lista" quando siamo in modalità creazione */}
+        {!id && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-blue-900">Crea Nuova Lista</h2>
+                <p className="text-sm text-blue-700 mt-1">
+                  Compila i dati della lista e aggiungi gli articoli. Il numero progressivo verrà assegnato automaticamente al salvataggio.
+                </p>
+              </div>
+              <button
+                onClick={handleSave}
+                disabled={!listData.descrizione || !listData.id_causale_movimento || listItems.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Salva Lista
+              </button>
+            </div>
+          </div>
+        )}
+
+        <ListHeader listData={listData} setListData={setListData} />
+        <EntitySelector listItems={listItems} setListItems={setListItems} listType={listData.tipo_documento} />
+        <ListActions listData={listData} onSave={handleSave} onProcess={handleProcess} onPrint={handlePrint} onDelete={handleDelete} onClone={handleClone} />
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4" role="alert">
+            <strong className="font-bold">Errore:</strong>
+            <span className="block sm:inline"> {error}</span>
+          </div>
+        )}
+      </div>
+    
   );
 };
 

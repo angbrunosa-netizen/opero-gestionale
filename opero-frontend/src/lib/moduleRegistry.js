@@ -22,6 +22,7 @@ export const iconMap = {
     UserCircleIcon: Icons.UserCircleIcon,
     BanknotesIcon: Icons.BanknotesIcon,
     ClipboardDocumentListIcon: Icons.ClipboardDocumentListIcon,
+    DocumentTextIcon: Icons.DocumentTextIcon, // Icona per il modulo LISTE
     CurrencyDollarIcon: Icons.CurrencyDollarIcon,
     QuestionMarkCircleIcon: Icons.QuestionMarkCircleIcon // Fallback
 };
@@ -59,4 +60,5 @@ export const componentMap = {
  PPA_SIS: PPAModule, 
  MG_VIEW: MagazzinoModule,
 VA_CLIENTI_VIEW: VenditeModule,
+  LISTE: React.lazy(() => import('../components/liste/ListComposer'))
 };

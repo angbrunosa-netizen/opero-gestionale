@@ -20,6 +20,9 @@ import IstanzaDetailView from './components/ppa/IstanzaDetailView';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import BeneForm from './components/beni-strumentali/BeneForm';
 
+// Import del ListComposer per le rotte liste
+import ListComposerWrapper from './components/liste/ListComposerWrapper';
+
 // Import del Provider per la composizione rapida
 import { QuickComposeProvider } from './context/QuickComposeContext';
 
@@ -80,8 +83,10 @@ function AppRoutes() {
 
           {/* Rotte interne che usano MainApp come layout */}
           <Route element={<AppLayout />}>
-            <Route path="/" element={null} /> 
+            <Route path="/" element={null} />
             <Route path="/ppa/task/:istanzaId" element={<IstanzaDetailView />} />
+            {/* Rotte per le liste */}
+            <Route path="/liste/*" element={<ListComposerWrapper />} />
             {/* Aggiungi qui altre rotte interne, inclusa quella per il BeneForm se necessario */}
             {/* Esempio: <Route path="/beni/:id/edit" element={<BeneForm />} /> */}
           </Route>

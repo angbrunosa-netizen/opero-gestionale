@@ -1,5 +1,169 @@
 // routes/liste.js
 
+// Import utility per progressivi
+const { getNextProgressivo } = require('../utils/progressivi');
+
+// GET /api/liste - Recupera tutte le liste della ditta
+router.get('/', verifyToken, async (req, res) => {
+  try {
+    const { id_ditta } = req.user;
+
+    const liste = await db('ls_liste_testata')
+      .select([
+        'ls_liste_testata.*',
+        'causale.descrizione as descrizione_causale',
+        'causale.tipo as tipo_causale'
+      ])
+      .leftJoin('mg_causali_movimento as causale', 'ls_liste_testata.id_causale_movimento', 'causale.id')
+      .where('ls_liste_testata.id_ditta', id_ditta)
+      .orderBy('ls_liste_testata.created_at', 'desc');
+
+    res.json(liste);
+  } catch (error) {
+    console.error("Errore nel recupero delle liste:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/liste - Crea una nuova lista con numero progressivo
+router.post('/', verifyToken, async (req, res) => {
+  try {
+    const { id_ditta } = req.user;
+    const { descrizione, id_causale_movimento, id_ditta_destinataria, id_magazzino, data_riferimento } = req.body;
+
+    // Validazione campi obbligatori
+    if (!descrizione || !id_causale_movimento || !data_riferimento) {
+      return res.status(400).json({ error: 'Campi obbligatori mancanti' });
+    }
+
+    // Recupera il prossimo numero progressivo
+    const numero = await getNextProgressivo('NUMERO_LISTA', id_ditta);
+
+    // Genera il codice univoco della lista
+    const codice = `LST${new Date().getFullYear()}${String(numero).padStart(4, '0')}`;
+
+    // Inserisce la nuova lista
+    const [listaId] = await db('ls_liste_testata').insert({
+      id_ditta,
+      codice,
+      descrizione,
+      numero,
+      id_causale_movimento,
+      id_ditta_destinataria: id_ditta_destinataria || null,
+      id_magazzino: id_magazzino || null,
+      data_riferimento,
+      stato: 'BOZZA',
+      created_by: req.user.id
+    });
+
+    // Recupera la lista appena creata con i dettagli
+    const listaCreata = await db('ls_liste_testata')
+      .select([
+        'ls_liste_testata.*',
+        'causale.descrizione as descrizione_causale',
+        'causale.tipo as tipo_causale'
+      ])
+      .leftJoin('mg_causali_movimento as causale', 'ls_liste_testata.id_causale_movimento', 'causale.id')
+      .where('ls_liste_testata.id', listaId[0])
+      .first();
+
+    res.status(201).json(listaCreata);
+  } catch (error) {
+    console.error("Errore nella creazione della lista:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/liste/:id - Aggiorna una lista esistente
+router.put('/:id', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+    const { descrizione, id_causale_movimento, id_ditta_destinataria, id_magazzino, data_riferimento, stato } = req.body;
+
+    // Verifica che la lista esista e appartenga alla ditta
+    const listaEsiste = await db('ls_liste_testata')
+      .where({ id, id_ditta })
+      .first();
+
+    if (!listaEsiste) {
+      return res.status(404).json({ error: 'Lista non trovata o non autorizzata' });
+    }
+
+    // Aggiorna la lista (non modifica il numero progressivo)
+    await db('ls_liste_testata')
+      .where({ id })
+      .update({
+        descrizione,
+        id_causale_movimento,
+        id_ditta_destinataria: id_ditta_destinataria || null,
+        id_magazzino: id_magazzino || null,
+        data_riferimento,
+        stato: stato || 'BOZZA',
+        updated_by: req.user.id,
+        updated_at: new Date()
+      });
+
+    // Recupera la lista aggiornata
+    const listaAggiornata = await db('ls_liste_testata')
+      .select([
+        'ls_liste_testata.*',
+        'causale.descrizione as descrizione_causale',
+        'causale.tipo as tipo_causale'
+      ])
+      .leftJoin('mg_causali_movimento as causale', 'ls_liste_testata.id_causale_movimento', 'causale.id')
+      .where('ls_liste_testata.id', id)
+      .first();
+
+    res.json(listaAggiornata);
+  } catch (error) {
+    console.error("Errore nell'aggiornamento della lista:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/liste/:id - Elimina una lista
+router.delete('/:id', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { id_ditta } = req.user;
+
+    // Verifica che la lista esista e appartenga alla ditta
+    const listaEsiste = await db('ls_liste_testata')
+      .where({ id, id_ditta })
+      .first();
+
+    if (!listaEsiste) {
+      return res.status(404).json({ error: 'Lista non trovata o non autorizzata' });
+    }
+
+    // Verifica che la lista sia in stato BOZZA (solo le bozze possono essere eliminate)
+    if (listaEsiste.stato !== 'BOZZA') {
+      return res.status(400).json({ error: 'Solo le liste in stato BOZZA possono essere eliminate' });
+    }
+
+    // In transazione, elimina le righe e poi la testata
+    const trx = await db.transaction();
+
+    try {
+      // Prima elimina tutte le righe associate
+      await trx('ls_liste_righe').where('id_testata', id).del();
+
+      // Poi elimina la testata
+      await trx('ls_liste_testata').where('id', id).del();
+
+      await trx.commit();
+      res.json({ message: 'Lista eliminata con successo' });
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error("Errore nell'eliminazione della lista:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/liste/causali - Recupera le causali di movimento utilizzabili
 router.get('/causali', async (req, res) => {
   try {
