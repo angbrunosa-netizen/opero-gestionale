@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const { dbPool } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
+const s3Service = require('../services/s3Service');
 
 const router = express.Router();
 
@@ -22,11 +23,25 @@ const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+
+// Multer memory storage per S3 upload
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB max per allegato
+    },
+    fileFilter: (req, file, cb) => {
+        // Filtra file potenzialmente pericolosi
+        const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com'];
+        const fileExtension = path.extname(file.originalname).toLowerCase();
+
+        if (dangerousExtensions.includes(fileExtension)) {
+            return cb(new Error('Tipo di file non permesso'), false);
+        }
+        cb(null, true);
+    }
 });
-const upload = multer({ storage: storage });
 
 // --- SETUP CRITTOGRAFIA (Standardizzato con il resto dell'app) ---
 const secret = process.env.ENCRYPTION_SECRET || 'default_secret_key_32_chars_!!';
@@ -163,6 +178,12 @@ router.post('/send-email', upload.array('attachments'), async (req, res) => {
 
     const connection = await dbPool.getConnection();
     try {
+        // Test connessione S3 all'inizio
+        const s3Connected = await s3Service.testConnection();
+        if (!s3Connected) {
+            throw new Error('Servizio storage temporaneamente non disponibile');
+        }
+
         const { smtp: smtpConfig, account: mailAccount } = await getMailConfig(dittaId, accountId);
         const [userRows] = await connection.query('SELECT nome, cognome FROM utenti WHERE id = ?', [userId]);
         const user = userRows[0] || {};
@@ -180,29 +201,74 @@ router.post('/send-email', upload.array('attachments'), async (req, res) => {
         let attachmentLinks = '';
         if (req.files && req.files.length > 0) {
             attachmentLinks = '<p><strong>Allegati:</strong></p><ul>';
+
             for (const file of req.files) {
                 const downloadId = uuidv4();
-                await connection.query(
-                    'INSERT INTO allegati_tracciati (id_email_inviata, nome_file_originale, percorso_file_salvato, download_id) VALUES (?, ?, ?, ?)',
-                    [sentEmailId, file.originalname, file.path, downloadId]
-                );
-                const downloadUrl = `${process.env.PUBLIC_API_URL || 'http://localhost:3001'}/api/track/download/${downloadId}`;
-                attachmentLinks += `<li><a href="${downloadUrl}">${file.originalname}</a></li>`;
+
+                try {
+                    // Genera percorso S3 univoco
+                    const s3Key = s3Service.generateS3Path(dittaId, userId, file.originalname);
+
+                    // Upload su S3
+                    const uploadResult = await s3Service.uploadFile(file.buffer, s3Key, {
+                        originalName: file.originalname,
+                        contentType: file.mimetype,
+                        uploadedBy: userId.toString(),
+                        dittaId: dittaId.toString(),
+                        emailId: sentEmailId.toString(),
+                        size: file.size
+                    });
+
+                    // Genera URL di tracking
+                    const trackingUrl = await s3Service.getTrackingUrl(downloadId, s3Key);
+
+                    // Salva nel database
+                    await connection.query(
+                        'INSERT INTO allegati_tracciati (id_email_inviata, nome_file_originale, percorso_file_salvato, download_id, dimensione_file) VALUES (?, ?, ?, ?, ?)',
+                        [sentEmailId, file.originalname, s3Key, downloadId, file.size]
+                    );
+
+                    attachmentLinks += `<li><a href="${trackingUrl}" title="Dimensione: ${(file.size / 1024).toFixed(2)} KB">${file.originalname}</a></li>`;
+
+                } catch (s3Error) {
+                    console.error('Errore upload S3 per file', file.originalname, ':', s3Error);
+
+                    // Fallback: salva localmente se S3 fallisce
+                    const fallbackPath = path.join(UPLOADS_DIR, `${Date.now()}-${file.originalname}`);
+                    fs.writeFileSync(fallbackPath, file.buffer);
+
+                    await connection.query(
+                        'INSERT INTO allegati_tracciati (id_email_inviata, nome_file_originale, percorso_file_salvato, download_id, dimensione_file) VALUES (?, ?, ?, ?, ?)',
+                        [sentEmailId, file.originalname, fallbackPath, downloadId, file.size]
+                    );
+
+                    const downloadUrl = `${process.env.PUBLIC_API_URL || 'http://localhost:3001'}/api/track/download/${downloadId}`;
+                    attachmentLinks += `<li><a href="${downloadUrl}" title="Salvato localmente - Dimensione: ${(file.size / 1024).toFixed(2)} KB">${file.originalname}</a></li>`;
+                }
             }
             attachmentLinks += '</ul>';
         }
-        
+
         const trackingPixel = `<img src="${process.env.PUBLIC_API_URL || 'http://localhost:3001'}/api/track/open/${trackingId}" width="1" height="1" alt="">`;
         const finalHtmlBody = text + attachmentLinks + trackingPixel;
 
         let transporter = nodemailer.createTransport(smtpConfig);
         await transporter.sendMail({ from: fromAddress, to, cc, bcc, subject, html: finalHtmlBody });
-        
+
         await connection.commit();
-        res.json({ success: true, message: 'Email inviata con successo!' });
+        res.json({
+            success: true,
+            message: 'Email inviata con successo!',
+            attachments: req.files ? req.files.length : 0
+        });
     } catch (error) {
         await connection.rollback();
-        res.status(500).json({ success: false, message: "Errore durante l'invio dell'email.", error: error.message });
+        console.error('Errore invio email:', error);
+        res.status(500).json({
+            success: false,
+            message: "Errore durante l'invio dell'email.",
+            error: error.message
+        });
     } finally {
         connection.release();
     }

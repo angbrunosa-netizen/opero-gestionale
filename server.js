@@ -1,10 +1,15 @@
 // #####################################################################
-// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v8.0
+// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v8.1
 // # Progettato per funzionare sia in Sviluppo (Windows) che in Produzione (Linux)
+// # Con integrazione S3 Aruba Cloud Storage
 // #####################################################################
 require('dotenv').config(); // Carica le variabili d'ambiente dal file .env
 
 const express = require('express');
+
+// Inizializza servizi di cleanup S3
+const cleanupService = require('./services/cleanupService');
+console.log('🧹 Cleanup service inizializzato per S3 storage management');
 const ppaRoutes = require('./routes/ppa');
 const cors = require('cors');
 const path = require('path');
@@ -35,6 +40,7 @@ const AcquistiRoutes = require('./routes/acquisti'); // <-- NUOVA INTEGRAZIONE
 const documentiRoutes = require('./routes/documenti');
 const archivioRoutes = require('./routes/archivio');
 const systemRoutes = require('./routes/system');
+const adminS3Routes = require('./routes/admin-s3'); // <-- NUOVA ROTTA S3 ADMIN
 
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
@@ -104,6 +110,7 @@ app.use('/api/acquisti', AcquistiRoutes); // <-- AGGIUNGI QUESTA RIGA
 app.use('/api/documenti', documentiRoutes);
 app.use('/api/archivio', verifyToken, archivioRoutes);
 app.use('/api/system', verifyToken, systemRoutes);
+app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
 if (process.env.NODE_ENV === 'production') {
