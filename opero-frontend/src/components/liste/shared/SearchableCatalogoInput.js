@@ -1,15 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../services/api';
-import { Search, X } from 'lucide-react';
 
-// Aggiungiamo un semplice hook per il debounce
-const useDebounce = (value, delay) => {
+/**
+ * Hook per il debounce di un valore, per evitare troppe chiamate API.
+ * @param {any} value - Il valore da debouncare.
+ * @param {number} delay - Il ritardo in millisecondi.
+ * @returns {any} - Il valore debounced.
+ */
+function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value);
-    }, delay || 500);
+    }, delay);
 
     return () => {
       clearTimeout(handler);
@@ -17,116 +21,103 @@ const useDebounce = (value, delay) => {
   }, [value, delay]);
 
   return debouncedValue;
-};
+}
 
-const SearchableCatalogoInput = ({ value, onChange, placeholder = "Cerca articolo..." }) => {
+/**
+ * Componente per la ricerca e selezione di articoli dal catalogo.
+ * Utilizza l'endpoint di ricerca completo gestito da `CatalogoManager`.
+ * Mostra un input con una tendina a comparsire i risultati.
+ */
+const SearchableCatalogoInput = ({ value, onChange, placeholder }) => {
+  // Ogni variabile di stato deve avere il suo hook `useState`.
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const inputRef = useRef(null);
 
-  // Usiamo il valore prop passato dal componente padre
+  // Debounce della query per evitare troppe chiamate API
   const debouncedQuery = useDebounce(query, 500);
 
-  useEffect(() => {
-    setQuery(value || '');
-  }, [value]);
-
-  useEffect(() => {
-    const fetchResults = async () => {
-      if (debouncedQuery.length < 2) {
-        setResults([]);
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        // Usiamo l'endpoint che sappiamo funzionare
-        const response = await api.get(`/catalogo/search?term=${encodeURIComponent(debouncedQuery)}&limit=50`);
-        // L'API restituisce { success: true, data: results }
-        const results = response.data.data || [];
-        setResults(results);
-      } catch (error) {
-        console.error("Errore nella ricerca:", error);
-        setResults([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchResults();
-  }, [debouncedQuery]);
-
-  const handleChange = (e) => {
-    setQuery(e.target.value);
-    setIsOpen(true);
-  };
-
-  const handleSelect = (articolo) => {
-    onChange(articolo);
-    setQuery(articolo.descrizione);
-    setIsOpen(false);
-  };
-
-  const handleClear = () => {
-    onChange(null);
-    setQuery('');
-    setIsOpen(false);
-    inputRef.current?.focus();
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape') {
+  const fetchResults = useCallback(async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setResults([]);
       setIsOpen(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Chiama l'endpoint di ricerca completo gestito da `CatalogoManager`
+      const url = `/catalogo/search?term=${encodeURIComponent(searchTerm)}`;
+      const response = await api.get(url);
+
+      // La risposta dell'endpoint è { success: true, data: [...] }
+      const data = response.data.data || [];
+      setResults(data);
+      setIsOpen(true);
+    } catch (error) {
+      console.error("Errore nella ricerca catalogo:", error);
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Effettua la chiamata API quando la query cambia (dopo il debounce)
+  useEffect(() => {
+    fetchResults(debouncedQuery);
+  }, [debouncedQuery, fetchResults]);
+
+  const handleSelect = (item) => {
+    onChange(item);
+    setQuery(item.descrizione);
+    setIsOpen(false);
+  };
+
+  const handleInputChange = (e) => {
+    const newQuery = e.target.value;
+    setQuery(newQuery);
+    if (!newQuery) {
+      onChange(null); // Se l'input viene svuotato, resetta il valore nel genitore
     }
   };
 
   return (
     <div className="relative">
-      <div className="flex items-center">
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={handleChange}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="w-full p-2 pr-10 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-        />
-        {query && (
-          <button
-            onClick={handleClear}
-            className="absolute right-2 p-1 text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-          <Search className="w-4 h-4 text-gray-400" />
+      <input
+        type="text"
+        value={query}
+        onChange={handleInputChange}
+        onFocus={() => query.length >= 2 && setIsOpen(true)}
+        placeholder={placeholder}
+        className="w-full p-2 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      {isLoading && (
+        <div className="absolute z-10 w-full bg-white border-gray-300 rounded-md mt-1 p-2 text-center">
+          Caricamento...
         </div>
-      </div>
-
-      {isOpen && (query.length >= 2 || isLoading) && (
-        <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-          {isLoading && (
-            <li className="px-4 py-2 text-gray-500">Caricamento...</li>
-          )}
-          {!isLoading && results.length === 0 && query.length >= 2 && (
-            <li className="px-4 py-2 text-gray-500">Nessun articolo trovato.</li>
-          )}
-          {results.map((articolo) => (
+      )}
+      {isOpen && !isLoading && results.length > 0 && (
+        <ul className="absolute z-10 w-full bg-white border-gray-300 rounded-md mt-1 max-h-60 overflow-y-auto shadow-lg">
+          {results.map((item) => (
             <li
-              key={articolo.id}
-              onClick={() => handleSelect(articolo)}
-              className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+              key={item.id}
+              onClick={() => handleSelect(item)}
+              className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
             >
-              <div className="font-medium">{articolo.descrizione}</div>
-              <div className="text-sm text-gray-500">Cod. {articolo.codice}</div>
+              <div className="font-medium text-gray-900">{item.codice_articolo || item.codice}</div>
+              <div className="text-sm text-gray-600">{item.descrizione}</div>
+              <div className="text-sm text-gray-800 font-semibold">
+                Prezzo: €{Number(item.prezzo_cessione_1 || 0).toFixed(2)}
+              </div>
             </li>
           ))}
         </ul>
+      )}
+      {isOpen && !isLoading && results.length === 0 && query.length >= 2 && (
+        <div className="absolute z-10 w-full bg-white border-gray-300 rounded-md mt-1 p-2 text-center text-gray-500">
+          Nessun articolo trovato.
+        </div>
       )}
     </div>
   );

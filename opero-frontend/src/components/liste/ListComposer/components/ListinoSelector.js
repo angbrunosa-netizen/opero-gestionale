@@ -5,11 +5,11 @@ const ListinoSelector = ({
   isOpen,
   onClose,
   articolo,
-  listiniDisponibili,
+  listiniDisponibili, // Potrebbe essere undefined all'inizio
   currentListinoCessione,
   currentListinoPubblico,
   onConfirm,
- userLevel = 70
+  userLevel = 70
 }) => {
   const [selectedListinoCessione, setSelectedListinoCessione] = useState(currentListinoCessione || 1);
   const [selectedListinoPubblico, setSelectedListinoPubblico] = useState(currentListinoPubblico || 1);
@@ -31,6 +31,19 @@ const ListinoSelector = ({
   };
 
   if (!isOpen) return null;
+
+  // --- FIX: Aggiungi un controllo di sicurezza per listiniDisponibili ---
+  // Se listiniDisponibili non è un array valido, non fare nulla o mostra un messaggio di caricamento.
+  if (!listiniDisponibili || !Array.isArray(listiniDisponibili)) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
+          <p>Caricamento listini...</p>
+          <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 rounded">Chiudi</button>
+        </div>
+      </div>
+    );
+  }
 
   const prezzoCessioneCorrente = listiniDisponibili.find(l => l.numero === selectedListinoCessione)?.prezzo_cessione || 0;
   const prezzoPubblicoCorrente = listiniDisponibili.find(l => l.numero === selectedListinoPubblico)?.prezzo_pubblico || 0;
@@ -72,13 +85,13 @@ const ListinoSelector = ({
             >
               {listiniDisponibili.map((listino) => (
                 <option key={`cesione-${listino.numero}`} value={listino.numero}>
-                  Listino {listino.numero}: €{listino.prezzo_cessione?.toFixed(2) || '0.00'}
+                  Listino {listino.numero}: €{Number(listino.prezzo_cessione || 0).toFixed(2)}
                 </option>
               ))}
             </select>
             <div className="mt-2 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                Prezzo Cessione: <span className="font-semibold">€{prezzoCessioneCorrente.toFixed(2)}</span>
+                Prezzo Cessione: <span className="font-semibold">€{Number(prezzoCessioneCorrente).toFixed(2)}</span>
               </p>
             </div>
           </div>
@@ -95,13 +108,13 @@ const ListinoSelector = ({
             >
               {listiniDisponibili.map((listino) => (
                 <option key={`pubblico-${listino.numero}`} value={listino.numero}>
-                  Listino {listino.numero}: €{listino.prezzo_pubblico?.toFixed(2) || '0.00'}
+                  Listino {listino.numero}: €{Number(listino.prezzo_pubblico || 0).toFixed(2)}
                 </option>
               ))}
             </select>
             <div className="mt-2 p-3 bg-green-50 rounded-lg">
               <p className="text-sm text-green-800">
-                Prezzo Pubblico: <span className="font-semibold">€{prezzoPubblicoCorrente.toFixed(2)}</span>
+                Prezzo Pubblico: <span className="font-semibold">€{Number(prezzoPubblicoCorrente).toFixed(2)}</span>
               </p>
             </div>
           </div>
@@ -173,7 +186,7 @@ const ListinoSelector = ({
                 <span className="font-medium">
                   €{useCustomPrezzi && customPrezzoCessione ?
                     parseFloat(customPrezzoCessione).toFixed(2) :
-                    prezzoCessioneCorrente.toFixed(2)}
+                    Number(prezzoCessioneCorrente).toFixed(2)}
                 </span>
               </p>
             </div>
@@ -183,7 +196,7 @@ const ListinoSelector = ({
                 <span className="font-medium">
                   €{useCustomPrezzi && customPrezzoPubblico ?
                     parseFloat(customPrezzoPubblico).toFixed(2) :
-                    prezzoPubblicoCorrente.toFixed(2)}
+                    Number(prezzoPubblicoCorrente).toFixed(2)}
                 </span>
               </p>
             </div>

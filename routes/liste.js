@@ -312,14 +312,18 @@ router.post('/:id/processa', async (req, res) => {
 });
 
 // GET /api/liste/prezzi/:idArticolo/:idCliente - Ottieni prezzi per articolo e cliente
+// GET /api/liste/prezzi/:idArticolo/:idCliente - Ottieni prezzi per articolo e cliente
 router.get('/prezzi/:idArticolo/:idCliente', verifyToken, async (req, res) => {
   try {
     const { idArticolo, idCliente } = req.params;
-    const { id_ditta } = req.user;
+    const { id_ditta } = req.user; // Questo è l'id_ditta_proprietaria
 
-    // 1. Recupera le informazioni del cliente
-    const cliente = await db('va_clienti_anagrafica')
-      .where({ id: idCliente })
+    // 1. Recupera le informazioni del cliente DALLA TABELLA CORRETTA 'ditte'
+    const cliente = await db('ditte')
+      .where({ 
+        id: idCliente,
+        id_ditta_proprietaria: id_ditta // Assicura che il cliente appartenga all'utente loggato
+      })
       .first();
 
     if (!cliente) {
@@ -396,7 +400,6 @@ router.get('/prezzi/:idArticolo/:idCliente', verifyToken, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // GET /api/liste/prezzi-disponibili/:idArticolo - Ottieni tutti i listini disponibili per un articolo
 router.get('/prezzi-disponibili/:idArticolo', verifyToken, async (req, res) => {
   try {

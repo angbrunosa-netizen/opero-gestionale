@@ -260,7 +260,7 @@ router.delete('/gruppi/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), 
  */
 router.get('/matrici-sconti', verifyToken, checkPermission('VA_CLIENTI_VIEW'), async (req, res) => {
     try {
-        const matrici = await knex('va_matrici_sconti').where('id_ditta', req.user.id_ditta);
+        const matrici = await knex('va_matrice_sconti').where('id_ditta', req.user.id_ditta);
         res.json(matrici);
     } catch (error) {
         res.status(500).json({ message: 'Errore recupero matrici', error: error.message });
@@ -272,7 +272,7 @@ router.post('/matrici-sconti', verifyToken, checkPermission('VA_CLIENTI_MANAGE')
     let newId;
     try {
         await knex.transaction(async trx => {
-            const [insertedId] = await trx('va_matrici_sconti').insert({ codice, descrizione, id_ditta: req.user.id_ditta });
+            const [insertedId] = await trx('va_matrice_sconti').insert({ codice, descrizione, id_ditta: req.user.id_ditta });
             newId = insertedId;
             await trx('log_azioni').insert({
                 id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'CREAZIONE',
@@ -295,7 +295,7 @@ router.put('/matrici-sconti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAG
     const { codice, descrizione } = req.body;
     try {
         await knex.transaction(async trx => {
-            const count = await trx('va_matrici_sconti').where({ id, id_ditta: req.user.id_ditta }).update({ codice, descrizione });
+            const count = await trx('va_matrice_sconti').where({ id, id_ditta: req.user.id_ditta }).update({ codice, descrizione });
             if(count === 0) throw new Error('Matrice non trovata');
             await trx('log_azioni').insert({
                 id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'MODIFICA',
@@ -312,10 +312,10 @@ router.delete('/matrici-sconti/:id', verifyToken, checkPermission('VA_CLIENTI_MA
     const { id } = req.params;
     try {
         await knex.transaction(async trx => {
-            const toDelete = await trx('va_matrici_sconti').where({ id, id_ditta: req.user.id_ditta }).first();
+            const toDelete = await trx('va_matrice_sconti').where({ id, id_ditta: req.user.id_ditta }).first();
             if(!toDelete) throw new Error('Matrice non trovata');
-            await trx('va_matrici_sconti_righe').where({ id_matrice: id }).del();
-            await trx('va_matrici_sconti').where({ id }).del();
+            await trx('va_matrice_sconti_righe').where({ id_matrice: id }).del();
+            await trx('va_matrice_sconti').where({ id }).del();
             await trx('log_azioni').insert({
                 id_utente: req.user.id, id_ditta: req.user.id_ditta, azione: 'ELIMINAZIONE',
                 dettagli: `L'utente ${req.user.nome} ${req.user.cognome} ha eliminato la matrice sconti: ${toDelete.descrizione}`
@@ -339,11 +339,11 @@ router.get('/matrici-sconti/:idMatrice/righe', verifyToken, checkPermission('VA_
     const { idMatrice } = req.params;
     try {
         // Verifica che la matrice appartenga alla ditta dell'utente
-        const matrice = await knex('va_matrici_sconti').where({ id: idMatrice, id_ditta: req.user.id_ditta }).first();
+        const matrice = await knex('va_matrice_sconti').where({ id: idMatrice, id_ditta: req.user.id_ditta }).first();
         if (!matrice) {
             return res.status(404).json({ message: 'Matrice non trovata.' });
         }
-        const righe = await knex('va_matrici_sconti_righe').where({ id_matrice: idMatrice });
+        const righe = await knex('va_matrice_sconti_righe').where({ id_matrice: idMatrice });
         res.json(righe);
     } catch (error) {
         res.status(500).json({ message: 'Errore recupero righe', error: error.message });
@@ -355,14 +355,14 @@ router.post('/matrici-sconti/:idMatrice/righe/salva-tutto', verifyToken, checkPe
     const { righe } = req.body; // Array di oggetti riga
     try {
         await knex.transaction(async trx => {
-            const matrice = await trx('va_matrici_sconti').where({ id: idMatrice, id_ditta: req.user.id_ditta }).first();
+            const matrice = await trx('va_matrice_sconti').where({ id: idMatrice, id_ditta: req.user.id_ditta }).first();
             if (!matrice) throw new Error('Matrice non trovata');
-            
-            await trx('va_matrici_sconti_righe').where({ id_matrice: idMatrice }).del();
+
+            await trx('va_matrice_sconti_righe').where({ id_matrice: idMatrice }).del();
             
             if (righe && righe.length > 0) {
                 const righeToInsert = righe.map(r => ({ id_matrice: idMatrice, ...r }));
-                await trx('va_matrici_sconti_righe').insert(righeToInsert);
+                await trx('va_matrice_sconti_righe').insert(righeToInsert);
             }
             
             await trx('log_azioni').insert({
@@ -959,7 +959,6 @@ router.put('/clienti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), as
                 listino_cessione: allData.listino_cessione,
                 listino_pubblico: allData.listino_pubblico,
                 id_matrice_sconti: allData.id_matrice_sconti,
-                riga_matrice_sconti: allData.riga_matrice_sconti,
                 id_categoria_cliente: allData.id_categoria_cliente,
                 id_gruppo_cliente: allData.id_gruppo_cliente,
                 id_referente: allData.id_referente,
@@ -969,13 +968,13 @@ router.put('/clienti/:id', verifyToken, checkPermission('VA_CLIENTI_MANAGE'), as
                 sito_web: allData.sito_web,
                 pagina_facebook: allData.pagina_facebook,
                 pagina_instagram: allData.pagina_instagram,
-                url_link :allData.url_link,
-                google_maps :allData.google_maps,
+                url_link: allData.url_link,
+                google_maps: allData.google_maps,
                 concorrenti: allData.concorrenti,
                 foto_url: allData.foto_url,
-                fatturato_anno_pr:allData.fatturato_anno_pr,
-                fatturato_anno_cr:allData.fatturato_anno_cr,
-                id_contratto : allData.id_contratto,
+                fatturato_anno_pr: allData.fatturato_anno_pr,
+                fatturato_anno_cr: allData.fatturato_anno_cr,
+                id_contratto: allData.id_contratto,
                 id_trasportatore_assegnato: allData.id_trasportatore_assegnato
                 // ... aggiungi tutti gli altri campi di va_clienti_anagrafica
             };

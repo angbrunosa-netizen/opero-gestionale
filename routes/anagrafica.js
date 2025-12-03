@@ -1,67 +1,71 @@
-// routes/anagrafica.js
-
 const express = require('express');
 const router = express.Router();
 const { knex: db } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
 
-// GET /api/anagrafica/clienti/:id - Recupera informazioni cliente
-// GET /api/anagrafica/clienti/:id - VERSIONE SUPER-DEBUG
+// GET /api/anagrafica/clienti/:id - Recupera informazioni completo di un cliente
 router.get('/clienti/:id', verifyToken, async (req, res) => {
-  console.log('\n=== INIZIO RICHIESTA GET /clienti/:id ===');
-  
   try {
-    console.log('[DEBUG 1] req.params:', req.params);
-    console.log('[DEBUG 2] req.user:', req.user);
-
     const { id } = req.params;
-    const { id_ditta } = req.user;
-
-    if (!req.user) {
-        console.error('[ERRORE] req.user è undefined o null!');
-        return res.status(401).json({ error: 'Autenticazione fallita (req.user mancante).' });
-    }
-    if (id_ditta === undefined) {
-        console.error('[ERRORE] id_ditta non è presente in req.user!');
-        return res.status(400).json({ error: 'ID Ditta mancante nel token utente.' });
-    }
-
-    console.log(`[DEBUG 3] ID Cliente: ${id}, ID Ditta: ${id_ditta}`);
+    const { id_ditta } = req.user; // Questo è l'id_ditta_proprietaria
 
     const clienteId = parseInt(id, 10);
     if (isNaN(clienteId)) {
-        console.error(`[ERRORE] ID Cliente non valido: ${id}`);
-        return res.status(400).json({ error: 'ID cliente non valido.' });
+      return res.status(400).json({ error: 'ID cliente non valido.' });
     }
 
-    console.log(`[DEBUG 4] Eseguo la query sul DB...`);
-    const cliente = await db('va_clienti_anagrafica')
+    // --- QUERY CORRETTA ---
+    // Prende i dati principali dalla tabella `ditte` e li unisce con i dettagli opzionali
+    const cliente = await db('ditte as d')
+      .leftJoin('va_clienti_anagrafica as vca', 'd.id', 'vca.id_ditta')
+      .leftJoin('va_categorie_clienti as cat', 'vca.id_categoria_cliente', 'cat.id')
+      .leftJoin('va_gruppi_clienti as grp', 'vca.id_gruppo_cliente', 'grp.id')
+      .leftJoin('tipi_pagamento as tp', 'vca.id_tipo_pagamento', 'tp.id')
+      // NOTA: La tabella 'va_contratti' non esiste, quindi la join è commentata per evitare errori.
+      // .leftJoin('va_contratti as contr', 'vca.id_contratto', 'contr.id')
       .where({
-        id: clienteId,
-        id_ditta: id_ditta
+        'd.id': clienteId,
+        'd.id_ditta_proprietaria': id_ditta // Filtra per la ditta principale
       })
       .first();
-    
-    console.log('[DEBUG 5] Risultato della query DB:', cliente);
 
     if (!cliente) {
-      console.log(`[DEBUG 6] Cliente non trovato.`);
-      return res.status(404).json({ error: 'Cliente non trovato' });
+      return res.status(404).json({ error: 'Cliente non trovato.' });
     }
 
-    console.log('[DEBUG 7] Invio risposta con successo');
-    res.json(cliente);
+    // Costruisce l'oggetto di risposta unendo i dati di entrambe le tabelle
+    const response = {
+      // Dati principali dalla tabella `ditte`
+      id: cliente.id,
+      ragione_sociale: cliente.ragione_sociale,
+      partita_iva: cliente.p_iva,
+      codice_fiscale: cliente.codice_fiscale,
+      stato: cliente.stato, // 1 = Attivo, 0 = Non Attivo
+      indirizzo: cliente.indirizzo,
+      citta: cliente.citta,
+      cap: cliente.cap,
+      provincia: cliente.provincia,
+      
+      // Dati opzionali dalla tabella `va_clienti_anagrafica` (potrebbero essere null)
+      listino_cessione: cliente.listino_cessione,
+      listino_pubblico: cliente.listino_pubblico,
+      id_categoria_cliente: cliente.id_categoria_cliente,
+      nome_categoria_cliente: cliente.nome_categoria_cliente,
+      id_gruppo_cliente: cliente.id_gruppo_cliente,
+      descrizione_gruppo_cliente: cliente.descrizione_gruppo_cliente,
+      id_tipo_pagamento: cliente.id_tipo_pagamento,
+      descrizione_tipo_pagamento: cliente.descrizione_tipo_pagamento,
+      // descrizione_contratto: cliente.descrizione_contratto // Commentato perché la tabella non esiste
+    };
+
+    res.json(response);
   } catch (error) {
-    console.error("!!! ERRORE BLOCCANTE NEL BACKEND !!!");
-    console.error("Messaggio:", error.message);
-    console.error("Stack Trace:", error.stack);
-    console.error("!!! FINE ERRORE !!!\n");
-    
-    res.status(500).json({ error: `Errore interno del server: ${error.message}` });
+    console.error("ERRORE nel recupero cliente:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/anagrafica/listini-disponibili - Recupera i listini per un articolo
+// GET /api/anagrafica/listini-disponibili - Recupera i listini per un articolo (o tutti)
 router.get('/listini-disponibili', verifyToken, async (req, res) => {
   try {
     const { id_ditta } = req.user;
@@ -108,38 +112,39 @@ router.get('/listini-disponibili', verifyToken, async (req, res) => {
 router.get('/clienti', verifyToken, async (req, res) => {
   try {
     const { q, limit = 50 } = req.query;
-    const { id_ditta } = req.user;
+    const { id_ditta } = req.user; // id_ditta_proprietaria
 
-    // --- FIX FINALE: Usa la tabella corretta 'va_clienti_anagrafica' ---
-    let query = db('va_clienti_anagrafica')
-      .where('id_ditta', id_ditta)
-      .where('stato', 'Attivo')
+    let query = db('ditte as d')
+      .leftJoin('va_clienti_anagrafica as vca', 'd.id', 'vca.id_ditta')
+      .where('d.id_ditta_proprietaria', id_ditta)
+      .where('d.stato', 1) // 1 = Attivo
       .select([
-        'id',
-        'ragione_sociale',
-        'partita_iva',
-        'indirizzo',
-        'cap',
-        'comune',
-        'provincia',
-        'listino_cessione',
-        'listino_pubblico'
+        'd.id',
+        'd.ragione_sociale',
+        'd.p_iva as partita_iva',
+        'd.indirizzo',
+        'd.cap',
+        'd.citta',
+        'd.provincia',
+        'vca.listino_cessione',
+        'vca.listino_pubblico'
       ])
       .limit(limit);
 
     if (q) {
       query = query.where(function() {
-        this.where('ragione_sociale', 'like', `%${q}%`)
-            .orWhere('partita_iva', 'like', `%${q}%`);
+        this.where('d.ragione_sociale', 'like', `%${q}%`)
+            .orWhere('d.p_iva', 'like', `%${q}%`);
       });
     }
 
-    const clienti = await query.orderBy('ragione_sociale', 'asc');
+    const clienti = await query.orderBy('d.ragione_sociale', 'asc');
     res.json(clienti);
   } catch (error) {
     console.error("Errore nella ricerca clienti:", error);
     res.status(500).json({ error: error.message });
   }
 });
+
 
 module.exports = router;
