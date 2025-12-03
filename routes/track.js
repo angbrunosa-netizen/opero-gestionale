@@ -92,7 +92,7 @@ router.get('/download/:downloadId', async (req, res) => {
                 ei.id_ditta,
                 ei.data_invio,
                 u.nome as utente_creazione,
-                e.destinatari
+                ei.destinatari
             FROM allegati_tracciati at
             JOIN email_inviate ei ON at.id_email_inviata = ei.id
             LEFT JOIN utenti u ON ei.id_utente_mittente = u.id
