@@ -1,0 +1,96 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Email Tracking</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { border: 1px solid #ddd; padding: 20px; margin: 20px 0; }
+        .strategy { background: #f9f9f9; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Email Tracking Strategies</h1>
+
+    <div class="test-section">
+        <h2>Gmail Strategy (Aggressive)</h2>
+        <div class="strategy">
+            
+<!-- Aggressive Email Tracking - Multi-Strategy -->
+<div style="display:none; font-size:0px; line-height:0px; height:0px; width:0px; float:none; clear:both; overflow:hidden; margin:0; padding:0; border:none;">
+    <!-- Strategy 1: Standard GIF pixel -->
+    <img src="http://192.168.1.19:3001/api/track/open/test_gmail_aggressive"
+         alt="" width="1" height="1" border="0"
+         style="display:block; width:1px; height:1px; border:none; margin:0; padding:0;" />
+
+    <!-- Strategy 2: Base64 encoded pixel (bypass some filters) -->
+    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+         onload="fetch('http://192.168.1.19:3001/api/track/open/test_gmail_aggressive')"
+         alt="" width="1" height="1" border="0"
+         style="display:block; width:1px; height:1px; border:none; margin:0; padding:0;" />
+
+    <!-- Strategy 3: CSS background image -->
+    <div style="width:1px; height:1px; background-image:url('http://192.168.1.19:3001/api/track/open/test_gmail_aggressive'); background-repeat:no-repeat; display:block;"></div>
+
+    <!-- Strategy 4: Table-based pixel -->
+    <table border="0" cellpadding="0" cellspacing="0" width="1" height="1" style="display:block;">
+        <tr>
+            <td style="background-image:url('http://192.168.1.19:3001/api/track/open/test_gmail_aggressive'); background-repeat:no-repeat; width:1px; height:1px; line-height:1px; font-size:1px; mso-hide:all;">
+                <img src="http://192.168.1.19:3001/api/track/open/test_gmail_aggressive"
+                     style="display:block; width:1px; height:1px; border:none; mso-hide:all;" />
+            </td>
+        </tr>
+    </table>
+
+    <!-- Strategy 5: Preload trick -->
+    <link rel="preload" href="http://192.168.1.19:3001/api/track/open/test_gmail_aggressive" as="image" />
+</div>
+
+<!-- Aggressive Fallback Link -->
+<div style="text-align:center; font-size:11px; color:#999; margin:15px 0; padding:10px; border-top:1px solid #eee; line-height:1.4;">
+    <p style="margin:0; color:#666;">Email non visualizzata correttamente?</p>
+    <a href="http://192.168.1.19:3001/api/track/open/test_gmail_aggressive"
+       style="color:#007bff; text-decoration:underline; font-size:11px; font-weight:normal;">
+        Clicca qui per confermare lettura
+    </a>
+</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Corporate Strategy (Standard)</h2>
+        <div class="strategy">
+            
+<!-- Standard Invisible Email Tracking -->
+<div style="display:none !important; visibility:hidden !important; mso-hide:all !important; width:0px !important; height:0px !important; font-size:0px !important; line-height:0px !important;">
+    <!-- Primary tracking pixel -->
+    <img src="http://192.168.1.19:3001/api/track/open/test_corporate_standard"
+         width="1" height="1" alt="" border="0"
+         style="display:block !important; width:1px !important; height:1px !important; border:none !important; margin:0 !important; padding:0 !important; visibility:hidden !important;" />
+
+    <!-- Backup tracking via CSS background -->
+    <div style="width:1px !important; height:1px !important; background-image:url('http://192.168.1.19:3001/api/track/open/test_corporate_standard') !important; background-repeat:no-repeat !important; display:block !important; visibility:hidden !important;"></div>
+</div>
+<!-- End Invisible Tracking -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Conservative Strategy (Link Only)</h2>
+        <div class="strategy">
+            
+<!-- Standard Invisible Email Tracking -->
+<div style="display:none !important; visibility:hidden !important; mso-hide:all !important; width:0px !important; height:0px !important; font-size:0px !important; line-height:0px !important;">
+    <!-- Primary tracking pixel -->
+    <img src="http://192.168.1.19:3001/api/track/open/test_conservative"
+         width="1" height="1" alt="" border="0"
+         style="display:block !important; width:1px !important; height:1px !important; border:none !important; margin:0 !important; padding:0 !important; visibility:hidden !important;" />
+
+    <!-- Backup tracking via CSS background -->
+    <div style="width:1px !important; height:1px !important; background-image:url('http://192.168.1.19:3001/api/track/open/test_conservative') !important; background-repeat:no-repeat !important; display:block !important; visibility:hidden !important;"></div>
+</div>
+<!-- End Invisible Tracking -->
+        </div>
+    </div>
+</body>
+</html>

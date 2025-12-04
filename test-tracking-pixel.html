@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Tracking Pixel Opero</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-container { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .status { font-weight: bold; margin: 10px 0; }
+        .url { background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; margin: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Tracking Pixel - Opero</h1>
+
+    <div class="test-container">
+        <h3>📧 Informazioni Test</h3>
+        <div class="status" id="configStatus">Configurazione: Caricamento...</div>
+
+        <div class="test-container">
+            <h3>🎯 Test 1: Tracking Pixel URL</h3>
+            <div class="url" id="trackingUrl">URL: Caricamento...</div>
+            <button onclick="testPixelLoading()">Test Caricamento Pixel</button>
+            <div id="pixelResult" class="status"></div>
+        </div>
+
+        <div class="test-container">
+            <h3>📊 Test 2: Stato Database</h3>
+            <button onclick="checkDatabaseStatus()">Verifica Stato Database</button>
+            <div id="dbResult" class="status"></div>
+        </div>
+
+        <div class="test-container">
+            <h3>🔗 Test 3: URL Pubblico Accessibilità</h3>
+            <div id="publicUrl">URL Pubblico: Caricamento...</div>
+            <button onclick="testPublicAccess()">Test Accesso Esterno</button>
+            <div id="publicResult" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // Carica configurazione
+        fetch('/api/public-info', { timeout: 5000 })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('configStatus').innerHTML =
+                    `<span class="success">✅ Configurazione OK:</span> Public API: ${data.publicApiUrl}`;
+                document.getElementById('trackingUrl').textContent =
+                    `URL: ${data.publicApiUrl}/api/track/open/test-tracking-${Date.now()}`;
+                document.getElementById('publicUrl').textContent =
+                    `URL Pubblico: ${data.publicApiUrl}`;
+            })
+            .catch(error => {
+                document.getElementById('configStatus').innerHTML =
+                    `<span class="error">❌ Errore Configurazione:</span> ${error.message}`;
+                // Usa fallback
+                const fallbackUrl = 'http://192.168.1.19:3001';
+                document.getElementById('trackingUrl').textContent = `URL: ${fallbackUrl}/api/track/open/test-tracking-${Date.now()}`;
+                document.getElementById('publicUrl').textContent = `URL Pubblico: ${fallbackUrl}`;
+            });
+
+        function testPixelLoading() {
+            const resultDiv = document.getElementById('pixelResult');
+            resultDiv.innerHTML = '<span class="info">🔄 Testing pixel loading...</span>';
+
+            const testTrackingId = 'test-tracking-' + Date.now();
+            const pixelUrl = document.getElementById('trackingUrl').textContent.replace('test-tracking-', '') + testTrackingId;
+
+            // Crea immagine pixel
+            const img = new Image();
+            img.onload = function() {
+                resultDiv.innerHTML = '<span class="success">✅ Pixel caricato con successo!</span>';
+                // Verifica database dopo breve delay
+                setTimeout(checkDatabaseStatus, 2000);
+            };
+            img.onerror = function() {
+                resultDiv.innerHTML = '<span class="error">❌ Errore caricamento pixel</span>';
+            };
+
+            // Imposta src per testare
+            img.src = pixelUrl;
+
+            // Aggiungi pixel alla pagina (invisibile)
+            img.style.display = 'none';
+            document.body.appendChild(img);
+        }
+
+        async function checkDatabaseStatus() {
+            const resultDiv = document.getElementById('dbResult');
+            resultDiv.innerHTML = '<span class="info">🔄 Verificando database...</span>';
+
+            try {
+                const response = await fetch('/api/admin-s3/status', {
+                    headers: { 'Authorization': 'Bearer test' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = '<span class="success">✅ Database accessible</span>';
+                } else {
+                    resultDiv.innerHTML = '<span class="error">❌ Database non accessibile (autenticazione richiesta)</span>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Errore database: ${error.message}</span>`;
+            }
+        }
+
+        function testPublicAccess() {
+            const resultDiv = document.getElementById('publicResult');
+            resultDiv.innerHTML = '<span class="info">🔄 Testing accessibilità esterna...</span>';
+
+            const publicUrl = document.getElementById('publicUrl').textContent;
+
+            // Test accessibilità URL con fetch
+            fetch(publicUrl + '/api/track/ping')
+                .then(response => {
+                    if (response.ok) {
+                        resultDiv.innerHTML = '<span class="success">✅ URL pubblico accessibile</span>';
+                    } else {
+                        resultDiv.innerHTML = '<span class="error">❌ URL pubblico non accessibile (Status: ' + response.status + ')</span>';
+                    }
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `<span class="error">❌ Errore accesso esterno: ${error.message}</span>`;
+
+                    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                        resultDiv.innerHTML += '<br><span class="info">💡 Suggerimento: URL locale non accessibile esternamente. Usa tunneling (NGROK, Cloudflare).</span>';
+                    }
+                });
+        }
+
+        // Auto-test al caricamento pagina
+        setTimeout(() => {
+            console.log('Auto-testing tracking pixel...');
+            testPixelLoading();
+        }, 1000);
+    </script>
+</body>
+</html>

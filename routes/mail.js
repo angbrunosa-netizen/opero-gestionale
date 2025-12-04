@@ -15,8 +15,54 @@ const path = require('path');
 const { dbPool } = require('../config/db');
 const { verifyToken } = require('../utils/auth');
 const s3Service = require('../services/s3Service');
+const emailTrackingService = require('../services/emailTrackingService');
+const enhancedGmailTracking = require('../services/enhancedGmailTracking');
 
 const router = express.Router();
+
+// Funzione per generare pixel di tracking compatibili con Gmail
+function generateTrackingPixel(trackingId) {
+    const baseUrl = process.env.PUBLIC_API_URL || 'http://localhost:3001';
+
+    // Multi-strategy tracking pixel per massima compatibilità
+    return `
+<!-- Multi-Strategy Email Tracking Pixel -->
+<div style="display:none; white-space:nowrap; font:0px/0 sans-serif;">
+    <!-- Strategy 1: Standard invisible image -->
+    <img src="${baseUrl}/api/track/open/${trackingId}"
+         width="1" height="1"
+         alt="" border="0"
+         style="display:block; width:1px; height:1px; border:none; margin:0; padding:0;" />
+
+    <!-- Strategy 2: Background image trick (Gmail-friendly) -->
+    <div style="width:1px; height:1px; background-image:url('${baseUrl}/api/track/open/${trackingId}'); background-repeat:no-repeat; display:block;"></div>
+
+    <!-- Strategy 3: Table-based pixel (maximum compatibility) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="1" height="1" style="display:block;">
+        <tr>
+            <td style="background-image:url('${baseUrl}/api/track/open/${trackingId}'); background-repeat:no-repeat; width:1px; height:1px; line-height:1px; font-size:1px;">
+                <img src="${baseUrl}/api/track/open/${trackingId}"
+                     style="display:block; width:1px; height:1px; border:none;" />
+            </td>
+        </tr>
+    </table>
+</div>
+<!-- End Tracking Pixel -->`;
+}
+
+// Funzione per generare un fallback tracking basato su link
+function generateTrackingLink(trackingId, text = 'Clicca qui se non visualizzi correttamente questa email') {
+    const baseUrl = process.env.PUBLIC_API_URL || 'http://localhost:3001';
+    return `<div style="text-align:center; font-size:12px; color:#666; margin-top:20px; padding:10px; border-top:1px solid #eee;">
+    <p style="margin:0;">${text}</p>
+    <p style="margin:5px 0;">
+        <a href="${baseUrl}/api/track/open/${trackingId}"
+           style="color:#007bff; text-decoration:none; font-size:11px;">
+            Apri email nel browser
+        </a>
+    </p>
+</div>`;
+}
 
 // --- SETUP UPLOADS ---
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
@@ -191,7 +237,7 @@ router.post('/send-email', upload.array('attachments'), async (req, res) => {
         const fromAddress = `"${senderDisplayName}" <${mailAccount.email}>`;
 
         await connection.beginTransaction();
-        const trackingId = uuidv4();
+        const trackingId = emailTrackingService.generateTrackingId();
         const [emailResult] = await connection.query(
             'INSERT INTO email_inviate (id_utente_mittente, destinatari, cc, bcc, oggetto, corpo, tracking_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [userId, to, cc, bcc, subject, text, trackingId]
@@ -249,8 +295,15 @@ router.post('/send-email', upload.array('attachments'), async (req, res) => {
             attachmentLinks += '</ul>';
         }
 
-        const trackingPixel = `<img src="${process.env.PUBLIC_API_URL || 'http://localhost:3001'}/api/track/open/${trackingId}" width="1" height="1" alt="">`;
-        const finalHtmlBody = text + attachmentLinks + trackingPixel;
+        // Usa il servizio di tracking ultra-aggressivo per Gmail
+        const primaryRecipient = to || (cc ? cc.split(',')[0] : null);
+        const trackingHTML = enhancedGmailTracking.generateOptimizedTracking(trackingId, primaryRecipient);
+
+        // Log della strategia usata per debugging
+        emailTrackingService.logTrackingStrategy(primaryRecipient, trackingId,
+            primaryRecipient ? emailTrackingService.determineStrategy(primaryRecipient) : 'standard');
+
+        const finalHtmlBody = text + attachmentLinks + trackingHTML;
 
         let transporter = nodemailer.createTransport(smtpConfig);
         await transporter.sendMail({ from: fromAddress, to, cc, bcc, subject, html: finalHtmlBody });

@@ -10,6 +10,7 @@ const { verifyToken } = require('../utils/auth');
 const knex = require('../config/db');
 const { dbPool } = require('../config/db');
 const s3Service = require('../services/s3Service');
+const emailVisualizationService = require('../services/emailVisualizationService');
 const router = express.Router();
 
 
@@ -31,12 +32,18 @@ router.get('/open/:trackingId', async (req, res) => {
     const ip = req.ip || req.connection.remoteAddress;
 
     try {
-        // Registra apertura email
+        // Calcola numero di apertura per questo tracking ID
+        const [openCountResult] = await dbPool.query(`
+            SELECT COUNT(*) as open_count FROM email_open_tracking WHERE tracking_id = ?
+        `, [trackingId]);
+
+        const newOpenCount = (openCountResult[0]?.open_count || 0) + 1;
+
+        // Registra apertura email come nuovo record (per supportare multi-apertura)
         await dbPool.query(`
-            INSERT INTO email_open_tracking (tracking_id, ip_address, user_agent, opened_at)
-            VALUES (?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE opened_at = IF(opened_at IS NULL, NOW(), opened_at), open_count = open_count + 1
-        `, [trackingId, ip, userAgent]);
+            INSERT INTO email_open_tracking (tracking_id, ip_address, user_agent, opened_at, open_count)
+            VALUES (?, ?, ?, NOW(), ?)
+        `, [trackingId, ip, userAgent, newOpenCount]);
 
         // Aggiorna stato email inviata
         await dbPool.query(`
@@ -350,6 +357,223 @@ router.get('/admin/email-stats', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Errore recupero statistiche admin:', error);
         res.status(500).json({ success: false, message: 'Errore nel recupero statistiche' });
+    }
+});
+
+// --- ROTTE PER VISUALIZZAZIONE MULTI-APERTURA ---
+
+/**
+ * GET /track/email/tracking-details/:trackingId
+ * API per ottenere dettagli completi di tracking multi-apertura
+ */
+router.get('/email/tracking-details/:trackingId', async (req, res) => {
+    const { trackingId } = req.params;
+
+    try {
+        const details = await emailVisualizationService.getEmailOpenStats(trackingId);
+
+        if (!details) {
+            return res.status(404).json({
+                success: false,
+                message: 'Nessuna email trovata con questo tracking ID'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: details
+        });
+
+    } catch (error) {
+        console.error('Errore recupero dettagli tracking:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero dettagli tracking'
+        });
+    }
+});
+
+/**
+ * GET /track/email/period-stats (protetta)
+ * API per statistiche periodo con visualizzazione completa
+ */
+router.get('/email/period-stats', verifyToken, async (req, res) => {
+    const { start_date, end_date, days = 30 } = req.query;
+    const { id: userId, id_ditta: dittaId, livello } = req.user;
+
+    // Solo utenti con permessi possono vedere statistiche
+    if (livello < 50) {
+        return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
+    }
+
+    try {
+        let startDate, endDate;
+
+        if (start_date && end_date) {
+            startDate = new Date(start_date);
+            endDate = new Date(end_date);
+        } else {
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - parseInt(days));
+        }
+
+        const periodStats = await emailVisualizationService.getPeriodStats(
+            startDate.toISOString().split('T')[0],
+            endDate.toISOString().split('T')[0]
+        );
+
+        res.json({
+            success: true,
+            data: periodStats
+        });
+
+    } catch (error) {
+        console.error('Errore recupero statistiche periodo:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero statistiche periodo'
+        });
+    }
+});
+
+/**
+ * GET /track/email/domain-stats (protetta)
+ * API per statistiche per dominio
+ */
+router.get('/email/domain-stats', verifyToken, async (req, res) => {
+    const { days = 30 } = req.query;
+    const { id: userId, id_ditta: dittaId, livello } = req.user;
+
+    // Solo utenti con permessi possono vedere statistiche
+    if (livello < 50) {
+        return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
+    }
+
+    try {
+        const domainStats = await emailVisualizationService.getDomainStats(parseInt(days));
+
+        res.json({
+            success: true,
+            data: domainStats
+        });
+
+    } catch (error) {
+        console.error('Errore recupero statistiche dominio:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero statistiche dominio'
+        });
+    }
+});
+
+/**
+ * GET /track/email/visualization-dashboard (protetta)
+ * HTML completo per dashboard visualizzazione
+ */
+router.get('/email/visualization-dashboard', verifyToken, async (req, res) => {
+    const { start_date, end_date, days = 30 } = req.query;
+    const { id: userId, id_ditta: dittaId, livello } = req.user;
+
+    // Solo utenti con permessi possono vedere la dashboard
+    if (livello < 50) {
+        return res.status(403).send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Accesso Negato</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1>🚫 Accesso Negato</h1>
+                <p>Non hai i permessi necessari per visualizzare questa dashboard.</p>
+            </body>
+            </html>
+        `);
+    }
+
+    try {
+        let startDate, endDate;
+
+        if (start_date && end_date) {
+            startDate = new Date(start_date);
+            endDate = new Date(end_date);
+        } else {
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - parseInt(days));
+        }
+
+        const dashboardHTML = await emailVisualizationService.generateEmailTableHTML(
+            startDate.toISOString().split('T')[0],
+            endDate.toISOString().split('T')[0]
+        );
+
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(dashboardHTML);
+
+    } catch (error) {
+        console.error('Errore generazione dashboard:', error);
+        res.status(500).send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Errore Dashboard</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1>❌ Errore Dashboard</h1>
+                <p>Si è verificato un errore durante la generazione della dashboard.</p>
+                <p>Riprova più tardi o contatta il supporto.</p>
+            </body>
+            </html>
+        `);
+    }
+});
+
+/**
+ * GET /track/email/multi-open-summary (protetta)
+ * API per riepilogo aperture multiple
+ */
+router.get('/email/multi-open-summary', verifyToken, async (req, res) => {
+    const { days = 30 } = req.query;
+    const { id: userId, id_ditta: dittaId, livello } = req.user;
+
+    // Solo utenti con permessi possono vedere statistiche
+    if (livello < 50) {
+        return res.status(403).json({ success: false, message: 'Permessi insufficienti' });
+    }
+
+    try {
+        const [multiOpenStats] = await dbPool.query(`
+            SELECT
+                ei.tracking_id,
+                ei.destinatari,
+                ei.oggetto,
+                ei.data_invio,
+                COUNT(eot.tracking_id) as total_opens,
+                MIN(eot.opened_at) as first_open,
+                MAX(eot.opened_at) as last_open,
+                COUNT(DISTINCT eot.ip_address) as unique_ips,
+                COUNT(DISTINCT DATE(eot.opened_at)) as unique_days
+            FROM email_inviate ei
+            JOIN email_open_tracking eot ON ei.tracking_id = eot.tracking_id
+            WHERE ei.data_invio >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                AND ei.tracking_id IS NOT NULL
+            GROUP BY ei.id
+            HAVING total_opens > 1
+            ORDER BY total_opens DESC, last_open DESC
+            LIMIT 50
+        `, [days]);
+
+        res.json({
+            success: true,
+            data: {
+                total_multi_opens: multiOpenStats.length,
+                multi_open_emails: multiOpenStats
+            }
+        });
+
+    } catch (error) {
+        console.error('Errore recupero multi-open summary:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero statistiche multi-apertura'
+        });
     }
 });
 

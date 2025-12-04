@@ -750,21 +750,168 @@ function InboxList({ accountId, onEmailSelect, userLevel, refreshList }) {
     ));
 }
 
+// --- Componente per Visualizzazione Tracking Multi-Apertura ---
+const EmailTrackingVisualization = ({ trackingId, emailAddress }) => {
+    const [trackingData, setTrackingData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [showDetails, setShowDetails] = useState(false);
+
+    useEffect(() => {
+        if (trackingId) {
+            fetchTrackingData();
+        }
+    }, [trackingId]);
+
+    const fetchTrackingData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await api.get(`/api/track/email/tracking-details/${trackingId}`);
+            if (response.data && response.data.data) {
+                setTrackingData(response.data.data);
+            }
+        } catch (err) {
+            setError('Impossibile caricare i dati di tracking');
+            console.error('Errore tracking:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-blue-700 text-sm">📊 Caricamento dati tracking...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-red-700 text-sm">⚠️ {error}</p>
+            </div>
+        );
+    }
+
+    if (!trackingData) {
+        return (
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-gray-600 text-sm">📧 Nessun dato di tracking disponibile</p>
+            </div>
+        );
+    }
+
+    const { statistics, opens, email } = trackingData;
+
+    return (
+        <div className="space-y-4">
+            {/* Riepilogo Tracking */}
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-blue-900">📊 Statistiche Tracking</h4>
+                    <button
+                        onClick={() => setShowDetails(!showDetails)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                        {showDetails ? 'Nascondi dettagli' : 'Mostra dettagli'}
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="text-center p-2 bg-white rounded border">
+                        <div className="text-xl font-bold text-blue-600">{statistics.total_opens}</div>
+                        <div className="text-xs text-gray-600">Aperture Totali</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded border">
+                        <div className="text-xl font-bold text-green-600">{statistics.unique_ips}</div>
+                        <div className="text-xs text-gray-600">IP Unici</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded border">
+                        <div className="text-xl font-bold text-purple-600">{opens.length}</div>
+                        <div className="text-xs text-gray-600">Record Dettagliati</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded border">
+                        <div className="text-sm font-bold text-orange-600">{statistics.duration || 'N/A'}</div>
+                        <div className="text-xs text-gray-600">Durata Totale</div>
+                    </div>
+                </div>
+
+                {/* Prima e Ultima Apertura */}
+                {statistics.first_open && statistics.last_open && (
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                            <div>
+                                <span className="font-semibold text-gray-700">Prima apertura:</span>
+                                <span className="ml-2 text-blue-700">
+                                    {new Date(statistics.first_open).toLocaleString('it-IT')}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-gray-700">Ultima apertura:</span>
+                                <span className="ml-2 text-green-700">
+                                    {new Date(statistics.last_open).toLocaleString('it-IT')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Dettagli Aperture */}
+            {showDetails && opens.length > 0 && (
+                <div className="p-4 bg-white rounded-lg border border-gray-200">
+                    <h4 className="font-bold text-gray-900 mb-3">🔍 Dettaglio Aperture</h4>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {opens.map((open, index) => (
+                            <div
+                                key={index}
+                                className={`flex items-center p-3 rounded-lg border ${
+                                    index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
+                                }`}
+                            >
+                                <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                                    {open.open_count}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-semibold text-sm text-gray-900">
+                                        Apertura #{open.open_count}
+                                    </div>
+                                    <div className="text-xs text-gray-600">
+                                        {new Date(open.opened_at).toLocaleString('it-IT')}
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        IP: {open.ip_address || 'Sconosciuto'}
+                                    </div>
+                                </div>
+                                <div className="text-green-500">
+                                    <EyeIcon className="h-5 w-5" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Componente per il Pannello di Lettura ---
 function ReadingPane({ email, accountId, onAction, onBack }) {
     if (!email) return <div className="flex items-center justify-center h-full text-slate-400 p-4"><p className="text-center">Seleziona un'email per leggerla.</p></div>;
-    
+
     if (email.uid) { // Email in arrivo
         return (
             <div>
-                <button 
+                <button
                     onClick={onBack}
                     className="md:hidden flex items-center text-blue-600 mb-4 text-sm"
                 >
                     <ChevronLeftIcon className="h-5 w-5 mr-1" />
                     Torna alla lista
                 </button>
-                
+
                 <div className="flex flex-col md:flex-row md:flex-wrap gap-2 md:items-center mb-4 pb-4 border-b">
                     <h2 className="text-lg md:text-xl lg:text-2xl font-bold flex-grow">{email.subject}</h2>
                     <button onClick={() => onAction('reply')} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 text-sm self-start md:self-auto">Rispondi</button>
@@ -774,43 +921,63 @@ function ReadingPane({ email, accountId, onAction, onBack }) {
             </div>
         );
     }
-    
-    // Email inviata (con Tracking)
+
+    // Email inviata (con Tracking Multi-Apertura)
     return (
         <div>
-            <button 
+            <button
                 onClick={onBack}
                 className="md:hidden flex items-center text-blue-600 mb-4 text-sm"
             >
                 <ChevronLeftIcon className="h-5 w-5 mr-1" />
                 Torna alla lista
             </button>
-            
+
             <h2 className="text-lg md:text-xl lg:text-2xl font-bold mb-4 pb-4 border-b">{email.oggetto}</h2>
+
+            {/* Riepilogo Invio Base */}
             <div className="mb-4 p-3 md:p-4 bg-slate-50 rounded-lg border text-xs md:text-sm space-y-2">
-                <h3 className="font-bold text-slate-700">Riepilogo Invio</h3>
+                <h3 className="font-bold text-slate-700">📧 Riepilogo Invio</h3>
                 <p><strong>Destinatari:</strong> {email.destinatari}</p>
-                <p><strong>Stato:</strong> {email.aperta ? 
-                    <span className="font-semibold text-green-600">Letta il {new Date(email.data_prima_apertura).toLocaleString()}</span> : 
-                    <span className="font-semibold text-slate-500">Non ancora letta</span>}
+                <p><strong>Data Invio:</strong> {new Date(email.data_invio).toLocaleString('it-IT')}</p>
+                <p><strong>Stato:</strong> {email.aperta ?
+                    <span className="font-semibold text-green-600">✅ Letta il {new Date(email.data_prima_apertura).toLocaleString()}</span> :
+                    <span className="font-semibold text-slate-500">❌ Non ancora letta</span>}
                 </p>
+                {email.open_count && email.open_count > 1 && (
+                    <p className="font-semibold text-blue-600">
+                        📊 Email aperta {email.open_count} volte
+                    </p>
+                )}
                 {email.attachments && email.attachments.length > 0 && (
                     <div>
-                        <p className="font-semibold">Allegati:</p>
+                        <p className="font-semibold">📎 Allegati:</p>
                         <ul className="list-disc list-inside ml-4">
                             {email.attachments.map(att => (
                                 <li key={att.nome_file_originale} className="text-xs md:text-sm">
-                                    {att.nome_file_originale} - {att.scaricato ? 
-                                        <span className="font-semibold text-green-600">Scaricato</span> : 
-                                        <span className="text-slate-500">Non scaricato</span>}
+                                    {att.nome_file_originale} - {att.scaricato ?
+                                        <span className="font-semibold text-green-600">✅ Scaricato</span> :
+                                        <span className="text-slate-500">❌ Non scaricato</span>}
                                 </li>
                             ))}
                         </ul>
                     </div>
                 )}
             </div>
+
+            {/* Visualizzazione Tracking Multi-Apertura */}
+            {email.tracking_id && (
+                <div className="mb-4">
+                    <EmailTrackingVisualization
+                        trackingId={email.tracking_id}
+                        emailAddress={email.destinatari}
+                    />
+                </div>
+            )}
+
+            {/* Corpo del Messaggio */}
             <div className="mt-6 pt-6 border-t">
-                <h4 className="font-semibold mb-2 text-sm md:text-base">Corpo del Messaggio Inviato:</h4>
+                <h4 className="font-semibold mb-2 text-sm md:text-base">📝 Corpo del Messaggio Inviato:</h4>
                 <div className="text-sm md:text-base leading-relaxed prose max-w-none p-3 md:p-4 border rounded-md bg-white" dangerouslySetInnerHTML={{ __html: email.corpo }}></div>
             </div>
         </div>
