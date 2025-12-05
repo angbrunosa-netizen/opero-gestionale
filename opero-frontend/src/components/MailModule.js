@@ -416,7 +416,61 @@ const ComposeView = ({
                 <div className="h-48 md:h-64">
                     <ReactQuill theme="snow" value={body} onChange={setBody} style={{ height: '150px', marginBottom: '50px' }} />
                 </div>
-                <input type="file" multiple onChange={e => setAttachments([...e.target.files])} className="block w-full text-sm" />
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-700">Allegati</label>
+                        <span className="text-xs text-gray-500">{attachments.length} file(s) selezionati</span>
+                    </div>
+
+                    {/* Upload area */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors">
+                        <input
+                            type="file"
+                            multiple
+                            onChange={e => setAttachments([...e.target.files])}
+                            className="hidden"
+                            id="file-upload"
+                        />
+                        <label
+                            htmlFor="file-upload"
+                            className="flex flex-col items-center cursor-pointer text-gray-600 hover:text-blue-600"
+                        >
+                            <PaperClipIcon className="h-8 w-8 mb-2" />
+                            <span className="text-sm">Clicca per aggiungere allegati</span>
+                            <span className="text-xs text-gray-500 mt-1">o trascina i file qui</span>
+                        </label>
+                    </div>
+
+                    {/* Lista allegati selezionati */}
+                    {attachments.length > 0 && (
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                            <p className="text-xs font-medium text-gray-700">Allegati da inviare:</p>
+                            {attachments.map((file, index) => (
+                                <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                        <PaperClipIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                        <span className="text-sm text-gray-700 truncate" title={file.name}>
+                                            {file.name}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            ({Math.round(file.size / 1024 * 100) / 100} KB)
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newAttachments = attachments.filter((_, i) => i !== index);
+                                            setAttachments(newAttachments);
+                                        }}
+                                        className="ml-2 p-1 text-red-500 hover:text-red-700 rounded"
+                                        title="Rimuovi allegato"
+                                    >
+                                        <XMarkIcon className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
             <div className="flex justify-end gap-2 md:gap-4 mt-4">
                 <button onClick={handleCancelClick} className="px-3 md:px-4 py-2 bg-gray-200 rounded-md text-sm">Annulla</button>

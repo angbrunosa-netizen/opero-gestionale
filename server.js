@@ -39,6 +39,7 @@ const listeRoutes = require('./routes/liste'); // <-- ROTTA PREZZI E LISTINI
 const AcquistiRoutes = require('./routes/acquisti'); // <-- NUOVA INTEGRAZIONE
 const documentiRoutes = require('./routes/documenti');
 const archivioRoutes = require('./routes/archivio');
+const archivioPostaRoutes = require('./routes/archivio-posta'); // <-- NUOVA ROTTA ARCHIVIO POSTA
 const systemRoutes = require('./routes/system');
 const adminS3Routes = require('./routes/admin-s3'); // <-- NUOVA ROTTA S3 ADMIN
 
@@ -61,17 +62,45 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // In sviluppo, abbiamo bisogno di una configurazione CORS robusta
   // per permettere la comunicazione tra il frontend (es. porta 3000) e il backend (es. porta 3001).
-  const allowedOrigins = [process.env.FRONTEND_URL,'http://localhost:3000', 'http://localhost:3003','http://192.168.1.80','http://192.168.1.80:8080' ];
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:3003',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+    'http://192.168.1.80',
+    'http://192.168.1.80:8080',
+    'http://192.168.1.80:3000',
+    'http://192.168.1.80:3001',
+    'http://192.168.1.80:3002'
+  ];
   const corsOptions = {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Permetti richieste senza origin (es. Postman, curl)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      console.log(`[CORS] Request from origin: ${origin}`);
+
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        // In development, permetti tutte le origini con un warning
+        if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+          console.warn(`[CORS] Allowing origin ${origin} in development mode`);
+          callback(null, true);
+        } else {
+          console.error(`[CORS] Blocking origin ${origin} - not in allowed list`);
+          callback(new Error('Not allowed by CORS'));
+        }
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     credentials: true,
   };
   app.use(cors(corsOptions));
@@ -109,6 +138,7 @@ app.use('/api/liste', verifyToken, listeRoutes); // <-- ROTTA PREZZI E LISTINI
 app.use('/api/acquisti', AcquistiRoutes); // <-- AGGIUNGI QUESTA RIGA
 app.use('/api/documenti', documentiRoutes);
 app.use('/api/archivio', verifyToken, archivioRoutes);
+app.use('/api/archivio-posta', verifyToken, archivioPostaRoutes); // <-- NUOVA ROTTA ARCHIVIO POSTA
 app.use('/api/system', verifyToken, systemRoutes);
 app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
 
@@ -136,7 +166,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 } else {
   // --- AVVIO IN SVILUPPO SU PORTA DI RETE ---
-  const PORT = process.env.PORT || 3001;
+  const PORT = process.env.PORT || 3002;
  if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`💻 Server Opero in SVILUPPO avviato e in ascolto sulla porta: ${PORT}`);

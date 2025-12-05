@@ -17,6 +17,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import ArchivioPostaModule from '../ArchivioPostaModule';
 
 // Icone da lucide-react
 import {
@@ -39,7 +40,8 @@ import {
     AlertCircle,
     Filter,
     ChevronDown,
-    Menu
+    Menu,
+    Mail
 } from 'lucide-react';
 
 // Mappatura Codici -> Etichette Leggibili
@@ -70,8 +72,11 @@ const ImagePreviewModal = ({ isOpen, onClose, imageSrc, fileName }) => {
 };
 
 const ArchivioDocumentale = () => {
-    const { hasPermission } = useAuth(); 
-    
+    const { hasPermission } = useAuth();
+
+    // Stati per la navigazione tra sezioni
+    const [activeSection, setActiveSection] = useState('documenti'); // 'documenti' o 'posta'
+
     const [files, setFiles] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -79,7 +84,7 @@ const ArchivioDocumentale = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterPrivacy, setFilterPrivacy] = useState('all');
     const [filterEntity, setFilterEntity] = useState('all');
-    
+
     // Stati per la gestione della vista mobile
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -380,22 +385,61 @@ const ArchivioDocumentale = () => {
         <div className="p-4 md:p-6 bg-gray-50 h-full flex flex-col">
             {/* Header */}
             <div className="flex flex-col mb-4">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-between items-center mb-4">
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-gray-800">Archivio Documentale</h1>
                         <p className="text-sm text-gray-500">Gestione centralizzata di tutti i file e allegati</p>
                     </div>
-                    
-                    {/* Menu mobile */}
-                    {isMobile && (
-                        <button 
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-                            className="p-2 rounded-lg hover:bg-gray-100"
-                        >
-                            <Menu className="w-6 h-6" />
-                        </button>
-                    )}
                 </div>
+
+                {/* Tab Navigation */}
+                <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setActiveSection('documenti')}
+                        className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                            activeSection === 'documenti'
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        }`}
+                    >
+                        <div className="flex items-center justify-center gap-2">
+                            <File className="w-4 h-4" />
+                            <span>Documenti Generali</span>
+                        </div>
+                    </button>
+                    <button
+                        onClick={() => setActiveSection('posta')}
+                        className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                            activeSection === 'posta'
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        }`}
+                    >
+                        <div className="flex items-center justify-center gap-2">
+                            <Mail className="w-4 h-4" />
+                            <span>Allegati Posta</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* Contenuto dinamico basato sulla sezione attiva */}
+            {activeSection === 'posta' ? (
+                <ArchivioPostaModule />
+            ) : (
+                <>
+                    {/* Header per sezione documenti (contenuto originale) */}
+                    <div className="flex justify-between items-center mb-2">
+                        {/* Menu mobile */}
+                        {isMobile && (
+                            <button
+                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                className="p-2 rounded-lg hover:bg-gray-100"
+                            >
+                                <Menu className="w-6 h-6" />
+                            </button>
+                        )}
+                    </div>
                 
                 {/* Barra di ricerca e filtri per desktop */}
                 <div className={`flex flex-wrap items-center gap-3 w-full md:w-auto ${isMobile && !isMobileMenuOpen ? 'hidden' : 'flex'}`}>
@@ -464,123 +508,123 @@ const ArchivioDocumentale = () => {
                         </button>
                     )}
                 </div>
-            </div>
-
-            {/* Contenuto con Gestione Stati */}
-            {isLoading ? (
-                <div className="flex-1 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-            ) : error ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-red-500 bg-red-50 rounded-lg border border-red-200 p-8 m-4">
-                    <AlertCircle className="w-12 h-12 mb-4" />
-                    <p className="text-lg font-medium">Errore nel caricamento</p>
-                    <p className="text-sm text-red-600 mt-1">{error}</p>
-                    <button onClick={fetchFiles} className="mt-4 px-4 py-2 bg-white border border-red-300 text-red-700 rounded-md hover:bg-red-50 shadow-sm">Riprova</button>
-                </div>
-            ) : filteredFiles.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                    <UploadCloud className="w-16 h-16 mb-4 opacity-20" />
-                    <p>Nessun file trovato con questi filtri</p>
-                </div>
-            ) : (
-                <div className="flex-1 overflow-hidden">
-                    {/* Vista mobile - griglia con altezza fissa */}
-                    {isMobile ? (
-                        <div className="h-full overflow-y-auto pb-4">
-                            <div className="grid grid-cols-2 gap-3">
-                                {filteredFiles.map((file) => (
-                                    <MobileFileCard key={file.id_file} file={file} />
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        /* Vista desktop */
-                        <div className="bg-white rounded-lg shadow overflow-hidden h-full overflow-y-auto">
-                            {viewMode === 'list' ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 border-b">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Tipo</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome File</th>
-                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Privacy</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilizzato In</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensione</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {filteredFiles.map((file) => (
-                                                <tr key={file.id_file} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap">{getFileIcon(file.mime_type)}</td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center">
-                                                            <span className="text-sm font-medium text-gray-900 truncate max-w-xs" title={getDisplayName(file)}>
-                                                                {getDisplayName(file)}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        {file.privacy === 'public' ? (
-                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" title="Pubblico">
-                                                                <Globe className="w-3 h-3 mr-1" /> Public
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800" title="Privato">
-                                                                <Lock className="w-3 h-3 mr-1" /> Private
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {file.links_descrizione ? (
-                                                            <div className="flex items-start gap-1 text-sm text-gray-600">
-                                                                <LinkIcon className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
-                                                                <span className="line-clamp-2" title={file.links_descrizione}>{file.links_descrizione}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-xs text-gray-400 italic">Nessun collegamento</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatBytes(file.file_size_bytes)}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(file.created_at).toLocaleDateString()}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button onClick={() => openPreview(file)} className="p-1 text-gray-400 hover:text-blue-600" title="Anteprima">
-                                                                <Eye className="w-5 h-5" />
-                                                            </button>
-                                                            <a href={file.previewUrl} download={getDisplayName(file)} className="p-1 text-gray-400 hover:text-green-600" title="Download">
-                                                                <Download className="w-5 h-5" />
-                                                            </a>
-                                                            {hasPermission('DM_FILE_DELETE') && (
-                                                                <button onClick={() => handleDelete(file)} className="p-1 text-gray-400 hover:text-red-600" title="Elimina">
-                                                                    <Trash2 className="w-5 h-5" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {/* Contenuto con Gestione Stati */}
+                {isLoading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    </div>
+                ) : error ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-red-500 bg-red-50 rounded-lg border border-red-200 p-8 m-4">
+                        <AlertCircle className="w-12 h-12 mb-4" />
+                        <p className="text-lg font-medium">Errore nel caricamento</p>
+                        <p className="text-sm text-red-600 mt-1">{error}</p>
+                        <button onClick={fetchFiles} className="mt-4 px-4 py-2 bg-white border border-red-300 text-red-700 rounded-md hover:bg-red-50 shadow-sm">Riprova</button>
+                    </div>
+                ) : filteredFiles.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                        <UploadCloud className="w-16 h-16 mb-4 opacity-20" />
+                        <p>Nessun file trovato con questi filtri</p>
+                    </div>
+                ) : (
+                    <div className="flex-1 overflow-hidden">
+                        {/* Vista mobile - griglia con altezza fissa */}
+                        {isMobile ? (
+                            <div className="h-full overflow-y-auto pb-4">
+                                <div className="grid grid-cols-2 gap-3">
                                     {filteredFiles.map((file) => (
-                                        <DesktopFileCard key={file.id_file} file={file} />
+                                        <MobileFileCard key={file.id_file} file={file} />
                                     ))}
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+                            </div>
+                        ) : (
+                            /* Vista desktop */
+                            <div className="bg-white rounded-lg shadow overflow-hidden h-full overflow-y-auto">
+                                {viewMode === 'list' ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50 border-b">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Tipo</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome File</th>
+                                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Privacy</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilizzato In</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensione</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {filteredFiles.map((file) => (
+                                                    <tr key={file.id_file} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-6 py-4 whitespace-nowrap">{getFileIcon(file.mime_type)}</td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center">
+                                                                <span className="text-sm font-medium text-gray-900 truncate max-w-xs" title={getDisplayName(file)}>
+                                                                    {getDisplayName(file)}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            {file.privacy === 'public' ? (
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" title="Pubblico">
+                                                                    <Globe className="w-3 h-3 mr-1" /> Public
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800" title="Privato">
+                                                                    <Lock className="w-3 h-3 mr-1" /> Private
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {file.links_descrizione ? (
+                                                                <div className="flex items-start gap-1 text-sm text-gray-600">
+                                                                    <LinkIcon className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
+                                                                    <span className="line-clamp-2" title={file.links_descrizione}>{file.links_descrizione}</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400 italic">Nessun collegamento</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatBytes(file.file_size_bytes)}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(file.created_at).toLocaleDateString()}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button onClick={() => openPreview(file)} className="p-1 text-gray-400 hover:text-blue-600" title="Anteprima">
+                                                                    <Eye className="w-5 h-5" />
+                                                                </button>
+                                                                <a href={file.previewUrl} download={getDisplayName(file)} className="p-1 text-gray-400 hover:text-green-600" title="Download">
+                                                                    <Download className="w-5 h-5" />
+                                                                </a>
+                                                                {hasPermission('DM_FILE_DELETE') && (
+                                                                    <button onClick={() => handleDelete(file)} className="p-1 text-gray-400 hover:text-red-600" title="Elimina">
+                                                                        <Trash2 className="w-5 h-5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                        {filteredFiles.map((file) => (
+                                            <DesktopFileCard key={file.id_file} file={file} />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <ImagePreviewModal isOpen={isPreviewModalOpen} onClose={closePreviewModal} imageSrc={previewImage} fileName={previewFileName} />
+
+                {/* Pannello filtri mobile */}
+                <MobileFilters />
+                </>
             )}
-            
-            <ImagePreviewModal isOpen={isPreviewModalOpen} onClose={closePreviewModal} imageSrc={previewImage} fileName={previewFileName} />
-            
-            {/* Pannello filtri mobile */}
-            <MobileFilters />
         </div>
     );
 };
