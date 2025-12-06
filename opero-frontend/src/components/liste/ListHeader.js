@@ -1,45 +1,12 @@
 // ListHeader.js (versione adattata)
-import React, { useState, useEffect } from 'react';
-import { useListCausali } from '../hooks/useListCausali'; // Hook custom per fetchare le causali
-import { useListDitte } from '../hooks/useListDitte';   // Hook custom per fetchare le ditte
+import React from 'react';
+import { useListCausali } from './ListComposer/hooks/useListCausali'; // Hook custom per fetchare le causali
+import { useListDitte } from './ListComposer/hooks/useListDitte';   // Hook custom per fetchare le ditte
 
 const ListHeader = ({ listData, setListData }) => {
-  const [causali, setCausali] = useState([]);
-  const [ditteDisponibili, setDitteDisponibili] = useState([]);
-  const [isLoadingCausali, setIsLoadingCausali] = useState(true);
-  
-  // Fetch delle causali al montaggio del componente
-  useEffect(() => {
-    const fetchCausali = async () => {
-      try {
-        const response = await api.get('/liste/causali');
-        setCausali(response.data);
-      } catch (error) {
-        console.error("Errore nel caricamento delle causali:", error);
-      } finally {
-        setIsLoadingCausali(false);
-      }
-    };
-    fetchCausali();
-  }, []);
-
-  // Quando cambia la causale, fetchiamo le ditte corrette
-  useEffect(() => {
-    if (listData.id_causale_movimento) {
-      const fetchDitte = async () => {
-        try {
-          const response = await api.get(`/liste/ditte-per-causale/${listData.id_causale_movimento}`);
-          setDitteDisponibili(response.data);
-        } catch (error) {
-          console.error("Errore nel caricamento delle ditte:", error);
-          setDitteDisponibili([]);
-        }
-      };
-      fetchDitte();
-    } else {
-      setDitteDisponibili([]);
-    }
-  }, [listData.id_causale_movimento]);
+  // Usiamo gli hook custom per caricare i dati
+  const { causali, isLoading: isLoadingCausali } = useListCausali();
+  const { ditte, isLoading: isLoadingDitte } = useListDitte(listData.id_causale_movimento);
 
   const handleCausaleChange = (idCausale) => {
     // Troviamo la causale selezionata per capire il tipo
@@ -97,7 +64,7 @@ const ListHeader = ({ listData, setListData }) => {
               className="w-full p-2 border border-gray-300 rounded-md"
             >
               <option value="">Seleziona...</option>
-              {ditteDisponibili.map(ditta => (
+              {ditte.map(ditta => (
                 <option key={ditta.id} value={ditta.id}>
                   {ditta.ragione_sociale}
                 </option>

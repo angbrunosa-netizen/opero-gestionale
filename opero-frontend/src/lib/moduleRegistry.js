@@ -24,6 +24,7 @@ export const iconMap = {
     ClipboardDocumentListIcon: Icons.ClipboardDocumentListIcon,
     DocumentTextIcon: Icons.DocumentTextIcon, // Icona per il modulo LISTE
     CurrencyDollarIcon: Icons.CurrencyDollarIcon,
+    GlobeAltIcon: Icons.GlobeAltIcon, // Icona per il modulo SITE_BUILDER
     QuestionMarkCircleIcon: Icons.QuestionMarkCircleIcon // Fallback
 };
 
@@ -40,6 +41,8 @@ const FinanzeModule = React.lazy(() => import('../components/FinanzeModule'));
 const PPAModule = React.lazy(() => import('../components/PPAModule'));
  const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
  const VenditeModule = React.lazy(() => import('../components/VenditeModule'));
+const WebsiteBuilderModule = React.lazy(() => import('../components/WebsiteBuilderModule'));
+const ListModule = React.lazy(() => import('../components/ListModule')); // Componente per il modulo LISTE
 
 // --- Mappa dei Componenti (BASATA SUL TUO SQL) ---
 // Collega la 'chiave_componente' del DB al componente React.
@@ -52,13 +55,13 @@ export const componentMap = {
   BSSMART: BeniStrumentaliModule,
   CT_VIEW: CatalogoModule,
   DOCUMENTI: ArchivioDocumentale,
-  
+  SITE_BUILDER: WebsiteBuilderModule,
   // --- Moduli pronti per essere attivati ---
   // Per attivarli: 1. Crea il componente. 2. Decommenta le due righe.
-  
+LISTE: ListModule,  
  FIN_SMART: FinanzeModule,
  PPA_SIS: PPAModule, 
  MG_VIEW: MagazzinoModule,
 VA_CLIENTI_VIEW: VenditeModule,
-  LISTE: React.lazy(() => import('../components/liste/ListComposer'))
+  
 };

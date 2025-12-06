@@ -14,7 +14,13 @@
       "Bash(timeout:*)",
       "Bash(node:*)",
       "Bash(NODE_ENV=development timeout 10 node:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(npm run migrate:rollback:*)",
+      "Bash(npm run migrate:*)",
+      "Bash(npx knex migrate:rollback:*)",
+      "Bash(npx knex migrate:latest:*)",
+      "Bash(npx knex:*)",
+      "Bash(wmic process where \"name='node.exe'\" delete:*)"
     ],
     "deny": [],
     "ask": []

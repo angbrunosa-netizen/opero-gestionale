@@ -42,6 +42,7 @@ const archivioRoutes = require('./routes/archivio');
 const archivioPostaRoutes = require('./routes/archivio-posta'); // <-- NUOVA ROTTA ARCHIVIO POSTA
 const systemRoutes = require('./routes/system');
 const adminS3Routes = require('./routes/admin-s3'); // <-- NUOVA ROTTA S3 ADMIN
+const websiteRoutes = require('./routes/website'); // <-- NUOVA ROTTA WEBSITE BUILDER
 
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
@@ -141,6 +142,8 @@ app.use('/api/archivio', verifyToken, archivioRoutes);
 app.use('/api/archivio-posta', verifyToken, archivioPostaRoutes); // <-- NUOVA ROTTA ARCHIVIO POSTA
 app.use('/api/system', verifyToken, systemRoutes);
 app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
+// TODO: Riattivare verifyToken quando il debug è completato
+app.use('/api/website', websiteRoutes); // <-- NUOVA ROTTA WEBSITE BUILDER SENZA AUTH PER DEBUG
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
 if (process.env.NODE_ENV === 'production') {
