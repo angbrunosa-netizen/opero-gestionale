@@ -13,7 +13,7 @@ import { Capacitor } from '@capacitor/core'; // Importiamo Capacitor per un cont
 const PROD_URL = 'https://www.operocloud.it/api';
 
 // URL per lo sviluppo locale (PC)
-const DEV_URL = 'http://localhost:3002/api';
+const DEV_URL = 'http://localhost:3000/api';
 
 // ---------------------------------------------------------------------
 // LOGICA DI SELEZIONE (SMART)

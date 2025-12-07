@@ -20,7 +20,8 @@
       "Bash(npx knex migrate:rollback:*)",
       "Bash(npx knex migrate:latest:*)",
       "Bash(npx knex:*)",
-      "Bash(wmic process where \"name='node.exe'\" delete:*)"
+      "Bash(wmic process where \"name='node.exe'\" delete:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

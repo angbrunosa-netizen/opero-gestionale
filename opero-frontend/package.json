@@ -2,7 +2,7 @@
   "name": "opero-frontend",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:3001",
+  "proxy": "http://localhost:3000",
   "dependencies": {
     "@ag-grid-community/client-side-row-model": "^32.3.9",
     "@ag-grid-community/csv-export": "^32.3.9",
