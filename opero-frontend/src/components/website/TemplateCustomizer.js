@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import GalleryAdvancedCustomizer from './GalleryAdvancedCustomizer_SIMPLE';
 import {
   PaintBrushIcon,
   SwatchIcon,
@@ -18,12 +19,17 @@ import {
   Cog6ToothIcon,
   CheckCircleIcon,
   SparklesIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  PhotoIcon,
+  ViewColumnsIcon,
+  Squares2X2Icon
 } from '@heroicons/react/24/outline';
 
 const TemplateCustomizer = ({ config, onConfigChange }) => {
   const [activeSection, setActiveSection] = useState('colors');
   const [previewMode, setPreviewMode] = useState(false);
+  const [showGalleryAdvanced, setShowGalleryAdvanced] = useState(false);
+  const [selectedGallery, setSelectedGallery] = useState(null);
 
   // Predefined color schemes
   const colorSchemes = [
@@ -116,6 +122,11 @@ const TemplateCustomizer = ({ config, onConfigChange }) => {
     onConfigChange({ ...config, ...updates });
   }, [config, onConfigChange]);
 
+  const handleGalleryAdvanced = (gallery = null) => {
+    setSelectedGallery(gallery);
+    setShowGalleryAdvanced(true);
+  };
+
   // Apply color scheme
   const applyColorScheme = (scheme) => {
     updateConfig({
@@ -156,6 +167,12 @@ const TemplateCustomizer = ({ config, onConfigChange }) => {
       name: 'Footer',
       icon: Cog6ToothIcon,
       description: 'Piè di pagina e informazioni contatto'
+    },
+    {
+      id: 'galleries',
+      name: 'Gallerie Fotografiche',
+      icon: PhotoIcon,
+      description: 'Layout e impostazioni globali gallerie'
     }
   ];
 
@@ -752,6 +769,246 @@ const TemplateCustomizer = ({ config, onConfigChange }) => {
           </div>
         );
 
+      case 'galleries':
+        return (
+          <div className="space-y-6">
+            {/* Impostazioni Layout Gallerie Predefinito */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Layout Default Gallerie</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <button
+                  onClick={() => updateConfig({
+                    gallery_default_layout: 'grid-3',
+                    gallery_spacing: 'medium'
+                  })}
+                  className={`p-3 border rounded-lg text-left transition-colors ${
+                    config.gallery_default_layout === 'grid-3'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  <ViewColumnsIcon className="h-5 w-5 mb-2" />
+                  <div className="text-sm">Griglia 3</div>
+                </button>
+
+                <button
+                  onClick={() => updateConfig({
+                    gallery_default_layout: 'masonry',
+                    gallery_spacing: 'medium'
+                  })}
+                  className={`p-3 border rounded-lg text-left transition-colors ${
+                    config.gallery_default_layout === 'masonry'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  <SparklesIcon className="h-5 w-5 mb-2" />
+                  <div className="text-sm">Masonry</div>
+                </button>
+
+                <button
+                  onClick={() => updateConfig({
+                    gallery_default_layout: 'carousel',
+                    gallery_spacing: 'compact'
+                  })}
+                  className={`p-3 border rounded-lg text-left transition-colors ${
+                    config.gallery_default_layout === 'carousel'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  <ArrowPathIcon className="h-5 w-5 mb-2" />
+                  <div className="text-sm">Carousel</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Spaziatura Gallerie */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Spaziatura tra Immagini</h4>
+              <div className="flex items-center space-x-3">
+                <label className="text-sm text-gray-700">Spaziatura:</label>
+                <select
+                  value={config.gallery_spacing || 'medium'}
+                  onChange={(e) => updateConfig({ gallery_spacing: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="compact">Compatta</option>
+                  <option value="medium">Media</option>
+                  <option value="spacious">Spaziosa</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Bordi Arrotondati */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Bordi Immagini</h4>
+              <div className="flex items-center space-x-3">
+                <label className="text-sm text-gray-700">Arrotondamento:</label>
+                <select
+                  value={config.gallery_border_radius || 'medium'}
+                  onChange={(e) => updateConfig({ gallery_border_radius: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="none">Nessuno</option>
+                  <option value="small">Piccolo</option>
+                  <option value="medium">Medio</option>
+                  <option value="large">Grande</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Effetti Hover */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Effetti Hover</h4>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={config.gallery_zoom_on_hover !== false}
+                    onChange={(e) => updateConfig({ gallery_zoom_on_hover: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label className="text-sm text-gray-700">Zoom al passaggio mouse</label>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={config.gallery_shadow_on_hover !== false}
+                    onChange={(e) => updateConfig({ gallery_shadow_on_hover: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label className="text-sm text-gray-700">Ombra al passaggio mouse</label>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={config.gallery_show_captions_on_hover !== false}
+                    onChange={(e) => updateConfig({ gallery_show_captions_on_hover: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label className="text-sm text-gray-700">Mostra didascalie al hover</label>
+                </div>
+              </div>
+            </div>
+
+            {/* Lightbox Settings */}
+            <div>
+              <h4 className="text-start text-sm font-medium text-gray-900 mb-3">Lightbox</h4>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={config.gallery_lightbox_enabled !== false}
+                    onChange={(e) => updateConfig({ gallery_lightbox_enabled: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label className="text-sm text-gray-700">Abilita lightbox</label>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <label className="text-sm text-gray-700">Effetto transizione:</label>
+                  <select
+                    value={config.gallery_lightbox_transition || 'fade'}
+                    onChange={(e) => updateConfig({ gallery_lightbox_transition: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                    disabled={config.gallery_lightbox_enabled === false}
+                  >
+                    <option value="fade">Dissolvenza</option>
+                    <option value="zoom">Zoom</option>
+                    <option value="slide">Scorrimento</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Colori Galleria */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Colori Tema Galleria</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div
+                  onClick={() => updateConfig({
+                    gallery_primary_color: '#3B82F6',
+                    gallery_background_color: '#FFFFFF'
+                  })}
+                  className="border-2 border-gray-200 rounded-lg p-3 cursor-pointer hover:border-blue-400"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded bg-blue-500"></div>
+                    <span className="text-sm">Blu</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => updateConfig({
+                    gallery_primary_color: '#10B981',
+                    gallery_background_color: '#FFFFFF'
+                  })}
+                  className="border-2 border-gray-200 rounded-lg p-3 cursor-pointer hover:border-green-400"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded bg-green-500"></div>
+                    <span className="text-sm">Verde</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => updateConfig({
+                    gallery_primary_color: '#6B7280',
+                    gallery_background_color: '#FFFFFF'
+                  })}
+                  className="border-2 border-gray-200 rounded-lg p-3 cursor-pointer hover:border-gray-400"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded bg-gray-500"></div>
+                    <span className="text-sm">Grigio</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pulsante Personalizzazione Avanzata */}
+            <div>
+              <button
+                onClick={() => handleGalleryAdvanced()}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200"
+              >
+                <AdjustmentsHorizontalIcon className="w-5 h-5" />
+                <span className="font-medium">Personalizzazione Avanzata Gallerie</span>
+              </button>
+            </div>
+
+            {/* Anteprima */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Anteprima Impostazioni</h4>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
+                <div className="grid grid-cols-3 gap-2">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div
+                      key={i}
+                      className={`aspect-square rounded-lg ${
+                        config.gallery_border_radius === 'none' ? '' : 'rounded'
+                      } ${
+                        config.gallery_border_radius === 'small' ? 'rounded-sm' :
+                        config.gallery_border_radius === 'large' ? 'rounded-lg' : 'rounded'
+                      } bg-white border border-gray-200`}
+                      style={{
+                        boxShadow: config.gallery_shadow_on_hover !== false ? '0 4px 6px rgba(0,0,0,0.1)' : 'none'
+                      }}
+                    >
+                      <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+                        <PhotoIcon className="w-6 h-6" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -852,6 +1109,21 @@ const TemplateCustomizer = ({ config, onConfigChange }) => {
           </div>
         )}
       </div>
+
+      {/* Modale GalleryAdvancedCustomizer */}
+      {showGalleryAdvanced && (
+        <GalleryAdvancedCustomizer
+          gallery={selectedGallery}
+          onGalleryUpdate={(gallery) => {
+            // Qui puoi gestire l'aggiornamento della galleria
+            console.log('Gallery updated:', gallery);
+          }}
+          onClose={() => {
+            setShowGalleryAdvanced(false);
+            setSelectedGallery(null);
+          }}
+        />
+      )}
     </div>
   );
 };

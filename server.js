@@ -43,7 +43,7 @@ const archivioPostaRoutes = require('./routes/archivio-posta'); // <-- NUOVA ROT
 const systemRoutes = require('./routes/system');
 const adminS3Routes = require('./routes/admin-s3'); // <-- NUOVA ROTTA S3 ADMIN
 const websiteRoutes = require('./routes/website'); // <-- NUOVA ROTTA WEBSITE BUILDER
-
+const quoteRoutes = require('./routes/quoteRoutes'); // ROTTA PER IL PENSIERO MOTIVAZIONALE
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
@@ -141,6 +141,7 @@ app.use('/api/documenti', documentiRoutes);
 app.use('/api/archivio', verifyToken, archivioRoutes);
 app.use('/api/archivio-posta', verifyToken, archivioPostaRoutes); // <-- NUOVA ROTTA ARCHIVIO POSTA
 app.use('/api/system', verifyToken, systemRoutes);
+app.use('/api/quotes', quoteRoutes); // ROTTA PER IL PENSIERO MOTIVAZIONALE
 app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
 // TODO: Riattivare verifyToken quando il debug è completato
 app.use('/api/website', websiteRoutes); // <-- NUOVA ROTTA WEBSITE BUILDER SENZA AUTH PER DEBUG

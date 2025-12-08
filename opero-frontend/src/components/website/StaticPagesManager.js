@@ -8,7 +8,7 @@
  * @version 1.0
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   DocumentTextIcon,
   PlusIcon,
@@ -25,6 +25,7 @@ import {
 } from '@heroicons/react/24/outline';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { api } from '../../services/api';
 
 const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
   const [selectedPage, setSelectedPage] = useState(null);
@@ -193,7 +194,7 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
 
   // Elimina pagina
   const deletePage = useCallback(async (pageId) => {
-    if (!confirm('Sei sicuro di voler eliminare questa pagina?')) return;
+    if (!window.confirm('Sei sicuro di voler eliminare questa pagina?')) return;
 
     try {
       await api.delete(`/website/${websiteId}/pages/${pageId}`);
@@ -219,6 +220,7 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
   // Editor per pagina specifica
   const PageEditor = ({ page, template, onClose }) => {
     const [content, setContent] = useState(page?.contenuto_json || template.defaultContent);
+    const quillRef = useRef(null);
 
     const savePage = async () => {
       try {
@@ -228,7 +230,8 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
           titolo: page?.titolo || template.title,
           contenuto_json: content,
           meta_title: page?.meta_title || template.title,
-          meta_description: page?.meta_description || template.description
+          meta_description: page?.meta_description || template.description,
+          is_published: page?.is_published !== undefined ? page.is_published : 0
         };
 
         await api.put(`/website/${websiteId}/pages/${page.id}`, pageData);
@@ -385,6 +388,7 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
             <div key={index} className="border border-gray-200 rounded-lg p-4">
               <h4 className="font-medium mb-3">Sezione {section.type}</h4>
               <ReactQuill
+                ref={quillRef}
                 value={section.content || ''}
                 onChange={(value) => {
                   const newContent = { ...content };
@@ -401,6 +405,7 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
                     ['clean']
                   ]
                 }}
+                suppressHydrationWarning={true}
               />
             </div>
           );
@@ -507,7 +512,10 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
                       </button>
 
                       <button
-                        onClick={() => setEditingPage(page)}
+                        onClick={() => {
+                          setEditingPage(page);
+                          setShowEditor(true);
+                        }}
                         className="p-1 text-gray-400 hover:text-gray-600"
                         title="Modifica"
                       >
@@ -598,6 +606,7 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
         <PagePreview
           page={selectedPage}
           onClose={() => setSelectedPage(null)}
+          websiteId={websiteId}
         />
       )}
     </div>
@@ -605,15 +614,79 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
 };
 
 // Componente anteprima pagina
-const PagePreview = ({ page, onClose }) => {
+const PagePreview = ({ page, onClose, websiteId }) => {
   const [content, setContent] = useState(null);
 
   useEffect(() => {
     // Carica contenuto HTML generato dal backend
-    api.get(`/website/${page.id_sito_web}/preview/${page.slug}`)
-      .then(response => setContent(response.data.html))
-      .catch(error => console.error('Errore caricamento preview:', error));
-  }, [page]);
+    console.log('🔥 StaticPagesManager: caricamento preview', {
+      websiteId,
+      pageSlug: page.slug
+    });
+
+    // Prova prima con il servizio API (più sicuro per i cookie)
+    api.get(`/website/${websiteId}/preview/${page.slug}`)
+      .then(response => {
+        console.log('🔥 StaticPagesManager: risposta API ricevuta', response);
+        if (response.data.success) {
+          setContent(response.data.html);
+        } else {
+          // Fallback a fetch diretto se API fallisce
+          console.log('🔄 API fallback to fetch');
+          fetchDirectPreview();
+        }
+      })
+      .catch(error => {
+        console.error('❌ StaticPagesManager: Errore API, provo fetch diretto:', error);
+        fetchDirectPreview();
+      });
+
+    // Funzione per fetch diretto come fallback
+    const fetchDirectPreview = () => {
+      // Prova con header minimizzati per evitare HTTP 431
+      const minimalHeaders = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Cache-Control': 'no-cache'
+      };
+
+      fetch(`/api/website/${websiteId}/preview/${page.slug}`, {
+        method: 'GET',
+        headers: minimalHeaders,
+        credentials: 'omit' // Non inviare cookie
+      })
+        .then(response => {
+          console.log('🔥 StaticPagesManager: fetch response status', response.status);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.text();
+        })
+        .then(html => {
+          console.log('🔥 StaticPagesManager: HTML ricevuto da fetch, length:', html.length);
+          setContent(html);
+        })
+        .catch(error => {
+          console.error('❌ StaticPagesManager: Errore caricamento preview:', error);
+          // Mostra errore con soluzioni
+          setContent(`<div style="padding: 20px; text-align: center; color: red;">
+            <h3>Errore nel caricamento dell'anteprima</h3>
+            <p>${error.message}</p>
+            <div style="margin-top: 20px;">
+              <h4>Possibili soluzioni:</h4>
+              <ul style="text-align: left; max-width: 500px; margin: 0 auto;">
+                <li>Cancella i cookie del sito</li>
+                <li>Ricarica la pagina e riprova</li>
+                <li>Prova ad aprire l'anteprima in una nuova scheda</li>
+              </ul>
+              <button onclick="window.open('/api/website/${websiteId}/preview/${page.slug}', '_blank')"
+                      style="margin-top: 10px; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Apri anteprima in nuova scheda
+              </button>
+            </div>
+          </div>`);
+        });
+    };
+  }, [page, websiteId]);
 
   if (!content) return null;
 

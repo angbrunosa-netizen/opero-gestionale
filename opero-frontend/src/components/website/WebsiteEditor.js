@@ -19,7 +19,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 // Import componenti
-import PagesManagerStatic from './PagesManagerStatic';
+import PagesManager from './PagesManager';
 
 const WebsiteEditor = ({ site, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -39,7 +39,7 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
     catalog_settings: site?.catalog_settings || {}
   });
 
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('pages'); // Imposta直接 le pagine come tab predefinita
   const [saving, setSaving] = useState(false);
 
   // Monitoriamo quando il componente viene smontato o quando activeTab cambia
@@ -79,8 +79,7 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setSaving(true);
 
     try {
@@ -354,7 +353,6 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
   const renderPagesTab = () => {
     console.log('WebsiteEditor: renderPagesTab chiamato, site:', site?.id);
 
-    // Test con return immediato
     try {
       console.log('WebsiteEditor: inizio rendering pagine tab');
 
@@ -362,7 +360,7 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
         console.log('WebsiteEditor: nessun site.id, mostro messaggio');
         return (
           <div style={{ backgroundColor: 'yellow', padding: '20px', border: '3px solid red' }}>
-            <h1>NESSUN SITE ID - TEST DI RENDERING</h1>
+            <h1>NESSUN SITE ID - ERRORE</h1>
             <p>Site è: {JSON.stringify(site)}</p>
           </div>
         );
@@ -370,26 +368,8 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
 
       console.log('WebsiteEditor: site.id trovato:', site.id);
 
-      // Return immediato senza componenti complessi
-      return (
-        <div style={{ backgroundColor: 'lightblue', padding: '20px', border: '3px solid green' }}>
-          <h1>PAGINE SITO - FUNZIONA!</h1>
-          <p>Site ID: {site.id}</p>
-          <p>Site Title: {site.site_title}</p>
-          <p>Subdomain: {site.subdomain}</p>
-          <div style={{ marginTop: '20px' }}>
-            <button
-              onClick={() => alert('Button clicked! Site: ' + site.id)}
-              style={{ padding: '10px 20px', fontSize: '16px' }}
-            >
-              TEST BUTTON
-            </button>
-          </div>
-          <p style={{ marginTop: '20px', fontSize: '12px' }}>
-            Se vedi questo, il rendering funziona!
-          </p>
-        </div>
-      );
+      // Renderizza il componente PagesManager
+      return <PagesManager site={site} />;
 
     } catch (error) {
       console.error('WebsiteEditor: ERRORE renderPagesTab:', error);
@@ -448,9 +428,41 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
   try {
     console.log('WebsiteEditor: inizio rendering del componente principale');
 
+    // Se abbiamo un site ID, mostriamo direttamente il PagesManager
+    if (site?.id) {
+      console.log('🎯 WebsiteEditor: site ID trovato, mostro direttamente PagesManager');
+      return (
+        <div className="space-y-6">
+          {/* Header semplificato */}
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Gestione Pagine Sito Web</h2>
+              <p className="text-gray-600 mt-1">Sito: {site.ragione_sociale || site.subdomain}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                console.log('WebsiteEditor: click annulla');
+                onCancel();
+              }}
+              className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <XMarkIcon className="h-5 w-5 inline mr-2" />
+              Chiudi
+            </button>
+          </div>
+
+          {/* Mostra direttamente il PagesManager */}
+          <PagesManager site={site} />
+        </div>
+      );
+    }
+
+    // Altrimenti mostriamo il form di creazione base
+    console.log('🆕 WebsiteEditor: nessun site ID, mostro form creazione');
     return (
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Tabs */}
+      <div className="space-y-6">
+        {/* Tabs solo per creazione */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             {tabs.map((tab) => {
@@ -458,6 +470,7 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => {
                     console.log('WebsiteEditor: click su tab:', tab.id);
                     setActiveTab(tab.id);
@@ -500,7 +513,8 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
             Annulla
           </button>
           <button
-            type="submit"
+            type="button"
+            onClick={handleSubmit}
             disabled={saving}
             className="bg-blue-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
@@ -517,7 +531,7 @@ const WebsiteEditor = ({ site, onSave, onCancel }) => {
             )}
           </button>
         </div>
-      </form>
+      </div>
     );
   } catch (error) {
     console.error('WebsiteEditor: ERRORE FATALE nel rendering:', error);

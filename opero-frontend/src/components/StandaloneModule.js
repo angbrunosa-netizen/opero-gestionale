@@ -18,7 +18,8 @@ import MailModule from './MailModule';
 import FinanzeModule from './FinanzeModule';
 import BeniStrumentaliModule from './BeniStrumentaliModule';
 import PPAModule from './PPAModule';
-import PPASisModule from './PPASisModule';    
+import PPASisModule from './PPASisModule';
+import WebsiteBuilderModule from './WebsiteBuilderModule';
 import { viewRegistry } from '../lib/viewRegistry'; 
 
 const StandaloneModule = () => {
@@ -44,12 +45,14 @@ const StandaloneModule = () => {
                 return <ContSmartModule initialView={initialView} />;
             case 'FIN_SMART':
                 return <FinanzeModule initialView={initialView} />;
-            case 'BSSMART': 
+            case 'BSSMART':
                 return <BeniStrumentaliModule initialView={initialView} />;
             case 'PPA SIS':
                 return <PPAModule initialView={initialView} />;
+            case 'WEBSITE':
+                return <WebsiteBuilderModule initialView={initialView} />;
             default:
-                return (<div className="text-center"><h1 className="text-2xl font-bold">Modulo non trovato</h1></div>);
+                return (<div className="text-center"><h1 className="text-2xl font-bold">Modulo non trovato: {moduleKey}</h1></div>);
         }
     };
 

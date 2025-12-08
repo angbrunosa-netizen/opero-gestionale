@@ -289,12 +289,134 @@ const DocumentEditor = () => {
 
 // --- REINTEGRATO DA V3.6: Componente Dashboard Completa ---
 // NOTA: Questo componente sostituisce l'import lazy di './Dashboard'
+// Modifica del componente Dashboard nel file MainApp.js
+
+// --- Componente Dashboard Completa (CORRETTO) ---
+// --- Componente Dashboard Completa (CORRETTO) ---
 const Dashboard = ({ user, ditta }) => {
+    // Stati
     const [myTasks, setMyTasks] = useState([]);
     const [companyTasks, setCompanyTasks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [dailyQuote, setDailyQuote] = useState(null);
+    const [quoteLoading, setQuoteLoading] = useState(true);
+    const [quoteError, setQuoteError] = useState(null);
+    
     const isAdmin = user.ruolo === 'Amministratore_Azienda' || user.ruolo === 'Amministratore_sistema';
 
+    // Funzione per recuperare il pensiero del giorno
+    const fetchDailyQuote = async () => {
+        setQuoteLoading(true);
+        setQuoteError(null);
+        
+        try {
+            // Controlla se c'è una frase salvata per oggi in localStorage
+            const savedQuote = localStorage.getItem('dailyQuote');
+            const savedDate = localStorage.getItem('dailyQuoteDate');
+            const today = new Date().toDateString();
+            
+            if (savedQuote && savedDate === today) {
+                setDailyQuote(JSON.parse(savedQuote));
+                setQuoteLoading(false);
+                return;
+            }
+            
+            // Altrimenti, ne recupera una nuova dall'API
+            const quoteRes = await api.get('/quotes');
+            if (quoteRes.data) {
+                setDailyQuote(quoteRes.data);
+                // Salva la frase e la data corrente in localStorage
+                localStorage.setItem('dailyQuote', JSON.stringify(quoteRes.data));
+                localStorage.setItem('dailyQuoteDate', today);
+            }
+        } catch (error) {
+            console.error("Errore nel caricamento della frase del giorno", error);
+            setQuoteError("Impossibile caricare il pensiero del giorno");
+            // In caso di errore, mostra una frase di default
+            setDailyQuote({
+                text: "Il successo non è finale, il fallimento non è fatale: è il coraggio di continuare che conta.",
+                author: "Winston Churchill",
+                source: "Grandi Condottieri"
+            });
+        } finally {
+            setQuoteLoading(false);
+        }
+    };
+
+    // Funzione di utilità per il testo su canvas
+    const wrapText = (context, text, x, y, maxWidth, lineHeight) => {
+        const words = text.split(' ');
+        let line = '';
+        let testLine = '';
+        let metrics;
+        
+        for(let n = 0; n < words.length; n++) {
+            testLine = line + words[n] + ' ';
+            metrics = context.measureText(testLine);
+            const testWidth = metrics.width;
+            
+            if (testWidth > maxWidth && n > 0) {
+                context.fillText(line, x, y);
+                line = words[n] + ' ';
+                y += lineHeight;
+            } else {
+                line = testLine;
+            }
+        }
+        context.fillText(line, x, y);
+    };
+
+    // Funzione per gestire il download del pensiero
+    const handleDownloadQuote = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800;
+        canvas.height = 400;
+        
+        // Sfondo gradiente
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+        gradient.addColorStop(0, '#3b82f6');
+        gradient.addColorStop(1, '#9333ea');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Logo (ORA CARICATO LOCALMENTE)
+        const logoImg = new Image();
+        logoImg.crossOrigin = 'anonymous'; // Buona pratica, anche se non necessario per file locali
+        logoImg.onload = function() {
+            // Disegna il logo
+            ctx.drawImage(logoImg, 20, 20, 100, 100);
+            
+            // Disegna il testo del pensiero
+            ctx.fillStyle = 'white';
+            ctx.font = 'italic 28px Arial'; // Font un po' più grande
+            ctx.textAlign = 'center';
+            wrapText(ctx, `"${dailyQuote.text}"`, canvas.width / 2, 220, 700, 35);
+            
+            // Disegna autore e fonte
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(`— ${dailyQuote.author}`, canvas.width - 80, 340);
+            ctx.font = '16px Arial';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillText(dailyQuote.source, canvas.width - 80, 365);
+            
+            // Footer
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillText('Powered by abanexus.it', canvas.width / 2, 380);
+            
+            // Scarica l'immagine
+            const link = document.createElement('a');
+            link.download = 'pensiero-del-giorno.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        };
+        // IMPORTANTE: Assicurati che il file del logo si trovi in public/logo.png
+        logoImg.src = '/logo-abanexus_1764792689186_d20699ce.png'; 
+    };
+    
     useEffect(() => {
         const fetchTasks = async () => {
             setIsLoading(true);
@@ -316,13 +438,99 @@ const Dashboard = ({ user, ditta }) => {
                 setIsLoading(false);
             }
         };
+        
         fetchTasks();
+        fetchDailyQuote();
     }, [isAdmin]);
 
     return (
         <div className="p-4 md:p-6">
             <h2 className="text-2xl font-bold text-slate-800">Dashboard Principale</h2>
             <p className="text-slate-600 mt-1">Benvenuto in Opero, {user.nome}!</p>
+            
+            {/* Sezione per la frase motivazionale */}
+            <div className="mt-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 text-white relative overflow-hidden">
+                <div className="absolute top-2 right-2">
+                    <img src="/logo-abanexus_1764792689186_d20699ce.png" alt="Logo Abanexus" className="h-10 w-auto opacity-70" />
+                </div>
+                
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-lg font-semibold mb-2">Pensiero del Giorno</h3>
+                    </div>
+                    {user.ruolo === 'Amministratore_sistema' && (
+                        <button 
+                            onClick={() => {
+                                localStorage.removeItem('dailyQuote');
+                                localStorage.removeItem('dailyQuoteDate');
+                                fetchDailyQuote();
+                            }}
+                            disabled={quoteLoading}
+                            className="p-2 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors disabled:opacity-50"
+                            title="Ottieni un nuovo pensiero"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+
+                {quoteLoading ? (
+                    <div className="flex items-center mt-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
+                        <p className="italic">Caricamento...</p>
+                    </div>
+                ) : dailyQuote ? (
+                    <div>
+                        <p className="text-lg italic mb-2 pr-16">"{dailyQuote.text}"</p>
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <p className="text-sm">— {dailyQuote.author}</p>
+                                <p className="text-xs text-blue-100">{dailyQuote.source}</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => {
+                                        navigator.share && navigator.share({
+                                            title: 'Pensiero del Giorno',
+                                            text: `"${dailyQuote.text}" — ${dailyQuote.author}`,
+                                        }).catch(err => console.log('Errore condivisione:', err));
+                                    }}
+                                    className="p-2 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
+                                    title="Condividi pensiero"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 3.12-9.032 7.326m0 0A9.001 9.001 0 0012 21c4.474 0 8.268-3.12 9.032-7.326" />
+                                    </svg>
+                                </button>
+                                <button 
+                                    onClick={handleDownloadQuote} // Chiama la funzione dedicata
+                                    className="p-2 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
+                                    title="Scarica pensiero"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between mt-4">
+                        <p className="italic">Impossibile caricare il pensiero del giorno.</p>
+                        <button 
+                            onClick={fetchDailyQuote}
+                            className="p-2 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
+                            title="Riprova"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+            </div>
             
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-lg shadow-md border">
@@ -396,14 +604,17 @@ const Dashboard = ({ user, ditta }) => {
         </div>
     );
 };
-
+// DEBUG: Mostra URL corrente all'avvio del componente
+console.log('🌐 MainApp - URL CORRENTE:', window.location.href);
+console.log('📋 MainApp - PATHNAME:', window.location.pathname);
+console.log('🔍 MainApp - SEARCH:', window.location.search);
 
 const MainApp = () => {
     const { user, ditta, logout, hasPermission, loading: authLoading } = useAuth();
     const [activeModule, setActiveModule] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [shortcuts, setShortcuts] = useState([]); // Ora array di OGGETTI
-    
+
     // Stato per i moduli caricati dal DB
     const [dbModules, setDbModules] = useState([]);
     const [modulesLoading, setModulesLoading] = useState(true);
@@ -442,7 +653,7 @@ const MainApp = () => {
             fetchModules();
         }
     }, [user]);
-
+/*
     // 2. Caricamento Shortcuts (Logica corretta v4.8)
     const fetchShortcuts = useCallback(async () => {
         if (Capacitor.isNativePlatform()) return;
@@ -459,7 +670,7 @@ const MainApp = () => {
             fetchShortcuts();
         }
     }, [fetchShortcuts]);
-    
+  */  
     // 4. handleModuleClick (Invariato v4.5)
     const handleModuleClick = (moduleKey) => {
         if (moduleKey === '__HOME__') {

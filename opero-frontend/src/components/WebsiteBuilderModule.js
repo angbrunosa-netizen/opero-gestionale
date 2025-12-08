@@ -15,12 +15,15 @@ import {
   EditIcon
 } from '@heroicons/react/24/outline';
 
+// Importa il servizio API per autenticazione automatica
+import { api } from '../services/api';
+
 // Lazy load sub-components per evitare circular dependency
 const WebsiteList = React.lazy(() => import('./website/WebsiteList'));
-const WebsiteEditor = React.lazy(() => import('./website/WebsiteEditor'));
+const WebsiteBuilderUNIFIED = React.lazy(() => import('./WebsiteBuilderUNIFIED'));
 const TemplateSelector = React.lazy(() => import('./website/TemplateSelector'));
 const AnalyticsDashboard = React.lazy(() => import('./website/AnalyticsDashboard'));
-const CompanySelector = React.lazy(() => import('./website/CompanySelectorDebug'));
+const CompanySelector = React.lazy(() => import('./website/CompanySelector'));
 
 const WebsiteBuilderModule = () => {
   const [activeTab, setActiveTab] = useState('sites');
@@ -37,11 +40,11 @@ const WebsiteBuilderModule = () => {
   const loadSites = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/website/list');
-      const data = await response.json();
+      const response = await api.get('/website/list');
+      const data = response.data;
 
       if (data.success) {
-        setSites(data.sites);
+        setSites(data.data || data.sites); // Supporta entrambi i formati
       } else {
         console.error('Errore caricamento siti:', data.error);
       }
@@ -103,7 +106,7 @@ const WebsiteBuilderModule = () => {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             </div>
           }>
-            <WebsiteEditor
+            <WebsiteBuilderUNIFIED
               site={selectedSite}
               onSave={() => {
                 setSelectedSite(null);

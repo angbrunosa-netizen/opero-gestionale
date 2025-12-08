@@ -8,7 +8,7 @@
  * @version 1.0
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   PhotoIcon,
   PlusIcon,
@@ -24,6 +24,25 @@ import {
 import AllegatiManager from '../../shared/AllegatiManager';
 
 const ImageGalleryManager = ({ images, onUpload, onDelete, onOpenAllegatiManager }) => {
+  // DEBUG log all'inizio del componente
+  console.log('🔥🔥 ImageGalleryManager MONTATO!', {
+    imagesCount: images?.length || 0,
+    hasImages: !!images,
+    imagesPreview: images?.slice(0, 3).map(img => ({
+      name: img.file_name_originale,
+      url: img.preview_url || img.url,
+      id: img.id_file,
+      category: img.category
+    }))
+  });
+
+  // DEBUG: Aggiungo un useEffect per monitorare cambiamenti
+  useEffect(() => {
+    console.log('🔄 ImageGalleryManager - images changed:', {
+      count: images?.length || 0,
+      images: images?.slice(0, 2)
+    });
+  }, [images]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedImages, setSelectedImages] = useState(new Set());
@@ -106,7 +125,7 @@ const ImageGalleryManager = ({ images, onUpload, onDelete, onOpenAllegatiManager
   const deleteSelectedImages = async () => {
     if (selectedImages.size === 0) return;
 
-    if (!confirm(`Sei sicuro di voler eliminare ${selectedImages.size} immagini?`)) {
+    if (!window.confirm(`Sei sicuro di voler eliminare ${selectedImages.size} immagini?`)) {
       return;
     }
 
@@ -131,6 +150,14 @@ const ImageGalleryManager = ({ images, onUpload, onDelete, onOpenAllegatiManager
 
   return (
     <div className="space-y-6">
+      {/* DEBUG HEADER */}
+      <div className="bg-green-100 border border-green-300 text-green-800 p-3 rounded-lg">
+        <h4 className="font-bold">🔥 DEBUG - ImageGalleryManager ATTIVO</h4>
+        <p>Immagini ricevute: {images?.length || 0}</p>
+        <p>Immagini filtrate: {filteredImages.length}</p>
+        <p>Categoria attiva: {selectedCategory}</p>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

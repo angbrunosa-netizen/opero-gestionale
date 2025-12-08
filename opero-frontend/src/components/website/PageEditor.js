@@ -38,6 +38,9 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
   const [saving, setSaving] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [showBlockSelector, setShowBlockSelector] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState('');
   const [pageMeta, setPageMeta] = useState({
     titolo: page?.titolo || '',
     slug: page?.slug || '',
@@ -71,6 +74,51 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
       }
     }
   }, [page]);
+
+  // Carica anteprima HTML dal backend quando cambia modalità preview
+  useEffect(() => {
+    if (previewMode && pageMeta.slug && site?.id) {
+      loadPreviewHtml();
+    }
+  }, [previewMode, pageMeta.slug, site?.id]);
+
+  const loadPreviewHtml = async () => {
+    if (!pageMeta.slug || !site?.id) {
+      console.log('❌ PageEditor: dati mancanti per preview', {
+        hasSlug: !!pageMeta.slug,
+        hasSiteId: !!site?.id
+      });
+      return;
+    }
+
+    console.log('🔥 PageEditor: caricamento anteprima', {
+      slug: pageMeta.slug,
+      siteId: site.id,
+      url: `/api/website/${site.id}/preview/${pageMeta.slug}`
+    });
+
+    try {
+      setLoadingPreview(true);
+      setPreviewError('');
+
+      const response = await fetch(`/api/website/${site.id}/preview/${pageMeta.slug}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const html = await response.text();
+      console.log('🔥 PageEditor: HTML ricevuto, length:', html.length);
+      setPreviewHtml(html);
+
+    } catch (error) {
+      console.error('❌ PageEditor: Errore caricamento anteprima:', error);
+      setPreviewError(`Impossibile caricare l'anteprima: ${error.message}`);
+      setPreviewHtml(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
 
   const blockTypes = [
     {
@@ -424,38 +472,83 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
 
       {/* Editor contenuto */}
       {previewMode ? (
-        <div className="bg-gray-100 p-8 rounded-lg">
-          <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
-            {/* Preview delle sezioni */}
-            {content.sections.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">
-                Nessun contenuto da visualizzare
-              </div>
-            ) : (
-              content.sections.map((section) => {
-                const commonProps = {
-                  content: section.content,
-                  site: site,
-                  preview: true
-                };
+        <div className="bg-gray-100 p-4 rounded-lg">
+          {loadingPreview && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-gray-600">Caricamento anteprima...</p>
+            </div>
+          )}
 
-                switch (section.type) {
-                  case 'hero':
-                    return <HeroBlock key={section.id} {...commonProps} />;
-                  case 'text':
-                    return <TextBlock key={section.id} {...commonProps} />;
-                  case 'image':
-                    return <ImageBlock key={section.id} {...commonProps} />;
-                  case 'contact':
-                    return <ContactBlock key={section.id} {...commonProps} />;
-                  case 'products':
-                    return <ProductsBlock key={section.id} {...commonProps} />;
-                  default:
-                    return null;
-                }
-              })
-            )}
-          </div>
+          {previewError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-red-800">{previewError}</p>
+              <button
+                onClick={loadPreviewHtml}
+                className="mt-2 text-red-600 underline hover:text-red-800"
+              >
+                Riprova
+              </button>
+            </div>
+          )}
+
+          {previewHtml && !loadingPreview && (
+            <div className="bg-white shadow-lg rounded-lg overflow-hidden" style={{ height: '70vh' }}>
+              <div className="bg-blue-600 text-white px-4 py-2 text-sm flex items-center justify-between">
+                <span>Anteprima reale della pagina: {pageMeta.titolo}</span>
+                <button
+                  onClick={loadPreviewHtml}
+                  className="bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded text-xs"
+                >
+                  Aggiorna
+                </button>
+              </div>
+              <iframe
+                srcDoc={previewHtml}
+                className="w-full h-full border-0"
+                title="Anteprima pagina"
+                sandbox="allow-same-origin allow-scripts"
+                style={{ height: 'calc(100% - 40px)' }}
+              />
+            </div>
+          )}
+
+          {!previewHtml && !loadingPreview && !previewError && (
+            <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
+              <div className="bg-yellow-50 border border-yellow-200 p-4">
+                <p className="text-yellow-800">Anteprima non disponibile. Salva la pagina e riprova.</p>
+              </div>
+              {/* Fallback alle sezioni locali */}
+              {content.sections.length === 0 ? (
+                <div className="p-12 text-center text-gray-500">
+                  Nessun contenuto da visualizzare
+                </div>
+              ) : (
+                content.sections.map((section) => {
+                  const commonProps = {
+                    content: section.content,
+                    site: site,
+                    preview: true
+                  };
+
+                  switch (section.type) {
+                    case 'hero':
+                      return <HeroBlock key={section.id} {...commonProps} />;
+                    case 'text':
+                      return <TextBlock key={section.id} {...commonProps} />;
+                    case 'image':
+                      return <ImageBlock key={section.id} {...commonProps} />;
+                    case 'contact':
+                      return <ContactBlock key={section.id} {...commonProps} />;
+                    case 'products':
+                      return <ProductsBlock key={section.id} {...commonProps} />;
+                    default:
+                      return null;
+                  }
+                })
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div>

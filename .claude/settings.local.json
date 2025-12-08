@@ -21,7 +21,9 @@
       "Bash(npx knex migrate:latest:*)",
       "Bash(npx knex:*)",
       "Bash(wmic process where \"name='node.exe'\" delete:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(mysql:*)",
+      "Bash(move:*)"
     ],
     "deny": [],
     "ask": []

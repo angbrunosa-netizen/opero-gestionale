@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reset Cookies Opero</title>
+</head>
+<body>
+    <h1>Reset Cookies e Storage Opero</h1>
+    <p>Clicca il pulsante per pulire tutti i cookies e localStorage che potrebbero causare l'errore "Request Header Fields Too Large"</p>
+
+    <button onclick="resetAll()">🗑️ Resetta Tutto</button>
+
+    <div id="results"></div>
+
+    <script>
+        function resetAll() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h3>Risultati Reset:</h3>';
+
+            // Reset localStorage
+            try {
+                localStorage.clear();
+                results.innerHTML += '<p>✅ localStorage pulito</p>';
+            } catch (e) {
+                results.innerHTML += `<p>❌ Errore localStorage: ${e.message}</p>`;
+            }
+
+            // Reset sessionStorage
+            try {
+                sessionStorage.clear();
+                results.innerHTML += '<p>✅ sessionStorage pulito</p>';
+            } catch (e) {
+                results.innerHTML += `<p>❌ Errore sessionStorage: ${e.message}</p>`;
+            }
+
+            // Reset cookies per dominio localhost
+            document.cookie.split(";").forEach(function(c) {
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/");
+            });
+            results.innerHTML += '<p>✅ cookies puliti</p>';
+
+            results.innerHTML += '<br><p><strong>🔄 Ricarica la pagina e prova il login di nuovo</strong></p>';
+        }
+
+        // Auto-reset al caricamento
+        setTimeout(resetAll, 1000);
+    </script>
+</body>
+</html>
