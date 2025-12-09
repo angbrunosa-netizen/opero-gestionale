@@ -219,7 +219,9 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
 
   // Editor per pagina specifica
   const PageEditor = ({ page, template, onClose }) => {
-    const [content, setContent] = useState(page?.contenuto_json || template.defaultContent);
+    // Usa il contenuto esistente della pagina, o il template di default
+    const initialContent = page?.contenuto_json || template?.defaultContent || { sections: [] };
+    const [content, setContent] = useState(initialContent);
     const quillRef = useRef(null);
 
     const savePage = async () => {
@@ -594,7 +596,7 @@ const StaticPagesManager = ({ websiteId, pages, onPagesChange, onSave }) => {
       {showEditor && (
         <PageEditor
           page={editingPage}
-          template={pageTemplates.find(t => t.slug === editingPage?.slug)}
+          template={pageTemplates.find(t => t.slug === editingPage?.slug) || { defaultContent: { sections: [] } }}
           onClose={() => {
             setShowEditor(false);
             setEditingPage(null);

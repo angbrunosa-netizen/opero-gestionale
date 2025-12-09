@@ -71,6 +71,12 @@ const SitePreview = ({ site, pages, onClose }) => {
       console.log('🔥 SitePreview: response headers', response.headers.get('content-type'));
 
       if (!response.ok) {
+        // Se la pagina non esiste (404), usa il render locale
+        if (response.status === 404) {
+          console.log('🎯 SitePreview: Pagina non trovata nel database, uso render locale');
+          setPreviewHtml(null); // Forza il fallback al render locale
+          return;
+        }
         const errorText = await response.text();
         console.log('❌ SitePreview: error response body', errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -85,8 +91,9 @@ const SitePreview = ({ site, pages, onClose }) => {
 
     } catch (error) {
       console.error('❌ SitePreview: Errore caricamento anteprima:', error);
-      setError(`Impossibile caricare l'anteprima: ${error.message}`);
-      setPreviewHtml(null);
+      console.log('🎯 SitePreview: Errore, uso fallback render locale');
+      setError(null); // Resetta l'errore per permettere il fallback
+      setPreviewHtml(null); // Forza il fallback al render locale
     } finally {
       setLoading(false);
     }
@@ -104,6 +111,12 @@ const SitePreview = ({ site, pages, onClose }) => {
         return renderContactSection(section);
       case 'social':
         return renderSocialSection(section);
+      case 'hero':
+        return renderHeroSection(section);
+      case 'text':
+        return renderTextSection(section);
+      case 'image':
+        return renderImageSection(section);
       default:
         return <div>Section type {type} not implemented</div>;
     }
@@ -426,6 +439,66 @@ const SitePreview = ({ site, pages, onClose }) => {
     );
   };
 
+  // Nuove funzioni per SimplePageBuilder
+  const renderHeroSection = (section) => {
+    const sectionStyle = {
+      backgroundColor: section.backgroundColor || '#3B82F6',
+      padding: '80px 0',
+      textAlign: 'center'
+    };
+
+    return (
+      <section style={sectionStyle}>
+        <div className="container mx-auto px-4">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 text-white">
+            {section.title || 'Titolo Hero'}
+          </h1>
+          <p className="text-xl md:text-2xl mb-6 text-white opacity-90">
+            {section.subtitle || 'Sottotitolo Hero'}
+          </p>
+          {section.buttonText && (
+            <a
+              href={section.buttonUrl || '#'}
+              className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition inline-block"
+            >
+              {section.buttonText}
+            </a>
+          )}
+        </div>
+      </section>
+    );
+  };
+
+  const renderTextSection = (section) => {
+    return (
+      <section style={{ padding: '60px 0' }}>
+        <div
+          className="container mx-auto px-4 prose prose-lg"
+          dangerouslySetInnerHTML={{ __html: section.content || '<p>Contenuto testuale</p>' }}
+        />
+      </section>
+    );
+  };
+
+  const renderImageSection = (section) => {
+    return (
+      <section style={{ padding: '60px 0' }}>
+        <div className="container mx-auto px-4 text-center">
+          {section.imageUrl && (
+            <img
+              src={section.imageUrl}
+              alt={section.altText || 'Immagine'}
+              className="max-w-full h-auto rounded-lg shadow-lg mx-auto"
+            />
+          )}
+          {section.caption && (
+            <p className="mt-4 text-gray-600">{section.caption}</p>
+          )}
+        </div>
+      </section>
+    );
+  };
+
   const renderPage = () => {
     if (!currentPage) {
       return (
@@ -706,35 +779,18 @@ const SitePreview = ({ site, pages, onClose }) => {
             </div>
           )}
 
-          {/* DEBUG AREA */}
-          <div className="bg-yellow-100 border-b border-yellow-300 p-4">
-            <h3 className="font-bold mb-2">DEBUG AREA</h3>
-            <p>PreviewHtml length: {previewHtml?.length || 0}</p>
-            <p>HTML Preview: {previewHtml ? previewHtml.substring(0, 100) + '...' : 'NULL'}</p>
-            <button
-              onClick={() => console.log('HTML completo:', previewHtml)}
-              className="bg-blue-500 text-white px-2 py-1 rounded text-sm"
-            >
-              Log HTML completo
-            </button>
-          </div>
-
           {/* Mostra l'HTML dal backend se disponibile, altrimenti usa il render locale */}
           {previewHtml ? (
-            <div className="h-full overflow-auto" style={{ height: '500px', border: '2px solid green' }}>
-              <h3 className="bg-green-500 text-white p-2">IFRAME CON HTML DAL BACKEND</h3>
+            <div className="h-full overflow-auto" style={{ height: 'calc(100vh - 200px)' }}>
               <iframe
                 srcDoc={previewHtml}
                 className="w-full h-full border-0"
                 title="Anteprima pagina"
                 sandbox="allow-same-origin allow-scripts"
-                onLoad={() => console.log('🎯 iframe loaded successfully')}
-                onError={(e) => console.error('❌ iframe error:', e)}
               />
             </div>
           ) : (
-            <div className="h-full" style={{ height: '500px', border: '2px solid orange' }}>
-              <h3 className="bg-orange-500 text-white p-2">FALLBACK RENDER LOCALE</h3>
+            <div className="h-full overflow-auto" style={{ height: 'calc(100vh - 200px)' }}>
               {!loading && !error && renderPage()}
             </div>
           )}

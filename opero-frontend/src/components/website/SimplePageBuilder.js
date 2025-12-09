@@ -21,7 +21,90 @@ import {
 
 // Importa il PageEditor esistente
 import PageEditor from './PageEditor';
+import SitePreview from './components/SitePreview';
 import { api } from '../../services/api';
+
+// Funzione per generare slug da titolo
+const generateSlug = (title) => {
+  if (!title) return 'pagina-senza-titolo';
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Rimuovi caratteri speciali
+    .replace(/\s+/g, '-') // Sostituisci spazi con trattini
+    .replace(/-+/g, '-') // Rimuovi trattini multipli
+    .trim() || 'pagina';
+};
+
+// Funzione per generare HTML dalle sezioni (copiata dal backend)
+const generateHtmlFromSections = (sections) => {
+  if (!Array.isArray(sections)) return '';
+
+  let html = '';
+  sections.forEach(section => {
+    switch (section.type) {
+      case 'hero':
+        html += `
+          <section class="hero" style="background-color: ${section.backgroundColor || '#f3f4f6'}; padding: 80px 0; text-align: center;">
+            <div class="container mx-auto px-4">
+              <h1 class="text-4xl font-bold mb-4">${section.title || ''}</h1>
+              <p class="text-xl mb-6">${section.subtitle || ''}</p>
+              ${section.buttonText ? `<a href="${section.buttonUrl || '#'}" class="bg-blue-500 text-white px-6 py-3 rounded-lg inline-block">${section.buttonText}</a>` : ''}
+            </div>
+          </section>
+        `;
+        break;
+      case 'text':
+        html += `
+          <section class="text-section" style="padding: 60px 0;">
+            <div class="container mx-auto px-4">
+              ${section.content || ''}
+            </div>
+          </section>
+        `;
+        break;
+      case 'image':
+        html += `
+          <section class="image-section" style="padding: 60px 0;">
+            <div class="container mx-auto px-4 text-center">
+              ${section.imageUrl ? `<img src="${section.imageUrl}" alt="${section.altText || ''}" class="max-w-full h-auto rounded-lg">` : ''}
+              ${section.caption ? `<p class="mt-4 text-gray-600">${section.caption}</p>` : ''}
+            </div>
+          </section>
+        `;
+        break;
+      case 'contact':
+        html += `
+          <section class="contact-section" style="padding: 60px 0; background-color: #f9fafb;">
+            <div class="container mx-auto px-4">
+              <h2 class="text-3xl font-bold text-center mb-8">Contatti</h2>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h3 class="text-xl font-semibold mb-4">Informazioni</h3>
+                  <p>Email: ${section.email || ''}</p>
+                  <p>Telefono: ${section.phone || ''}</p>
+                  <p>Indirizzo: ${section.address || ''}</p>
+                </div>
+                <div>
+                  <h3 class="text-xl font-semibold mb-4">Messaggio</h3>
+                  <form class="space-y-4">
+                    <input type="text" placeholder="Nome" class="w-full p-2 border rounded">
+                    <input type="email" placeholder="Email" class="w-full p-2 border rounded">
+                    <textarea placeholder="Messaggio" rows="4" class="w-full p-2 border rounded"></textarea>
+                    <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded">Invia</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+        break;
+      default:
+        html += `<section class="unknown-section"><p>Sezione non riconosciuta: ${section.type}</p></section>`;
+    }
+  });
+
+  return html;
+};
 
 const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCancel }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -135,7 +218,7 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
     setSaving(true);
     try {
       const pageData = {
-        slug: page.slug,
+        slug: page.slug || generateSlug(page.title),
         titolo: page.title,
         contenuto_html: { sections: page.sections },
         contenuto_json: { sections: page.sections },
@@ -165,6 +248,76 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
+        // In modalità modifica, mostra solo il template corrente con opzione per cambiarlo
+        if (initialPage?.id) {
+          return (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Template Pagina</h3>
+
+                {page.templateName ? (
+                  <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-blue-900">Template attuale: {page.templateName}</h4>
+                        <p className="text-sm text-blue-700 mt-1">
+                          I dati della pagina sono associati a questo template
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Attenzione:</strong> Questa pagina non ha un template assegnato.
+                      È consigliabile assegnarne uno per mantenere la coerenza.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-2">Cambia Template</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    <strong>Attenzione:</strong> Cambiare template comporterà la perdita di tutti i dati attuali della pagina.
+                    Sarà necessario ricreare il contenuto da capo.
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Sei sicuro di voler cambiare template? Tutti i dati attuali saranno persi.')) {
+                        setPage({
+                          title: '',
+                          slug: '',
+                          sections: [],
+                          meta_title: '',
+                          meta_description: '',
+                          is_published: false,
+                          menu_order: 0,
+                          templateName: ''
+                        });
+                        setCurrentStep(2);
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center"
+                  >
+                    Cambia Template (perde dati)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-between">
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                >
+                  Modifica Dati Pagina
+                  <ArrowRightIcon className="ml-2 w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        // In modalità creazione, mostra selezione template
         return (
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -237,21 +390,16 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
             {/* Riepilogo template utilizzato */}
             {page.templateName && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-blue-800">
-                      <strong>Template utilizzato:</strong> {page.templateName}
-                    </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Puoi modificare i contenuti usando l'editor qui sotto
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentStep(1)}
-                    className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
-                  >
-                    Cambia Template
-                  </button>
+                <div>
+                  <p className="text-sm text-blue-800">
+                    <strong>Template utilizzato:</strong> {page.templateName}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    {initialPage?.id
+                      ? 'I dati sono bloccati a questo template. Per cambiarlo, torna al passo precedente.'
+                      : 'Puoi modificare i contenuti usando l\'editor qui sotto'
+                    }
+                  </p>
                 </div>
               </div>
             )}
@@ -281,14 +429,14 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
                   setSaving(true);
 
                   const saveData = {
-                    slug: page.slug,
-                    titolo: page.title,
+                    slug: pageData.slug || page.slug,
+                    titolo: pageData.titolo || page.title,
                     contenuto_html: pageData.contenuto_html,
                     contenuto_json: pageData.contenuto_json,
-                    meta_title: page.meta_title || page.title,
-                    meta_description: page.meta_description || '',
-                    is_published: page.is_published,
-                    menu_order: page.menu_order,
+                    meta_title: pageData.meta_title || page.title,
+                    meta_description: pageData.meta_description || page.meta_description || '',
+                    is_published: pageData.is_published !== undefined ? pageData.is_published : page.is_published,
+                    menu_order: pageData.menu_order !== undefined ? pageData.menu_order : page.menu_order,
                     template_name: page.templateName // Save also the template used
                   };
 
@@ -303,6 +451,7 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
                     sections: pageData.contenuto_json?.sections || []
                   }));
 
+  
                   if (onSave) onSave();
 
                 } catch (error) {
@@ -567,54 +716,22 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
         </div>
       </div>
 
-      {/* Modal Preview */}
-      {showPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Anteprima Pagina</h3>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 80px)' }}>
-              <div className="border rounded-lg p-6">
-                <h1 className="text-2xl font-bold mb-4">{page.title}</h1>
-                {page.sections.length === 0 ? (
-                  <p className="text-gray-500">Nessun contenuto da visualizzare</p>
-                ) : (
-                  page.sections.map((section, index) => (
-                    <div key={index} className="mb-6">
-                      {section.type === 'hero' && (
-                        <div className="text-center p-8 bg-gray-100 rounded-lg">
-                          <h2 className="text-3xl font-bold mb-2">{section.title}</h2>
-                          {section.subtitle && <p className="text-gray-600 mb-4">{section.subtitle}</p>}
-                          {section.buttonText && (
-                            <button className="px-6 py-2 bg-blue-600 text-white rounded">
-                              {section.buttonText}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {section.type === 'text' && (
-                        <div dangerouslySetInnerHTML={{ __html: section.content }} />
-                      )}
-                      {section.type === 'contact' && (
-                        <div className="border rounded-lg p-6">
-                          <h3 className="text-xl font-semibold mb-4">Contatti</h3>
-                          <p>Informazioni di contatto...</p>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* SitePreview Modal */}
+      {showPreview && site && (
+        <SitePreview
+          site={site}
+          pages={[{
+            id: initialPage?.id || 'preview',
+            titolo: page.title,
+            slug: page.slug || 'preview',
+            contenuto_json: JSON.stringify({ sections: page.sections }),
+            contenuto_html: page.sections.length > 0 ? generateHtmlFromSections(page.sections) : '<p>Nessun contenuto</p>',
+            is_published: true,
+            meta_title: page.metaTitle,
+            meta_description: page.metaDescription
+          }]}
+          onClose={() => setShowPreview(false)}
+        />
       )}
     </div>
   );
