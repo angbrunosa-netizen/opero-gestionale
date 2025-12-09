@@ -4,20 +4,51 @@
  */
 
 import React, { useState } from 'react';
-import { PhotoIcon } from '@heroicons/react/24/outline';
+import { PhotoIcon, FolderOpenIcon } from '@heroicons/react/24/outline';
+import WebsiteImageSelector from '../WebsiteImageSelector';
 
-const ImageBlock = ({ content, onChange, preview = false }) => {
+const ImageBlock = ({ content, onChange, preview = false, site }) => {
   const [data, setData] = useState({
     url: '',
     alt: 'Descrizione immagine',
     caption: '',
     width: 'full', // full, medium, small
     alignment: 'center', // left, center, right
+    imageId: null, // ID del file selezionato dall'archivio
     ...content
   });
 
+  const [showImageSelector, setShowImageSelector] = useState(false);
+
   const handleChange = (field, value) => {
+    console.log(`ImageBlock - handleChange called: field=${field}, value=${value}`);
+    console.log('ImageBlock - Current data before change:', data);
+
     const newData = { ...data, [field]: value };
+    console.log('ImageBlock - New data after change:', newData);
+
+    setData(newData);
+    onChange(newData);
+
+    console.log('ImageBlock - setData and onChange called');
+  };
+
+  const handleImageSelect = (imageData) => {
+    // Verifica che i dati esistano
+    if (!imageData || !imageData.url) {
+      console.error('ImageBlock - Invalid image data received');
+      return;
+    }
+
+    // Aggiorna tutti i campi in una sola volta per evitare conflitti di stato
+    const newData = {
+      ...data,
+      url: imageData.url,
+      alt: imageData.alt || imageData.filename,
+      imageId: imageData.id
+    };
+
+    // Aggiorna lo stato locale e notifica il componente padre
     setData(newData);
     onChange(newData);
   };
@@ -86,13 +117,24 @@ const ImageBlock = ({ content, onChange, preview = false }) => {
         <label className="block text-sm font-medium text-gray-700 mb-1">
           URL Immagine *
         </label>
-        <input
-          type="url"
-          value={data.url}
-          onChange={(e) => handleChange('url', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          placeholder="https://esempio.com/immagine.jpg"
-        />
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={data.url}
+            onChange={(e) => handleChange('url', e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            placeholder="https://esempio.com/immagine.jpg"
+          />
+          <button
+            type="button"
+            onClick={() => setShowImageSelector(true)}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center gap-2"
+            title="Seleziona dal gestore file"
+          >
+            <FolderOpenIcon className="w-5 h-5" />
+            <span className="hidden sm:inline">Sfoglia</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,6 +227,17 @@ const ImageBlock = ({ content, onChange, preview = false }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* WebsiteImageSelector Modal */}
+      {showImageSelector && (
+        <WebsiteImageSelector
+          isOpen={showImageSelector}
+          onClose={() => setShowImageSelector(false)}
+          onSelect={handleImageSelect}
+          websiteId={site?.id}
+          allowMultiple={false}
+        />
       )}
     </div>
   );

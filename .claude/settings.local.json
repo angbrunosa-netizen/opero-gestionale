@@ -23,7 +23,8 @@
       "Bash(wmic process where \"name='node.exe'\" delete:*)",
       "Bash(dir:*)",
       "Bash(mysql:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": []

@@ -260,19 +260,31 @@ router.delete('/scollega/:entitaTipo/:entitaId', checkPermission('DM_FILE_DELETE
  * API: POST /api/archivio/upload
  *
  * Carica un file su S3, crea il record nel DB e lo collega all'entità.
- * Utilizza una convenzione di nomina strutturata per i file su S3.
+ * Oppure collega un file esistente all'entità.
  */
 router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'), async (req, res) => {
     const idDitta = req.user?.id_ditta;
     const idUtenteUpload = req.user?.id;
-    
+
     if (!idDitta || !idUtenteUpload) {
         return res.status(400).json({ error: 'Dati utente incompleti.' });
     }
 
     const file = req.file;
-    const { entitaId, entitaTipo, idDitta: idDittaForm, privacy } = req.body;
+    const { entitaId, entitaTipo, idDitta: idDittaForm, privacy, existingFileId } = req.body;
 
+    // Controlla se stiamo collegando un file esistente
+    if (existingFileId && !file) {
+        return await linkExistingFile(req, res, {
+            existingFileId,
+            entitaId,
+            entitaTipo,
+            idDitta: idDittaForm || idDitta,
+            privacy: privacy || 'public'
+        });
+    }
+
+    // Altrimenti, procedi con l'upload normale
     if (!file) {
         return res.status(400).json({ error: 'Nessun file caricato.' });
     }
@@ -282,14 +294,9 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
 
     // Usa l'idDitta dal form se fornito, altrimenti usa quello dell'utente
     const effectiveIdDitta = idDittaForm || idDitta;
-    
+
     // Imposta 'private' come default se non specificato
     const filePrivacy = privacy || 'private';
-
-    // --- AGGIUNGI QUESTI LOG PER DEBUG ---
-   // console.log('BACKEND DEBUG - Corpo della richiesta ricevuto (req.body):', req.body);
-   // console.log('BACKEND DEBUG - File ricevuto (req.file):', req.file ? req.file.originalname : 'NESSUNO');
-    // --- FINE LOG ---
 
     const trx = await knex.transaction();
     try {
@@ -303,7 +310,7 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
             privacy: filePrivacy,
             s3_key: `s3-key-will-be-generated` // Placeholder
         });
-        
+
         // In MySQL, l'ID inserito è in insertResult[0]
         const fileRecordId = insertResult[0];
 
@@ -334,7 +341,6 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
             id_file: fileRecordId,
             entita_tipo: entitaTipo,
             entita_id: entitaId,
-            
         });
 
         // 7. Conferma la transazione
@@ -346,7 +352,7 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
                 id: fileRecordId,
                 fileName: file.originalname,
                 privacy: filePrivacy,
-                s3Key: s3Key // Aggiunto per riferimento
+                s3Key: s3Key
             }
         });
 
@@ -356,5 +362,70 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
         res.status(500).json({ error: 'Impossibile caricare il file.' });
     }
 });
+
+/**
+ * Funzione helper per collegare un file esistente a un'entità
+ */
+async function linkExistingFile(req, res, { existingFileId, entitaId, entitaTipo, idDitta, privacy }) {
+    const trx = await knex.transaction();
+    try {
+        // Verifica che il file esista
+        const file = await trx('dm_files').where('id', existingFileId).first();
+        if (!file) {
+            return res.status(404).json({ error: 'File non trovato.' });
+        }
+
+        // Verifica che il file sia già collegato a questa entità
+        const existingLink = await trx('dm_allegati_link')
+            .where({
+                id_file: existingFileId,
+                entita_tipo: entitaTipo,
+                entita_id: entitaId
+            })
+            .first();
+
+        if (existingLink) {
+            return res.status(400).json({ error: 'Il file è già collegato a questa entità.' });
+        }
+
+        // Crea il nuovo collegamento
+        await trx('dm_allegati_link').insert({
+            id_ditta: idDitta,
+            id_file: existingFileId,
+            entita_tipo: entitaTipo,
+            entita_id: entitaId,
+        });
+
+        // Aggiorna la privacy se richiesta
+        if (privacy && file.privacy !== privacy) {
+            const newAcl = privacy === 'public' ? 'public-read' : 'private';
+            await trx('dm_files').where('id', existingFileId).update({ privacy: privacy });
+
+            // Aggiorna anche S3 ACL
+            const aclCommand = new PutObjectAclCommand({
+                Bucket: S3_BUCKET_NAME,
+                Key: file.s3_key,
+                ACL: newAcl
+            });
+            await s3Client.send(aclCommand);
+        }
+
+        await trx.commit();
+
+        res.json({
+            message: 'File collegato con successo.',
+            file: {
+                id: existingFileId,
+                fileName: file.file_name_originale,
+                privacy: file.privacy
+            }
+        });
+
+    } catch (error) {
+        await trx.rollback();
+        console.error("Errore nel collegare il file esistente:", error);
+        res.status(500).json({ error: 'Impossibile collegare il file.' });
+    }
+}
 
 module.exports = router;

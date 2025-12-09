@@ -537,7 +537,7 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
                     case 'text':
                       return <TextBlock key={section.id} {...commonProps} />;
                     case 'image':
-                      return <ImageBlock key={section.id} {...commonProps} />;
+                      return <ImageBlock key={section.id} {...commonProps} site={site} />;
                     case 'contact':
                       return <ContactBlock key={section.id} {...commonProps} />;
                     case 'products':

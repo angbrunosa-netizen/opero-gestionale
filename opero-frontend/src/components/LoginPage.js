@@ -26,6 +26,28 @@ const LoginPage = () => {
     const { handleAuthSuccess } = useAuth();
     const navigate = useNavigate();
 
+    // Pulizia cookie all'avvio per risolvere l'errore 431
+    React.useEffect(() => {
+        console.log('Pulizia cookie per risolvere errore 431...');
+        // Pulisce tutti i cookie per localhost
+        document.cookie.split(";").forEach(function(c) {
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+
+        // Pulisce anche localStorage e sessionStorage da dati potenzialmente corrotti
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('token') || key.includes('auth') || key.includes('user'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        sessionStorage.clear();
+        console.log('Pulizia completata');
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');

@@ -16,6 +16,7 @@ import {
   GlobeAltIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import { api } from '../../services/api';
 
 const CompanySelector = ({ onCompanySelected, onBack }) => {
   const [companies, setCompanies] = useState([]);
@@ -61,21 +62,15 @@ const CompanySelector = ({ onCompanySelected, onBack }) => {
       setLoading(true);
       setError('');
 
-      const response = await fetch('/api/website/eligible-companies');
+      const response = await api.get('/website/eligible-companies');
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setCompanies(data.companies || []);
-        setFilteredCompanies(data.companies || []);
-        console.log('Loaded companies:', (data.companies || []).length);
+      if (response.data.success) {
+        setCompanies(response.data.companies || []);
+        setFilteredCompanies(response.data.companies || []);
+        console.log('Loaded companies:', (response.data.companies || []).length);
       } else {
-        console.error('API error:', data.error);
-        setError(data.error || 'Errore nel caricamento delle ditte');
+        console.error('API error:', response.data.error);
+        setError(response.data.error || 'Errore nel caricamento delle ditte');
         // Fallback a dati mock se c'è un errore
         setCompanies([
           {
@@ -160,36 +155,24 @@ const CompanySelector = ({ onCompanySelected, onBack }) => {
     setError('');
 
     try {
-      const response = await fetch('/api/website/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ditta_id: selectedCompany.id,
-          ...configForm
-        })
+      const response = await api.post('/website/create', {
+        ditta_id: selectedCompany.id,
+        ...configForm
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        console.log('Site created successfully:', data);
+      if (response.data.success) {
+        console.log('Site created successfully:', response.data);
         onCompanySelected({
           company: selectedCompany,
           site: {
-            id: data.sito_id,
-            url: data.url,
+            id: response.data.sito_id,
+            url: response.data.url,
             subdomain: configForm.subdomain
           }
         });
       } else {
-        console.error('API error creating site:', data.error);
-        setError(data.error || 'Errore durante la creazione del sito');
+        console.error('API error creating site:', response.data.error);
+        setError(response.data.error || 'Errore durante la creazione del sito');
       }
     } catch (error) {
       console.error('Error creating site:', error);

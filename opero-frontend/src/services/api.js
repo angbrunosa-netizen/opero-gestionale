@@ -12,8 +12,8 @@ import { Capacitor } from '@capacitor/core'; // Importiamo Capacitor per un cont
 // URL del tuo server di PRODUZIONE (HTTPS)
 const PROD_URL = 'https://www.operocloud.it/api';
 
-// URL per lo sviluppo locale (PC)
-const DEV_URL = 'http://localhost:3001/api';  // Corretta porta backend
+// URL per lo sviluppo locale (PC) - letto dalle variabili d'ambiente
+const DEV_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 
 // ---------------------------------------------------------------------
 // LOGICA DI SELEZIONE (SMART)

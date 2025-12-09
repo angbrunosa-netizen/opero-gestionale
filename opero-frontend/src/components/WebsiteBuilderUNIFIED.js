@@ -33,6 +33,7 @@ import {
 // Import componenti specializzati
 import TemplateCustomizer from './website/TemplateCustomizer';
 import StaticPagesManager from './website/StaticPagesManager';
+import SimplePageBuilder from './website/SimplePageBuilder';
 import ImageGalleryManager from './website/ImageGalleryManager';
 import { api } from '../services/api';
 
@@ -55,6 +56,10 @@ const WebsiteBuilderUNIFIED = ({
   const [pages, setPages] = useState([]);
   const [images, setImages] = useState([]);
   const [catalogSettings, setCatalogSettings] = useState({});
+
+  // Stati per gestione pagine avanzate
+  const [useAdvancedBuilder, setUseAdvancedBuilder] = useState(false);
+  const [selectedPage, setSelectedPage] = useState(null);
 
   // Stati per configurazione sito
   const [siteConfig, setSiteConfig] = useState({
@@ -261,12 +266,115 @@ const WebsiteBuilderUNIFIED = ({
 
       case 'pages':
         return (
-          <StaticPagesManager
-            websiteId={site?.id || initialSite?.id}
-            pages={pages}
-            onPagesChange={setPages}
-            onSave={() => loadSiteData()}
-          />
+          <div className="space-y-4">
+            {/* Selector tra builder classico e avanzato */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Gestione Pagine</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Scegli il tipo di editor per creare le tue pagine
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => {
+                      setUseAdvancedBuilder(false);
+                      setSelectedPage(null);
+                    }}
+                    className={`px-4 py-2 rounded-md font-medium ${
+                      !useAdvancedBuilder
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Gestione Rapida
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUseAdvancedBuilder(true);
+                      setSelectedPage(null);
+                    }}
+                    className={`px-4 py-2 rounded-md font-medium ${
+                      useAdvancedBuilder
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Builder Avanzato
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Selettore pagina per builder avanzato */}
+            {useAdvancedBuilder && (
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">
+                      {selectedPage ? 'Modifica Pagina' : 'Crea Nuova Pagina'}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {selectedPage
+                        ? `Stai modificando: ${selectedPage.titolo || selectedPage.slug}`
+                        : 'Scegli se creare una nuova pagina o selezionarne una esistente'
+                      }
+                    </p>
+                  </div>
+                  {selectedPage && (
+                    <button
+                      onClick={() => setSelectedPage(null)}
+                      className="text-sm px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                    >
+                      Nuova Pagina
+                    </button>
+                  )}
+                </div>
+
+                {!selectedPage && pages.length > 0 && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Seleziona una pagina esistente da modificare:
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {pages.map((page) => (
+                        <button
+                          key={page.id}
+                          onClick={() => setSelectedPage(page)}
+                          className="p-3 text-left border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                        >
+                          <div className="font-medium text-gray-900">{page.titolo}</div>
+                          <div className="text-sm text-gray-600">/{page.slug}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Builder appropriato */}
+            {useAdvancedBuilder ? (
+              <SimplePageBuilder
+                websiteId={site?.id || initialSite?.id}
+                initialPage={selectedPage}
+                site={site}
+                onSave={() => {
+                  loadSiteData();
+                  setSelectedPage(null);
+                }}
+                onCancel={() => setSelectedPage(null)}
+              />
+            ) : (
+              <StaticPagesManager
+                websiteId={site?.id || initialSite?.id}
+                pages={pages}
+                onPagesChange={setPages}
+                onSave={() => loadSiteData()}
+              />
+            )}
+          </div>
         );
 
       case 'template':

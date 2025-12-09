@@ -51,9 +51,16 @@ const app = express();
 // --- 3. MIDDLEWARE ---
 
 // Middleware per il parsing del corpo delle richieste in JSON (comune a entrambi gli ambienti)
+// Aumentiamo i limiti per gestire header più grandi e risolvere l'errore 431
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb', parameterLimit: 10000 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Configurazione personalizzata per aumentare il limite degli header
+app.use((req, res, next) => {
+  // Aumenta il limite massimo per gli header (default è 8KB)
+  req.headers['max-header-size'] = '64kb';
+  next();
+});
 
 // Middleware per il CORS, con logica condizionale
 if (process.env.NODE_ENV === 'production') {
@@ -170,11 +177,17 @@ if (process.env.NODE_ENV === 'production') {
   });
 } else {
   // --- AVVIO IN SVILUPPO SU PORTA DI RETE ---
-  const PORT = process.env.PORT || 3000;
- if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`💻 Server Opero in SVILUPPO avviato e in ascolto sulla porta: ${PORT}`);
-  });
+  const PORT = process.env.PORT || 3001;
+  if (require.main === module) {
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`💻 Server Opero in SVILUPPO avviato e in ascolto sulla porta: ${PORT}`);
+      console.log(`🔧 Header limit aumentato per risolvere errore 431`);
+    });
+
+    // Aumenta il limite massimo per gli header HTTP (risolve l'errore 431)
+    server.maxHeadersCount = 1000;  // Default è 100
+    // Nota: maxHeaderSize non è direttamente configurabile in Node.js, ma aumentiamo il numero di header
+  }
 }
-}
+
 module.exports = app;

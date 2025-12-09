@@ -1,15 +1,17 @@
 /**
  * ======================================================================
- * File: src/App.js (v2.7 - Fix Contesto Autenticazione)
+ * File: src/App.js (v2.8 - Ottimizzato e Corretto)
  * ======================================================================
  * @description
- * CORRETTO: La logica che dipende da `useAuth` è stata spostata all'interno
- * di `AuthProvider` per rispettare le regole di React Context.
- * Questo risolve il problema per cui `AllegatiManager` riceveva `undefined`.
+ * Versione ottimizzata con pulizia condizionale dei cookie, logging di debug
+ * condizionale e struttura del routing semplificata.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+
+// Import dei contesti
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { QuickComposeProvider } from './context/QuickComposeContext';
 
 // Import dei componenti principali
 import LoginPage from './components/LoginPage';
@@ -23,15 +25,53 @@ import BeneForm from './components/beni-strumentali/BeneForm';
 // Import del ListComposer per le rotte liste
 import ListComposerWrapper from './components/liste/ListComposerWrapper';
 
-// Import del Provider per la composizione rapida
-import { QuickComposeProvider } from './context/QuickComposeContext';
+
+// ---------------------------------------------------------------------
+// FUNZIONI DI UTILITÀ
+// ---------------------------------------------------------------------
+
+// Pulizia cookie solo in sviluppo per risolvere l'errore 431
+const clearAllCookies = () => {
+  console.log('🧹 Pulizia completa cookie per risolvere errore 431...');
+
+  // Pulisce tutti i cookie possibili
+  const domains = ['localhost', '127.0.0.1', 'localhost:3000', 'localhost:3001'];
+
+  domains.forEach(domain => {
+    document.cookie.split(";").forEach(function(c) {
+      const cookieName = c.split("=")[0].trim();
+      if (cookieName) {
+        // Pulisce cookie per diversi path e domini
+        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;domain=${domain}`;
+        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;domain=.${domain}`;
+      }
+    });
+  });
+
+  // Pulisce localStorage e sessionStorage
+  const keysToKeep = ['theme', 'language']; // Mantieni solo settings non critici
+  const allKeys = Object.keys(localStorage);
+
+  allKeys.forEach(key => {
+    if (!keysToKeep.includes(key)) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  sessionStorage.clear();
+
+  console.log('✅ Pulizia completata');
+};
+
+// ---------------------------------------------------------------------
+// COMPONENTI
+// ---------------------------------------------------------------------
 
 // Componente "Guardiano" per proteggere le rotte
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Caricamento...</div>;
-  }
+  const { isAuthenticated } = useAuth();
+  
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -47,48 +87,35 @@ const AppLayout = () => (
   </ProtectedRoute>
 );
 
-
-// --- NUOVO COMPONENTE INTERNO ---
-// Questo componente contiene tutta la logica che dipende dal contesto.
-// Viene renderizzato DENTRO AuthProvider, quindi può usare `useAuth` in sicurezza.
+// Componente che contiene la logica che dipende dal contesto
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
 
-  // DEBUG: Logga lo stato di autenticazione ad ogni render
-  console.log(`[AppRoutes.js] Render. Loading: ${loading}, IsAuthenticated: ${isAuthenticated}`);
+  // Logging di debug solo in sviluppo
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[AppRoutes.js] Render. Loading: ${loading}, IsAuthenticated: ${isAuthenticated}`);
+  }
 
   if (loading) {
     return <div className="flex justify-center items-center h-screen">Caricamento in corso...</div>;
   }
   
   return (
-    // Il QuickComposeProvider è inserito qui per essere disponibile in tutta l'applicazione autenticata
     <QuickComposeProvider>
       <BrowserRouter>
         <Routes>
-          {/* Rotte pubbliche (accessibili senza login) */}
+          {/* Rotte pubbliche */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register/:token" element={<RegistrationPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           
-          {/* Rotta per i moduli standalone */}
-          <Route 
-            path="/module/:moduleKey" 
-            element={
-              <ProtectedRoute>
-                <StandaloneModule />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* Rotte interne che usano MainApp come layout */}
+          {/* Rotte protette */}
           <Route element={<AppLayout />}>
             <Route path="/" element={null} />
             <Route path="/ppa/task/:istanzaId" element={<IstanzaDetailView />} />
-            {/* Rotte per le liste */}
             <Route path="/liste/*" element={<ListComposerWrapper />} />
-            {/* Aggiungi qui altre rotte interne, inclusa quella per il BeneForm se necessario */}
-            {/* Esempio: <Route path="/beni/:id/edit" element={<BeneForm />} /> */}
+            <Route path="/module/:moduleKey" element={<StandaloneModule />} />
+            {/* Aggiungi qui altre rotte interne */}
           </Route>
 
           {/* Rotta di fallback */}
@@ -99,12 +126,16 @@ function AppRoutes() {
   );
 }
 
-
-// Componente App principale, ora molto più pulito
-// Il suo unico scopo è fornire l'AuthProvider
+// Componente App principale
 function App() {
+  // Pulizia cookie all'avvio solo in sviluppo
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      clearAllCookies();
+    }
+  }, []);
+
   return (
-    // L'AuthProvider fornisce lo stato di autenticazione a tutta l'app
     <AuthProvider>
       <AppRoutes />
     </AuthProvider>
