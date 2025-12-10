@@ -1,22 +1,13 @@
 /**
  * Simple Page Builder
- * Entry point semplificato per creare pagine web con wizard guidato
+ * Componente semplificato per creare/modificare pagine con PageEditor
  */
 
 import React, { useState } from 'react';
 import {
-  DocumentTextIcon,
-  ArrowRightIcon,
-  ArrowLeftIcon,
-  CheckIcon,
-  GlobeAltIcon,
-  PhotoIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  ShoppingBagIcon,
   EyeIcon,
-  PencilIcon,
-  Bars3Icon
+  ArrowLeftIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 // Importa il PageEditor esistente
@@ -107,628 +98,140 @@ const generateHtmlFromSections = (sections) => {
 };
 
 const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCancel }) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [page, setPage] = useState({
-    title: initialPage?.titolo || '',
-    slug: initialPage?.slug || '',
-    sections: initialPage?.contenuto_json?.sections || [],
-    meta_title: initialPage?.meta_title || '',
-    meta_description: initialPage?.meta_description || '',
-    is_published: initialPage?.is_published || false,
-    menu_order: initialPage?.menu_order || 0,
-    templateName: initialPage?.template_name || '' // Carica dal DB se disponibile
+  // DEBUG: Log per capire cosa riceviamo
+  console.log('🔥 SimplePageBuilder - Dati ricevuti:', {
+    websiteId,
+    initialPage: initialPage ? {
+      id: initialPage.id,
+      titolo: initialPage.titolo,
+      slug: initialPage.slug,
+      has_contenuto_json: !!initialPage.contenuto_json,
+      sections_count: initialPage.contenuto_json?.sections?.length || 0
+    } : 'null',
+    site: site ? `ID: ${site.id}` : 'null'
   });
 
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [errors, setErrors] = useState({});
 
-  // Definizione dei passaggi del wizard
-  const steps = [
-    { number: 1, title: 'Informazioni Base', icon: '📝' },
-    { number: 2, title: 'Contenuti', icon: '🏗️' },
-    { number: 3, title: 'Impostazioni SEO', icon: '🔍' },
-    { number: 4, title: 'Anteprima', icon: '👁️' }
-  ];
+  // Se siamo in modalità modifica e abbiamo una pagina esistente
+  const isEditing = !!initialPage?.id;
 
-  // Template rapidi
-  const quickTemplates = [
-    {
-      name: 'Pagina Servizi',
-      icon: '🔧',
-      description: 'Presenta i servizi della tua azienda',
-      sections: [
-        { type: 'hero', title: 'I Nostri Servizi', subtitle: 'Soluzioni professionali per le tue esigenze', buttonText: 'Scopri di più', buttonUrl: '#contatti', backgroundColor: '#3B82F6' },
-        { type: 'text', content: '<h2>I Nostri Servizi</h2><p>Siamo specializzati in...</p>' }
-      ]
-    },
-    {
-      name: 'Chi Siamo',
-      icon: '👥',
-      description: 'La storia della tua azienda',
-      sections: [
-        { type: 'hero', title: 'Chi Siamo', subtitle: 'La nostra storia e la nostra passione', buttonText: 'Contattaci', buttonUrl: '#contatti', backgroundColor: '#10B981' },
-        { type: 'text', content: '<h2>La Nostra Storia</h2><p>Dal nostro fondo...</p>' }
-      ]
-    },
-    {
-      name: 'Contatti',
-      icon: '📞',
-      description: 'Form contatti e informazioni',
-      sections: [
-        { type: 'hero', title: 'Contattaci', subtitle: 'Siamo qui per aiutarti', buttonText: 'Scrivici', buttonUrl: '#form', backgroundColor: '#6366F1' },
-        { type: 'contact', showForm: true, showInfo: true, email: '', phone: '', address: '' }
-      ]
-    },
-    {
-      name: 'Galleria',
-      icon: '🖼️',
-      description: 'Mostra i tuoi lavori',
-      sections: [
-        { type: 'hero', title: 'I Nostri Lavori', subtitle: 'Una selezione dei nostri progetti migliori', buttonText: 'Vedi tutti', buttonUrl: '#galleria', backgroundColor: '#F59E0B' },
-        { type: 'gallery', title: 'Galleria Fotografica', columns: 3 }
-      ]
-    }
-  ];
-
-  const validateStep = (step) => {
-    const newErrors = {};
-
-    if (step === 1) {
-      if (!page.title.trim()) newErrors.title = 'Il titolo è obbligatorio';
-      if (!page.slug.trim()) newErrors.slug = 'Lo slug è obbligatorio';
-      if (page.slug && !/^[a-z0-9-]+$/.test(page.slug)) {
-        newErrors.slug = 'Lo slug può contenere solo lettere minuscole, numeri e trattini';
-      }
-    }
-
-    if (step === 3) {
-      if (page.meta_description && page.meta_description.length > 160) {
-        newErrors.meta_description = 'La meta description non può superare 160 caratteri';
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(Math.min(currentStep + 1, steps.length));
-    }
-  };
-
-  const handlePrevious = () => {
-    setCurrentStep(Math.max(currentStep - 1, 1));
-  };
-
-  const handleQuickTemplate = (template) => {
-    setPage(prev => ({
-      ...prev,
-      title: template.name,
-      slug: template.name.toLowerCase().replace(/\s+/g, '-'),
-      sections: template.sections,
-      meta_title: template.name,
-      meta_description: `Pagina ${template.name.toLowerCase()} di ${site?.site_title || 'azienda'}`,
-      templateName: template.name
-    }));
-  };
-
-  const handleSave = async () => {
+  // Handler per il salvataggio
+  const handleSave = async (pageData) => {
     setSaving(true);
     try {
-      const pageData = {
-        slug: page.slug || generateSlug(page.title),
-        titolo: page.title,
-        contenuto_html: { sections: page.sections },
-        contenuto_json: { sections: page.sections },
-        meta_title: page.meta_title || page.title,
-        meta_description: page.meta_description || '',
-        is_published: page.is_published,
-        menu_order: page.menu_order,
-        template_name: page.templateName // Save the template used
+      const data = {
+        titolo: pageData.titolo,
+        slug: pageData.slug || generateSlug(pageData.titolo),
+        contenuto_json: pageData.contenuto_json || { sections: [] },
+        contenuto_html: generateHtmlFromSections(pageData.contenuto_json?.sections || []),
+        meta_title: pageData.meta_title || pageData.titolo,
+        meta_description: pageData.meta_description || '',
+        is_published: pageData.is_published || false,
+        menu_order: pageData.menu_order || 0
       };
 
-      if (initialPage?.id) {
-        await api.put(`/website/${websiteId}/pages/${initialPage.id}`, pageData);
+      console.log('🔥 SimplePageBuilder - Salvataggio dati:', {
+        isEditing,
+        pageId: initialPage?.id,
+        data
+      });
+
+      let response;
+      if (isEditing) {
+        response = await api.put(`/website/${websiteId}/pages/${initialPage.id}`, data);
       } else {
-        await api.post(`/website/${websiteId}/pages`, pageData);
+        response = await api.post(`/website/${websiteId}/pages`, data);
       }
 
-      if (onSave) onSave();
-
+      if (response.data.success) {
+        console.log('✅ SimplePageBuilder - Salvataggio completato');
+        onSave && onSave();
+      } else {
+        console.error('❌ SimplePageBuilder - Errore salvataggio:', response.data);
+      }
     } catch (error) {
-      console.error('Errore salvataggio:', error);
-      alert('Errore durante il salvataggio della pagina');
+      console.error('❌ SimplePageBuilder - Errore salvataggio:', error);
     } finally {
       setSaving(false);
     }
   };
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        // In modalità modifica, mostra solo il template corrente con opzione per cambiarlo
-        if (initialPage?.id) {
-          return (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Template Pagina</h3>
-
-                {page.templateName ? (
-                  <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium text-blue-900">Template attuale: {page.templateName}</h4>
-                        <p className="text-sm text-blue-700 mt-1">
-                          I dati della pagina sono associati a questo template
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Attenzione:</strong> Questa pagina non ha un template assegnato.
-                      È consigliabile assegnarne uno per mantenere la coerenza.
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Cambia Template</h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    <strong>Attenzione:</strong> Cambiare template comporterà la perdita di tutti i dati attuali della pagina.
-                    Sarà necessario ricreare il contenuto da capo.
-                  </p>
-                  <button
-                    onClick={() => {
-                      if (window.confirm('Sei sicuro di voler cambiare template? Tutti i dati attuali saranno persi.')) {
-                        setPage({
-                          title: '',
-                          slug: '',
-                          sections: [],
-                          meta_title: '',
-                          meta_description: '',
-                          is_published: false,
-                          menu_order: 0,
-                          templateName: ''
-                        });
-                        setCurrentStep(2);
-                      }
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center"
-                  >
-                    Cambia Template (perde dati)
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-between">
-                <button
-                  onClick={() => setCurrentStep(3)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-                >
-                  Modifica Dati Pagina
-                  <ArrowRightIcon className="ml-2 w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          );
-        }
-
-        // In modalità creazione, mostra selezione template
-        return (
-          <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 mb-2">🚀 Inizia Veloce</h3>
-              <p className="text-blue-700 text-sm mb-4">Scegli un template predefinito per iniziare subito</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {quickTemplates.map((template, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleQuickTemplate(template)}
-                    className="bg-white border border-blue-200 rounded-lg p-3 hover:bg-blue-50 text-left transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{template.icon}</span>
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{template.name}</div>
-                        <div className="text-sm text-gray-600">{template.description}</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Titolo Pagina *
-                </label>
-                <input
-                  type="text"
-                  value={page.title}
-                  onChange={(e) => setPage({ ...page, title: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.title ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Es: I Nostri Servizi"
-                />
-                {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Slug URL *
-                </label>
-                <input
-                  type="text"
-                  value={page.slug}
-                  onChange={(e) => setPage({
-                    ...page,
-                    slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-')
-                  })}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.slug ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="servizi"
-                />
-                {errors.slug && <p className="text-red-500 text-sm mt-1">{errors.slug}</p>}
-                <p className="text-sm text-gray-500 mt-1">
-                  URL: https://{site?.subdomain || 'sottodominio'}.operocloud.it/{page.slug}
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-4">
-            {/* Riepilogo template utilizzato */}
-            {page.templateName && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div>
-                  <p className="text-sm text-blue-800">
-                    <strong>Template utilizzato:</strong> {page.templateName}
-                  </p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    {initialPage?.id
-                      ? 'I dati sono bloccati a questo template. Per cambiarlo, torna al passo precedente.'
-                      : 'Puoi modificare i contenuti usando l\'editor qui sotto'
-                    }
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!page.templateName && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">
-                  <strong>💡 Suggerimento:</strong> Usa i blocchi per costruire la tua pagina. Puoi aggiungere testo, immagini, contatti e molto altro.
-                </p>
-              </div>
-            )}
-
-            <PageEditor
-              page={{
-                titolo: page.title,
-                slug: page.slug,
-                contenuto_html: { sections: page.sections },
-                contenuto_json: { sections: page.sections },
-                meta_title: page.meta_title,
-                meta_description: page.meta_description,
-                is_published: page.is_published,
-                menu_order: page.menu_order
-              }}
-              site={site}
-              onSave={async (pageData) => {
-                try {
-                  setSaving(true);
-
-                  const saveData = {
-                    slug: pageData.slug || page.slug,
-                    titolo: pageData.titolo || page.title,
-                    contenuto_html: pageData.contenuto_html,
-                    contenuto_json: pageData.contenuto_json,
-                    meta_title: pageData.meta_title || page.title,
-                    meta_description: pageData.meta_description || page.meta_description || '',
-                    is_published: pageData.is_published !== undefined ? pageData.is_published : page.is_published,
-                    menu_order: pageData.menu_order !== undefined ? pageData.menu_order : page.menu_order,
-                    template_name: page.templateName // Save also the template used
-                  };
-
-                  if (initialPage?.id) {
-                    await api.put(`/website/${websiteId}/pages/${initialPage.id}`, saveData);
-                  } else {
-                    await api.post(`/website/${websiteId}/pages`, saveData);
-                  }
-
-                  setPage(prev => ({
-                    ...prev,
-                    sections: pageData.contenuto_json?.sections || []
-                  }));
-
-  
-                  if (onSave) onSave();
-
-                } catch (error) {
-                  console.error('Errore salvataggio:', error);
-                  alert('Errore durante il salvataggio');
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              onCancel={() => {}}
-            />
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Ottimizzazione SEO</h3>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Meta Title (Titolo per Google)
-                  </label>
-                  <input
-                    type="text"
-                    value={page.meta_title}
-                    onChange={(e) => setPage({ ...page, meta_title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={page.title || 'Titolo della pagina'}
-                    maxLength={60}
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    {page.meta_title?.length || 0}/60 caratteri (ottimale per Google)
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Meta Description (Descrizione per Google)
-                  </label>
-                  <textarea
-                    value={page.meta_description}
-                    onChange={(e) => setPage({ ...page, meta_description: e.target.value })}
-                    rows={3}
-                    className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.meta_description ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="Breve descrizione della pagina per i motori di ricerca"
-                    maxLength={160}
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    {page.meta_description?.length || 0}/160 caratteri
-                  </p>
-                  {errors.meta_description && (
-                    <p className="text-red-500 text-sm mt-1">{errors.meta_description}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={page.is_published}
-                      onChange={(e) => setPage({ ...page, is_published: e.target.checked })}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      Pubblica subito la pagina
-                    </span>
-                  </label>
-                  <p className="text-sm text-gray-500 mt-1 ml-6">
-                    {!page.is_published ? 'La pagina sarà salvata come bozza' : 'La pagina sarà visibile pubblicamente'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h4 className="font-medium text-yellow-900 mb-2">📊 Anteprima Google</h4>
-              <div className="bg-white border rounded p-3 max-w-md">
-                <div className="text-blue-700 text-sm hover:underline cursor-pointer">
-                  {page.meta_title || page.title} - {site?.site_title || 'Nome Azienda'}
-                </div>
-                <div className="text-green-700 text-sm">
-                  https://{site?.subdomain || 'sottodominio'}.operocloud.it/{page.slug}
-                </div>
-                <div className="text-gray-600 text-sm mt-1">
-                  {page.meta_description || `Pagina ${page.title} di ${site?.site_title || 'Nome Azienda'}`}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 4:
-        return (
-          <div className="space-y-4">
-            <div className="text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">📋 Riepilogo Pagina</h3>
-
-              <div className="bg-gray-50 rounded-lg p-6 max-w-2xl mx-auto">
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Titolo:</span>
-                    <span className="text-gray-900">{page.title}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">URL:</span>
-                    <span className="text-blue-600 text-sm">
-                      /{page.slug}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Numero sezioni:</span>
-                    <span className="text-gray-900">{page.sections.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Stato:</span>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      page.is_published
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {page.is_published ? 'Pubblicata' : 'Bozza'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <button
-                  onClick={() => setShowPreview(true)}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  <EyeIcon className="h-4 w-4 mr-2" />
-                  Anteprima Live
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header Wizard */}
-      <div className="mb-8">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              {initialPage ? 'Modifica Pagina' : 'Crea Nuova Pagina'}
-            </h1>
-            <p className="text-gray-600">
-              {initialPage?.id ? `Pagina ID: ${initialPage.id}` : `Sito: ${site?.site_title || 'N/D'}`}
-            </p>
-          </div>
-          <button
-            onClick={() => setCurrentStep(1)}
-            className="text-sm px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center gap-2"
-          >
-            📝 Cambia Template
-          </button>
-        </div>
-
-        <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-          {steps.map((step) => (
-            <div
-              key={step.number}
-              className={`flex items-center ${
-                currentStep > step.number ? 'text-green-600' :
-                currentStep === step.number ? 'text-blue-600' :
-                'text-gray-400'
-              }`}
-            >
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                currentStep > step.number
-                  ? 'bg-green-600 border-green-600 text-white'
-                  : currentStep === step.number
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'border-gray-300 bg-white'
-              }`}>
-                {currentStep > step.number ? (
-                  <CheckIcon className="w-5 h-5" />
-                ) : (
-                  step.number
-                )}
-              </div>
-              <div className="ml-3 hidden sm:block">
-                <div className="text-sm font-medium">{step.title}</div>
-                <div className="text-xs">{step.icon}</div>
-              </div>
-              {step.number < steps.length && (
-                <div className={`w-8 h-0.5 mx-4 ${
-                  currentStep > step.number ? 'bg-green-600' : 'bg-gray-300'
-                }`} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Contenuto Step */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-        {renderStepContent()}
-      </div>
-
-      {/* Azioni */}
-      <div className="flex justify-between items-center">
-        <div>
-          {currentStep > 1 && (
-            <button
-              onClick={handlePrevious}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-            >
-              <ArrowLeftIcon className="h-4 w-4 mr-2" />
-              Indietro
-            </button>
-          )}
-        </div>
-
-        <div className="flex space-x-3">
+    <div className="max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center">
           <button
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+            className="mr-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
           >
-            Annulla
+            <ArrowLeftIcon className="h-5 w-5" />
           </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isEditing ? 'Modifica Pagina' : 'Crea Nuova Pagina'}
+            </h1>
+            {isEditing && initialPage && (
+              <p className="mt-1 text-sm text-gray-500">Stai modificando: {initialPage.titolo || initialPage.slug}</p>
+            )}
+          </div>
+        </div>
 
-          {currentStep < steps.length ? (
+        <div className="flex items-center space-x-3">
+          {!showPreview && (
             <button
-              onClick={handleNext}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              onClick={() => setShowPreview(true)}
+              className="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
             >
-              Avanti
-              <ArrowRightIcon className="h-4 w-4 ml-2" />
+              <EyeIcon className="h-4 w-4 mr-2" />
+              Anteprima
             </button>
-          ) : (
+          )}
+
+          {showPreview && (
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              onClick={() => setShowPreview(false)}
+              className="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200"
             >
-              {saving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Salvataggio...
-                </>
-              ) : (
-                <>
-                  <CheckIcon className="h-4 w-4 mr-2" />
-                  Salva Pagina
-                </>
-              )}
+              <XMarkIcon className="h-4 w-4 mr-2" />
+              Chiudi Anteprima
             </button>
+          )}
+
+          {saving && (
+            <div className="flex items-center text-blue-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              <span className="text-sm">Salvataggio...</span>
+            </div>
           )}
         </div>
       </div>
+
+      {/* PageEditor - Passa direttamente i dati iniziali */}
+      <PageEditor
+        // Dati pagina esistente (PageEditor si aspetta 'page' non 'initialPage')
+        page={initialPage}
+        websiteId={websiteId}
+        site={site}
+
+        // Callbacks
+        onSave={handleSave}
+        onCancel={onCancel}
+      />
 
       {/* SitePreview Modal */}
       {showPreview && site && (
         <SitePreview
           site={site}
-          pages={[{
-            id: initialPage?.id || 'preview',
-            titolo: page.title,
-            slug: page.slug || 'preview',
-            contenuto_json: JSON.stringify({ sections: page.sections }),
-            contenuto_html: page.sections.length > 0 ? generateHtmlFromSections(page.sections) : '<p>Nessun contenuto</p>',
-            is_published: true,
-            meta_title: page.metaTitle,
-            meta_description: page.metaDescription
+          pages={[initialPage || {
+            id: 'preview',
+            titolo: 'Anteprima Pagina',
+            slug: 'preview',
+            contenuto_json: '{"sections":[]}',
+            contenuto_html: '<p>Anteprima in costruzione...</p>',
+            is_published: true
           }]}
           onClose={() => setShowPreview(false)}
         />

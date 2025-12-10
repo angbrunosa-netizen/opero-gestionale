@@ -108,9 +108,10 @@ const WebsiteBuilderModule = () => {
           }>
             <WebsiteBuilderUNIFIED
               site={selectedSite}
-              onSave={() => {
-                setSelectedSite(null);
-                loadSites();
+              websiteId={selectedSite?.id}
+              onSave={(updatedPage) => {
+                // Per il salvataggio delle pagine, non resettare il sito
+                // La pagina viene salvata internamente, nessuna azione richiesta qui
               }}
               onCancel={() => setSelectedSite(null)}
             />

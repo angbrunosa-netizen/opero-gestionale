@@ -55,11 +55,90 @@ function generateHtmlFromSections(sections) {
         `;
         break;
       case 'image':
+        const imageLayout = section.layout || 'left';
+        const imageAlignment = imageLayout === 'center' ? 'text-center' : '';
         html += `
           <section class="image-section" style="padding: 60px 0;">
+            <div class="container mx-auto px-4 ${imageAlignment}">
+              <div class="flex flex-col ${imageLayout === 'left' ? 'md:flex-row' : imageLayout === 'right' ? 'md:flex-row-reverse' : ''} items-center gap-8">
+                ${section.imageUrl ? `<img src="${section.imageUrl}" alt="${section.altText || ''}" class="max-w-full h-auto rounded-lg flex-shrink-0">` : ''}
+                <div class="flex-1">
+                  ${section.title ? `<h3 class="text-2xl font-bold mb-4">${section.title}</h3>` : ''}
+                  ${section.description ? `<p class="text-gray-600 mb-4">${section.description}</p>` : ''}
+                  ${section.buttonText && section.buttonUrl ? `<a href="${section.buttonUrl}" class="bg-blue-500 text-white px-6 py-3 rounded-lg inline-block">${section.buttonText}</a>` : ''}
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+        break;
+      case 'blog':
+        html += `
+          <section class="blog-section" style="padding: 60px 0; background-color: #f9fafb;">
+            <div class="container mx-auto px-4">
+              <h2 class="text-3xl font-bold text-center mb-8">${section.title || 'Ultimi Articoli'}</h2>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                ${[...Array(section.postsToShow || 3)].map((_, i) => `
+                  <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                    <div class="h-48 bg-gray-200"></div>
+                    <div class="p-6">
+                      <h3 class="text-xl font-semibold mb-2">Articolo ${i + 1}</h3>
+                      <p class="text-gray-600 mb-4">Breve descrizione dell'articolo del blog...</p>
+                      <a href="#" class="text-blue-500 hover:text-blue-700">Leggi tutto →</a>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `;
+        break;
+      case 'maps':
+        html += `
+          <section class="maps-section" style="padding: 60px 0;">
+            <div class="container mx-auto px-4">
+              <h2 class="text-3xl font-bold text-center mb-8">${section.markerTitle || 'Dove Siamo'}</h2>
+              <div class="bg-gray-200 rounded-lg" style="height: ${section.height || '400px'};">
+                <div class="flex items-center justify-center h-full">
+                  <p class="text-gray-600">Mappa interattiva: ${section.address || 'Indirizzo non specificato'}</p>
+                </div>
+              </div>
+              ${section.markerDescription ? `<p class="text-center mt-4 text-gray-600">${section.markerDescription}</p>` : ''}
+            </div>
+          </section>
+        `;
+        break;
+      case 'social':
+        html += `
+          <section class="social-section" style="padding: 60px 0; background-color: #f3f4f6;">
             <div class="container mx-auto px-4 text-center">
-              ${section.imageUrl ? `<img src="${section.imageUrl}" alt="${section.altText || ''}" class="max-w-full h-auto rounded-lg">` : ''}
-              ${section.caption ? `<p class="mt-4 text-gray-600">${section.caption}</p>` : ''}
+              <h2 class="text-3xl font-bold mb-8">Seguici sui Social</h2>
+              <div class="flex justify-center space-x-6">
+                ${(section.platforms || []).map(platform => `
+                  <a href="#" class="bg-blue-500 text-white p-3 rounded-full hover:bg-blue-600 transition-colors">
+                    <span class="text-xl">${platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
+                  </a>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `;
+        break;
+      case 'gallery':
+        const galleryLayout = section.layout || 'grid';
+        const columns = section.columns || 3;
+        html += `
+          <section class="gallery-section" style="padding: 60px 0;">
+            <div class="container mx-auto px-4">
+              <h2 class="text-3xl font-bold text-center mb-8">Galleria Fotografica</h2>
+              <div class="grid grid-cols-1 md:grid-cols-${columns} gap-4">
+                ${(section.images || []).map(image => `
+                  <div class="relative group overflow-hidden rounded-lg">
+                    <img src="${image.url || ''}" alt="${image.alt || ''}" class="w-full h-48 object-cover transition-transform group-hover:scale-105">
+                    ${image.caption && section.showCaptions ? `<div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">${image.caption}</div>` : ''}
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </section>
         `;
@@ -492,8 +571,8 @@ router.post('/:websiteId/pages', async (req, res) => {
       normalizedContenutoHtml = '<p>Contenuto in elaborazione...</p>';
     }
 
-    // Converti il JSON in stringa per MySQL
-    const jsonString = contenuto_json ? JSON.stringify(contenuto_json) : null;
+    // contenuto_json arriva già come stringa JSON dal frontend, usalo direttamente
+    const jsonString = contenuto_json ? contenuto_json : null;
 
     // Debug: mostra i parametri che verranno passati alla query
     const queryParams = [
@@ -584,13 +663,17 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
       normalizedContenutoHtml = '<p>Contenuto in elaborazione...</p>';
     }
 
+    // contenuto_json arriva già come stringa JSON dal frontend
+    const jsonString = contenuto_json || JSON.stringify({ sections: [] });
+
     // Debug: Stampa i valori prima della query
     console.log('[DEBUG] Valori per UPDATE:', {
       slug,
       titolo,
       contenuto_html_type: typeof contenuto_html,
       contenuto_html: normalizedContenutoHtml,
-      contenuto_json: JSON.stringify(contenuto_json || { sections: [] }),
+      contenuto_json: jsonString,
+      contenuto_json_type: typeof jsonString,
       meta_title,
       meta_description,
       is_published: normalizedIsPublished,
@@ -618,7 +701,7 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
       slug || '',
       titolo || '',
       normalizedContenutoHtml,
-      JSON.stringify(contenuto_json || { sections: [] }),
+      jsonString,
       meta_title || '',
       meta_description || '',
       normalizedIsPublished,
