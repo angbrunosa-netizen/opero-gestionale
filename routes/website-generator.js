@@ -229,6 +229,129 @@ router.post('/template/:websiteId', checkPermission('SITE_BUILDER'), async (req,
   }
 });
 
+/**
+ * DELETE /api/website-generator/delete/:websiteId
+ * Cancella sito e tutte le pagine associate (protegto con conferma)
+ */
+router.delete('/delete/:websiteId', checkPermission('SITE_BUILDER'), async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { confirmText } = req.body;
+
+    // Verifica conferma di sicurezza
+    if (confirmText !== 'Sono Sicuro') {
+      return res.status(400).json({
+        success: false,
+        error: 'Conferma di sicurezza non valida. Devi scrivere esattamente "Sono Sicuro".'
+      });
+    }
+
+    console.log(`🗑️ Inizio cancellazione sito ${websiteId} con conferma di sicurezza`);
+
+    const { knex } = require('../config/db');
+
+    // Avvia transazione
+    const trx = await knex.transaction();
+
+    try {
+      // 1. Verifica che il sito esista
+      const site = await trx('siti_web_aziendali')
+        .where({ id: websiteId })
+        .first();
+
+      if (!site) {
+        await trx.rollback();
+        return res.status(404).json({
+          success: false,
+          error: 'Sito non trovato'
+        });
+      }
+
+      // 2. Cancella pagine del sito
+      const deletedPages = await trx('pagine_sito_web')
+        .where({ id_sito_web: websiteId })
+        .del();
+
+      console.log(`✅ ${deletedPages} pagine cancellate`);
+
+      // 3. Cancella solo i collegamenti delle immagini del sito (NON i file da dm_files)
+      await trx('immagini_sito_web')
+        .where({ id_sito_web: websiteId })
+        .del();
+
+      console.log(`✅ Collegamenti immagini sito ${websiteId} cancellati (file preservati)`);
+
+      // 4. Cancella solo le associazioni gallerie-immagini (NON i file da dm_files)
+      await trx('wg_gallery_images')
+        .whereIn('id_galleria',
+          trx('wg_galleries')
+            .select('id')
+            .where({ id_sito_web: websiteId })
+        )
+        .del();
+
+      await trx('wg_galleries')
+        .where({ id_sito_web: websiteId })
+        .del();
+
+      console.log(`✅ Gallerie sito ${websiteId} cancellate (immagini preservate)`);
+
+      // 5. Pulisci sito generato su filesystem
+      try {
+        await siteGenerator.cleanupSite(websiteId);
+        console.log(`✅ File sito ${websiteId} cancellati dal filesystem`);
+      } catch (cleanupError) {
+        console.warn(`⚠️ Errore pulizia filesystem sito ${websiteId}:`, cleanupError.message);
+      }
+
+      // 6. Cancella il sito dal database
+      await trx('siti_web_aziendali')
+        .where({ id: websiteId })
+        .del();
+
+      console.log(`✅ Sito ${websiteId} cancellato dal database`);
+
+      // Commit transazione
+      await trx.commit();
+
+      res.json({
+        success: true,
+        message: `Sito "${site.site_title}" cancellato con successo. Le immagini sono state preservate nello storage.`,
+        data: {
+          deletedSiteId: websiteId,
+          deletedPages: deletedPages,
+          siteTitle: site.site_title,
+          note: 'Le immagini sono state scollegate dal sito ma NON cancellate dallo storage S3'
+        }
+      });
+
+    } catch (innerError) {
+      await trx.rollback();
+      throw innerError;
+    }
+
+  } catch (error) {
+    console.error('❌ Errore cancellazione sito:', error);
+    console.error('Stack trace:', error.stack);
+
+    // Fallback in caso di transazione fallita
+    try {
+      // Prova a fare rollback se è attiva
+      if (typeof trx !== 'undefined') {
+        await trx.rollback();
+      }
+    } catch (rollbackError) {
+      console.error('❌ Errore rollback:', rollbackError);
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Errore durante la cancellazione del sito: ' + error.message,
+      details: error.stack
+    });
+  }
+});
+
 // Helper functions
 
 /**

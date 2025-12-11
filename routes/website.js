@@ -252,7 +252,7 @@ router.get('/:id', async (req, res) => {
     const [website] = await dbPool.execute(`SELECT sw.*, d.ragione_sociale, d.id_tipo_ditta FROM siti_web_aziendali sw JOIN ditte d ON sw.id_ditta = d.id WHERE sw.id = ?`, [id]);
     if (website.length === 0) return res.status(404).json({ success: false, error: 'Sito web non trovato' });
     const websiteData = website[0];
-    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, contenuto_json, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [websiteData.id]);
+    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, contenuto_json, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at, background_type, background_color, background_gradient, background_image, background_size, background_position, background_repeat, background_attachment, font_family, font_size, font_color, heading_font, heading_color, container_max_width, padding_top, padding_bottom, custom_css, style_config FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [websiteData.id]);
     const [galleries] = await dbPool.execute(`SELECT g.*, COUNT(gi.id) as numero_immagini FROM wg_galleries g LEFT JOIN wg_gallery_images gi ON g.id = gi.id_galleria WHERE g.id_sito_web = ? AND g.is_active = 1 GROUP BY g.id ORDER BY g.sort_order, g.nome_galleria`, [websiteData.id]);
     const [imageCount] = await dbPool.execute(`SELECT COUNT(*) as total_images FROM wg_gallery_images gi JOIN wg_galleries g ON gi.id_galleria = g.id WHERE g.id_sito_web = ? AND g.is_active = 1`, [websiteData.id]);
     res.json({ success: true, website: { ...websiteData, template_config: websiteData.theme_config ? JSON.parse(websiteData.theme_config) : {}, catalog_settings: websiteData.catalog_settings ? JSON.parse(websiteData.catalog_settings) : {} }, pages: pages, galleries: galleries, images: [], settings: { catalog_settings: websiteData.catalog_settings ? JSON.parse(websiteData.catalog_settings) : {} } });
@@ -312,7 +312,7 @@ router.get('/:id/pages', async (req, res) => {
       if (website.length > 0) { siteId = website[0].id; isDittaId = true; console.log(`API Pages: Trovato sito tramite id_ditta=${id}, siteId=${siteId}`); }
       else { console.log(`API Pages: Nessun sito trovato per id=${id}`); return res.json({ success: true, pages: [], meta: { site_id: null, is_ditta_id: false, message: 'Nessun sito web trovato' } }); }
     }
-    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, contenuto_json, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [siteId]);
+    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, contenuto_json, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at, background_type, background_color, background_gradient, background_image, background_size, background_position, background_repeat, background_attachment, font_family, font_size, font_color, heading_font, heading_color, container_max_width, padding_top, padding_bottom, custom_css, style_config FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [siteId]);
     console.log(`API Pages: Recuperate ${pages.length} pagine per siteId=${siteId}`);
     res.json({ success: true, pages: pages, meta: { site_id: siteId, is_ditta_id: isDittaId, pages_count: pages.length } });
   } catch (error) { console.error('Errore recupero pagine:', error); res.status(500).json({ success: false, error: 'Errore nel recupero delle pagine' }); }
@@ -363,7 +363,34 @@ router.get('/:websiteId/pages/:pageId', async (req, res) => { /* ... implementaz
  */
 router.post('/:websiteId/pages', async (req, res) => {
   const { websiteId } = req.params;
-  const { slug, titolo, contenuto_html, contenuto_json, meta_title, meta_description, is_published, menu_order } = req.body;
+  const {
+    slug,
+    titolo,
+    contenuto_html,
+    contenuto_json,
+    meta_title,
+    meta_description,
+    is_published,
+    menu_order,
+    background_type,
+    background_color,
+    background_gradient,
+    background_image,
+    background_size,
+    background_position,
+    background_repeat,
+    background_attachment,
+    font_family,
+    font_size,
+    font_color,
+    heading_font,
+    heading_color,
+    container_max_width,
+    padding_top,
+    padding_bottom,
+    custom_css,
+    style_config
+  } = req.body;
 
   try {
     console.log(`[DEBUG] Creazione pagina per sito ${websiteId}:`, req.body);
@@ -384,7 +411,25 @@ router.post('/:websiteId/pages', async (req, res) => {
       meta_title,
       meta_description,
       is_published,
-      menu_order
+      menu_order,
+      background_type,
+      background_color,
+      background_gradient,
+      background_image,
+      background_size,
+      background_position,
+      background_repeat,
+      background_attachment,
+      font_family,
+      font_size,
+      font_color,
+      heading_font,
+      heading_color,
+      container_max_width,
+      padding_top,
+      padding_bottom,
+      custom_css,
+      style_config
     };
 
     const [result] = await dbPool.execute(`
@@ -398,9 +443,27 @@ router.post('/:websiteId/pages', async (req, res) => {
         meta_description,
         is_published,
         menu_order,
+        background_type,
+        background_color,
+        background_gradient,
+        background_image,
+        background_size,
+        background_position,
+        background_repeat,
+        background_attachment,
+        font_family,
+        font_size,
+        font_color,
+        heading_font,
+        heading_color,
+        container_max_width,
+        padding_top,
+        padding_bottom,
+        custom_css,
+        style_config,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `, [
       websiteId,
       data.slug,
@@ -410,7 +473,25 @@ router.post('/:websiteId/pages', async (req, res) => {
       data.meta_title,
       data.meta_description,
       data.is_published ? 1 : 0,
-      data.menu_order || 0
+      data.menu_order || 0,
+      data.background_type || 'color',
+      data.background_color || '#ffffff',
+      data.background_gradient || null,
+      data.background_image || null,
+      data.background_size || 'cover',
+      data.background_position || 'center',
+      data.background_repeat || 'no-repeat',
+      data.background_attachment || 'scroll',
+      data.font_family || 'Inter',
+      data.font_size || '16',
+      data.font_color || '#333333',
+      data.heading_font || null,
+      data.heading_color || '#1a1a1a',
+      data.container_max_width || '1200px',
+      data.padding_top || '60px',
+      data.padding_bottom || '60px',
+      data.custom_css || null,
+      JSON.stringify(data.style_config || {})
     ]);
 
     console.log(`[DEBUG] Pagina creata con ID: ${result.insertId}`);
@@ -471,6 +552,24 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
         meta_description = ?,
         is_published = ?,
         menu_order = ?,
+        background_type = ?,
+        background_color = ?,
+        background_gradient = ?,
+        background_image = ?,
+        background_size = ?,
+        background_position = ?,
+        background_repeat = ?,
+        background_attachment = ?,
+        font_family = ?,
+        font_size = ?,
+        font_color = ?,
+        heading_font = ?,
+        heading_color = ?,
+        container_max_width = ?,
+        padding_top = ?,
+        padding_bottom = ?,
+        custom_css = ?,
+        style_config = ?,
         updated_at = NOW()
       WHERE id = ? AND id_sito_web = ?
     `, [
@@ -482,6 +581,24 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
       data.meta_description,
       data.is_published ? 1 : 0,
       data.menu_order || 0,
+      data.background_type || 'color',
+      data.background_color || '#ffffff',
+      data.background_gradient || null,
+      data.background_image || null,
+      data.background_size || 'cover',
+      data.background_position || 'center',
+      data.background_repeat || 'no-repeat',
+      data.background_attachment || 'scroll',
+      data.font_family || 'Inter',
+      data.font_size || '16',
+      data.font_color || '#333333',
+      data.heading_font || null,
+      data.heading_color || '#1a1a1a',
+      data.container_max_width || '1200px',
+      data.padding_top || '60px',
+      data.padding_bottom || '60px',
+      data.custom_css || null,
+      JSON.stringify(data.style_config || {}),
       pageId,
       websiteId
     ]);

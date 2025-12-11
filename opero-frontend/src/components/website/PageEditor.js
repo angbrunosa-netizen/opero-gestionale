@@ -29,6 +29,7 @@ import HeroBlock from './blocks/HeroBlock';
 import ImageBlock from './blocks/ImageBlock';
 import ContactBlock from './blocks/ContactBlock';
 import ProductsBlock from './blocks/ProductsBlock';
+import PageStyleEditor from './PageStyleEditor';
 import './PageEditor.css';
 
 const PageEditor = ({ page, site, onSave, onCancel }) => {
@@ -58,7 +59,26 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
     meta_title: page?.meta_title || '',
     meta_description: page?.meta_description || '',
     is_published: page?.is_published || false,
-    menu_order: page?.menu_order || 0
+    menu_order: page?.menu_order || 0,
+    // Style fields
+    background_type: page?.background_type || 'color',
+    background_color: page?.background_color || '#ffffff',
+    background_gradient: page?.background_gradient || '',
+    background_image: page?.background_image || '',
+    background_size: page?.background_size || 'cover',
+    background_position: page?.background_position || 'center',
+    background_repeat: page?.background_repeat || 'no-repeat',
+    background_attachment: page?.background_attachment || 'scroll',
+    font_family: page?.font_family || 'Inter',
+    font_size: page?.font_size || '16',
+    font_color: page?.font_color || '#333333',
+    heading_font: page?.heading_font || '',
+    heading_color: page?.heading_color || '#1a1a1a',
+    container_max_width: page?.container_max_width || '1200px',
+    padding_top: page?.padding_top || '60px',
+    padding_bottom: page?.padding_bottom || '60px',
+    custom_css: page?.custom_css || '',
+    style_config: page?.style_config || {}
   });
 
   // Carica contenuto pagina esistente
@@ -500,6 +520,12 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
           </div>
         </div>
       </div>
+
+      {/* Stile Personalizzato */}
+      <PageStyleEditor
+        page={pageMeta}
+        onChange={(newStyles) => setPageMeta({...pageMeta, ...newStyles})}
+      />
 
       {/* Editor contenuto */}
       {previewMode ? (

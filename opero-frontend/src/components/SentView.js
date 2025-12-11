@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 //const API_URL = 'http://localhost:3001';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3003';
 // MODIFICA: Il componente ora riceve onEmailSelect come prop
 function SentView({ session, onEmailSelect }) {
     const [sentEmails, setSentEmails] = useState([]);

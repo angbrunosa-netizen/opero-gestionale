@@ -71,12 +71,20 @@ class SiteGenerator {
   async getSiteData(websiteId) {
     console.log(`📊 Recupero dati sito ${websiteId}...`);
 
+    // Validazione input
+    if (!websiteId || isNaN(websiteId)) {
+      throw new Error('ID sito non valido');
+    }
+
     // Recupera info sito
-    const [siteResult] = await knex('siti_web_aziendali')
+    const siteResult = await knex('siti_web_aziendali')
       .where({ id: websiteId })
       .first();
 
-    if (!siteResult) return null;
+    if (!siteResult) {
+      console.warn(`⚠️ Sito con ID ${websiteId} non trovato nel database`);
+      return null;
+    }
 
     // Recupera pagine pubblicate
     const pages = await knex('pagine_sito_web')
@@ -92,16 +100,56 @@ class SiteGenerator {
     // Recupera gallerie
     const galleries = await this.getSiteGalleries(websiteId);
 
-    // Parse JSON e theme config
+    // Parse JSON e theme config con gestione errori
+    let themeConfig = {};
+    let pagesWithError = [];
+
+    try {
+      themeConfig = siteResult.theme_config ? JSON.parse(siteResult.theme_config) : {};
+    } catch (error) {
+      console.warn('⚠️ Errore parsing theme_config:', error.message);
+    }
+
+    const parsedPages = pages.map(page => {
+      let contenutoJson = { sections: [] };
+      let hasError = false;
+
+      try {
+        contenutoJson = page.contenuto_json ? JSON.parse(page.contenuto_json) : { sections: [] };
+        console.log(`📄 Pagina ${page.titolo || page.id} (${page.slug}):`);
+        console.log(`  - contenuto_json trovato: ${!!page.contenuto_json}`);
+        console.log(`  - sezioni: ${contenutoJson.sections ? contenutoJson.sections.length : 0}`);
+        if (contenutoJson.sections && contenutoJson.sections.length > 0) {
+          contenutoJson.sections.forEach((section, idx) => {
+            console.log(`    * Sez ${idx}: type=${section.type || 'N/D'}, title=${section.title || 'N/D'}`);
+          });
+        }
+      } catch (error) {
+        console.warn(`⚠️ Errore parsing contenuto_json per pagina ${page.id}:`, error.message);
+        hasError = true;
+        contenutoJson = {
+          sections: [],
+          _parseError: error.message
+        };
+      }
+
+      if (hasError) {
+        pagesWithError.push(page.id);
+      }
+
+      return {
+        ...page,
+        contenuto_json: contenutoJson
+      };
+    });
+
     const siteData = {
       ...siteResult,
-      theme_config: siteResult.theme_config ? JSON.parse(siteResult.theme_config) : {},
-      pages: pages.map(page => ({
-        ...page,
-        contenuto_json: page.contenuto_json ? JSON.parse(page.contenuto_json) : { sections: [] }
-      })),
+      theme_config: themeConfig,
+      pages: parsedPages,
       images,
-      galleries
+      galleries,
+      _parseErrors: pagesWithError.length > 0 ? pagesWithError : undefined
     };
 
     console.log(`📋 Trovati ${siteData.pages.length} pagine, ${images.length} immagini, ${galleries.length} gallerie`);
@@ -112,23 +160,28 @@ class SiteGenerator {
    * Recupera immagini collegate al sito
    */
   async getSiteImages(websiteId) {
-    const images = await knex('dm_files f')
-      .join('wg_gallery_images gi', 'f.id', 'gi.id_file')
-      .join('wg_galleries g', 'gi.id_galleria', 'g.id')
-      .where('g.id_sito_web', websiteId)
-      .where('g.is_active', 1)
-      .select(
-        'f.*',
-        'gi.caption',
-        'gi.alt_text',
-        'g.nome_galleria'
-      );
+    try {
+      const images = await knex('dm_files')
+        .join('wg_gallery_images gi', 'dm_files.id', 'gi.id_file')
+        .join('wg_galleries g', 'gi.id_galleria', 'g.id')
+        .where('g.id_sito_web', websiteId)
+        .where('g.is_active', 1)
+        .select(
+          'dm_files.*',
+          'gi.caption',
+          'gi.alt_text',
+          'g.nome_galleria'
+        );
 
-    return images.map(img => ({
-      ...img,
-      url: img.s3_key ? `https://s3.operocloud.it/${img.s3_key}` : null,
-      preview_url: img.s3_key ? `https://s3.operocloud.it/${img.s3_key}` : null
-    }));
+      return images.map(img => ({
+        ...img,
+        url: img.s3_key ? `https://s3.operocloud.it/${img.s3_key}` : null,
+        preview_url: img.s3_key ? `https://s3.operocloud.it/${img.s3_key}` : null
+      }));
+    } catch (error) {
+      console.warn('⚠️ Errore recupero immagini sito:', error.message);
+      return [];
+    }
   }
 
   /**
@@ -722,17 +775,23 @@ function getSectionComponent(type) {
       const siteData = await this.getSiteData(websiteId);
 
       if (!siteData) {
-        throw new Error('Sito non trovato');
+        throw new Error('Sito non trovato nel database');
       }
 
-      // 2. Genera HTML preview
+      // 2. Verifica che ci siano pagine
+      if (!siteData.pages || siteData.pages.length === 0) {
+        throw new Error('Nessuna pagina trovata per questo sito');
+      }
+
+      // 3. Genera HTML preview
       let html = this.generatePreviewHTML(siteData, slug);
 
       return html;
 
     } catch (error) {
       console.error('❌ Errore generazione preview:', error);
-      throw error;
+      // In caso di errore, genera un HTML di fallback
+      return this.generateErrorHTML(error.message, websiteId);
     }
   }
 
@@ -746,6 +805,9 @@ function getSectionComponent(type) {
     if (!targetPage) {
       throw new Error('Nessuna pagina trovata per la preview');
     }
+
+    // Genera CSS personalizzato per la pagina
+    const pageCSS = this.generatePageCSS(targetPage);
 
     // Genera HTML base
     let html = `
@@ -779,6 +841,9 @@ function getSectionComponent(type) {
         .gallery-item { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .gallery-item img { width: 100%; height: 200px; object-fit: cover; }
         .gallery-content { padding: 20px; }
+
+        /* Stili personalizzati pagina */
+        ${pageCSS}
     </style>
 </head>
 <body>
@@ -794,9 +859,16 @@ function getSectionComponent(type) {
 
     // Aggiungi sezioni dinamiche
     if (targetPage.contenuto_json && targetPage.contenuto_json.sections) {
+      console.log(`📄 Processando ${targetPage.contenuto_json.sections.length} sezioni per pagina ${targetPage.titolo}`);
       targetPage.contenuto_json.sections.forEach((section, index) => {
-        html += this.generateSectionHTML(section, index);
+        console.log(`🔧 Sezione ${index}: tipo=${section.type}, titolo=${section.title || 'N/D'}`);
+        const sectionHTML = this.generateSectionHTML(section, index);
+        console.log(`📝 HTML generato sezione ${index}: ${sectionHTML.length} caratteri`);
+        html += sectionHTML;
       });
+    } else {
+      console.log(`⚠️ Nessuna sezione trovata in contenuto_json per pagina ${targetPage.titolo}`);
+      console.log(`📋 contenuto_json:`, JSON.stringify(targetPage.contenuto_json, null, 2));
     }
 
     // Aggiungi sezione contatti predefinita
@@ -843,14 +915,24 @@ function getSectionComponent(type) {
    * Genera HTML per una singola sezione
    */
   generateSectionHTML(section, index) {
+    console.log(`🔨 Generazione HTML per sezione ${index}:`, {
+      type: section.type,
+      hasTitle: !!(section.data && section.data.title),
+      hasContent: !!(section.data && section.data.content),
+      hasImages: !!(section.data && section.data.images && section.data.images.length)
+    });
+
+    // DEBUG: Dati completi della sezione
+    console.log(`🔍 DATI COMPLETI SEZIONE ${index} (${section.type}):`, JSON.stringify(section, null, 2));
+
     switch (section.type) {
       case 'hero':
         return `
-    <section class="hero" style="background: ${section.backgroundColor || '#667eea'};">
+    <section class="hero" style="background: ${section.data?.backgroundColor || '#667eea'};">
         <div class="container">
-            <h1>${section.title || 'Titolo'}</h1>
-            <p>${section.subtitle || 'Sottotitolo'}</p>
-            ${section.buttonText ? `<a href="${section.buttonUrl || '#'}" class="btn">${section.buttonText}</a>` : ''}
+            <h1>${section.data?.title || 'Titolo Hero'}</h1>
+            <p>${section.data?.subtitle || 'Sottotitolo Hero'}</p>
+            ${section.data?.buttonText ? `<a href="${section.data?.buttonUrl || '#'}" class="btn">${section.data?.buttonText}</a>` : ''}
         </div>
     </section>`;
 
@@ -859,8 +941,8 @@ function getSectionComponent(type) {
     <section class="section">
         <div class="container">
             <div class="text-content">
-                <h2>${section.title || 'Titolo Sezione'}</h2>
-                <div>${section.content || 'Contenuto della sezione...'}</div>
+                <h2>${section.data?.title || 'Titolo Sezione'}</h2>
+                <div>${section.data?.content || 'Contenuto della sezione...'}</div>
             </div>
         </div>
     </section>`;
@@ -869,22 +951,17 @@ function getSectionComponent(type) {
         return `
     <section class="section image-section">
         <div class="container">
-            <h2>${section.title || 'Galleria'}</h2>
+            <h2>${section.data?.title || 'Immagine'}</h2>
             <div style="text-align: center;">
-                ${section.imageUrl ? `<img src="${section.imageUrl}" alt="${section.altText || ''}" style="max-width: 100%; border-radius: 8px;">` : ''}
-                ${section.caption ? `<p style="margin-top: 20px; color: #666;">${section.caption}</p>` : ''}
+                ${section.data?.imageUrl ? `<img src="${section.data?.imageUrl}" alt="${section.data?.altText || section.data?.imageName || ''}" style="max-width: 100%; border-radius: 8px;">` : '<p style="color: #999;">Nessuna immagine specificata</p>'}
+                ${section.data?.description ? `<p style="margin-top: 20px; color: #666;">${section.data?.description}</p>` : ''}
             </div>
         </div>
     </section>`;
 
       case 'gallery':
-        const images = section.images || [];
-        return `
-    <section class="section">
-        <div class="container">
-            <h2>${section.title || 'Galleria'}</h2>
-            <div class="gallery">
-                ${images.map(img => `
+        const images = section.data?.images || [];
+        const imagesHtml = images.length > 0 ? images.map(img => `
                     <div class="gallery-item">
                         <img src="${img.url || '/placeholder.jpg'}" alt="${img.alt || ''}">
                         <div class="gallery-content">
@@ -892,7 +969,87 @@ function getSectionComponent(type) {
                             <p>${img.caption || 'Descrizione immagine'}</p>
                         </div>
                     </div>
-                `).join('')}
+                `).join('') : '<p style="color: #999;">Nessuna immagine nella galleria</p>';
+
+        return `
+    <section class="section">
+        <div class="container">
+            <h2>${section.data?.title || 'Galleria'}</h2>
+            <div class="gallery">
+                ${imagesHtml}
+            </div>
+        </div>
+    </section>`;
+
+      case 'blog':
+        return `
+    <section class="section">
+        <div class="container">
+            <h2>${section.data?.title || 'Blog'}</h2>
+            <div class="blog-posts">
+                ${section.data?.posts && section.data?.posts.length > 0 ? section.data.posts.map(post => `
+                    <article style="border-bottom: 1px solid #eee; padding: 20px 0;">
+                        <h3>${post.title || 'Titolo Post'}</h3>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">${post.date || new Date().toLocaleDateString('it-IT')}</p>
+                        <div>${post.excerpt || 'Estratto del post...'}</div>
+                        ${post.link ? `<a href="${post.link}" class="btn" style="margin-top: 10px;">Leggi tutto</a>` : ''}
+                    </article>
+                `).join('') : '<p style="color: #999;">Nessun articolo nel blog</p>'}
+            </div>
+        </div>
+    </section>`;
+
+      case 'maps':
+        return `
+    <section class="section" style="background: #f8f9fa;">
+        <div class="container">
+            <h2>${section.data?.title || 'Mappa'}</h2>
+            <div style="background: #ddd; height: 400px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center; color: #666;">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">📍</div>
+                    <p>${section.data?.address || 'Indirizzo non specificato'}</p>
+                    ${section.data?.embedCode ? `<div style="margin-top: 10px;">${section.data?.embedCode}</div>` : ''}
+                </div>
+            </div>
+        </div>
+    </section>`;
+
+      case 'social':
+        const platforms = section.data?.platforms || [];
+        const platformConfigs = section.data?.platformConfigs || {};
+        const socialHtml = platforms.length > 0 ? platforms.map(platform => {
+          const config = platformConfigs[platform] || {};
+          const platformData = {
+            facebook: { icon: '📘', name: 'Facebook' },
+            instagram: { icon: '📷', name: 'Instagram' },
+            twitter: { icon: '🐦', name: 'Twitter' },
+            linkedin: { icon: '💼', name: 'LinkedIn' },
+            youtube: { icon: '📺', name: 'YouTube' }
+          }[platform] || { icon: '🔗', name: platform };
+
+          return `
+            <a href="${config.customUrl || '#'}" target="_blank" style="
+                display: inline-block;
+                padding: 15px;
+                background: #007bff;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                text-align: center;
+                min-width: 120px;
+            ">
+                <div style="font-size: 1.5rem;">${platformData.icon}</div>
+                <div>${platformData.name}</div>
+            </a>
+          `;
+        }).join('') : '<p style="color: #999;">Nessun social specificato</p>';
+
+        return `
+    <section class="section">
+        <div class="container">
+            <h2>${section.data?.title || 'Social'}</h2>
+            <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                ${socialHtml}
             </div>
         </div>
     </section>`;
@@ -923,7 +1080,18 @@ function getSectionComponent(type) {
     </section>`;
 
       default:
-        return '';
+        console.warn(`⚠️ Tipo sezione non supportato: ${section.type}`);
+        return `
+    <section class="section" style="background: #fff3cd; border: 1px solid #ffeaa7;">
+        <div class="container">
+            <h2 style="color: #856404;">Sezione non riconosciuta</h2>
+            <p style="color: #856404;">
+                Tipo: <strong>${section.type || 'non specificato'}</strong><br>
+                Titolo: ${section.data?.title || 'N/D'}<br>
+                Dati: ${JSON.stringify(section, null, 2)}
+            </p>
+        </div>
+    </section>`;
     }
   }
 
@@ -994,6 +1162,128 @@ function getSectionComponent(type) {
       console.error('Errore applicazione template:', error);
       throw error;
     }
+  }
+
+  /**
+   * Genera HTML di errore per preview
+   */
+  generateErrorHTML(errorMessage, websiteId) {
+    return `
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Errore Anteprima</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .error-container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                          max-width: 600px; text-align: center; }
+        .error-icon { font-size: 4rem; color: #dc3545; margin-bottom: 20px; }
+        h1 { color: #dc3545; margin-bottom: 20px; }
+        p { color: #666; margin-bottom: 20px; line-height: 1.6; }
+        .error-details { background: #f8f9fa; padding: 20px; border-radius: 6px;
+                        text-align: left; font-family: monospace; font-size: 14px; margin: 20px 0; }
+        .btn { display: inline-block; padding: 12px 24px; background: #007bff; color: white;
+               text-decoration: none; border-radius: 6px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h1>Errore Generazione Anteprima</h1>
+        <p>Si è verificato un errore durante la generazione dell'anteprima del sito.</p>
+
+        <div class="error-details">
+            <strong>ID Sito:</strong> ${websiteId}<br>
+            <strong>Errore:</strong> ${errorMessage}
+        </div>
+
+        <p><strong>Possibili cause:</strong></p>
+        <ul style="text-align: left; color: #666; margin: 20px;">
+            <li>Il sito non esiste nel database</li>
+            <li>Non ci sono pagine pubblicate per questo sito</li>
+            <li>I dati del sito sono corrotti o incompleti</li>
+            <li>Permessi insufficienti per accedere al sito</li>
+        </ul>
+
+        <div>
+            <a href="#" class="btn" onclick="window.close(); return false;">Chiudi</a>
+            <a href="#" class="btn" onclick="location.reload(); return false;">Riprova</a>
+        </div>
+    </div>
+</body>
+</html>`;
+  }
+
+  /**
+   * Genera CSS personalizzato per una pagina
+   */
+  generatePageCSS(page) {
+    let css = '';
+
+    // Background styles
+    if (page.background_type === 'color' && page.background_color) {
+      css += `body { background-color: ${page.background_color}; }\n`;
+    } else if (page.background_type === 'gradient' && page.background_gradient) {
+      css += `body { background: ${page.background_gradient}; }\n`;
+    } else if (page.background_type === 'image' && page.background_image) {
+      css += `body {
+        background-image: url('${page.background_image}');
+        background-size: ${page.background_size || 'cover'};
+        background-position: ${page.background_position || 'center'};
+        background-repeat: ${page.background_repeat || 'no-repeat'};
+        background-attachment: ${page.background_attachment || 'scroll'};
+      }\n`;
+    }
+
+    // Typography styles
+    if (page.font_family) {
+      css += `body {
+        font-family: '${page.font_family}', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: ${page.font_size || '16'}px;
+        color: ${page.font_color || '#333333'};
+      }\n`;
+    }
+
+    // Heading styles
+    let headingCSS = 'h1, h2, h3, h4, h5, h6 { ';
+    if (page.heading_font) {
+      headingCSS += `font-family: '${page.heading_font}', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; `;
+    }
+    if (page.heading_color) {
+      headingCSS += `color: ${page.heading_color}; `;
+    }
+    headingCSS += '}\n';
+    css += headingCSS;
+
+    // Container styles
+    if (page.container_max_width) {
+      css += `.container {
+        max-width: ${page.container_max_width};
+        margin: 0 auto;
+        padding: 0 20px;
+      }\n`;
+    }
+
+    // Page padding
+    if (page.padding_top || page.padding_bottom) {
+      const paddingTop = page.padding_top || '60px';
+      const paddingBottom = page.padding_bottom || '60px';
+      css += `main {
+        padding-top: ${paddingTop};
+        padding-bottom: ${paddingBottom};
+      }\n`;
+    }
+
+    // Custom CSS
+    if (page.custom_css) {
+      css += `/* Custom CSS */\n${page.custom_css}\n`;
+    }
+
+    return css;
   }
 
   /**

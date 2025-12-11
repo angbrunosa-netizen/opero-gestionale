@@ -26,7 +26,8 @@
       "Bash(move:*)",
       "Bash(npx eslint:*)",
       "Bash(wmic process where \"ProcessId=16732\" delete:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(PORT=3003 npm start:*)"
     ],
     "deny": [],
     "ask": []

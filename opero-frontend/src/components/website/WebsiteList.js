@@ -3,7 +3,7 @@
  * Lista dei siti web aziendali con azioni di gestione
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   GlobeAltIcon,
   EyeIcon,
@@ -12,10 +12,19 @@ import {
   ServerIcon,
   CheckCircleIcon,
   ClockIcon,
-  XCircleIcon
+  XCircleIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import { api } from '../../services/api';
 
 const WebsiteList = ({ sites, loading, onEdit, onNewSite, onRefresh }) => {
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    siteId: null,
+    siteTitle: '',
+    confirmText: '',
+    isDeleting: false
+  });
   const getStatusIcon = (status) => {
     switch (status) {
       case 'active':
@@ -44,6 +53,53 @@ const WebsiteList = ({ sites, loading, onEdit, onNewSite, onRefresh }) => {
         </span>
       </span>
     );
+  };
+
+  // Apre dialog di conferma eliminazione
+  const handleDeleteClick = (site) => {
+    setDeleteDialog({
+      isOpen: true,
+      siteId: site.id,
+      siteTitle: site.site_title || 'Sito senza titolo',
+      confirmText: '',
+      isDeleting: false
+    });
+  };
+
+  // Gestisce eliminazione sito
+  const handleDeleteConfirm = async () => {
+    if (deleteDialog.confirmText !== 'Sono Sicuro') {
+      alert('Devi scrivere esattamente "Sono Sicuro" per procedere');
+      return;
+    }
+
+    setDeleteDialog(prev => ({ ...prev, isDeleting: true }));
+
+    try {
+      const response = await api.delete(`/website-generator/delete/${deleteDialog.siteId}`, {
+        data: { confirmText: deleteDialog.confirmText }
+      });
+
+      if (response.data.success) {
+        alert(`✅ ${response.data.message}`);
+        setDeleteDialog({ isOpen: false, siteId: null, siteTitle: '', confirmText: '', isDeleting: false });
+        onRefresh(); // Ricarica la lista siti
+      } else {
+        alert(`❌ Errore: ${response.data.error}`);
+      }
+    } catch (error) {
+      console.error('Errore eliminazione sito:', error);
+      alert(`❌ Errore durante l'eliminazione: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  // Chiudi dialog
+  const handleDeleteCancel = () => {
+    if (!deleteDialog.isDeleting) {
+      setDeleteDialog({ isOpen: false, siteId: null, siteTitle: '', confirmText: '', isDeleting: false });
+    }
   };
 
   if (loading) {
@@ -206,14 +262,10 @@ const WebsiteList = ({ sites, loading, onEdit, onNewSite, onRefresh }) => {
                             <PencilIcon className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (window.confirm('Sei sicuro di voler eliminare questo sito?')) {
-                                // TODO: Implementare eliminazione
-                                console.log('Elimina sito:', site.id);
-                              }
-                            }}
+                            onClick={() => handleDeleteClick(site)}
                             className="text-red-600 hover:text-red-900"
                             title="Elimina"
+                            disabled={deleteDialog.isDeleting}
                           >
                             <TrashIcon className="h-5 w-5" />
                           </button>
@@ -227,6 +279,83 @@ const WebsiteList = ({ sites, loading, onEdit, onNewSite, onRefresh }) => {
           </div>
         </div>
       </div>
+
+      {/* Dialog Conferma Eliminazione */}
+      {deleteDialog.isOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mt-4">
+                Conferma Eliminazione Sito
+              </h3>
+              <div className="mt-2 px-7 py-3">
+                <p className="text-sm text-gray-500">
+                  Sei sicuro di voler eliminare definitivamente il sito:<br/>
+                  <strong>"{deleteDialog.siteTitle}"</strong>
+                </p>
+                <p className="text-sm text-red-600 mt-2">
+                  ⚠️ Questa azione è irreversibile e cancellerà:
+                </p>
+                <ul className="text-sm text-red-600 mt-1 text-left">
+                  <li>• Tutte le pagine del sito</li>
+                  <li>• I collegamenti alle immagini e gallerie</li>
+                  <li>• I file generati sul server</li>
+                  <li>• Tutti i dati correlati</li>
+                </ul>
+                <p className="text-sm text-green-600 mt-2">
+                  ✅ Le immagini <strong>NON</strong> saranno cancellate dallo storage S3
+                </p>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Per confermare, scrivi <strong>"Sono Sicuro"</strong>:
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteDialog.confirmText}
+                    onChange={(e) => setDeleteDialog(prev => ({ ...prev, confirmText: e.target.value }))}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="Sono Sicuro"
+                    disabled={deleteDialog.isDeleting}
+                  />
+                </div>
+              </div>
+              <div className="items-center px-4 py-3">
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={deleteDialog.isDeleting || deleteDialog.confirmText !== 'Sono Sicuro'}
+                  className={`px-4 py-2 text-white text-base font-medium rounded-md w-full mr-2 ${
+                    deleteDialog.confirmText === 'Sono Sicuro' && !deleteDialog.isDeleting
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {deleteDialog.isDeleting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Eliminazione in corso...
+                    </>
+                  ) : (
+                    'Elimina Sito'
+                  )}
+                </button>
+                <button
+                  onClick={handleDeleteCancel}
+                  disabled={deleteDialog.isDeleting}
+                  className="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-full hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed mt-2"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
