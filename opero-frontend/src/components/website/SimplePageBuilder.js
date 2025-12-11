@@ -119,6 +119,11 @@ const SimplePageBuilder = ({ websiteId, initialPage = null, site, onSave, onCanc
 
   // Handler per il salvataggio
   const handleSave = async (pageData) => {
+    console.log('🔥 SimplePageBuilder - handleSave chiamato');
+    console.log('🔥 SimplePageBuilder - pageData ricevuto:', pageData);
+    console.log('🔥 SimplePageBuilder - pageData.contenuto_json tipo:', typeof pageData.contenuto_json);
+    console.log('🔥 SimplePageBuilder - pageData.contenuto_json valore:', pageData.contenuto_json);
+
     setSaving(true);
     try {
       const data = {

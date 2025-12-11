@@ -4,8 +4,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { hasPermission } = require('../middleware/auth');
-const knex = require('../db');
+const { checkPermission } = require('../utils/auth');
+const { knex } = require('../config/db');
 const S3Service = require('../services/S3Service');
 const axios = require('axios');
 
@@ -16,7 +16,7 @@ const ZAI_API_ENDPOINT = process.env.ZAI_API_ENDPOINT || 'https://api.z.ai/v1';
 /**
  * Genera contenuto pagina tramite AI Z.ai
  */
-router.post('/generate-page', hasPermission('WS_EDIT'), async (req, res) => {
+router.post('/generate-page', checkPermission('WS_EDIT'), async (req, res) => {
   try {
     const { id_ditta, pageType, prompt, customInstructions } = req.body;
     
@@ -136,7 +136,7 @@ router.get('/gallery-images/:id_ditta', async (req, res) => {
 /**
  * Salva una pagina pubblicata
  */
-router.post('/publish-page', hasPermission('WS_PUBLISH'), async (req, res) => {
+router.post('/publish-page', checkPermission('WS_PUBLISH'), async (req, res) => {
   try {
     const { pageId, publishData } = req.body;
     

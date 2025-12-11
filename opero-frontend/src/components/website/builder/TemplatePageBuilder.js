@@ -21,6 +21,23 @@ import MapsSection from './sections/MapsSection';
 import SocialSection from './sections/SocialSection';
 import GallerySection from './sections/GallerySection';
 
+// Fallback temporanei nel caso ci siano problemi di import
+const FallbackSection = ({ type, data, onChange, onRemove }) => (
+  <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-lg text-yellow-800">
+    <h3>Sezione {type}</h3>
+    <p>Componente in sviluppo o temporaneamente non disponibile</p>
+    <pre>{JSON.stringify(data, null, 2)}</pre>
+    {onRemove && (
+      <button
+        onClick={onRemove}
+        className="mt-2 px-2 py-1 bg-red-500 text-white rounded text-sm"
+      >
+        Rimuovi
+      </button>
+    )}
+  </div>
+);
+
 const TemplatePageBuilder = ({
   initialTemplate = null,
   websiteId,
@@ -43,10 +60,45 @@ const TemplatePageBuilder = ({
 
   // Sync delle sezioni quando cambia il template o la pagina di editing
   useEffect(() => {
+    console.log('🔥 TemplatePageBuilder - useEffect triggered');
+    console.log('🔥 TemplatePageBuilder - editingPage:', editingPage);
+    console.log('🔥 TemplatePageBuilder - initialTemplate:', initialTemplate);
+
     if (editingPage) {
-      // Modalità modifica: usa le sezioni della pagina esistente (già parsate in WebsiteBuilderUNIFIED)
-      const sections = initialTemplate?.sections || [];
-      console.log('TemplatePageBuilder: caricamento sezioni per modifica', sections.length, 'sezioni');
+      // Modalità modifica: prima prova a parsare contenuto_json dalla pagina
+      let sections = [];
+
+      if (editingPage.contenuto_json) {
+        try {
+          let jsonData;
+
+          // Primo tentativo: parsing normale
+          try {
+            jsonData = JSON.parse(editingPage.contenuto_json);
+          } catch (firstError) {
+            // Secondo tentativo: parsing doppio (se è double-escaped)
+            console.log('🔥 TemplatePageBuilder - Primo parsing fallito, provo parsing doppio');
+            jsonData = JSON.parse(JSON.parse(editingPage.contenuto_json));
+          }
+
+          sections = jsonData.sections || [];
+          console.log('🔥 TemplatePageBuilder - Sezioni caricate da contenuto_json:', sections.length);
+          console.log('🔥 TemplatePageBuilder - Dati JSON parsati:', jsonData);
+        } catch (error) {
+          console.error('🔥 TemplatePageBuilder - Errore parsing contenuto_json:', error);
+          console.error('🔥 TemplatePageBuilder - Valore grezzo di contenuto_json:', editingPage.contenuto_json);
+        }
+      }
+
+      // Fallback: usa le sezioni del template (già parsate in WebsiteBuilderUNIFIED)
+      if (sections.length === 0 && initialTemplate?.sections) {
+        sections = initialTemplate.sections;
+        console.log('🔥 TemplatePageBuilder - Sezioni caricate da initialTemplate fallback:', sections.length);
+      }
+
+      console.log('🔥 TemplatePageBuilder - caricamento sezioni per modifica', sections.length, 'sezioni');
+      console.log('🔥 TemplatePageBuilder - sezioni:', sections);
+
       setPage(prev => ({
         ...prev,
         sections: sections
@@ -54,7 +106,7 @@ const TemplatePageBuilder = ({
     } else if (initialTemplate) {
       // Modalità creazione: usa le sezioni del template
       const sections = initialTemplate.sections || [];
-      console.log('TemplatePageBuilder: caricamento sezioni da template', sections.length, 'sezioni');
+      console.log('🔥 TemplatePageBuilder - caricamento sezioni da template', sections.length, 'sezioni');
       setPage(prev => ({
         ...prev,
         sections: sections
@@ -221,24 +273,33 @@ const TemplatePageBuilder = ({
       websiteId: websiteId
     };
 
-    switch (section.type) {
-      case 'image':
-        return <ImageSection key={section.id} {...commonProps} />;
-      case 'blog':
-        return <BlogSection key={section.id} {...commonProps} />;
-      case 'maps':
-        return <MapsSection key={section.id} {...commonProps} />;
-      case 'social':
-        return <SocialSection key={section.id} {...commonProps} />;
-      case 'gallery':
-        return <GallerySection key={section.id} {...commonProps} />;
-      default:
-        return null;
+    try {
+      switch (section.type) {
+        case 'image':
+          return <ImageSection key={section.id} {...commonProps} />;
+        case 'blog':
+          return <BlogSection key={section.id} {...commonProps} />;
+        case 'maps':
+          return <MapsSection key={section.id} {...commonProps} />;
+        case 'social':
+          return <SocialSection key={section.id} {...commonProps} />;
+        case 'gallery':
+          return <GallerySection key={section.id} {...commonProps} />;
+        default:
+          return <FallbackSection key={section.id} type={section.type} data={section.data} onRemove={commonProps.onRemove} />;
+      }
+    } catch (error) {
+      console.error(`Errore nel render della sezione ${section.type}:`, error);
+      return <FallbackSection key={section.id} type={section.type} data={section.data} onRemove={commonProps.onRemove} />;
     }
   };
 
   // Salva pagina
   const handleSave = async () => {
+    console.log('🔥 TemplatePageBuilder - handleSave chiamato');
+    console.log('🔥 TemplatePageBuilder - page.sections:', page.sections);
+    console.log('🔥 TemplatePageBuilder - page.sections.length:', page.sections.length);
+
     setSaving(true);
     try {
       const pageData = {
@@ -250,8 +311,8 @@ const TemplatePageBuilder = ({
         is_published: page.is_published
       };
 
-      console.log('Salvataggio pagina con sezioni:', page.sections.length, 'sezioni');
-      console.log('Dati completi:', pageData);
+      console.log('🔥 TemplatePageBuilder - pageData creato:', pageData);
+      console.log('🔥 TemplatePageBuilder - contenuto_json string:', pageData.contenuto_json);
 
       await onSave(pageData);
     } catch (error) {

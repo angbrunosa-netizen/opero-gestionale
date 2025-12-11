@@ -32,6 +32,17 @@ import ProductsBlock from './blocks/ProductsBlock';
 import './PageEditor.css';
 
 const PageEditor = ({ page, site, onSave, onCancel }) => {
+  console.log('🔥 PageEditor - Dati ricevuti:', {
+    page: page ? {
+      id: page.id,
+      titolo: page.titolo,
+      slug: page.slug,
+      has_contenuto_json: !!page.contenuto_json,
+      sections_count: page.contenuto_json?.sections?.length || 0
+    } : 'null',
+    site: site ? `ID: ${site.id}` : 'null'
+  });
+
   const [content, setContent] = useState({
     sections: []
   });
@@ -52,9 +63,22 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
 
   // Carica contenuto pagina esistente
   useEffect(() => {
-    if (page?.contenuto_html) {
-      try {
-        // Se il contenuto è HTML vecchio formato, convertilo in sezioni
+    console.log('🔥 PageEditor - useEffect page cambiato:', page);
+
+    if (!page) {
+      setContent({ sections: [] });
+      return;
+    }
+
+    try {
+      // Priorità al contenuto_json (nuovo formato)
+      if (page?.contenuto_json?.sections) {
+        console.log('🔥 PageEditor - Caricamento da contenuto_json:', page.contenuto_json);
+        setContent(page.contenuto_json);
+      }
+      // Fallback al contenuto_html (vecchio formato)
+      else if (page?.contenuto_html) {
+        console.log('🔥 PageEditor - Caricamento da contenuto_html (vecchio formato)');
         if (typeof page.contenuto_html === 'string') {
           setContent({
             sections: [
@@ -68,10 +92,13 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
         } else {
           setContent(page.contenuto_html);
         }
-      } catch (error) {
-        console.error('Errore parsing contenuto:', error);
+      } else {
+        console.log('🔥 PageEditor - Nessun contenuto, uso default vuoto');
         setContent({ sections: [] });
       }
+    } catch (error) {
+      console.error('❌ PageEditor - Errore parsing contenuto:', error);
+      setContent({ sections: [] });
     }
   }, [page]);
 
@@ -255,6 +282,10 @@ const PageEditor = ({ page, site, onSave, onCancel }) => {
         contenuto_html: content,
         contenuto_json: content // Salviamo anche come JSON per futuro uso
       };
+
+      console.log('🔥 PageEditor - handleSave chiamato');
+      console.log('🔥 PageEditor - content:', content);
+      console.log('🔥 PageEditor - pageData:', pageData);
 
       await onSave(pageData);
     } catch (error) {

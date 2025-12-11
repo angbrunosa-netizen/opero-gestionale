@@ -24,7 +24,9 @@
       "Bash(dir:*)",
       "Bash(mysql:*)",
       "Bash(move:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(wmic process where \"ProcessId=16732\" delete:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

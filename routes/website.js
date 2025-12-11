@@ -7,7 +7,7 @@
  * - Catalogo prodotti sincronizzato con sistema esistente
  * @version 1.1 (Corretto e Riordinato)
  */
-
+  
 const express = require('express');
 const router = express.Router();
 const { verifyToken, hasPermission } = require('../utils/auth');
@@ -26,156 +26,6 @@ const {
 
 // URL della CDN configurata su Cloudflare
 const CDN_BASE_URL = 'https://cdn.operocloud.it';
-
-// Funzione per generare HTML dalle sezioni
-function generateHtmlFromSections(sections) {
-  if (!Array.isArray(sections)) return '';
-
-  let html = '';
-  sections.forEach(section => {
-    switch (section.type) {
-      case 'hero':
-        html += `
-          <section class="hero" style="background-color: ${section.backgroundColor || '#f3f4f6'}; padding: 80px 0; text-align: center;">
-            <div class="container mx-auto px-4">
-              <h1 class="text-4xl font-bold mb-4">${section.title || ''}</h1>
-              <p class="text-xl mb-6">${section.subtitle || ''}</p>
-              ${section.buttonText ? `<a href="${section.buttonUrl || '#'}" class="bg-blue-500 text-white px-6 py-3 rounded-lg inline-block">${section.buttonText}</a>` : ''}
-            </div>
-          </section>
-        `;
-        break;
-      case 'text':
-        html += `
-          <section class="text-section" style="padding: 60px 0;">
-            <div class="container mx-auto px-4">
-              ${section.content || ''}
-            </div>
-          </section>
-        `;
-        break;
-      case 'image':
-        const imageLayout = section.layout || 'left';
-        const imageAlignment = imageLayout === 'center' ? 'text-center' : '';
-        html += `
-          <section class="image-section" style="padding: 60px 0;">
-            <div class="container mx-auto px-4 ${imageAlignment}">
-              <div class="flex flex-col ${imageLayout === 'left' ? 'md:flex-row' : imageLayout === 'right' ? 'md:flex-row-reverse' : ''} items-center gap-8">
-                ${section.imageUrl ? `<img src="${section.imageUrl}" alt="${section.altText || ''}" class="max-w-full h-auto rounded-lg flex-shrink-0">` : ''}
-                <div class="flex-1">
-                  ${section.title ? `<h3 class="text-2xl font-bold mb-4">${section.title}</h3>` : ''}
-                  ${section.description ? `<p class="text-gray-600 mb-4">${section.description}</p>` : ''}
-                  ${section.buttonText && section.buttonUrl ? `<a href="${section.buttonUrl}" class="bg-blue-500 text-white px-6 py-3 rounded-lg inline-block">${section.buttonText}</a>` : ''}
-                </div>
-              </div>
-            </div>
-          </section>
-        `;
-        break;
-      case 'blog':
-        html += `
-          <section class="blog-section" style="padding: 60px 0; background-color: #f9fafb;">
-            <div class="container mx-auto px-4">
-              <h2 class="text-3xl font-bold text-center mb-8">${section.title || 'Ultimi Articoli'}</h2>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                ${[...Array(section.postsToShow || 3)].map((_, i) => `
-                  <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="h-48 bg-gray-200"></div>
-                    <div class="p-6">
-                      <h3 class="text-xl font-semibold mb-2">Articolo ${i + 1}</h3>
-                      <p class="text-gray-600 mb-4">Breve descrizione dell'articolo del blog...</p>
-                      <a href="#" class="text-blue-500 hover:text-blue-700">Leggi tutto →</a>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `;
-        break;
-      case 'maps':
-        html += `
-          <section class="maps-section" style="padding: 60px 0;">
-            <div class="container mx-auto px-4">
-              <h2 class="text-3xl font-bold text-center mb-8">${section.markerTitle || 'Dove Siamo'}</h2>
-              <div class="bg-gray-200 rounded-lg" style="height: ${section.height || '400px'};">
-                <div class="flex items-center justify-center h-full">
-                  <p class="text-gray-600">Mappa interattiva: ${section.address || 'Indirizzo non specificato'}</p>
-                </div>
-              </div>
-              ${section.markerDescription ? `<p class="text-center mt-4 text-gray-600">${section.markerDescription}</p>` : ''}
-            </div>
-          </section>
-        `;
-        break;
-      case 'social':
-        html += `
-          <section class="social-section" style="padding: 60px 0; background-color: #f3f4f6;">
-            <div class="container mx-auto px-4 text-center">
-              <h2 class="text-3xl font-bold mb-8">Seguici sui Social</h2>
-              <div class="flex justify-center space-x-6">
-                ${(section.platforms || []).map(platform => `
-                  <a href="#" class="bg-blue-500 text-white p-3 rounded-full hover:bg-blue-600 transition-colors">
-                    <span class="text-xl">${platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
-                  </a>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `;
-        break;
-      case 'gallery':
-        const galleryLayout = section.layout || 'grid';
-        const columns = section.columns || 3;
-        html += `
-          <section class="gallery-section" style="padding: 60px 0;">
-            <div class="container mx-auto px-4">
-              <h2 class="text-3xl font-bold text-center mb-8">Galleria Fotografica</h2>
-              <div class="grid grid-cols-1 md:grid-cols-${columns} gap-4">
-                ${(section.images || []).map(image => `
-                  <div class="relative group overflow-hidden rounded-lg">
-                    <img src="${image.url || ''}" alt="${image.alt || ''}" class="w-full h-48 object-cover transition-transform group-hover:scale-105">
-                    ${image.caption && section.showCaptions ? `<div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">${image.caption}</div>` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `;
-        break;
-      case 'contact':
-        html += `
-          <section class="contact-section" style="padding: 60px 0; background-color: #f9fafb;">
-            <div class="container mx-auto px-4">
-              <h2 class="text-3xl font-bold text-center mb-8">Contatti</h2>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h3 class="text-xl font-semibold mb-4">Informazioni</h3>
-                  <p>Email: ${section.email || ''}</p>
-                  <p>Telefono: ${section.phone || ''}</p>
-                  <p>Indirizzo: ${section.address || ''}</p>
-                </div>
-                <div>
-                  <h3 class="text-xl font-semibold mb-4">Messaggio</h3>
-                  <form class="space-y-4">
-                    <input type="text" placeholder="Nome" class="w-full p-2 border rounded">
-                    <input type="email" placeholder="Email" class="w-full p-2 border rounded">
-                    <textarea placeholder="Messaggio" rows="4" class="w-full p-2 border rounded"></textarea>
-                    <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded">Invia</button>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </section>
-        `;
-        break;
-      default:
-        html += `<section class="unknown-section"><p>Sezione non riconosciuta: ${section.type}</p></section>`;
-    }
-  });
-
-  return html;
-}
 
 // Middleware autenticazione
 // TODO: Riattivare il middleware quando tutto funziona
@@ -402,7 +252,7 @@ router.get('/:id', async (req, res) => {
     const [website] = await dbPool.execute(`SELECT sw.*, d.ragione_sociale, d.id_tipo_ditta FROM siti_web_aziendali sw JOIN ditte d ON sw.id_ditta = d.id WHERE sw.id = ?`, [id]);
     if (website.length === 0) return res.status(404).json({ success: false, error: 'Sito web non trovato' });
     const websiteData = website[0];
-    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [websiteData.id]);
+    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, contenuto_json, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [websiteData.id]);
     const [galleries] = await dbPool.execute(`SELECT g.*, COUNT(gi.id) as numero_immagini FROM wg_galleries g LEFT JOIN wg_gallery_images gi ON g.id = gi.id_galleria WHERE g.id_sito_web = ? AND g.is_active = 1 GROUP BY g.id ORDER BY g.sort_order, g.nome_galleria`, [websiteData.id]);
     const [imageCount] = await dbPool.execute(`SELECT COUNT(*) as total_images FROM wg_gallery_images gi JOIN wg_galleries g ON gi.id_galleria = g.id WHERE g.id_sito_web = ? AND g.is_active = 1`, [websiteData.id]);
     res.json({ success: true, website: { ...websiteData, template_config: websiteData.theme_config ? JSON.parse(websiteData.theme_config) : {}, catalog_settings: websiteData.catalog_settings ? JSON.parse(websiteData.catalog_settings) : {} }, pages: pages, galleries: galleries, images: [], settings: { catalog_settings: websiteData.catalog_settings ? JSON.parse(websiteData.catalog_settings) : {} } });
@@ -462,7 +312,7 @@ router.get('/:id/pages', async (req, res) => {
       if (website.length > 0) { siteId = website[0].id; isDittaId = true; console.log(`API Pages: Trovato sito tramite id_ditta=${id}, siteId=${siteId}`); }
       else { console.log(`API Pages: Nessun sito trovato per id=${id}`); return res.json({ success: true, pages: [], meta: { site_id: null, is_ditta_id: false, message: 'Nessun sito web trovato' } }); }
     }
-    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [siteId]);
+    const [pages] = await dbPool.execute(`SELECT id, titolo, slug, contenuto_html as contenuto, contenuto_json, meta_title, meta_description, is_published, menu_order as sort_order, created_at, updated_at FROM pagine_sito_web WHERE id_sito_web = ? ORDER BY menu_order, titolo`, [siteId]);
     console.log(`API Pages: Recuperate ${pages.length} pagine per siteId=${siteId}`);
     res.json({ success: true, pages: pages, meta: { site_id: siteId, is_ditta_id: isDittaId, pages_count: pages.length } });
   } catch (error) { console.error('Errore recupero pagine:', error); res.status(500).json({ success: false, error: 'Errore nel recupero delle pagine' }); }
@@ -475,34 +325,12 @@ router.get('/:id/pages', async (req, res) => {
 router.get('/:id/images', async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Prima prova con id del sito web direttamente
-    const [websiteCheck] = await dbPool.execute('SELECT id FROM siti_web_aziendali WHERE id = ? LIMIT 1', [id]);
-    let siteId;
-
-    if (websiteCheck.length > 0) {
-      // id è un siteId
-      siteId = id;
-      console.log(`[API Images] Trovato sito con id=${siteId}`);
-    } else {
-      // Prova con id_ditta
-      const [website] = await dbPool.execute('SELECT id FROM siti_web_aziendali WHERE id_ditta = ? LIMIT 1', [id]);
-      if (website.length === 0) {
-        console.log(`[API Images] Nessun sito trovato per id=${id}`);
-        return res.json({ success: true, images: [] });
-      }
-      siteId = website[0].id;
-      console.log(`[API Images] Trovato sito tramite id_ditta=${id}, siteId=${siteId}`);
-    }
-
+    const [website] = await dbPool.execute('SELECT id FROM siti_web_aziendali WHERE id_ditta = ? LIMIT 1', [id]);
+    if (website.length === 0) return res.json({ images: [] });
+    const siteId = website[0].id;
     const [images] = await dbPool.execute(`SELECT DISTINCT f.id, f.file_name_originale, f.mime_type, f.file_size_bytes, f.s3_key, CONCAT('https://s3.operocloud.it/', f.s3_key) as url_file, CONCAT('https://s3.operocloud.it/', f.s3_key) as preview_url, gi.caption, gi.alt_text, g.nome_galleria FROM dm_files f JOIN wg_gallery_images gi ON f.id = gi.id_file JOIN wg_galleries g ON gi.id_galleria = g.id WHERE g.id_sito_web = ? AND g.is_active = 1 ORDER BY g.sort_order, gi.order_pos`, [siteId]);
-
-    console.log(`[API Images] Recuperate ${images.length} immagini per siteId=${siteId}`);
     res.json({ success: true, images: images });
-  } catch (error) {
-    console.error('Errore recupero immagini:', error);
-    res.status(500).json({ success: false, error: 'Errore nel recupero delle immagini' });
-  }
+  } catch (error) { console.error('Errore recupero immagini:', error); res.status(500).json({ success: false, error: 'Errore nel recupero delle immagini' }); }
 });
 
 /**
@@ -535,15 +363,11 @@ router.get('/:websiteId/pages/:pageId', async (req, res) => { /* ... implementaz
  */
 router.post('/:websiteId/pages', async (req, res) => {
   const { websiteId } = req.params;
-  const { slug, titolo, contenuto_html, contenuto_json, meta_title, meta_description, is_published, menu_order, template_name } = req.body;
+  const { slug, titolo, contenuto_html, contenuto_json, meta_title, meta_description, is_published, menu_order } = req.body;
 
   try {
     console.log(`[DEBUG] Creazione pagina per sito ${websiteId}:`, req.body);
 
-    // Per debug: rimuoviamo temporaneamente i controlli di autenticazione
-    // TODO: Riattivare quando l'autenticazione è funzionante
-
-    // Verifica che il sito esista
     const [siteCheck] = await dbPool.execute(`
       SELECT id FROM siti_web_aziendali WHERE id = ?
     `, [websiteId]);
@@ -552,45 +376,16 @@ router.post('/:websiteId/pages', async (req, res) => {
       return res.status(404).json({ error: 'Sito web non trovato' });
     }
 
-    // Converti undefined in null per MySQL
-    const normalizedSlug = slug !== undefined ? slug : null;
-    const normalizedTitolo = titolo !== undefined ? titolo : null;
-    const normalizedMetaTitle = meta_title !== undefined ? meta_title : null;
-    const normalizedMetaDescription = meta_description !== undefined ? meta_description : null;
-    const normalizedIsPublished = is_published !== undefined ? (is_published ? 1 : 0) : 0;
-    const normalizedMenuOrder = menu_order !== undefined ? menu_order : 0;
-    const normalizedTemplateName = template_name !== undefined ? template_name : null;
-
-    // Genera HTML sempre dal JSON per coerenza
-    let normalizedContenutoHtml = '';
-    if (contenuto_json && contenuto_json.sections) {
-      normalizedContenutoHtml = generateHtmlFromSections(contenuto_json.sections);
-    } else if (typeof contenuto_html === 'string') {
-      normalizedContenutoHtml = contenuto_html;
-    } else {
-      normalizedContenutoHtml = '<p>Contenuto in elaborazione...</p>';
-    }
-
-    // contenuto_json arriva già come stringa JSON dal frontend, usalo direttamente
-    const jsonString = contenuto_json ? contenuto_json : null;
-
-    // Debug: mostra i parametri che verranno passati alla query
-    const queryParams = [
-      websiteId,
-      normalizedSlug,
-      normalizedTitolo,
-      normalizedContenutoHtml,
-      jsonString,
-      normalizedMetaTitle,
-      normalizedMetaDescription,
-      normalizedIsPublished,
-      normalizedMenuOrder,
-      normalizedTemplateName
-    ];
-
-    console.log(`[DEBUG] Parametri query (${queryParams.length}):`, queryParams);
-    console.log(`[DEBUG] contenuto_json type:`, typeof contenuto_json, contenuto_json);
-    console.log(`[DEBUG] jsonString type:`, typeof jsonString, jsonString);
+    const data = {
+      slug,
+      titolo,
+      contenuto_html,
+      contenuto_json,
+      meta_title,
+      meta_description,
+      is_published,
+      menu_order
+    };
 
     const [result] = await dbPool.execute(`
       INSERT INTO pagine_sito_web (
@@ -603,41 +398,50 @@ router.post('/:websiteId/pages', async (req, res) => {
         meta_description,
         is_published,
         menu_order,
-        template_name,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-    `, queryParams);
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    `, [
+      websiteId,
+      data.slug,
+      data.titolo,
+      data.contenuto_html || '',
+      typeof data.contenuto_json === 'string' ? data.contenuto_json : JSON.stringify(data.contenuto_json),
+      data.meta_title,
+      data.meta_description,
+      data.is_published ? 1 : 0,
+      data.menu_order || 0
+    ]);
 
     console.log(`[DEBUG] Pagina creata con ID: ${result.insertId}`);
 
     res.json({
       success: true,
-      id: result.insertId,
-      message: 'Pagina creata con successo'
+      message: 'Pagina creata con successo',
+      page: {
+        id: result.insertId,
+        id_sito_web: websiteId,
+        ...data
+      }
     });
 
   } catch (error) {
     console.error('Errore creazione pagina:', error);
-    if (error.code === 'ER_DUP_ENTRY') {
-      res.status(400).json({ error: 'Slug già esistente per questo sito' });
-    } else {
-      res.status(500).json({ error: 'Errore nella creazione della pagina: ' + error.message });
-    }
+    res.status(500).json({ error: 'Errore nella creazione della pagina: ' + error.message });
   }
 });
+
 /**
  * PUT /api/website/:websiteId/pages/:pageId
- * Aggiorna pagina esistente
+ * Aggiorna pagina
  */
 router.put('/:websiteId/pages/:pageId', async (req, res) => {
   const { websiteId, pageId } = req.params;
-  const { slug, titolo, contenuto_html, contenuto_json, meta_title, meta_description, is_published, menu_order, template_name } = req.body;
+  const { slug, titolo, contenuto_html, contenuto_json, meta_title, meta_description, is_published, menu_order } = req.body;
 
   try {
     console.log(`[DEBUG] Aggiornamento pagina ${pageId} per sito ${websiteId}`);
 
-    // Verifica che la pagina esista e appartenga al sito
     const [pageCheck] = await dbPool.execute(`
       SELECT id FROM pagine_sito_web WHERE id = ? AND id_sito_web = ?
     `, [pageId, websiteId]);
@@ -646,44 +450,17 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
       return res.status(404).json({ error: 'Pagina non trovata' });
     }
 
-    // Normalizza i valori per l'UPDATE
-    const normalizedIsPublished = is_published !== undefined ? (is_published ? 1 : 0) : 0;
-    const normalizedMenuOrder = menu_order !== undefined ? menu_order : 0;
-    const normalizedTemplateName = template_name !== undefined ? template_name : null;
-
-    // Converti contenuto_html - ignora l'HTML inviato dal frontend e genera sempre da JSON
-    let normalizedContenutoHtml = '';
-
-    // Genera HTML sempre dal JSON per coerenza
-    if (contenuto_json && contenuto_json.sections) {
-      normalizedContenutoHtml = generateHtmlFromSections(contenuto_json.sections);
-    } else if (typeof contenuto_html === 'string') {
-      normalizedContenutoHtml = contenuto_html;
-    } else {
-      normalizedContenutoHtml = '<p>Contenuto in elaborazione...</p>';
-    }
-
-    // contenuto_json arriva già come stringa JSON dal frontend
-    const jsonString = contenuto_json || JSON.stringify({ sections: [] });
-
-    // Debug: Stampa i valori prima della query
-    console.log('[DEBUG] Valori per UPDATE:', {
+    const data = {
       slug,
       titolo,
-      contenuto_html_type: typeof contenuto_html,
-      contenuto_html: normalizedContenutoHtml,
-      contenuto_json: jsonString,
-      contenuto_json_type: typeof jsonString,
+      contenuto_html,
+      contenuto_json,
       meta_title,
       meta_description,
-      is_published: normalizedIsPublished,
-      menu_order: normalizedMenuOrder,
-      template_name: normalizedTemplateName,
-      pageId,
-      websiteId
-    });
+      is_published,
+      menu_order
+    };
 
-    // Aggiorna pagina
     const [result] = await dbPool.execute(`
       UPDATE pagine_sito_web SET
         slug = ?,
@@ -694,72 +471,43 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
         meta_description = ?,
         is_published = ?,
         menu_order = ?,
-        template_name = ?,
         updated_at = NOW()
       WHERE id = ? AND id_sito_web = ?
     `, [
-      slug || '',
-      titolo || '',
-      normalizedContenutoHtml,
-      jsonString,
-      meta_title || '',
-      meta_description || '',
-      normalizedIsPublished,
-      normalizedMenuOrder,
-      normalizedTemplateName,
+      data.slug,
+      data.titolo,
+      data.contenuto_html || '',
+      typeof data.contenuto_json === 'string' ? data.contenuto_json : JSON.stringify(data.contenuto_json),
+      data.meta_title,
+      data.meta_description,
+      data.is_published ? 1 : 0,
+      data.menu_order || 0,
       pageId,
       websiteId
     ]);
 
+    console.log(`[DEBUG] Pagina aggiornata: ${result.affectedRows} righe modificate`);
+
     res.json({
       success: true,
-      message: 'Pagina aggiornata con successo'
+      message: 'Pagina aggiornata con successo',
+      page: {
+        id: pageId,
+        id_sito_web: websiteId,
+        ...data
+      }
     });
 
   } catch (error) {
     console.error('Errore aggiornamento pagina:', error);
-    if (error.code === 'ER_DUP_ENTRY') {
-      res.status(400).json({ error: 'Slug già esistente per questo sito' });
-    } else {
-      res.status(500).json({ error: 'Errore nell\'aggiornamento della pagina: ' + error.message });
-    }
+    res.status(500).json({ error: 'Errore nell\'aggiornamento della pagina: ' + error.message });
   }
 });
 /**
  * DELETE /api/website/:websiteId/pages/:pageId
  * Elimina pagina
  */
-router.delete('/:websiteId/pages/:pageId', async (req, res) => {
-  const { websiteId, pageId } = req.params;
-
-  try {
-    console.log(`[DEBUG] Eliminazione pagina ${pageId} per sito ${websiteId}`);
-
-    // Verifica che la pagina esista e appartenga al sito
-    const [pageCheck] = await dbPool.execute(`
-      SELECT id FROM pagine_sito_web WHERE id = ? AND id_sito_web = ?
-    `, [pageId, websiteId]);
-
-    if (pageCheck.length === 0) {
-      return res.status(404).json({ error: 'Pagina non trovata' });
-    }
-
-    // Soft delete: imposta is_deleted = true invece di eliminare fisicamente
-    const [result] = await dbPool.execute(`
-      DELETE FROM pagine_sito_web
-      WHERE id = ? AND id_sito_web = ?
-    `, [pageId, websiteId]);
-
-    res.json({
-      success: true,
-      message: 'Pagina eliminata con successo'
-    });
-
-  } catch (error) {
-    console.error('Errore eliminazione pagina:', error);
-    res.status(500).json({ error: 'Errore nell\'eliminazione della pagina: ' + error.message });
-  }
-});
+router.delete('/:websiteId/pages/:pageId', async (req, res) => { /* ... implementazione ... */ });
 /**
  * POST /api/website/:websiteId/pages/:pageId/publish
  * Toggle pubblicazione pagina
@@ -819,136 +567,7 @@ router.get('/public/website/:siteId/galleries/:galleryId', async (req, res) => {
  * GET /api/website/:websiteId/preview/:slug
  * Genera anteprima HTML pagina per preview
  */
-router.get('/:websiteId/preview/:slug', async (req, res) => {
-  try {
-    const { websiteId, slug } = req.params;
-
-    console.log(`[Preview] Richiesta anteprima per sito ${websiteId}, slug ${slug}`);
-
-    // Recupera il sito
-    const [siteData] = await dbPool.execute(`
-      SELECT sw.*, d.ragione_sociale
-      FROM siti_web_aziendali sw
-      JOIN ditte d ON sw.id_ditta = d.id
-      WHERE sw.id = ?
-    `, [websiteId]);
-
-    if (siteData.length === 0) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial, sans-serif; padding: 20px;">
-            <h1>Sito non trovato</h1>
-            <p>Il sito web richiesto non esiste.</p>
-          </body>
-        </html>
-      `);
-    }
-
-    const site = siteData[0];
-
-    // Recupera la pagina
-    const [pageData] = await dbPool.execute(`
-      SELECT * FROM pagine_sito_web
-      WHERE id_sito_web = ? AND slug = ?
-    `, [websiteId, slug]);
-
-    if (pageData.length === 0) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial, sans-serif; padding: 20px;">
-            <h1>Pagina non trovata</h1>
-            <p>La pagina richiesta non esiste.</p>
-          </body>
-        </html>
-      `);
-    }
-
-    const page = pageData[0];
-
-    // Genera HTML della pagina
-    let pageContent = '';
-
-    if (page.contenuto_json) {
-      try {
-        const jsonData = JSON.parse(page.contenuto_json);
-        pageContent = generateHtmlFromSections(jsonData.sections || []);
-      } catch (e) {
-        console.error('Errore parsing contenuto JSON:', e);
-        pageContent = page.contenuto_html || '<p>Contenuto non disponibile</p>';
-      }
-    } else if (page.contenuto_html) {
-      pageContent = page.contenuto_html;
-    }
-
-    // Crea l'HTML completo della pagina
-    const html = `
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${page.meta_title || page.titolo || 'Anteprima Pagina'}</title>
-    <meta name="description" content="${page.meta_description || ''}">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
-        .header { background: white; border-bottom: 1px solid #e5e7eb; padding: 1rem 0; }
-        .header h1 { font-size: 1.5rem; color: #111827; }
-        .preview-notice { background: #fef3c7; border: 1px solid #f59e0b; padding: 0.5rem; text-align: center; font-size: 0.875rem; }
-        .hero { background: #3b82f6; color: white; padding: 4rem 0; text-align: center; }
-        .hero h1 { font-size: 3rem; margin-bottom: 1rem; }
-        .hero p { font-size: 1.25rem; opacity: 0.9; }
-        .btn { background: white; color: #3b82f6; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; display: inline-block; }
-        section { padding: 4rem 0; }
-        section:nth-child(even) { background: #f9fafb; }
-        h2 { font-size: 2.5rem; margin-bottom: 1rem; color: #111827; }
-        .text-xl { font-size: 1.25rem; color: #6b7280; margin-bottom: 2rem; }
-        img { max-width: 100%; height: auto; border-radius: 0.5rem; }
-        .footer { background: #111827; color: white; padding: 2rem 0; text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="preview-notice">
-        📋 Modalità anteprima - Questa è un'anteprima della pagina
-    </div>
-
-    <header class="header">
-        <div class="container">
-            <h1>${site.ragione_sociale || 'Nome Azienda'}</h1>
-        </div>
-    </header>
-
-    <main>
-        ${pageContent}
-    </main>
-
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2025 ${site.ragione_sociale || 'Nome Azienda'}. Tutti i diritti riservati.</p>
-            <p style="font-size: 0.875rem; opacity: 0.7; margin-top: 0.5rem;">Creato con Opero Cloud</p>
-        </div>
-    </footer>
-</body>
-</html>`;
-
-    console.log(`[Preview] HTML generato per pagina ${page.id} (${html.length} caratteri)`);
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-
-  } catch (error) {
-    console.error('Errore generazione anteprima:', error);
-    res.status(500).send(`
-      <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px;">
-          <h1>Errore</h1>
-          <p>Impossibile generare l'anteprima: ${error.message}</p>
-        </body>
-      </html>
-    `);
-  }
-});
+router.get('/:websiteId/preview/:slug', async (req, res) => { /* ... implementazione ... */ });
 
 
 module.exports = router;

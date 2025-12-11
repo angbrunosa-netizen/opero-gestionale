@@ -43,6 +43,7 @@ const archivioPostaRoutes = require('./routes/archivio-posta'); // <-- NUOVA ROT
 const systemRoutes = require('./routes/system');
 const adminS3Routes = require('./routes/admin-s3'); // <-- NUOVA ROTTA S3 ADMIN
 const websiteRoutes = require('./routes/website'); // <-- NUOVA ROTTA WEBSITE BUILDER
+const websiteGeneratorRoutes = require('./routes/website-generator'); // <-- NUOVA ROTTA GENERAZIONE SITI STATICI
 const quoteRoutes = require('./routes/quoteRoutes'); // ROTTA PER IL PENSIERO MOTIVAZIONALE
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
@@ -152,6 +153,7 @@ app.use('/api/quotes', quoteRoutes); // ROTTA PER IL PENSIERO MOTIVAZIONALE
 app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
 // TODO: Riattivare verifyToken quando il debug è completato
 app.use('/api/website', websiteRoutes); // <-- NUOVA ROTTA WEBSITE BUILDER SENZA AUTH PER DEBUG
+app.use('/api/website-generator', verifyToken, websiteGeneratorRoutes); // <-- NUOVA ROTTA GENERAZIONE SITI STATICI
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
 if (process.env.NODE_ENV === 'production') {

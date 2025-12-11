@@ -9,9 +9,9 @@ const { checkPermission, verifyToken } = require('../utils/auth');
 /**
  * @route   GET /api/quotes
  * @desc    Genera un nuovo pensiero motivatore
- * @access  Privato (richiede il permesso BG_GENERATE)
+ * @access  Privato (richiede il permesso SITE_BUILDER)
  */
-router.get('/', verifyToken, checkPermission('BG_GENERATE'), async (req, res) => {
+router.get('/', verifyToken, checkPermission('SITE_BUILDER'), async (req, res) => {
     try {
         const newQuote = await quoteService.generateQuote();
         res.status(200).json(newQuote);

@@ -14,7 +14,11 @@ import {
   CheckIcon,
   XMarkIcon,
   PlusIcon,
-  EyeIcon
+  EyeIcon,
+  RocketLaunchIcon,
+  ServerIcon,
+  PlayIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 
 // Import componenti semplificati
@@ -41,6 +45,20 @@ const WebsiteBuilderUNIFIED = ({
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [currentBuilderTemplate, setCurrentBuilderTemplate] = useState(null);
   const [editingPage, setEditingPage] = useState(null);
+
+  // Stati per generazione sito
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployStatus, setDeployStatus] = useState(null);
+  const [showVpsConfig, setShowVpsConfig] = useState(false);
+  const [vpsConfig, setVpsConfig] = useState({
+    host: '',
+    username: '',
+    password: '',
+    sshKey: '',
+    deployPath: '/var/www/sites',
+    domain: ''
+  });
 
   // Template predefiniti
   const templates = [
@@ -256,10 +274,11 @@ const WebsiteBuilderUNIFIED = ({
     }
   ];
 
-  // Carica pagine esistenti
+  // Carica pagine esistenti e stato sito
   useEffect(() => {
     if (websiteId) {
       loadPages();
+      loadSiteStatus();
     }
   }, [websiteId]);
 
@@ -399,6 +418,11 @@ const WebsiteBuilderUNIFIED = ({
 
   // Gestisce salvataggio pagina dal builder
   const handleSaveFromTemplate = async (pageData) => {
+    console.log('🔥 WebsiteBuilderUNIFIED - handleSaveFromTemplate chiamato');
+    console.log('🔥 WebsiteBuilderUNIFIED - pageData:', pageData);
+    console.log('🔥 WebsiteBuilderUNIFIED - editingPage:', editingPage);
+    console.log('🔥 WebsiteBuilderUNIFIED - websiteId:', websiteId);
+
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -408,11 +432,21 @@ const WebsiteBuilderUNIFIED = ({
 
       if (editingPage) {
         // Modifica pagina esistente
+        console.log('🔥 WebsiteBuilderUNIFIED - Chiamata PUT a:', `/website/${websiteId}/pages/${editingPage.id}`);
+        console.log('🔥 WebsiteBuilderUNIFIED - Dati inviati:', JSON.stringify(pageData, null, 2));
+
         response = await api.put(`/website/${websiteId}/pages/${editingPage.id}`, pageData);
+        console.log('🔥 WebsiteBuilderUNIFIED - Response ricevuta:', response);
       } else {
         // Creazione nuova pagina
+        console.log('🔥 WebsiteBuilderUNIFIED - Chiamata POST a:', `/website/${websiteId}/pages`);
+        console.log('🔥 WebsiteBuilderUNIFIED - Dati inviati:', JSON.stringify(pageData, null, 2));
+
         response = await api.post(`/website/${websiteId}/pages`, pageData);
+        console.log('🔥 WebsiteBuilderUNIFIED - Response ricevuta:', response);
       }
+
+      console.log('🔥 WebsiteBuilderUNIFIED - Response API:', response);
 
       if (response.data.success) {
         const action = editingPage ? 'modificata' : 'creata';
@@ -434,8 +468,13 @@ const WebsiteBuilderUNIFIED = ({
         setError(response.data.error || 'Errore nel salvataggio');
       }
     } catch (error) {
-      console.error('Errore salvataggio pagina:', error);
-      setError('Errore nel salvataggio della pagina');
+      console.error('❌ WebsiteBuilderUNIFIED - Errore salvataggio pagina:', error);
+      console.error('❌ WebsiteBuilderUNIFIED - Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      setError('Errore nel salvataggio della pagina: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -633,6 +672,146 @@ const WebsiteBuilderUNIFIED = ({
     }
   };
 
+  // Genera sito statico completo
+  const handleGenerateSite = async () => {
+    if (!websiteId) {
+      setError('Nessun sito selezionato per la generazione');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      console.log('🚀 Inizio generazione sito per websiteId:', websiteId);
+
+      const response = await api.post(`/website-generator/generate/${websiteId}`, {
+        options: {
+          buildStatic: true,
+          minify: true,
+          generateSitemap: true
+        }
+      });
+
+      if (response.data.success) {
+        setSuccess(`Sito generato con successo! ${response.data.data.pagesGenerated} pagine create.`);
+        setDeployStatus('generated');
+
+        // Aggiorna lo stato del sito nel database
+        await loadSiteStatus();
+      } else {
+        setError(response.data.error || 'Errore nella generazione del sito');
+      }
+    } catch (error) {
+      console.error('❌ Errore generazione sito:', error);
+      setError('Errore durante la generazione: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Deploy su VPS
+  const handleDeploySite = async () => {
+    if (!websiteId) {
+      setError('Nessun sito selezionato per il deploy');
+      return;
+    }
+
+    if (!vpsConfig.host || !vpsConfig.username || (!vpsConfig.password && !vpsConfig.sshKey)) {
+      setError('Configurazione VPS incompleta. Inserisci host, username e password/chiave SSH.');
+      setShowVpsConfig(true);
+      return;
+    }
+
+    if (!vpsConfig.domain) {
+      setError('Inserisci il dominio dove deployare il sito.');
+      setShowVpsConfig(true);
+      return;
+    }
+
+    setIsDeploying(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      console.log('🚀 Inizio deploy sito per websiteId:', websiteId);
+
+      const response = await api.post(`/website-generator/deploy/${websiteId}`, {
+        vpsConfig: {
+          host: vpsConfig.host,
+          username: vpsConfig.username,
+          password: vpsConfig.password,
+          sshKey: vpsConfig.sshKey,
+          deployPath: vpsConfig.deployPath
+        },
+        domain: vpsConfig.domain,
+        deployOptions: {
+          buildStatic: true,
+          minify: true,
+          generateSitemap: true
+        }
+      });
+
+      if (response.data.success) {
+        setSuccess(`Sito deployato con successo! Visita: ${response.data.data.siteUrl}`);
+        setDeployStatus('deployed');
+        setShowVpsConfig(false);
+
+        // Aggiorna lo stato del sito nel database
+        await loadSiteStatus();
+      } else {
+        setError(response.data.error || 'Errore durante il deploy');
+      }
+    } catch (error) {
+      console.error('❌ Errore deploy sito:', error);
+      setError('Errore durante il deploy: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  // Carica stato del sito
+  const loadSiteStatus = async () => {
+    if (!websiteId) return;
+
+    try {
+      const response = await api.get(`/website-generator/status/${websiteId}`);
+      if (response.data.success) {
+        setDeployStatus(response.data.data.deployInfo?.deploy_status || 'pending');
+      }
+    } catch (error) {
+      console.error('Errore caricamento stato sito:', error);
+    }
+  };
+
+  // Anteprima sito generato
+  const handlePreviewSite = async () => {
+    if (!websiteId) {
+      setError('Nessun sito selezionato per l\'anteprima');
+      return;
+    }
+
+    try {
+      const response = await api.get(`/website-generator/preview/${websiteId}`, {
+        responseType: 'blob'
+      });
+
+      // Crea URL temporaneo e apre in nuova finestra
+      const blob = new Blob([response.data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const previewWindow = window.open(url, '_blank');
+
+      // Cleanup dopo 5 minuti
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 300000);
+    } catch (error) {
+      console.error('Errore anteprima sito:', error);
+      setError('Errore nella generazione dell\'anteprima: ' + error.message);
+    }
+  };
+
   // Render vista template selection
   const renderTemplateSelection = () => (
     <div className="max-w-7xl mx-auto p-6">
@@ -664,6 +843,36 @@ const WebsiteBuilderUNIFIED = ({
           >
             Pagine Esistenti ({pages.length})
           </button>
+
+          {/* Pulsanti generazione sito */}
+          <div className="flex items-center space-x-2 border-l border-gray-300 pl-3">
+            <button
+              onClick={handlePreviewSite}
+              className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading || isGenerating || isDeploying}
+            >
+              <EyeIcon className="h-4 w-4 mr-2" />
+              Anteprima Sito
+            </button>
+
+            <button
+              onClick={handleGenerateSite}
+              className="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+              disabled={loading || isGenerating || isDeploying}
+            >
+              <RocketLaunchIcon className="h-4 w-4 mr-2" />
+              {isGenerating ? 'Generazione...' : 'Genera Sito'}
+            </button>
+
+            <button
+              onClick={() => setShowVpsConfig(true)}
+              className="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              disabled={loading || isGenerating || isDeploying}
+            >
+              <ServerIcon className="h-4 w-4 mr-2" />
+              {isDeploying ? 'Deploy...' : 'Deploy su VPS'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -903,6 +1112,165 @@ const WebsiteBuilderUNIFIED = ({
 
       {/* Main Content */}
       {renderContent()}
+
+      {/* Modal configurazione VPS */}
+      {showVpsConfig && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Configurazione Deploy VPS
+              </h2>
+              <button
+                onClick={() => setShowVpsConfig(false)}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Stato deploy corrente */}
+            {deployStatus && (
+              <div className={`mb-6 p-4 rounded-lg ${
+                deployStatus === 'deployed' ? 'bg-green-50 text-green-800' :
+                deployStatus === 'deploying' ? 'bg-blue-50 text-blue-800' :
+                deployStatus === 'error' ? 'bg-red-50 text-red-800' :
+                'bg-gray-50 text-gray-800'
+              }`}>
+                <div className="flex items-center">
+                  <ServerIcon className="h-5 w-5 mr-2" />
+                  Stato attuale: {
+                    deployStatus === 'deployed' ? 'Deploy completato' :
+                    deployStatus === 'deploying' ? 'Deploy in corso' :
+                    deployStatus === 'error' ? 'Errore nel deploy' :
+                    'Non mai deployato'
+                  }
+                </div>
+              </div>
+            )}
+
+            {/* Form configurazione */}
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Host VPS *
+                </label>
+                <input
+                  type="text"
+                  value={vpsConfig.host}
+                  onChange={(e) => setVpsConfig(prev => ({ ...prev, host: e.target.value }))}
+                  placeholder="es. 192.168.1.100"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Username *
+                </label>
+                <input
+                  type="text"
+                  value={vpsConfig.username}
+                  onChange={(e) => setVpsConfig(prev => ({ ...prev, username: e.target.value }))}
+                  placeholder="es. root o ubuntu"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password (lascia vuoto per usare chiave SSH)
+                </label>
+                <input
+                  type="password"
+                  value={vpsConfig.password}
+                  onChange={(e) => setVpsConfig(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="Password VPS"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Chiave SSH (opzionale)
+                </label>
+                <textarea
+                  value={vpsConfig.sshKey}
+                  onChange={(e) => setVpsConfig(prev => ({ ...prev, sshKey: e.target.value }))}
+                  placeholder="Incolla qui la tua chiave SSH privata"
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Dominio *
+                </label>
+                <input
+                  type="text"
+                  value={vpsConfig.domain}
+                  onChange={(e) => setVpsConfig(prev => ({ ...prev, domain: e.target.value }))}
+                  placeholder="es. tuodominio.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Path Deploy
+                </label>
+                <input
+                  type="text"
+                  value={vpsConfig.deployPath}
+                  onChange={(e) => setVpsConfig(prev => ({ ...prev, deployPath: e.target.value }))}
+                  placeholder="/var/www/sites"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Pulsanti azione */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowVpsConfig(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleDeploySite}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                disabled={isDeploying || !vpsConfig.host || !vpsConfig.username || (!vpsConfig.password && !vpsConfig.sshKey) || !vpsConfig.domain}
+              >
+                {isDeploying ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Deploy in corso...
+                  </>
+                ) : (
+                  <>
+                    <RocketLaunchIcon className="h-4 w-4 mr-2" />
+                    Deploy Ora
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Indicatore stato generazione/deploy */}
+      {(isGenerating || isDeploying) && (
+        <div className="fixed bottom-4 right-4 bg-white border border-gray-300 rounded-lg shadow-lg p-4 z-40">
+          <div className="flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            <span className="text-gray-700">
+              {isGenerating ? 'Generazione sito in corso...' : 'Deploy su VPS in corso...'}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
