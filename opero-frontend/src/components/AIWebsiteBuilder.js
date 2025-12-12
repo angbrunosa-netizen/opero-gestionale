@@ -60,10 +60,42 @@ const AIWebsiteBuilder = ({ id_ditta }) => {
     setLoading(true);
 
     try {
-      const response = await api.post('/ai-website-builder/generate-page', {
-        id_ditta,
-        ...newPageForm
-      });
+      // Prova prima con le nuove API enhanced
+      let response;
+      try {
+        // Usa le nuove API AI-enhanced con più contesto
+        response = await api.post('/ai-enhanced-website/generate-section-content', {
+          sectionType: newPageForm.pageType,
+          companyId: id_ditta,
+          customPrompt: newPageForm.prompt + ' ' + newPageForm.customInstructions,
+          sectionIndex: 0,
+          totalSections: 1
+        });
+
+        // Converti il formato delle nuove API al vecchio formato per retrocompatibilità
+        const legacyResponse = {
+          data: {
+            id: Date.now(), // ID temporaneo
+            titolo: response.data.content.title,
+            sottotitolo: response.data.content.subtitle,
+            contenuto: JSON.stringify([{
+              type: newPageForm.pageType,
+              title: response.data.content.title,
+              content: response.data.content.content
+            }])
+          }
+        };
+
+        response = legacyResponse;
+      } catch (enhancedError) {
+        // Fallback alle vecchie API se le nuove falliscono
+        console.warn('Fallback a API legacy:', enhancedError.message);
+
+        response = await api.post('/ai-website-builder/generate-page', {
+          id_ditta,
+          ...newPageForm
+        });
+      }
 
       toast.success('Pagina generata con successo!');
       setPages([...pages, response.data]);

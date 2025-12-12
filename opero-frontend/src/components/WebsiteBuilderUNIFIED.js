@@ -16,29 +16,31 @@ import {
   PlusIcon,
   EyeIcon,
   RocketLaunchIcon,
-  ServerIcon,
-  PlayIcon,
-  Cog6ToothIcon
+  ServerIcon
 } from '@heroicons/react/24/outline';
 
 // Import componenti semplificati
 import TemplatePageBuilder from './website/builder/TemplatePageBuilder';
+import StyleEditor from './StyleEditor';
 import { api } from '../services/api';
+
+// Import AI services
+import AIService from '../services/aiService';
 
 const WebsiteBuilderUNIFIED = ({
   site: initialSite,
   websiteId,
   onSave,
-  onCancel,
-  mode = 'create'
+  onCancel
 }) => {
   // Stati principali semplificati
-  const [site, setSite] = useState(initialSite || {});
-  const [activeView, setActiveView] = useState('template'); // 'template' | 'pages' | 'builder'
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  // Stati per navigazione
+  const [activeView, setActiveView] = useState('template'); // 'template' | 'pages' | 'builder'
+  const [saving, setSaving] = useState(false);
 
   // Stati per pagine
   const [pages, setPages] = useState([]);
@@ -46,11 +48,46 @@ const WebsiteBuilderUNIFIED = ({
   const [currentBuilderTemplate, setCurrentBuilderTemplate] = useState(null);
   const [editingPage, setEditingPage] = useState(null);
 
+  // Stati AI enhancement
+  const [aiMode, setAiMode] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [aiEnhancedTemplate, setAiEnhancedTemplate] = useState(null);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiGenerationProgress, setAiGenerationProgress] = useState(0);
+
   // Stati per generazione sito
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployStatus, setDeployStatus] = useState(null);
   const [showVpsConfig, setShowVpsConfig] = useState(false);
+
+  // Stili globali del sito
+  const [globalStyles, setGlobalStyles] = useState({
+    background_type: 'color',
+    background_color: '#ffffff',
+    font_family: 'Inter',
+    font_size: '16',
+    font_color: '#333333',
+    heading_font: 'Inter',
+    heading_color: '#1a1a1a',
+    primary_color: '#3B82F6',
+    secondary_color: '#64748B',
+    accent_color: '#EF4444',
+    button_background_color: '#3B82F6',
+    button_text_color: '#ffffff',
+    link_color: '#2563EB',
+    container_max_width: '1200px',
+    padding_top: '60px',
+    padding_bottom: '60px',
+    custom_css: ''
+  });
+
+  const [isGeneratingStyles, setIsGeneratingStyles] = useState(false);
+  const [stylePrompt, setStylePrompt] = useState('');
+  const [showStylePrompt, setShowStylePrompt] = useState(false);
+
   const [vpsConfig, setVpsConfig] = useState({
     host: '',
     username: '',
@@ -59,6 +96,7 @@ const WebsiteBuilderUNIFIED = ({
     deployPath: '/var/www/sites',
     domain: ''
   });
+  const [site, setSite] = useState(initialSite || {});
 
   // Template predefiniti
   const templates = [
@@ -279,6 +317,10 @@ const WebsiteBuilderUNIFIED = ({
     if (websiteId) {
       loadPages();
       loadSiteStatus();
+      // Se è un sito AI-generated, carica anche l'analisi AI
+      if (initialSite?.ai_generated) {
+        loadAIAnalysis();
+      }
     }
   }, [websiteId]);
 
@@ -295,6 +337,78 @@ const WebsiteBuilderUNIFIED = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Funzioni AI
+  const loadAIAnalysis = async () => {
+    if (!websiteId || !initialSite?.id_ditta) return;
+
+    try {
+      setIsAnalyzing(true);
+      const analysis = await AIService.analyzeCompany(initialSite.id_ditta);
+      setAiAnalysis(analysis.analysis);
+      setAiSuggestions(analysis.templateSuggestions || []);
+    } catch (error) {
+      console.error('Errore caricamento analisi AI:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const toggleAIMode = async () => {
+    const newAiMode = !aiMode;
+    setAiMode(newAiMode);
+
+    if (newAiMode && !aiAnalysis && websiteId) {
+      await loadAIAnalysis();
+    }
+  };
+
+  const generateAIEnhancedTemplate = async (template, customPrompt = '') => {
+    if (!websiteId || !initialSite?.id_ditta) {
+      setError('Seleziona prima un\'azienda');
+      return;
+    }
+
+    try {
+      setIsGeneratingAI(true);
+      setError(null);
+
+      const enhancedTemplate = await AIService.generateAITemplate(
+        template,
+        initialSite.id_ditta,
+        customPrompt,
+        (progress) => setAiGenerationProgress(progress)
+      );
+
+      setAiEnhancedTemplate(enhancedTemplate);
+      setSuccess('Template generato con AI con successo!');
+
+      // Crea le pagine dal template AI-enhanced
+      const pages = await AIService.createPagesFromAITemplate(enhancedTemplate, websiteId, globalStyles);
+
+      // Salva il sito AI-generated
+      await AIService.saveAIGeneratedSite(websiteId, enhancedTemplate, pages);
+
+      setSuccess(`Sito AI-generated creato con ${pages.length} pagine!`);
+      setActiveView('pages');
+      await loadPages();
+
+    } catch (error) {
+      console.error('Errore generazione template AI:', error);
+      setError('Errore nella generazione del template con AI: ' + error.message);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const enhanceWithAI = async (template) => {
+    if (!aiMode) {
+      openTemplateBuilder(template);
+      return;
+    }
+
+    await generateAIEnhancedTemplate(template);
   };
 
   // Apre il builder con template selezionato
@@ -348,7 +462,6 @@ const WebsiteBuilderUNIFIED = ({
   // Funzione per convertire HTML vecchio in sezioni template
   const convertHtmlToSections = (htmlContent) => {
     try {
-      // Parse basilare per estrarre dati da HTML esistente
       const sections = [];
 
       // Prova a estrarre immagini
@@ -377,7 +490,7 @@ const WebsiteBuilderUNIFIED = ({
         });
       }
 
-      // Se non troviamo sezioni, crea una sezione vuota per permettere all'utente di aggiungere
+      // Se non troviamo sezioni, crea una sezione vuota
       if (sections.length === 0) {
         sections.push({
           id: `empty_${Date.now()}`,
@@ -398,7 +511,6 @@ const WebsiteBuilderUNIFIED = ({
       return sections;
     } catch (error) {
       console.error('Errore conversione HTML in sezioni:', error);
-      // Restituisci una sezione vuota in caso di errore
       return [{
         id: `fallback_${Date.now()}`,
         type: 'image',
@@ -487,6 +599,107 @@ const WebsiteBuilderUNIFIED = ({
     setEditingPage(null);
   };
 
+  // Carica stato del sito
+  const loadSiteStatus = async () => {
+    if (!websiteId) return;
+
+    try {
+      const response = await api.get(`/website-generator/status/${websiteId}`);
+      if (response.data.success) {
+        setDeployStatus(response.data.data.deployInfo?.deploy_status || 'pending');
+      }
+    } catch (error) {
+      console.error('Errore caricamento stato sito:', error);
+    }
+  };
+
+  // Anteprima sito generato
+  const handlePreviewSite = async () => {
+    if (!websiteId) {
+      setError('Nessun sito selezionato per l\'anteprima');
+      return;
+    }
+
+    try {
+      const response = await api.get(`/website-generator/preview/${websiteId}`, {
+        responseType: 'blob'
+      });
+
+      // Crea URL temporaneo e apre in nuova finestra
+      const blob = new Blob([response.data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const previewWindow = window.open(url, '_blank');
+
+      // Cleanup dopo 5 minuti
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 300000);
+    } catch (error) {
+      console.error('Errore anteprima sito:', error);
+      setError('Errore nella generazione dell\'anteprima: ' + error.message);
+    }
+  };
+
+  // Deploy su VPS
+  const handleDeploySite = async () => {
+    if (!websiteId) {
+      setError('Nessun sito selezionato per il deploy');
+      return;
+    }
+
+    if (!vpsConfig.host || !vpsConfig.username || (!vpsConfig.password && !vpsConfig.sshKey)) {
+      setError('Configurazione VPS incompleta. Inserisci host, username e password/chiave SSH.');
+      setShowVpsConfig(true);
+      return;
+    }
+
+    if (!vpsConfig.domain) {
+      setError('Inserisci il dominio dove deployare il sito.');
+      setShowVpsConfig(true);
+      return;
+    }
+
+    setIsDeploying(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      console.log('🚀 Inizio deploy sito per websiteId:', websiteId);
+
+      const response = await api.post(`/website-generator/deploy/${websiteId}`, {
+        vpsConfig: {
+          host: vpsConfig.host,
+          username: vpsConfig.username,
+          password: vpsConfig.password,
+          sshKey: vpsConfig.sshKey,
+          deployPath: vpsConfig.deployPath
+        },
+        domain: vpsConfig.domain,
+        deployOptions: {
+          buildStatic: true,
+          minify: true,
+          generateSitemap: true
+        }
+      });
+
+      if (response.data.success) {
+        setSuccess(`Sito deployato con successo! Visita: ${response.data.data.siteUrl}`);
+        setDeployStatus('deployed');
+        setShowVpsConfig(false);
+
+        // Aggiorna lo stato del sito nel database
+        await loadSiteStatus();
+      } else {
+        setError(response.data.error || 'Errore durante il deploy');
+      }
+    } catch (error) {
+      console.error('❌ Errore deploy sito:', error);
+      setError('Errore durante il deploy: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
   // Genera anteprima HTML della pagina
   const handlePreviewPage = (page) => {
     try {
@@ -543,7 +756,7 @@ const WebsiteBuilderUNIFIED = ({
 
     <header class="header">
         <div class="container">
-            <h1>${site?.ragione_sociale || 'Nome Azienda'}</h1>
+            <h1>${initialSite?.ragione_sociale || 'Nome Azienda'}</h1>
         </div>
     </header>
 
@@ -555,7 +768,7 @@ const WebsiteBuilderUNIFIED = ({
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2025 ${site?.ragione_sociale || 'Nome Azienda'}. Tutti i diritti riservati.</p>
+            <p>&copy; 2025 ${initialSite?.ragione_sociale || 'Nome Azienda'}. Tutti i diritti riservati.</p>
             <p style="font-size: 0.875rem; opacity: 0.7; margin-top: 0.5rem;">Creato con Opero Cloud Website Builder</p>
         </div>
     </footer>
@@ -672,6 +885,68 @@ const WebsiteBuilderUNIFIED = ({
     }
   };
 
+  // Genera stili globali con AI
+  const handleGenerateAIStyles = async (template, customPrompt = '') => {
+    if (!template || !site.id_ditta) {
+      setError('Template o azienda mancanti per generare stili');
+      return;
+    }
+
+    setIsGeneratingStyles(true);
+    setError(null);
+
+    try {
+      const generatedStyles = await AIService.generateGlobalStyles(template, site.id_ditta, customPrompt);
+
+      setGlobalStyles(generatedStyles);
+
+      // Salva automaticamente gli stili generati
+      await handleSaveGlobalStyles(generatedStyles);
+
+      const message = generatedStyles.aiGenerated
+        ? `Stili AI generati con successo!${generatedStyles.templateAnalysis?.rationale ? ' ' + generatedStyles.templateAnalysis.rationale : ''}`
+        : 'Stili di default applicati';
+
+      setSuccess(message);
+
+    } catch (error) {
+      console.error('Errore generazione stili AI:', error);
+      setError('Errore nella generazione degli stili AI: ' + error.message);
+    } finally {
+      setIsGeneratingStyles(false);
+    }
+  };
+
+  // Salva stili globali del sito
+  const handleSaveGlobalStyles = async (styles) => {
+    if (!websiteId) {
+      setError('Nessun sito selezionato per salvare gli stili');
+      return;
+    }
+
+    try {
+      // Recupera il tema configurato attuale
+      const siteResponse = await api.get(`/website/${websiteId}`);
+      const existingThemeConfig = siteResponse.data.theme_config || {};
+
+      const response = await api.put(`/website/${websiteId}`, {
+        section: 'global_styles',
+        data: {
+          ...styles,
+          existingThemeConfig: JSON.stringify(existingThemeConfig)
+        }
+      });
+
+      if (response.data.success) {
+        setGlobalStyles(styles);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Errore salvataggio stili globali:', error);
+      setError('Errore nel salvataggio degli stili globali: ' + error.message);
+    }
+  };
+
   // Genera sito statico completo
   const handleGenerateSite = async () => {
     if (!websiteId) {
@@ -711,106 +986,7 @@ const WebsiteBuilderUNIFIED = ({
     }
   };
 
-  // Deploy su VPS
-  const handleDeploySite = async () => {
-    if (!websiteId) {
-      setError('Nessun sito selezionato per il deploy');
-      return;
-    }
-
-    if (!vpsConfig.host || !vpsConfig.username || (!vpsConfig.password && !vpsConfig.sshKey)) {
-      setError('Configurazione VPS incompleta. Inserisci host, username e password/chiave SSH.');
-      setShowVpsConfig(true);
-      return;
-    }
-
-    if (!vpsConfig.domain) {
-      setError('Inserisci il dominio dove deployare il sito.');
-      setShowVpsConfig(true);
-      return;
-    }
-
-    setIsDeploying(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      console.log('🚀 Inizio deploy sito per websiteId:', websiteId);
-
-      const response = await api.post(`/website-generator/deploy/${websiteId}`, {
-        vpsConfig: {
-          host: vpsConfig.host,
-          username: vpsConfig.username,
-          password: vpsConfig.password,
-          sshKey: vpsConfig.sshKey,
-          deployPath: vpsConfig.deployPath
-        },
-        domain: vpsConfig.domain,
-        deployOptions: {
-          buildStatic: true,
-          minify: true,
-          generateSitemap: true
-        }
-      });
-
-      if (response.data.success) {
-        setSuccess(`Sito deployato con successo! Visita: ${response.data.data.siteUrl}`);
-        setDeployStatus('deployed');
-        setShowVpsConfig(false);
-
-        // Aggiorna lo stato del sito nel database
-        await loadSiteStatus();
-      } else {
-        setError(response.data.error || 'Errore durante il deploy');
-      }
-    } catch (error) {
-      console.error('❌ Errore deploy sito:', error);
-      setError('Errore durante il deploy: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setIsDeploying(false);
-    }
-  };
-
-  // Carica stato del sito
-  const loadSiteStatus = async () => {
-    if (!websiteId) return;
-
-    try {
-      const response = await api.get(`/website-generator/status/${websiteId}`);
-      if (response.data.success) {
-        setDeployStatus(response.data.data.deployInfo?.deploy_status || 'pending');
-      }
-    } catch (error) {
-      console.error('Errore caricamento stato sito:', error);
-    }
-  };
-
-  // Anteprima sito generato
-  const handlePreviewSite = async () => {
-    if (!websiteId) {
-      setError('Nessun sito selezionato per l\'anteprima');
-      return;
-    }
-
-    try {
-      const response = await api.get(`/website-generator/preview/${websiteId}`, {
-        responseType: 'blob'
-      });
-
-      // Crea URL temporaneo e apre in nuova finestra
-      const blob = new Blob([response.data], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      const previewWindow = window.open(url, '_blank');
-
-      // Cleanup dopo 5 minuti
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-      }, 300000);
-    } catch (error) {
-      console.error('Errore anteprima sito:', error);
-      setError('Errore nella generazione dell\'anteprima: ' + error.message);
-    }
-  };
+  // handlePreviewSite è già dichiarata sopra alla linea 590
 
   // Render vista template selection
   const renderTemplateSelection = () => (
@@ -828,7 +1004,7 @@ const WebsiteBuilderUNIFIED = ({
           )}
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              Crea Pagina da Template
+              Crea Pagina da Template {aiMode && '� AI-Enhanced'}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
               Scegli un template e personalizzalo con le sezioni disponibili
@@ -843,6 +1019,35 @@ const WebsiteBuilderUNIFIED = ({
           >
             Pagine Esistenti ({pages.length})
           </button>
+
+          <button
+            onClick={() => setActiveView('styles')}
+            className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
+          >
+            Stile Globale
+          </button>
+
+          {/* AI Mode Toggle */}
+          <div className="flex items-center space-x-2 border-l border-gray-300 pl-3">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiMode}
+                onChange={toggleAIMode}
+                className="sr-only"
+              />
+              <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                aiMode ? 'bg-blue-600' : 'bg-gray-200'
+              }`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  aiMode ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </div>
+              <span className="ml-2 text-sm font-medium text-gray-700">
+                🤖 AI Mode
+              </span>
+            </label>
+          </div>
 
           {/* Pulsanti generazione sito */}
           <div className="flex items-center space-x-2 border-l border-gray-300 pl-3">
@@ -876,48 +1081,132 @@ const WebsiteBuilderUNIFIED = ({
         </div>
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
-        {templates.map((template) => (
-          <div
-            key={template.id}
-            className={`bg-white rounded-lg border-2 border-gray-200 p-6 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer ${
-              selectedTemplate?.id === template.id ? 'border-blue-500 shadow-lg' : ''
-            }`}
-            onClick={() => setSelectedTemplate(template)}
-          >
-            <div className="flex items-center mb-4">
-              <span className="text-3xl mr-3">{template.icon}</span>
+      {/* AI Analysis Panel */}
+      {aiMode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-blue-900">
+              🤖 AI Analysis{aiAnalysis ? ' Complete' : ' Running...'}
+            </h3>
+            {isAnalyzing && (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            )}
+          </div>
+
+          {aiAnalysis && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-800">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {template.name}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {template.description}
-                </p>
+                <span className="font-medium">Settore:</span> {aiAnalysis.industry || 'Generale'}
+              </div>
+              <div>
+                <span className="font-medium">Stile:</span> {aiAnalysis.contentStyle || 'Professionale'}
+              </div>
+              <div>
+                <span className="font-medium">Target:</span> {aiAnalysis.targetAudience || 'B2C'}
               </div>
             </div>
+          )}
 
-            {/* Preview sections */}
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-gray-500">Sezioni incluse:</div>
-              <div className="flex flex-wrap gap-1">
-                {template.sections.map((section) => (
+          {aiSuggestions.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-blue-900 mb-2">Template Suggeriti AI:</p>
+              <div className="flex flex-wrap gap-2">
+                {aiSuggestions.map((suggestion, index) => (
                   <span
-                    key={section.id}
-                    className="inline-flex items-center px-2 py-1 bg-gray-100 text-xs text-gray-700 rounded"
+                    key={index}
+                    className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
                   >
-                    {section.type === 'image' && '🖼️ Immagine'}
-                    {section.type === 'blog' && '📝 Blog'}
-                    {section.type === 'maps' && '🗺️ Mappa'}
-                    {section.type === 'social' && '📱 Social'}
-                    {section.type === 'gallery' && '🎨 Galleria'}
+                    {suggestion.name} ({Math.round((suggestion.matchScore || 0) * 100)}%)
                   </span>
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* AI Generation Progress */}
+      {isGeneratingAI && (
+        <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-8">
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-blue-900">
+                🚀 AI Generation in Progress...
+              </h3>
+              <span className="text-sm text-gray-600">{Math.round(aiGenerationProgress)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${aiGenerationProgress}%` }}
+              ></div>
+            </div>
           </div>
-        ))}
+          <p className="text-center text-gray-600">
+            I contenuti vengono generati dall'IA in base all'analisi del contesto aziendale...
+          </p>
+        </div>
+      )}
+
+      {/* Templates Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
+        {templates.map((template) => {
+          // Find AI suggestion for this template
+          const aiSuggestion = aiSuggestions.find(s => s.id === template.id);
+
+          return (
+            <div
+              key={template.id}
+              className={`bg-white rounded-lg border-2 border-gray-200 p-6 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer ${
+                selectedTemplate?.id === template.id ? 'border-blue-500 shadow-lg' : ''
+              } ${aiSuggestion ? 'ring-2 ring-blue-100' : ''}`}
+              onClick={() => setSelectedTemplate(template)}
+            >
+              <div className="flex items-center mb-4">
+                <span className="text-3xl mr-3">{template.icon}</span>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    {template.name}
+                    {aiSuggestion && (
+                      <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                        AI Match {Math.round((aiSuggestion.matchScore || 0) * 100)}%
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {template.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Preview sections */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-gray-500">Sezioni incluse:</div>
+                <div className="flex flex-wrap gap-1">
+                  {template.sections.map((section) => (
+                    <span
+                      key={section.id}
+                      className="inline-flex items-center px-2 py-1 bg-gray-100 text-xs text-gray-700 rounded"
+                    >
+                      {section.type === 'image' && '🖼️ Immagine'}
+                      {section.type === 'blog' && '📝 Blog'}
+                      {section.type === 'maps' && '🗺️ Mappa'}
+                      {section.type === 'social' && '📱 Social'}
+                      {section.type === 'gallery' && '🎨 Galleria'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* AI suggestion info */}
+              {aiSuggestion && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-green-700">{aiSuggestion.reason}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Crea template personalizzato */}
@@ -947,13 +1236,55 @@ const WebsiteBuilderUNIFIED = ({
           >
             Annulla Selezione
           </button>
+
+          {/* Pulsante Genera Stili AI */}
           <button
-            onClick={() => openTemplateBuilder(selectedTemplate)}
-            className="inline-flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            onClick={() => handleGenerateAIStyles(selectedTemplate, stylePrompt)}
+            className="inline-flex items-center px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            disabled={isGeneratingStyles || !site.id_ditta}
           >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Usa Questo Template
+            {isGeneratingStyles ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Generazione Stili...
+              </>
+            ) : (
+              <>
+                <SparklesIcon className="h-5 w-5 mr-2" />
+                Genera Stili AI
+              </>
+            )}
           </button>
+
+          {aiMode ? (
+            <>
+              <button
+                onClick={() => generateAIEnhancedTemplate(selectedTemplate)}
+                className="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                disabled={isGeneratingAI || !websiteId}
+              >
+                {isGeneratingAI ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generazione AI...
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="h-5 w-5 mr-2" />
+                    Genera con AI
+                  </>
+                )}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => openTemplateBuilder(selectedTemplate)}
+              className="inline-flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Usa Questo Template
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1071,6 +1402,19 @@ const WebsiteBuilderUNIFIED = ({
       return renderTemplateSelection();
     } else if (activeView === 'pages') {
       return renderPagesList();
+    } else if (activeView === 'styles') {
+      return (
+        <div className="max-w-4xl mx-auto p-6">
+          <StyleEditor
+            styles={globalStyles}
+            onStyleChange={setGlobalStyles}
+            onSave={handleSaveGlobalStyles}
+            title="Configurazione Stile Globale"
+            showGlobalStyles={true}
+            showPageStyles={false}
+          />
+        </div>
+      );
     } else if (activeView === 'builder') {
       return (
         <TemplatePageBuilder

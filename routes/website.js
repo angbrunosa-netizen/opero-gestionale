@@ -184,10 +184,20 @@ router.get('/list', async (req, res) => {
 
 /**
  * POST /api/website/create
- * Crea nuovo sito web
+ * Crea nuovo sito web (con supporto AI opzionale)
  */
 router.post('/create', async (req, res) => {
-  const { ditta_id, subdomain, site_title, template_id = 1, theme_config, catalog_settings } = req.body;
+  const {
+    ditta_id,
+    subdomain,
+    site_title,
+    template_id = 1,
+    theme_config,
+    catalog_settings,
+    ai_generated = false,
+    ai_company_context = null,
+    ai_template_suggestions = null
+  } = req.body;
   try {
     const [ditta] = await dbPool.execute('SELECT ragione_sociale, id_tipo_ditta FROM ditte WHERE id = ?', [ditta_id]);
     if (ditta.length === 0) return res.status(404).json({ error: 'Ditta non trovata' });
@@ -199,16 +209,56 @@ router.post('/create', async (req, res) => {
     const [existingSite] = await dbPool.execute('SELECT COUNT(*) as count FROM siti_web_aziendali WHERE id_ditta = ?', [ditta_id]);
     if (existingSite[0].count > 0) return res.status(400).json({ error: 'Questa ditta ha già un sito web associato' });
 
-    const templateConfig = { template_id: template_id, theme_config: theme_config || { primary_color: '#0066cc', font_family: 'Inter, system-ui, sans-serif' }, catalog_settings: catalog_settings || { enable_catalog: false, show_prices: false } };
+    const templateConfig = {
+      template_id: template_id,
+      theme_config: theme_config || { primary_color: '#0066cc', font_family: 'Inter, system-ui, sans-serif' },
+      catalog_settings: catalog_settings || { enable_catalog: false, show_prices: false }
+    };
+
+    // AI metadata
+    const aiMetadata = ai_generated ? {
+      ai_generated: true,
+      ai_company_context: ai_company_context,
+      ai_model_version: 'z-ai-v1',
+      ai_generation_metadata: {
+        generated_at: new Date().toISOString(),
+        template_suggestions: ai_template_suggestions || []
+      }
+    } : {
+      ai_generated: false
+    };
 
     const [result] = await dbPool.execute(`
-      INSERT INTO siti_web_aziendali (id_ditta, subdomain, site_title, template_id, theme_config, catalog_settings, domain_status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
-    `, [ditta_id, subdomain, site_title || ditta[0].ragione_sociale, template_id, JSON.stringify(templateConfig.theme_config), JSON.stringify(templateConfig.catalog_settings)]);
+      INSERT INTO siti_web_aziendali (
+        id_ditta, subdomain, site_title, template_id, theme_config, catalog_settings,
+        domain_status, ai_generated, ai_company_context, ai_model_version,
+        ai_generation_metadata, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, NOW())
+    `, [
+      ditta_id,
+      subdomain,
+      site_title || ditta[0].ragione_sociale,
+      template_id,
+      JSON.stringify(templateConfig.theme_config),
+      JSON.stringify(templateConfig.catalog_settings),
+      aiMetadata.ai_generated || false,
+      aiMetadata.ai_company_context || null,
+      aiMetadata.ai_model_version || null,
+      JSON.stringify(aiMetadata.ai_generation_metadata || {})
+    ]);
 
     const [newSite] = await dbPool.execute(`SELECT sw.*, d.ragione_sociale, d.p_iva, d.logo_url FROM siti_web_aziendali sw JOIN ditte d ON sw.id_ditta = d.id WHERE sw.id = ?`, [result.insertId]);
 
-    res.json({ success: true, sito_id: result.insertId, message: `Sito web creato correttamente per ${ditta[0].ragione_sociale}`, url: `https://${subdomain}.operocloud.it`, website: newSite[0] });
+    res.json({
+      success: true,
+      sito_id: result.insertId,
+      message: `Sito web creato correttamente per ${ditta[0].ragione_sociale}${ai_generated ? ' (AI-generated)' : ''}`,
+      url: `https://${subdomain}.operocloud.it`,
+      website: {
+        ...newSite[0],
+        ai_metadata: aiMetadata
+      }
+    });
 
   } catch (error) {
     console.error('Errore creazione sito web:', error);
@@ -275,6 +325,41 @@ router.put('/:websiteId', async (req, res) => {
       case 'basic': updateField = 'site_title = ?, site_description = ?, template_id = ?, domain_status = ?, logo_url = ?, favicon_url = ?'; updateValue = [data.site_title, data.site_description, data.template_id, data.domain_status, data.logo_url, data.favicon_url]; break;
       case 'template_config': updateField = 'theme_config = ?'; updateValue = [JSON.stringify(data)]; break;
       case 'catalog_settings': updateField = 'enable_catalog = ?, catalog_settings = ?'; updateValue = [data.enable_catalog ? 1 : 0, JSON.stringify(data.catalog_settings || {})]; break;
+      case 'global_styles': updateField = 'theme_config = ?'; updateValue = [JSON.stringify({
+        ...JSON.parse(data.existingThemeConfig || '{}'),
+        background: {
+          type: data.background_type || 'color',
+          color: data.background_color || '#ffffff',
+          gradient: data.background_gradient || null,
+          image: data.background_image || null,
+          size: data.background_size || 'cover',
+          position: data.background_position || 'center',
+          repeat: data.background_repeat || 'no-repeat',
+          attachment: data.background_attachment || 'scroll'
+        },
+        typography: {
+          fontFamily: data.font_family || 'Inter',
+          fontSize: data.font_size || '16',
+          fontColor: data.font_color || '#333333',
+          headingFont: data.heading_font || 'Inter',
+          headingColor: data.heading_color || '#1a1a1a'
+        },
+        colors: {
+          primary: data.primary_color || '#3B82F6',
+          secondary: data.secondary_color || '#64748B',
+          accent: data.accent_color || '#EF4444',
+          buttonBackground: data.button_background_color || '#3B82F6',
+          buttonText: data.button_text_color || '#ffffff',
+          link: data.link_color || '#2563EB'
+        },
+        layout: {
+          containerMaxWidth: data.container_max_width || '1200px',
+          paddingTop: data.padding_top || '60px',
+          paddingBottom: data.padding_bottom || '60px'
+        },
+        customCss: data.custom_css || null
+      })]; break;
+      case 'ai_metadata': updateField = 'ai_generated = ?, ai_company_context = ?, ai_model_version = ?, ai_generation_metadata = ?'; updateValue = [data.ai_generated || false, data.ai_company_context || null, data.ai_model_version || null, data.ai_generation_metadata || null]; break;
       default: return res.status(400).json({ error: `Sezione non valida: ${section}` });
     }
     await dbPool.execute(`UPDATE siti_web_aziendali SET ${updateField}, updated_at = NOW() WHERE id = ?`, [...updateValue, websiteId]);
@@ -359,7 +444,7 @@ router.get('/:id/catalog-settings', async (req, res) => {
 router.get('/:websiteId/pages/:pageId', async (req, res) => { /* ... implementazione ... */ });
 /**
  * POST /api/website/:websiteId/pages
- * Crea nuova pagina
+ * Crea nuova pagina (con supporto AI opzionale)
  */
 router.post('/:websiteId/pages', async (req, res) => {
   const { websiteId } = req.params;
@@ -389,7 +474,15 @@ router.post('/:websiteId/pages', async (req, res) => {
     padding_top,
     padding_bottom,
     custom_css,
-    style_config
+    style_config,
+    // AI enhancement fields
+    ai_generated = false,
+    ai_generation_prompt = null,
+    ai_confidence_score = null,
+    ai_content_sections = null,
+    ai_enhancements = null,
+    ai_seo_metadata = null,
+    ai_optimized_for_mobile = false
   } = req.body;
 
   try {
@@ -429,9 +522,17 @@ router.post('/:websiteId/pages', async (req, res) => {
       padding_top,
       padding_bottom,
       custom_css,
-      style_config
+      style_config,
+      ai_generated,
+      ai_generation_prompt,
+      ai_confidence_score,
+      ai_content_sections,
+      ai_enhancements,
+      ai_seo_metadata,
+      ai_optimized_for_mobile
     };
 
+      // Per ora usiamo una query base senza le colonne stile che potrebbero non esistere
     const [result] = await dbPool.execute(`
       INSERT INTO pagine_sito_web (
         id_sito_web,
@@ -443,27 +544,16 @@ router.post('/:websiteId/pages', async (req, res) => {
         meta_description,
         is_published,
         menu_order,
-        background_type,
-        background_color,
-        background_gradient,
-        background_image,
-        background_size,
-        background_position,
-        background_repeat,
-        background_attachment,
-        font_family,
-        font_size,
-        font_color,
-        heading_font,
-        heading_color,
-        container_max_width,
-        padding_top,
-        padding_bottom,
-        custom_css,
-        style_config,
+        ai_generated,
+        ai_generation_prompt,
+        ai_confidence_score,
+        ai_content_sections,
+        ai_enhancements,
+        ai_seo_metadata,
+        ai_optimized_for_mobile,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `, [
       websiteId,
       data.slug,
@@ -474,24 +564,13 @@ router.post('/:websiteId/pages', async (req, res) => {
       data.meta_description,
       data.is_published ? 1 : 0,
       data.menu_order || 0,
-      data.background_type || 'color',
-      data.background_color || '#ffffff',
-      data.background_gradient || null,
-      data.background_image || null,
-      data.background_size || 'cover',
-      data.background_position || 'center',
-      data.background_repeat || 'no-repeat',
-      data.background_attachment || 'scroll',
-      data.font_family || 'Inter',
-      data.font_size || '16',
-      data.font_color || '#333333',
-      data.heading_font || null,
-      data.heading_color || '#1a1a1a',
-      data.container_max_width || '1200px',
-      data.padding_top || '60px',
-      data.padding_bottom || '60px',
-      data.custom_css || null,
-      JSON.stringify(data.style_config || {})
+      data.ai_generated || false,
+      data.ai_generation_prompt || null,
+      data.ai_confidence_score || null,
+      typeof data.ai_content_sections === 'string' ? data.ai_content_sections : JSON.stringify(data.ai_content_sections || {}),
+      typeof data.ai_enhancements === 'string' ? data.ai_enhancements : JSON.stringify(data.ai_enhancements || {}),
+      typeof data.ai_seo_metadata === 'string' ? data.ai_seo_metadata : JSON.stringify(data.ai_seo_metadata || {}),
+      data.ai_optimized_for_mobile || false
     ]);
 
     console.log(`[DEBUG] Pagina creata con ID: ${result.insertId}`);
@@ -518,7 +597,35 @@ router.post('/:websiteId/pages', async (req, res) => {
  */
 router.put('/:websiteId/pages/:pageId', async (req, res) => {
   const { websiteId, pageId } = req.params;
-  const { slug, titolo, contenuto_html, contenuto_json, meta_title, meta_description, is_published, menu_order } = req.body;
+  const {
+    slug,
+    titolo,
+    contenuto_html,
+    contenuto_json,
+    meta_title,
+    meta_description,
+    is_published,
+    menu_order,
+    // Campi stile
+    background_type,
+    background_color,
+    background_gradient,
+    background_image,
+    background_size,
+    background_position,
+    background_repeat,
+    background_attachment,
+    font_family,
+    font_size,
+    font_color,
+    heading_font,
+    heading_color,
+    container_max_width,
+    padding_top,
+    padding_bottom,
+    custom_css,
+    style_config
+  } = req.body;
 
   try {
     console.log(`[DEBUG] Aggiornamento pagina ${pageId} per sito ${websiteId}`);
@@ -539,7 +646,26 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
       meta_title,
       meta_description,
       is_published,
-      menu_order
+      menu_order,
+      // Campi stile
+      background_type: background_type || 'color',
+      background_color: background_color || '#ffffff',
+      background_gradient: background_gradient || null,
+      background_image: background_image || null,
+      background_size: background_size || 'cover',
+      background_position: background_position || 'center',
+      background_repeat: background_repeat || 'no-repeat',
+      background_attachment: background_attachment || 'scroll',
+      font_family: font_family || 'Inter',
+      font_size: font_size || '16',
+      font_color: font_color || '#333333',
+      heading_font: heading_font || 'Inter',
+      heading_color: heading_color || '#1a1a1a',
+      container_max_width: container_max_width || '1200px',
+      padding_top: padding_top || '60px',
+      padding_bottom: padding_bottom || '60px',
+      custom_css: custom_css || null,
+      style_config: JSON.stringify(style_config || {})
     };
 
     const [result] = await dbPool.execute(`
