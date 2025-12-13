@@ -72,10 +72,36 @@ class AIService {
   // Genera template completo con contenuti AI
   async generateAITemplate(template, companyId, customPrompt = '', progressCallback = null) {
     try {
+      // 1. Analizza sezioni mancanti
+      const missingSections = this.analyzeMissingSections(template);
+
+      if (missingSections.length > 0) {
+        console.log(`🔍 Rilevate ${missingSections.length} sezioni mancanti, inizio generazione guidata AI...`);
+
+        // 2. Genera sezioni mancanti con progress callback
+        await this.generateMissingSections(missingSections, template, (progress) => {
+          if (progressCallback) {
+            // Calcola progresso combinato: 50% per sezioni mancanti, 50% per sezioni esistenti
+            const combinedProgress = (progress.progress * 0.5);
+            progressCallback(combinedProgress, progress.message);
+          }
+        });
+
+        console.log(`✅ Sezioni mancanti generate. Template ora ha ${template.sections.length} sezioni totali.`);
+      }
+
+      // 3. Potenzia sezioni esistenti con AI
       const enhancedSections = await Promise.all(
         template.sections.map(async (section, index) => {
           if (progressCallback) {
-            progressCallback((index / template.sections.length) * 100);
+            // Progresso dal 50% al 100% per sezioni esistenti
+            const existingProgress = 50 + ((index / template.sections.length) * 50);
+            progressCallback(existingProgress, `Potenziamento sezione ${section.type}...`);
+          }
+
+          // Se la sezione è stata appena generata come mancante, non rigenerarla
+          if (section.generated) {
+            return section;
           }
 
           const contentResponse = await this.generateSectionContent(
@@ -100,7 +126,7 @@ class AIService {
       );
 
       if (progressCallback) {
-        progressCallback(100);
+        progressCallback(100, 'Template completato con successo!');
       }
 
       return {
@@ -110,7 +136,8 @@ class AIService {
         aiMetadata: {
           generatedAt: new Date().toISOString(),
           confidence: enhancedSections.reduce((acc, s) => acc + (s.aiConfidence || 0), 0) / enhancedSections.length,
-          prompt: customPrompt
+          prompt: customPrompt,
+          missingSectionsGenerated: missingSections.length
         }
       };
     } catch (error) {
@@ -119,26 +146,135 @@ class AIService {
     }
   }
 
-  // Crea pagine da template AI-enhanced
+  // Crea pagine complete da template AI-enhanced
   async createPagesFromAITemplate(template, websiteId, globalStyles = {}) {
     const pages = [];
 
-    for (let i = 0; i < template.sections.length; i++) {
-      const section = template.sections[i];
+    // Definisci struttura pagine logiche basate su tipi di sezione
+    const pageStructures = {
+      home: {
+        sections: ['hero', 'services'],
+        title: 'Home',
+        slug: 'home',
+        description: 'Pagina principale con hero e servizi'
+      },
+      about: {
+        sections: ['about', 'testimonial'],
+        title: 'Chi Siamo',
+        slug: 'chi-siamo',
+        description: 'Pagina aziendale con storia e testimonianze'
+      },
+      contact: {
+        sections: ['contact', 'social'],
+        title: 'Contatti',
+        slug: 'contatti',
+        description: 'Pagina contatti e social media'
+      },
+      gallery: {
+        sections: ['gallery'],
+        title: 'Galleria',
+        slug: 'galleria',
+        description: 'Galleria immagini e progetti'
+      }
+    };
+
+    // Raggruppa sezioni per tipo di pagina
+    Object.entries(pageStructures).forEach(([pageType, pageConfig], pageIndex) => {
+      // Filtra sezioni disponibili per questa pagina
+      const availableSections = template.sections.filter(section =>
+        pageConfig.sections.includes(section.type)
+      );
+
+      // Se non ci sono sezioni disponibili, crea una pagina di base comunque
+      if (availableSections.length === 0) {
+        console.log(`✅ Creazione pagina ${pageType} con contenuto fallback (template sections disponibili: ${template.sections.map(s => s.type).join(', ')})`);
+        // Crea una pagina base con contenuto generico
+        const defaultContent = this.getDefaultContentForPage(pageType, template.companyName || 'Azienda');
+
+        const pageData = {
+          slug: pageConfig.slug,
+          titolo: pageConfig.title,
+          contenuto_json: JSON.stringify({
+            sections: [{
+              type: pageType,
+              data: defaultContent,
+              aiGeneratedContent: defaultContent
+            }],
+            template_type: template.id,
+            ai_enhanced: true,
+            page_type: pageType,
+            default_generated: true
+          }),
+          contenuto_html: defaultContent.content || `<p>Contenuto per ${pageConfig.title}</p>`,
+          meta_title: `${pageConfig.title} - ${template.companyName || 'Website'}`,
+          meta_description: pageConfig.description,
+          is_published: false,
+          menu_order: pageIndex,
+          // Campi stile ereditati da globali con valori di default fallback
+          background_type: globalStyles.background_type || 'color',
+          background_color: globalStyles.background_color || '#ffffff',
+          background_gradient: globalStyles.background_gradient || null,
+          background_image: globalStyles.background_image || null,
+          background_size: globalStyles.background_size || 'cover',
+          background_position: globalStyles.background_position || 'center',
+          background_repeat: globalStyles.background_repeat || 'no-repeat',
+          background_attachment: globalStyles.background_attachment || 'scroll',
+          font_family: globalStyles.font_family || 'Inter',
+          font_size: globalStyles.font_size || '16',
+          font_color: globalStyles.font_color || '#333333',
+          heading_font: globalStyles.heading_font || 'Inter',
+          heading_color: globalStyles.heading_color || '#1a1a1a',
+          container_max_width: globalStyles.container_max_width || '1200px',
+          padding_top: globalStyles.padding_top || '60px',
+          padding_bottom: globalStyles.padding_bottom || '60px',
+          border_radius: globalStyles.border_radius || '8px',
+          box_shadow: globalStyles.box_shadow || '0 2px 4px rgba(0, 0, 0, 0.1)',
+          style_config: globalStyles.style_config || {},
+          custom_css: globalStyles.custom_css || null,
+          ai_generated: true,
+          ai_generation_prompt: template.customPrompt || 'Generazione automatica sito AI',
+          ai_confidence_score: 0.8,
+          ai_content_sections: JSON.stringify([pageType]),
+          ai_enhancements: JSON.stringify(defaultContent),
+          ai_seo_metadata: JSON.stringify({
+            keywords: [pageConfig.title.toLowerCase(), template.companyName?.toLowerCase()],
+            difficulty: 'medium'
+          }),
+          ai_optimized_for_mobile: true
+        };
+
+        pages.push(pageData);
+        return; // Vai alla prossima pagina
+      }
+
+      // Prepara contenuto combinato delle sezioni
+      let combinedContent = '';
+      let aiContentData = {};
+
+      availableSections.forEach(section => {
+        if (section.aiGeneratedContent) {
+          combinedContent += section.aiGeneratedContent.content || '';
+          aiContentData = {
+            ...aiContentData,
+            [section.type]: section.aiGeneratedContent
+          };
+        }
+      });
 
       const pageData = {
-        slug: section.slug || `page-${i + 1}`,
-        titolo: section.aiGeneratedContent?.title || section.title || `Pagina ${i + 1}`,
+        slug: pageConfig.slug,
+        titolo: pageConfig.title,
         contenuto_json: JSON.stringify({
-          sections: [section],
+          sections: availableSections,
           template_type: template.id,
-          ai_enhanced: true
+          ai_enhanced: true,
+          page_type: pageType
         }),
-        contenuto_html: section.aiGeneratedContent?.content || '<p>Contenuto generato dall\'AI</p>',
-        meta_title: section.aiGeneratedContent?.seo?.title || `${section.title} - Website`,
-        meta_description: section.aiGeneratedContent?.seo?.description || section.aiGeneratedContent?.subtitle || '',
+        contenuto_html: combinedContent || '<p>Contenuto generato dall\'AI</p>',
+        meta_title: `${pageConfig.title} - ${template.companyName || 'Website'}`,
+        meta_description: pageConfig.description,
         is_published: false,
-        menu_order: i,
+        menu_order: pageIndex,
         // Campi stile ereditati da globali con valori di default fallback
         background_type: globalStyles.background_type || 'color',
         background_color: globalStyles.background_color || '#ffffff',
@@ -160,16 +296,23 @@ class AIService {
         style_config: globalStyles.style_config || {},
         // Campi AI
         ai_generated: true,
-        ai_generation_prompt: section.aiGeneratedContent?.prompt || '',
-        ai_confidence_score: section.aiConfidence,
-        ai_content_sections: JSON.stringify([section.aiGeneratedContent]),
-        ai_enhancements: JSON.stringify({}),
-        ai_seo_metadata: JSON.stringify(section.aiGeneratedContent?.seo || {}),
+        ai_generation_prompt: JSON.stringify(aiContentData),
+        ai_confidence_score: availableSections.reduce((acc, s) => acc + (s.aiConfidence || 0), 0) / availableSections.length,
+        ai_content_sections: JSON.stringify(aiContentData),
+        ai_enhancements: JSON.stringify({
+          pageType: pageType,
+          sectionsCount: availableSections.length,
+          totalConfidence: availableSections.reduce((acc, s) => acc + (s.aiConfidence || 0), 0) / availableSections.length
+        }),
+        ai_seo_metadata: JSON.stringify({
+          keywords: availableSections.flatMap(s => s.aiGeneratedContent?.seo?.keywords || []),
+          description: pageConfig.description
+        }),
         ai_optimized_for_mobile: true
       };
 
       pages.push(pageData);
-    }
+    });
 
     return pages;
   }
@@ -462,6 +605,193 @@ class AIService {
     };
 
     return fallbacks[sectionType] || fallbacks.hero;
+  }
+
+  // Genera contenuto di default per pagine senza sezioni corrispondenti
+  getDefaultContentForPage(pageType, companyName = 'Azienda') {
+    const defaultContents = {
+      home: {
+        title: `Benvenuti da ${companyName}`,
+        subtitle: 'La vostra soddisfazione è la nostra priorità',
+        content: `<h1>Benvenuti da ${companyName}</h1><p>Siamo leader nel settore grazie alla nostra esperienza e professionalità.</p>`,
+        ctaButton: 'Scopri di più',
+        keywords: ['home', companyName.toLowerCase(), 'benvenuti']
+      },
+      about: {
+        title: 'Chi Siamo',
+        subtitle: 'La nostra storia e la nostra passione',
+        content: `<h2>La Nostra Storia</h2><p>Dal ${new Date().getFullYear() - 10} offriamo servizi di alta qualità per i nostri clienti.</p>`,
+        values: ['Professionalità', 'Qualità', 'Innovazione'],
+        keywords: ['chi siamo', 'storia', 'azienda']
+      },
+      contact: {
+        title: 'Contatti',
+        subtitle: 'Siamo a vostra disposizione',
+        content: `<h2>Contattaci</h2><p>Telefono: +39 0XX XXXXXXX<br>Email: info@${companyName.toLowerCase().replace(/\s+/g, '')}.it</p>`,
+        address: 'Via Roma 1, Milano',
+        keywords: ['contatti', 'telefono', 'email']
+      },
+      gallery: {
+        title: 'Galleria',
+        subtitle: 'I nostri lavori migliori',
+        content: `<h2>I Nostri Lavori</h2><p>Scopri alcuni dei nostri progetti più recenti.</p>`,
+        images: [],
+        keywords: ['galleria', 'portfolio', 'lavori']
+      }
+    };
+
+    return defaultContents[pageType] || defaultContents.home;
+  }
+
+  // Analizza le sezioni mancanti e suggerisce generazione AI
+  analyzeMissingSections(template) {
+    const pageStructures = {
+      home: { sections: ['hero', 'services'], title: 'Home' },
+      about: { sections: ['about', 'testimonial'], title: 'Chi Siamo' },
+      contact: { sections: ['contact', 'social'], title: 'Contatti' },
+      gallery: { sections: ['gallery'], title: 'Galleria' }
+    };
+
+    const missingSections = [];
+    Object.entries(pageStructures).forEach(([pageType, pageConfig]) => {
+      pageConfig.sections.forEach(sectionType => {
+        if (!template.sections.some(s => s.type === sectionType)) {
+          missingSections.push({
+            type: sectionType,
+            pageType,
+            pageTitle: pageConfig.title,
+            description: this.getSectionDescription(sectionType, template.companyName),
+            priority: this.getSectionPriority(sectionType),
+            prompt: this.getSectionPrompt(sectionType, template.companyName)
+          });
+        }
+      });
+    });
+
+    return missingSections;
+  }
+
+  // Genera sezioni mancanti con AI
+  async generateMissingSections(missingSections, template, onProgress = null) {
+    const generatedSections = [];
+
+    for (let i = 0; i < missingSections.length; i++) {
+      const sectionInfo = missingSections[i];
+
+      // Notifica progresso
+      if (onProgress) {
+        onProgress({
+          step: 'generating_section',
+          section: sectionInfo.type,
+          page: sectionInfo.pageType,
+          progress: (i / missingSections.length) * 100,
+          message: `Generazione sezione ${sectionInfo.type} per la pagina ${sectionInfo.pageTitle}...`
+        });
+      }
+
+      try {
+        // Genera contenuto per la sezione mancante
+        const sectionContent = await this.generateSectionContent(
+          sectionInfo.type,
+          template.companyId || 1,
+          sectionInfo.prompt,
+          {
+            pageTitle: sectionInfo.pageTitle,
+            companyName: template.companyName,
+            businessSector: template.businessSector
+          }
+        );
+
+        // Crea la sezione generata
+        const generatedSection = {
+          type: sectionInfo.type,
+          data: sectionContent.data || {},
+          aiGeneratedContent: sectionContent,
+          generated: true,
+          pageType: sectionInfo.pageType
+        };
+
+        generatedSections.push(generatedSection);
+
+        // Aggiungi al template
+        template.sections.push(generatedSection);
+
+        console.log(`✅ Sezione ${sectionInfo.type} generata con successo per ${sectionInfo.pageTitle}`);
+
+      } catch (error) {
+        console.error(`❌ Errore generazione sezione ${sectionInfo.type}:`, error);
+
+        // Crea contenuto fallback anche in caso di errore
+        const fallbackContent = this.generateFallbackContent(sectionInfo.type, template.companyName);
+        generatedSections.push({
+          type: sectionInfo.type,
+          data: fallbackContent,
+          aiGeneratedContent: fallbackContent,
+          fallback: true,
+          pageType: sectionInfo.pageType
+        });
+      }
+    }
+
+    return generatedSections;
+  }
+
+  // Get descrizione sezione per UI
+  getSectionDescription(sectionType, companyName) {
+    const descriptions = {
+      hero: `Sezione principale con titolo accattivante e call-to-action per ${companyName}`,
+      services: `Presentazione dei servizi principali offerti da ${companyName}`,
+      about: `Storia e valori aziendali di ${companyName}`,
+      testimonial: `Recensioni e feedback dei clienti di ${companyName}`,
+      contact: `Informazioni di contatto e modulo per contattare ${companyName}`,
+      social: `Link ai social media e presenza online di ${companyName}`,
+      gallery: `Galleria visiva dei lavori e prodotti di ${companyName}`
+    };
+    return descriptions[sectionType] || `Sezione ${sectionType} per ${companyName}`;
+  }
+
+  // Get priorità sezione
+  getSectionPriority(sectionType) {
+    const priorities = {
+      hero: 'high',
+      services: 'high',
+      about: 'medium',
+      contact: 'high',
+      testimonial: 'medium',
+      social: 'low',
+      gallery: 'medium'
+    };
+    return priorities[sectionType] || 'medium';
+  }
+
+  // Get prompt per generazione sezione
+  getSectionPrompt(sectionType, companyName) {
+    const prompts = {
+      hero: `Crea una hero section accattivante per ${companyName} con titolo, sottotitolo, call-to-action e suggerimento visivo.`,
+      services: `Descrivi i servizi principali offerti da ${companyName}, evidenziando i benefici per i clienti.`,
+      about: `Racconta la storia, la missione e i valori di ${companyName} in modo coinvolgente.`,
+      testimonial: `Crea recensioni realistiche e positive per ${companyName} che dimostrino la qualità del servizio.`,
+      contact: `Crea una sezione contatti professionale per ${companyName} con indirizzo, telefono, email e modulo.`,
+      social: `Genera contenuti per la sezione social di ${companyName} con invito a seguire sui social media.`,
+      gallery: `Descrivi i servizi principali e i lavori migliori di ${companyName} per una galleria visiva.`
+    };
+    return prompts[sectionType] || `Crea contenuto per la sezione ${sectionType} di ${companyName}.`;
+  }
+
+  // Nuova versione migliorata di createPagesFromAITemplate
+  async createPagesFromAITemplateWithAI(template, websiteId, globalStyles = {}, onProgress = null) {
+    // 1. Analizza sezioni mancanti
+    const missingSections = this.analyzeMissingSections(template);
+
+    if (missingSections.length > 0) {
+      console.log(`🔍 Rilevate ${missingSections.length} sezioni mancanti, inizio generazione AI...`);
+
+      // 2. Genera sezioni mancanti
+      await this.generateMissingSections(missingSections, template, onProgress);
+    }
+
+    // 3. Usa il metodo esistente con le sezioni ora complete
+    return this.createPagesFromAITemplate(template, websiteId, globalStyles);
   }
 }
 

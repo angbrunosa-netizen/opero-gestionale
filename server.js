@@ -155,6 +155,7 @@ app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
 app.use('/api/website', websiteRoutes); // <-- NUOVA ROTTA WEBSITE BUILDER SENZA AUTH PER DEBUG
 app.use('/api/website-generator', verifyToken, websiteGeneratorRoutes); // <-- NUOVA ROTTA GENERAZIONE SITI STATICI
 app.use('/api/ai-enhanced-website', verifyToken, require('./routes/ai-enhanced-website')); // <-- NUOVA ROTTA AI-ENHANCED WEBSITE BUILDER
+app.use('/api/ai-collaborative-assistant', verifyToken, require('./routes/ai-collaborative-assistant')); // <-- NUOVA ROTTA AI COLLABORATIVE ASSISTANT
 app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuilder')); // <-- ROUTA AI WEBSITE BUILDER ESISTENTE
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---

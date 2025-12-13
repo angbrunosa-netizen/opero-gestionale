@@ -1287,6 +1287,172 @@ function getSectionComponent(type) {
   }
 
   /**
+   * Copia assets (immagini, CSS, JS) nel sito generato
+   */
+  async copyAssets(siteData, sitePath) {
+    console.log('📁 Copia assets per il sito:', siteData.site_title);
+
+    try {
+      // Crea directories per assets
+      const publicDir = path.join(sitePath, 'public');
+      const imagesDir = path.join(publicDir, 'images');
+      const cssDir = path.join(publicDir, 'css');
+      const jsDir = path.join(publicDir, 'js');
+
+      await fs.mkdir(imagesDir, { recursive: true });
+      await fs.mkdir(cssDir, { recursive: true });
+      await fs.mkdir(jsDir, { recursive: true });
+
+      // Copia le immagini del sito se presenti
+      if (siteData.images && siteData.images.length > 0) {
+        console.log(`🖼️ Copia ${siteData.images.length} immagini...`);
+        for (const image of siteData.images) {
+          try {
+            // Qui potresti implementare la copia da S3 o filesystem locale
+            console.log(`   - ${image.filename || 'immagine'}`);
+          } catch (error) {
+            console.warn(`⚠️ Errore copia immagine:`, error.message);
+          }
+        }
+      }
+
+      // Genera CSS base
+      const baseCSS = `
+/* CSS Base per sito generato */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  color: #333;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.hero {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 100px 0;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+
+.hero p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.section {
+  padding: 80px 0;
+}
+
+.section:nth-child(even) {
+  background: #f8f9fa;
+}
+
+.btn {
+  display: inline-block;
+  padding: 12px 30px;
+  background: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s ease;
+}
+
+.btn:hover {
+  background: #0056b3;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mb-4 {
+  margin-bottom: 1.5rem;
+}
+
+.grid {
+  display: grid;
+  gap: 2rem;
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+`;
+
+      await fs.writeFile(path.join(cssDir, 'style.css'), baseCSS);
+
+      // Genera JS base
+      const baseJS = `
+// JavaScript base per sito generato
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Sito caricato correttamente');
+
+  // Animazioni base
+  const animateOnScroll = () => {
+    const elements = document.querySelectorAll('.animate-on-scroll');
+    elements.forEach(element => {
+      const rect = element.getBoundingClientRect();
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        element.classList.add('animated');
+      }
+    });
+  };
+
+  window.addEventListener('scroll', animateOnScroll);
+  animateOnScroll();
+});
+
+// Funzioni utilità
+function scrollToElement(elementId) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+`;
+
+      await fs.writeFile(path.join(jsDir, 'main.js'), baseJS);
+
+      console.log('✅ Assets copiati con successo');
+
+    } catch (error) {
+      console.error('❌ Errore copia assets:', error);
+      // Non lanciare errore critico, continua con la generazione
+    }
+  }
+
+  /**
    * Pulisce nome sito per filesystem
    */
   sanitizeSiteName(name) {

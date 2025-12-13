@@ -532,34 +532,80 @@ router.post('/:websiteId/pages', async (req, res) => {
       ai_optimized_for_mobile
     };
 
-      // Per ora usiamo una query base senza le colonne stile che potrebbero non esistere
-    const [result] = await dbPool.execute(`
-      INSERT INTO pagine_sito_web (
-        id_sito_web,
-        slug,
-        titolo,
-        contenuto_html,
-        contenuto_json,
-        meta_title,
-        meta_description,
-        is_published,
-        menu_order,
-        ai_generated,
-        ai_generation_prompt,
-        ai_confidence_score,
-        ai_content_sections,
-        ai_enhancements,
-        ai_seo_metadata,
-        ai_optimized_for_mobile,
-        created_at,
-        updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-    `, [
+    // Controlla se la pagina esiste già
+    const [existingPage] = await dbPool.execute(
+      'SELECT id FROM pagine_sito_web WHERE id_sito_web = ? AND slug = ?',
+      [websiteId, data.slug]
+    );
+
+    let result;
+    if (existingPage.length > 0) {
+      // Aggiorna la pagina esistente
+      console.log(`📝 Aggiorno pagina esistente: ${data.slug} per sito ${websiteId}`);
+      [result] = await dbPool.execute(`
+        UPDATE pagine_sito_web SET
+          titolo = ?,
+          contenuto_html = ?,
+          contenuto_json = ?,
+          meta_title = ?,
+          meta_description = ?,
+          menu_order = ?,
+          ai_generated = ?,
+          ai_generation_prompt = ?,
+          ai_confidence_score = ?,
+          ai_content_sections = ?,
+          ai_enhancements = ?,
+          ai_seo_metadata = ?,
+          ai_optimized_for_mobile = ?,
+          updated_at = NOW()
+        WHERE id_sito_web = ? AND slug = ?
+      `, [
+        data.titolo,
+        data.contenuto_html,
+        data.contenuto_json,
+        data.meta_title,
+        data.meta_description,
+        data.menu_order,
+        data.ai_generated,
+        data.ai_generation_prompt,
+        data.ai_confidence_score,
+        data.ai_content_sections,
+        data.ai_enhancements,
+        data.ai_seo_metadata,
+        data.ai_optimized_for_mobile,
+        websiteId,
+        data.slug
+      ]);
+    } else {
+      // Inserisci nuova pagina
+      console.log(`➕ Creo nuova pagina: ${data.slug} per sito ${websiteId}`);
+      [result] = await dbPool.execute(`
+        INSERT INTO pagine_sito_web (
+          id_sito_web,
+          slug,
+          titolo,
+          contenuto_html,
+          contenuto_json,
+          meta_title,
+          meta_description,
+          is_published,
+          menu_order,
+          ai_generated,
+          ai_generation_prompt,
+          ai_confidence_score,
+          ai_content_sections,
+          ai_enhancements,
+          ai_seo_metadata,
+          ai_optimized_for_mobile,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `, [
       websiteId,
       data.slug,
       data.titolo,
-      data.contenuto_html || '',
-      typeof data.contenuto_json === 'string' ? data.contenuto_json : JSON.stringify(data.contenuto_json),
+      data.contenuto_html,
+      data.contenuto_json,
       data.meta_title,
       data.meta_description,
       data.is_published ? 1 : 0,
@@ -567,20 +613,27 @@ router.post('/:websiteId/pages', async (req, res) => {
       data.ai_generated || false,
       data.ai_generation_prompt || null,
       data.ai_confidence_score || null,
-      typeof data.ai_content_sections === 'string' ? data.ai_content_sections : JSON.stringify(data.ai_content_sections || {}),
-      typeof data.ai_enhancements === 'string' ? data.ai_enhancements : JSON.stringify(data.ai_enhancements || {}),
-      typeof data.ai_seo_metadata === 'string' ? data.ai_seo_metadata : JSON.stringify(data.ai_seo_metadata || {}),
+      data.ai_content_sections || null,
+      data.ai_enhancements || null,
+      data.ai_seo_metadata || null,
       data.ai_optimized_for_mobile || false
     ]);
 
-    console.log(`[DEBUG] Pagina creata con ID: ${result.insertId}`);
+    }
+
+    if (existingPage.length > 0) {
+      console.log(`[DEBUG] Pagina aggiornata: ${data.slug} per sito ${websiteId}`);
+    } else {
+      console.log(`[DEBUG] Pagina creata con ID: ${result.insertId}`);
+    }
 
     res.json({
       success: true,
-      message: 'Pagina creata con successo',
+      message: existingPage.length > 0 ? 'Pagina aggiornata con successo' : 'Pagina creata con successo',
       page: {
-        id: result.insertId,
+        id: result.insertId || existingPage[0].id,
         id_sito_web: websiteId,
+        updated: existingPage.length > 0,
         ...data
       }
     });
@@ -597,6 +650,14 @@ router.post('/:websiteId/pages', async (req, res) => {
  */
 router.put('/:websiteId/pages/:pageId', async (req, res) => {
   const { websiteId, pageId } = req.params;
+
+  // Validazione parametri
+  if (!websiteId || !pageId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Parametri mancanti: websiteId e pageId sono richiesti'
+    });
+  }
   const {
     slug,
     titolo,
@@ -625,7 +686,7 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
     padding_bottom,
     custom_css,
     style_config
-  } = req.body;
+  } = req.body || {};
 
   try {
     console.log(`[DEBUG] Aggiornamento pagina ${pageId} per sito ${websiteId}`);
@@ -639,14 +700,14 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
     }
 
     const data = {
-      slug,
-      titolo,
-      contenuto_html,
-      contenuto_json,
-      meta_title,
-      meta_description,
-      is_published,
-      menu_order,
+      slug: slug || '',
+      titolo: titolo || 'Pagina senza titolo',
+      contenuto_html: contenuto_html || '',
+      contenuto_json: contenuto_json || '{}',
+      meta_title: meta_title || titolo || 'Pagina senza titolo',
+      meta_description: meta_description || '',
+      is_published: is_published !== undefined ? is_published : 0,
+      menu_order: menu_order !== undefined ? menu_order : 0,
       // Campi stile
       background_type: background_type || 'color',
       background_color: background_color || '#ffffff',
@@ -667,6 +728,16 @@ router.put('/:websiteId/pages/:pageId', async (req, res) => {
       custom_css: custom_css || null,
       style_config: JSON.stringify(style_config || {})
     };
+
+  // Debug: verifica che tutti i parametri siano definiti
+    console.log('[DEBUG] Parametri per SQL:', {
+      slug: data.slug,
+      titolo: data.titolo,
+      meta_title: data.meta_title,
+      meta_description: data.meta_description,
+      pageId: pageId,
+      websiteId: websiteId
+    });
 
     const [result] = await dbPool.execute(`
       UPDATE pagine_sito_web SET

@@ -22,6 +22,9 @@ import {
 // Import componenti semplificati
 import TemplatePageBuilder from './website/builder/TemplatePageBuilder';
 import StyleEditor from './StyleEditor';
+import NavigationBuilder from './website/builder/NavigationBuilder';
+import CollaborativeTemplateBuilder from './website/builder/CollaborativeTemplateBuilder';
+import AIAssistantButton from './website/builder/AIAssistantButton';
 import { api } from '../services/api';
 
 // Import AI services
@@ -39,8 +42,10 @@ const WebsiteBuilderUNIFIED = ({
   const [success, setSuccess] = useState(null);
 
   // Stati per navigazione
-  const [activeView, setActiveView] = useState('template'); // 'template' | 'pages' | 'builder'
+  const [activeView, setActiveView] = useState('template'); // 'template' | 'pages' | 'builder' | 'collaborative'
   const [saving, setSaving] = useState(false);
+  const [useCollaborativeMode, setUseCollaborativeMode] = useState(false);
+  const [selectedAISection, setSelectedAISection] = useState(null);
 
   // Stati per pagine
   const [pages, setPages] = useState([]);
@@ -56,12 +61,17 @@ const WebsiteBuilderUNIFIED = ({
   const [aiEnhancedTemplate, setAiEnhancedTemplate] = useState(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiGenerationProgress, setAiGenerationProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
 
   // Stati per generazione sito
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployStatus, setDeployStatus] = useState(null);
   const [showVpsConfig, setShowVpsConfig] = useState(false);
+
+  // Stati per navigazione multi-pagina
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [showFullPreview, setShowFullPreview] = useState(false);
 
   // Stili globali del sito
   const [globalStyles, setGlobalStyles] = useState({
@@ -314,6 +324,14 @@ const WebsiteBuilderUNIFIED = ({
 
   // Carica pagine esistenti e stato sito
   useEffect(() => {
+    console.log('🚀 WebsiteBuilderUNIFIED MONTATO - websiteId:', websiteId);
+    console.log('🚀 STATI INIZIALI:', {
+      activeView,
+      useCollaborativeMode,
+      hasTemplate: !!currentBuilderTemplate,
+      hasPages: pages.length
+    });
+
     if (websiteId) {
       loadPages();
       loadSiteStatus();
@@ -378,14 +396,28 @@ const WebsiteBuilderUNIFIED = ({
         template,
         initialSite.id_ditta,
         customPrompt,
-        (progress) => setAiGenerationProgress(progress)
+        (progress, message) => {
+          setAiGenerationProgress(progress || 0);
+          if (message) {
+            setProgressMessage(message);
+          }
+        }
       );
 
       setAiEnhancedTemplate(enhancedTemplate);
       setSuccess('Template generato con AI con successo!');
 
-      // Crea le pagine dal template AI-enhanced
-      const pages = await AIService.createPagesFromAITemplate(enhancedTemplate, websiteId, globalStyles);
+      // Crea le pagine dal template AI-enhanced con generazione guidata
+      const pages = await AIService.createPagesFromAITemplateWithAI(
+        enhancedTemplate,
+        websiteId,
+        globalStyles,
+        (progress) => {
+          // Callback di progresso per UI
+          setAiGenerationProgress(progress.progress || 0);
+          setProgressMessage(progress.message || 'Generazione sezioni in corso...');
+        }
+      );
 
       // Salva il sito AI-generated
       await AIService.saveAIGeneratedSite(websiteId, enhancedTemplate, pages);
@@ -986,6 +1018,11 @@ const WebsiteBuilderUNIFIED = ({
     }
   };
 
+  // Gestisce anteprima completa del sito
+  const handleFullPreviewClose = () => {
+    setShowFullPreview(false);
+  };
+
   // handlePreviewSite è già dichiarata sopra alla linea 590
 
   // Render vista template selection
@@ -1027,6 +1064,17 @@ const WebsiteBuilderUNIFIED = ({
             Stile Globale
           </button>
 
+          {/* DEBUG: Pulsante diretto per il builder */}
+          <button
+            onClick={() => {
+              console.log('🔥 CLICK - Apro vista builder diretta');
+              setActiveView('builder');
+            }}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+          >
+            🔧 DEBUG Builder
+          </button>
+
           {/* AI Mode Toggle */}
           <div className="flex items-center space-x-2 border-l border-gray-300 pl-3">
             <label className="flex items-center cursor-pointer">
@@ -1051,13 +1099,34 @@ const WebsiteBuilderUNIFIED = ({
 
           {/* Pulsanti generazione sito */}
           <div className="flex items-center space-x-2 border-l border-gray-300 pl-3">
+            {/* Pulsante AI Preview - più visibile */}
+            {aiEnhancedTemplate && pages.length > 0 && (
+              <button
+                onClick={() => setShowFullPreview(true)}
+                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 shadow-lg"
+                disabled={loading || isGenerating || isDeploying}
+              >
+                <SparklesIcon className="h-4 w-4 mr-2" />
+                🤖 Anteprima Sito AI ({pages.length} pagine)
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowFullPreview(true)}
+              className="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              disabled={loading || isGenerating || isDeploying}
+            >
+              <EyeIcon className="h-4 w-4 mr-2" />
+              Anteprima Completa
+            </button>
+
             <button
               onClick={handlePreviewSite}
               className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
               disabled={loading || isGenerating || isDeploying}
             >
               <EyeIcon className="h-4 w-4 mr-2" />
-              Anteprima Sito
+              Anteprima Singola
             </button>
 
             <button
@@ -1141,6 +1210,9 @@ const WebsiteBuilderUNIFIED = ({
                 style={{ width: `${aiGenerationProgress}%` }}
               ></div>
             </div>
+            {progressMessage && (
+              <p className="text-sm text-gray-600 mt-2">{progressMessage}</p>
+            )}
           </div>
           <p className="text-center text-gray-600">
             I contenuti vengono generati dall'IA in base all'analisi del contesto aziendale...
@@ -1321,6 +1393,70 @@ const WebsiteBuilderUNIFIED = ({
         </button>
       </div>
 
+      {/* AI Status Panel */}
+      {aiEnhancedTemplate && (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-purple-900 mb-2">
+                🤖 Sito Generato con AI
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-purple-700">Pagine create:</span>
+                  <span className="ml-2 text-purple-900">{pages.length}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-purple-700">Sezioni totali:</span>
+                  <span className="ml-2 text-purple-900">
+                    {pages.reduce((total, page) => {
+                      try {
+                        const content = JSON.parse(page.contenuto_json);
+                        return total + (content.sections?.length || 1);
+                      } catch {
+                        return total + 1;
+                      }
+                    }, 0)}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-purple-700">Stili globali:</span>
+                  <span className="ml-2 text-purple-900">
+                    {globalStyles?.aiGenerated ? '✅ Generati' : '📝 Standard'}
+                  </span>
+                </div>
+              </div>
+              {aiEnhancedTemplate.aiMetadata && (
+                <div className="mt-3 text-xs text-purple-700">
+                  Generato il: {new Date(aiEnhancedTemplate.aiMetadata.generatedAt).toLocaleString('it-IT')}
+                  {aiEnhancedTemplate.aiMetadata.missingSectionsGenerated > 0 && (
+                    <span className="ml-4">
+                      • {aiEnhancedTemplate.aiMetadata.missingSectionsGenerated} sezioni mancanti generate
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowFullPreview(true)}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 shadow-md"
+              >
+                <EyeIcon className="h-4 w-4 mr-2" />
+                Anteprima Completa
+              </button>
+              <button
+                onClick={() => setActiveView('styles')}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 shadow-md"
+              >
+                <SparklesIcon className="h-4 w-4 mr-2" />
+                Modifica Stili
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pages Grid */}
       {loading ? (
         <div className="text-center py-12">
@@ -1417,14 +1553,104 @@ const WebsiteBuilderUNIFIED = ({
       );
     } else if (activeView === 'builder') {
       return (
-        <TemplatePageBuilder
-          initialTemplate={currentBuilderTemplate}
-          websiteId={websiteId}
-          site={site}
-          onSave={handleSaveFromTemplate}
-          onCancel={closeBuilder}
-          editingPage={editingPage}
-        />
+        <div>
+          {pages.length > 1 && (
+            <NavigationBuilder
+              pages={pages}
+              currentPage={currentPageIndex}
+              globalStyles={globalStyles}
+              onNavigate={setCurrentPageIndex}
+            />
+          )}
+
+          {/* Header con opzioni collaborative */}
+          <div className="bg-white border-b px-6 py-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Page Builder
+                {useCollaborativeMode && (
+                  <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                    🤖 Modalità AI Collaborativa
+                  </span>
+                )}
+              </h2>
+
+              <div className="flex items-center gap-3">
+                {/* DEBUG LOGS */}
+                {console.log('🐛 RENDER DEBUG - activeView:', activeView)}
+                {console.log('🐛 RENDER DEBUG - useCollaborativeMode:', useCollaborativeMode)}
+                {console.log('🐛 RENDER DEBUG - TemplatePageBuilder exists:', !!TemplatePageBuilder)}
+                {console.log('🐛 RENDER DEBUG - CollaborativeTemplateBuilder exists:', !!CollaborativeTemplateBuilder)}
+
+                <button
+                  onClick={() => setUseCollaborativeMode(!useCollaborativeMode)}
+                  className={`px-4 py-2 rounded-lg border transition-all ${
+                    useCollaborativeMode
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                  }`}
+                >
+                  <span className="mr-2">🤖</span>
+                  {useCollaborativeMode ? 'Disattiva AI' : 'Attiva AI Collaborativa'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Builder Component */}
+          {useCollaborativeMode ? (
+            <CollaborativeTemplateBuilder
+              initialTemplate={currentBuilderTemplate}
+              websiteId={websiteId}
+              globalStyles={globalStyles}
+              onSave={handleSaveFromTemplate}
+              theme="default"
+            />
+          ) : (
+            <>
+              <TemplatePageBuilder
+                initialTemplate={currentBuilderTemplate}
+                websiteId={websiteId}
+                site={site}
+                onSave={handleSaveFromTemplate}
+                onCancel={closeBuilder}
+                editingPage={editingPage}
+                globalStyles={globalStyles}
+                onSectionClick={(index) => {
+                  // Seleziona sezione per assistenza AI
+                  if (currentBuilderTemplate?.sections?.[index]) {
+                    setSelectedAISection(currentBuilderTemplate.sections[index]);
+                  }
+                }}
+                previewMode={true}
+              />
+
+              {/* Pulsante assistenza AI */}
+              {!useCollaborativeMode && selectedAISection && (
+                <AIAssistantButton
+                  section={selectedAISection}
+                  globalStyles={globalStyles}
+                  onSectionUpdate={(updatedSection) => {
+                    // Aggiorna la sezione nel template
+                    if (currentBuilderTemplate) {
+                      const updatedSections = [...currentBuilderTemplate.sections];
+                      const sectionIndex = currentBuilderTemplate.sections.findIndex(
+                        s => s.id === updatedSection.id
+                      );
+                      if (sectionIndex >= 0) {
+                        updatedSections[sectionIndex] = updatedSection;
+                        setCurrentBuilderTemplate({
+                          ...currentBuilderTemplate,
+                          sections: updatedSections
+                        });
+                      }
+                    }
+                  }}
+                />
+              )}
+            </>
+          )}
+        </div>
       );
     }
   };
@@ -1599,6 +1825,178 @@ const WebsiteBuilderUNIFIED = ({
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Full Preview del Sito */}
+      {showFullPreview && pages.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 overflow-auto">
+          {/* Custom CSS styles */}
+          {globalStyles?.custom_css && (
+            <style>{globalStyles.custom_css}</style>
+          )}
+          <div className="min-h-screen">
+            {/* Header Preview con controlli */}
+            <div className="sticky top-0 bg-gray-900 text-white p-4 flex items-center justify-between z-60">
+              <h3 className="text-lg font-semibold">Anteprima Completa del Sito</h3>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-300">
+                  Pagina {currentPageIndex + 1} di {pages.length}
+                </span>
+                <button
+                  onClick={handleFullPreviewClose}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Navigazione tra pagine */}
+            <NavigationBuilder
+              pages={pages}
+              currentPage={currentPageIndex}
+              globalStyles={globalStyles}
+              onNavigate={setCurrentPageIndex}
+            />
+
+            {/* Contenuto pagina corrente con stili applicati */}
+            <div
+              className="p-8"
+              style={{
+                backgroundColor: globalStyles?.background_color || '#ffffff',
+                fontFamily: globalStyles?.font_family || 'Inter, sans-serif',
+                fontSize: globalStyles?.font_size ? `${globalStyles.font_size}px` : '16px',
+                color: globalStyles?.font_color || '#333333',
+                backgroundImage: globalStyles?.background_gradient || globalStyles?.background_image ?
+                  globalStyles?.background_gradient || `url(${globalStyles?.background_image})` : 'none',
+                backgroundSize: globalStyles?.background_size || 'cover',
+                backgroundPosition: globalStyles?.background_position || 'center',
+                backgroundRepeat: globalStyles?.background_repeat || 'no-repeat',
+                backgroundAttachment: globalStyles?.background_attachment || 'scroll',
+                minHeight: 'calc(100vh - 200px)'
+              }}
+            >
+              <h1
+                className="text-4xl font-bold mb-8"
+                style={{
+                  fontFamily: globalStyles?.heading_font || 'Inter, sans-serif',
+                  color: globalStyles?.heading_color || '#1a1a1a'
+                }}
+              >
+                {pages[currentPageIndex]?.titolo || 'Pagina'}
+              </h1>
+
+              <div className="prose max-w-none">
+                {pages[currentPageIndex]?.contenuto_html && (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: pages[currentPageIndex].contenuto_html
+                    }}
+                    style={{
+                      lineHeight: '1.6',
+                      marginBottom: '2rem'
+                    }}
+                  />
+                )}
+
+                {/* Sezioni pagina */}
+                {pages[currentPageIndex]?.contenuto_json && (
+                  <div className="space-y-8">
+                    {(() => {
+                      try {
+                        const contentData = JSON.parse(pages[currentPageIndex].contenuto_json);
+                        if (contentData.sections && contentData.sections.length > 0) {
+                          return contentData.sections.map((section, index) => (
+                            <div
+                              key={section.id || index}
+                              className="border-b pb-8 last:border-0"
+                              style={{ borderColor: globalStyles?.border_color || '#e5e7eb' }}
+                            >
+                              <h2
+                                className="text-2xl font-semibold mb-4"
+                                style={{
+                                  color: globalStyles?.primary_color || '#3b82f6',
+                                  fontFamily: globalStyles?.heading_font || 'Inter, sans-serif'
+                                }}
+                              >
+                                {(section.aiGeneratedContent?.title || section.data?.title || `Sezione ${index + 1}`)}
+                              </h2>
+                              {(section.aiGeneratedContent?.subtitle || section.data?.subtitle) && (
+                                <p
+                                  className="text-lg mb-4"
+                                  style={{ color: globalStyles?.secondary_color || '#64748b' }}
+                                >
+                                  {section.aiGeneratedContent?.subtitle || section.data?.subtitle}
+                                </p>
+                              )}
+
+                              {/* Contenuto AI-generated o fallback */}
+                              <div className="mb-6" style={{ color: globalStyles?.font_color || '#333333' }}>
+                                {section.aiGeneratedContent?.content ? (
+                                  <div dangerouslySetInnerHTML={{ __html: section.aiGeneratedContent.content }} />
+                                ) : section.aiGeneratedContent?.description ? (
+                                  <p>{section.aiGeneratedContent.description}</p>
+                                ) : (
+                                  <div className="space-y-4">
+                                    {section.type === 'hero' && (
+                                      <div className="text-center">
+                                        <h3 className="text-2xl font-bold mb-4">
+                                          {section.aiGeneratedContent?.title || 'Titolo Hero'}
+                                        </h3>
+                                        <p className="text-lg">
+                                          {section.aiGeneratedContent?.subtitle || 'Sottotitolo Hero'}
+                                        </p>
+                                        {section.aiGeneratedContent?.ctaButton && (
+                                          <button className="mt-4 px-6 py-3 rounded text-white font-semibold"
+                                            style={{ backgroundColor: globalStyles?.primary_color || '#3b82f6' }}>
+                                            {section.aiGeneratedContent.ctaButton}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {section.type === 'services' && (
+                                      <div>
+                                        <h3 className="text-2xl font-bold mb-6">I Nostri Servizi</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          {(section.aiGeneratedContent?.services || ['Servizio 1', 'Servizio 2']).map((service, idx) => (
+                                            <div key={idx} className="p-4 border rounded"
+                                              style={{ borderColor: globalStyles?.border_color || '#e5e7eb' }}>
+                                              <h4 className="font-semibold">{service}</h4>
+                                              <p className="text-sm mt-2">{section.aiGeneratedContent?.descriptions?.[idx] || `Descrizione ${service}`}</p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Debug info - mostra solo se è contentuto AI */}
+                              {section.aiGeneratedContent && (
+                                <div
+                                  className="bg-green-50 border border-green-200 p-3 rounded text-sm text-green-800 mb-4"
+                                >
+                                  ✅ Contenuto generato dall'AI
+                                </div>
+                              )}
+                            </div>
+                          ));
+                        }
+                      } catch (e) {
+                        return (
+                          <div className="text-yellow-600">
+                            Errore nel parsing del contenuto della pagina
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

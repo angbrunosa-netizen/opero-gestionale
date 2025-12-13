@@ -21,6 +21,148 @@ import MapsSection from './sections/MapsSection';
 import SocialSection from './sections/SocialSection';
 import GallerySection from './sections/GallerySection';
 
+// Sezione AI-intelligente che mostra contenuti generati
+const AIEnhancedSection = ({ type, data, onChange, onRemove, aiGeneratedContent, globalStyles, onSectionClick, sectionIndex, previewMode = false }) => {
+  // Usa i dati AI-generated se disponibili, altrimenti usa i dati standard
+  const content = aiGeneratedContent || data || {};
+
+  const getSectionTitle = () => {
+    const titles = {
+      hero: content.title || 'Titolo Principale',
+      services: content.title || 'I Nostri Servizi',
+      about: content.title || 'Chi Siamo',
+      testimonial: content.title || 'Testimonianze',
+      contact: content.title || 'Contatti',
+      social: content.title || 'Seguici sui Social',
+      gallery: content.title || 'Galleria'
+    };
+    return titles[type] || `Sezione ${type}`;
+  };
+
+  const getSectionContent = () => {
+    const contents = {
+      hero: (
+        <div className="text-center py-12">
+          <h1 className="text-4xl font-bold mb-4" style={{ color: globalStyles?.heading_color || '#1a1a1a' }}>
+            {content.title || 'Benvenuti'}
+          </h1>
+          <p className="text-xl mb-6" style={{ color: globalStyles?.font_color || '#333333' }}>
+            {content.subtitle || 'Scopri i nostri servizi'}
+          </p>
+          {content.ctaButton && (
+            <button className="px-6 py-3 rounded-lg text-white font-semibold"
+              style={{ backgroundColor: globalStyles?.primary_color || '#3b82f6' }}>
+              {content.ctaButton}
+            </button>
+          )}
+        </div>
+      ),
+      services: (
+        <div className="py-8">
+          <h2 className="text-3xl font-bold mb-6" style={{ color: globalStyles?.heading_color || '#1a1a1a' }}>
+            {content.title || 'I Nostri Servizi'}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {(content.services || ['Servizio 1', 'Servizio 2', 'Servizio 3']).map((service, index) => (
+              <div key={index} className="p-6 border rounded-lg"
+                style={{ borderColor: globalStyles?.border_color || '#e5e7eb' }}>
+                <h3 className="text-xl font-semibold mb-2" style={{ color: globalStyles?.primary_color || '#3b82f6' }}>
+                  {service}
+                </h3>
+                <p style={{ color: globalStyles?.font_color || '#333333' }}>
+                  {content.descriptions?.[index] || `Descrizione del ${service.toLowerCase()}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+      about: (
+        <div className="py-8">
+          <h2 className="text-3xl font-bold mb-6" style={{ color: globalStyles?.heading_color || '#1a1a1a' }}>
+            {content.title || 'Chi Siamo'}
+          </h2>
+          <div className="prose max-w-none">
+            <p style={{ color: globalStyles?.font_color || '#333333', lineHeight: '1.6' }}>
+              {content.content || 'Siamo un\'azienda dedicata a fornire servizi di alta qualità.'}
+            </p>
+            {content.values && (
+              <div className="mt-6">
+                <h3 className="text-xl font-semibold mb-4">I Nostri Valori</h3>
+                <ul className="list-disc list-inside">
+                  {content.values.map((value, index) => (
+                    <li key={index} style={{ color: globalStyles?.font_color || '#333333' }}>{value}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+      contact: (
+        <div className="py-8">
+          <h2 className="text-3xl font-bold mb-6" style={{ color: globalStyles?.heading_color || '#1a1a1a' }}>
+            {content.title || 'Contatti'}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-xl font-semibold mb-4">Informazioni di Contatto</h3>
+              <div style={{ color: globalStyles?.font_color || '#333333' }}>
+                {content.phone && <p><strong>Telefono:</strong> {content.phone}</p>}
+                {content.email && <p><strong>Email:</strong> {content.email}</p>}
+                {content.address && <p><strong>Indirizzo:</strong> {content.address}</p>}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold mb-4">Modulo di Contatto</h3>
+              <div className="p-4 border rounded" style={{ borderColor: globalStyles?.border_color || '#e5e7eb' }}>
+                <p className="text-gray-600">Modulo di contatto disponibile</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+      default: (
+        <div className="py-8">
+          <h2 className="text-3xl font-bold mb-6" style={{ color: globalStyles?.heading_color || '#1a1a1a' }}>
+            {getSectionTitle()}
+          </h2>
+          <div className="prose max-w-none">
+            <div dangerouslySetInnerHTML={{ __html: content.content || `<p>Contenuto per la sezione ${type}</p>` }} />
+          </div>
+          {aiGeneratedContent && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+              ✅ Contenuto generato dall'AI
+            </div>
+          )}
+        </div>
+      )
+    };
+    return contents[type] || contents.default;
+  };
+
+  return (
+    <div
+      className={`relative ${previewMode && onSectionClick ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : ''}`}
+      onClick={() => {
+        if (previewMode && onSectionClick && typeof sectionIndex === 'number') {
+          onSectionClick(sectionIndex);
+        }
+      }}
+    >
+      {getSectionContent()}
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="absolute top-2 right-2 px-2 py-1 bg-red-500 text-white rounded text-sm opacity-75 hover:opacity-100"
+        >
+          Rimuovi
+        </button>
+      )}
+    </div>
+  );
+};
+
 // Fallback temporanei nel caso ci siano problemi di import
 const FallbackSection = ({ type, data, onChange, onRemove }) => (
   <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-lg text-yellow-800">
@@ -44,7 +186,10 @@ const TemplatePageBuilder = ({
   site,
   onSave,
   onCancel,
-  editingPage = null
+  editingPage = null,
+  globalStyles = null,
+  onSectionClick = null,
+  previewMode = false
 }) => {
   const [page, setPage] = useState({
     title: editingPage?.titolo || '',
@@ -270,7 +415,9 @@ const TemplatePageBuilder = ({
       onRemove: () => removeSection(section.id),
       onMoveUp: index > 0 ? () => moveSection(index, 'up') : null,
       onMoveDown: index < page.sections.length - 1 ? () => moveSection(index, 'down') : null,
-      websiteId: websiteId
+      websiteId: websiteId,
+      globalStyles: globalStyles,
+      aiGeneratedContent: section.aiGeneratedContent
     };
 
     try {
@@ -286,6 +433,21 @@ const TemplatePageBuilder = ({
         case 'gallery':
           return <GallerySection key={section.id} {...commonProps} />;
         default:
+          // Usa AIEnhancedSection per le sezioni con contenuti AI
+          if (section.aiGeneratedContent || section.aiEnhanced || section.generated) {
+            return <AIEnhancedSection
+              key={section.id}
+              type={section.type}
+              data={section.data}
+              aiGeneratedContent={section.aiGeneratedContent}
+              globalStyles={globalStyles}
+              onChange={commonProps.onChange}
+              onRemove={commonProps.onRemove}
+              onSectionClick={onSectionClick}
+              sectionIndex={index}
+              previewMode={previewMode}
+            />;
+          }
           return <FallbackSection key={section.id} type={section.type} data={section.data} onRemove={commonProps.onRemove} />;
       }
     } catch (error) {
@@ -332,7 +494,28 @@ const TemplatePageBuilder = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <>
+      {/* Custom CSS styles */}
+      {globalStyles?.custom_css && (
+        <style>{globalStyles.custom_css}</style>
+      )}
+      <div
+        className="max-w-6xl mx-auto p-6"
+        style={{
+          backgroundColor: globalStyles?.background_color || '#ffffff',
+          fontFamily: globalStyles?.font_family || 'Inter, sans-serif',
+          fontSize: globalStyles?.font_size ? `${globalStyles.font_size}px` : '16px',
+          color: globalStyles?.font_color || '#333333',
+          backgroundImage: globalStyles?.background_gradient || globalStyles?.background_image ?
+            globalStyles?.background_gradient || `url(${globalStyles?.background_image})` : 'none',
+          backgroundSize: globalStyles?.background_size || 'cover',
+          backgroundPosition: globalStyles?.background_position || 'center',
+          backgroundRepeat: globalStyles?.background_repeat || 'no-repeat',
+          backgroundAttachment: globalStyles?.background_attachment || 'scroll',
+          borderRadius: globalStyles?.border_radius || '0px',
+          boxShadow: globalStyles?.box_shadow || 'none'
+        }}
+      >
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
@@ -476,14 +659,64 @@ const TemplatePageBuilder = ({
                 <XMarkIcon className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6">
-              <h1 className="text-3xl font-bold mb-4">{page.title || 'Pagina Senza Titolo'}</h1>
+            <div
+              className="p-6"
+              style={{
+                backgroundColor: globalStyles?.background_color || '#ffffff',
+                fontFamily: globalStyles?.font_family || 'Inter, sans-serif',
+                fontSize: globalStyles?.font_size ? `${globalStyles.font_size}px` : '16px',
+                color: globalStyles?.font_color || '#333333',
+                backgroundImage: globalStyles?.background_gradient || globalStyles?.background_image ?
+                  globalStyles?.background_gradient || `url(${globalStyles?.background_image})` : 'none',
+                backgroundSize: globalStyles?.background_size || 'cover',
+                backgroundPosition: globalStyles?.background_position || 'center',
+                backgroundRepeat: globalStyles?.background_repeat || 'no-repeat',
+                backgroundAttachment: globalStyles?.background_attachment || 'scroll',
+                maxWidth: globalStyles?.container_max_width || '1200px',
+                margin: '0 auto',
+                paddingTop: globalStyles?.padding_top || '60px',
+                paddingBottom: globalStyles?.padding_bottom || '60px'
+              }}
+            >
+              <h1
+                className="text-3xl font-bold mb-4"
+                style={{
+                  fontFamily: globalStyles?.heading_font || 'Inter, sans-serif',
+                  color: globalStyles?.heading_color || '#1a1a1a'
+                }}
+              >
+                {page.title || 'Pagina Senza Titolo'}
+              </h1>
               <div className="space-y-8">
                 {page.sections.map((section, index) => (
-                  <div key={section.id} className="border-b border-gray-200 pb-8 last:border-0">
-                    <div className="text-sm text-gray-500 mb-2">Sezione {index + 1}: {section.type}</div>
-                    <div className="bg-gray-50 p-4 rounded">
-                      {JSON.stringify(section.data, null, 2)}
+                  <div
+                    key={section.id}
+                    className="border-b pb-8 last:border-0"
+                    style={{
+                      borderColor: globalStyles?.border_color || '#e5e7eb'
+                    }}
+                  >
+                    <div className="text-sm mb-2" style={{ color: globalStyles?.secondary_color || '#64748B' }}>
+                      Sezione {index + 1}: {section.type}
+                    </div>
+                    <div
+                      className="p-4 rounded"
+                      style={{
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        border: `1px solid ${globalStyles?.border_color || '#e5e7eb'}`
+                      }}
+                    >
+                      <div className="text-sm font-medium mb-2" style={{ color: globalStyles?.primary_color || '#3b82f6' }}>
+                        {section.data?.title || section.type}
+                      </div>
+                      {section.data?.subtitle && (
+                        <div className="text-sm mb-2" style={{ color: globalStyles?.font_color || '#333333' }}>
+                          {section.data.subtitle}
+                        </div>
+                      )}
+                      <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
+                        {JSON.stringify(section.data, null, 2)}
+                      </pre>
                     </div>
                   </div>
                 ))}
@@ -493,6 +726,7 @@ const TemplatePageBuilder = ({
         </div>
       )}
     </div>
+    </>
   );
 };
 
