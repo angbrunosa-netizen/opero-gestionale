@@ -20,4 +20,4 @@ yarn-error.log*
 # Ignora i file temporanei di upload
 .tmp.driveupload/
 uploads/
-
+nul

@@ -1922,37 +1922,37 @@ const WebsiteBuilderUNIFIED = ({
                                   fontFamily: globalStyles?.heading_font || 'Inter, sans-serif'
                                 }}
                               >
-                                {(section.aiGeneratedContent?.title || section.data?.title || `Sezione ${index + 1}`)}
+                                {(typeof section.aiGeneratedContent?.title === 'string' ? section.aiGeneratedContent.title : section.data?.title) || `Sezione ${index + 1}`}
                               </h2>
-                              {(section.aiGeneratedContent?.subtitle || section.data?.subtitle) && (
+                              {(typeof section.aiGeneratedContent?.subtitle === 'string' ? section.aiGeneratedContent.subtitle : section.data?.subtitle) && (
                                 <p
                                   className="text-lg mb-4"
                                   style={{ color: globalStyles?.secondary_color || '#64748b' }}
                                 >
-                                  {section.aiGeneratedContent?.subtitle || section.data?.subtitle}
+                                  {typeof section.aiGeneratedContent?.subtitle === 'string' ? section.aiGeneratedContent.subtitle : section.data?.subtitle}
                                 </p>
                               )}
 
                               {/* Contenuto AI-generated o fallback */}
                               <div className="mb-6" style={{ color: globalStyles?.font_color || '#333333' }}>
-                                {section.aiGeneratedContent?.content ? (
+                                {section.aiGeneratedContent?.content && typeof section.aiGeneratedContent.content === 'string' ? (
                                   <div dangerouslySetInnerHTML={{ __html: section.aiGeneratedContent.content }} />
-                                ) : section.aiGeneratedContent?.description ? (
+                                ) : section.aiGeneratedContent?.description && typeof section.aiGeneratedContent.description === 'string' ? (
                                   <p>{section.aiGeneratedContent.description}</p>
                                 ) : (
                                   <div className="space-y-4">
                                     {section.type === 'hero' && (
                                       <div className="text-center">
                                         <h3 className="text-2xl font-bold mb-4">
-                                          {section.aiGeneratedContent?.title || 'Titolo Hero'}
+                                          {typeof section.aiGeneratedContent?.title === 'string' ? section.aiGeneratedContent.title : 'Titolo Hero'}
                                         </h3>
                                         <p className="text-lg">
-                                          {section.aiGeneratedContent?.subtitle || 'Sottotitolo Hero'}
+                                          {typeof section.aiGeneratedContent?.subtitle === 'string' ? section.aiGeneratedContent.subtitle : 'Sottotitolo Hero'}
                                         </p>
-                                        {section.aiGeneratedContent?.ctaButton && (
+                                        {section.aiGeneratedContent?.callToAction?.text && (
                                           <button className="mt-4 px-6 py-3 rounded text-white font-semibold"
                                             style={{ backgroundColor: globalStyles?.primary_color || '#3b82f6' }}>
-                                            {section.aiGeneratedContent.ctaButton}
+                                            {section.aiGeneratedContent.callToAction.text}
                                           </button>
                                         )}
                                       </div>
@@ -1965,7 +1965,7 @@ const WebsiteBuilderUNIFIED = ({
                                             <div key={idx} className="p-4 border rounded"
                                               style={{ borderColor: globalStyles?.border_color || '#e5e7eb' }}>
                                               <h4 className="font-semibold">{service}</h4>
-                                              <p className="text-sm mt-2">{section.aiGeneratedContent?.descriptions?.[idx] || `Descrizione ${service}`}</p>
+                                              <p className="text-sm mt-2">{typeof section.aiGeneratedContent?.descriptions?.[idx] === 'string' ? section.aiGeneratedContent.descriptions[idx] : `Descrizione ${service}`}</p>
                                             </div>
                                           ))}
                                         </div>
