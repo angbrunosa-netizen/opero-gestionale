@@ -495,16 +495,59 @@ function processEvaluationResponse(response) {
 
 function processTemplateResponse(response, sectionType) {
   try {
-    const content = response.choices[0]?.message?.content;
-    return JSON.parse(content);
+    let content = response.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('Nessun contenuto nella risposta AI');
+    }
+
+    // Rimuovi backticks e formato problematico
+    content = content.trim();
+
+    // Se il contenuto inizia con backticks, estrai il JSON interno
+    if (content.startsWith('```')) {
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        content = jsonMatch[1].trim();
+      } else {
+        // Fallback: rimuovi tutti i backticks
+        content = content.replace(/```/g, '').trim();
+      }
+    }
+
+    // Se il contenuto inizia con parentesi graffe, è già JSON
+    if (content.startsWith('{')) {
+      return JSON.parse(content);
+    }
+
+    // Fallback: prova a trovare JSON nel testo
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    throw new Error('Nessun JSON valido trovato nella risposta');
+
   } catch (error) {
     console.error('Errore processamento template:', error);
+    console.error('Contenuto ricevuto:', response.choices[0]?.message?.content);
+
+    // Fallback sicuro
     return {
-      content: {},
-      structure: [],
-      suggestedColors: [],
+      content: {
+        title: `Sezione ${sectionType}`,
+        subtitle: 'Contenuto generato automaticamente',
+        description: 'Descrizione predefinita',
+        suggestions: ['Migliorare il contenuto', 'Aggiungere dettagli'],
+        structure: ['hero', 'content', 'cta'],
+        suggestedColors: ['#3b82f6', '#1f2937', '#ef4444'],
+        recommendedImages: [],
+        copywritingTips: ['Sii specifico', 'Usa un linguaggio professionale']
+      },
+      structure: ['hero', 'content', 'cta'],
+      suggestedColors: ['#3b82f6', '#1f2937', '#ef4444'],
       recommendedImages: [],
-      copywritingTips: []
+      copywritingTips: ['Sii specifico', 'Usa un linguaggio professionale']
     };
   }
 }

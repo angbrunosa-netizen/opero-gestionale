@@ -226,7 +226,10 @@ const TemplatePageBuilder = ({
             jsonData = JSON.parse(JSON.parse(editingPage.contenuto_json));
           }
 
-          sections = jsonData.sections || [];
+          sections = (jsonData.sections || []).map((section, index) => ({
+            ...section,
+            id: section.id || `section_${Date.now()}_${index}` // Assicura ID univoco
+          }));
           console.log('🔥 TemplatePageBuilder - Sezioni caricate da contenuto_json:', sections.length);
           console.log('🔥 TemplatePageBuilder - Dati JSON parsati:', jsonData);
         } catch (error) {
@@ -237,7 +240,10 @@ const TemplatePageBuilder = ({
 
       // Fallback: usa le sezioni del template (già parsate in WebsiteBuilderUNIFIED)
       if (sections.length === 0 && initialTemplate?.sections) {
-        sections = initialTemplate.sections;
+        sections = (initialTemplate.sections || []).map((section, index) => ({
+          ...section,
+          id: section.id || `template_section_${Date.now()}_${index}` // Assicura ID univoco
+        }));
         console.log('🔥 TemplatePageBuilder - Sezioni caricate da initialTemplate fallback:', sections.length);
       }
 
@@ -250,7 +256,10 @@ const TemplatePageBuilder = ({
       }));
     } else if (initialTemplate) {
       // Modalità creazione: usa le sezioni del template
-      const sections = initialTemplate.sections || [];
+      const sections = (initialTemplate.sections || []).map((section, index) => ({
+        ...section,
+        id: section.id || `new_template_section_${Date.now()}_${index}` // Assicura ID univoco
+      }));
       console.log('🔥 TemplatePageBuilder - caricamento sezioni da template', sections.length, 'sezioni');
       setPage(prev => ({
         ...prev,

@@ -156,6 +156,7 @@ app.use('/api/website', websiteRoutes); // <-- NUOVA ROTTA WEBSITE BUILDER SENZA
 app.use('/api/website-generator', verifyToken, websiteGeneratorRoutes); // <-- NUOVA ROTTA GENERAZIONE SITI STATICI
 app.use('/api/ai-enhanced-website', verifyToken, require('./routes/ai-enhanced-website')); // <-- NUOVA ROTTA AI-ENHANCED WEBSITE BUILDER
 app.use('/api/ai-collaborative-assistant', verifyToken, require('./routes/ai-collaborative-assistant')); // <-- NUOVA ROTTA AI COLLABORATIVE ASSISTANT
+app.use('/api/ai-content-generator', require('./routes/ai-content-generator')); // <-- NUOVA ROTTA AI CONTENT GENERATOR (NO AUTH PER TEST)
 app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuilder')); // <-- ROUTA AI WEBSITE BUILDER ESISTENTE
 
 // --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---

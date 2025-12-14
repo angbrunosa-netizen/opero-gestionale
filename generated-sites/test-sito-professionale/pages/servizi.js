@@ -1,19 +1,19 @@
 
 import { getSiteData, getPageData } from '../../lib/data';
 import Layout from '../../components/Layout';
-import Home-pagePage from '../../components/pages/Home-pagePage';
+import ServiziPage from '../../components/pages/ServiziPage';
 
-export default function Home-pagePage({ pageData, siteData }) {
+export default function ServiziPage({ pageData, siteData }) {
   return (
     <Layout siteData={siteData} pageData={pageData}>
-      <Home-pagePage content={pageData.contenuto_json} />
+      <ServiziPage content={pageData.contenuto_json} />
     </Layout>
   );
 }
 
 export async function getStaticProps() {
-  const siteData = await getSiteData(16);
-  const pageData = await getPageData('home-page', 16);
+  const siteData = await getSiteData(21);
+  const pageData = await getPageData('servizi', 21);
 
   return {
     props: {
@@ -25,7 +25,7 @@ export async function getStaticProps() {
 
 export async function getStaticPaths() {
   return {
-    paths: [{ params: { slug: 'home-page' } }],
+    paths: [{ params: { slug: 'servizi' } }],
     fallback: false
   };
 }

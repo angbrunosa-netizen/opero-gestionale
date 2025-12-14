@@ -12,8 +12,8 @@ export default function HomePage({ pageData, siteData }) {
 }
 
 export async function getStaticProps() {
-  const siteData = await getSiteData(16);
-  const pageData = await getPageData('home', 16);
+  const siteData = await getSiteData(21);
+  const pageData = await getPageData('home', 21);
 
   return {
     props: {

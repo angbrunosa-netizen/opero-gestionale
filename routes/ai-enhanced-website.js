@@ -108,7 +108,49 @@ router.post('/analyze-company', checkPermission('SITE_BUILDER'), async (req, res
         }
       });
 
-      aiAnalysis = JSON.parse(response.data.choices[0].message.content);
+      // Parsing robusto con fallback
+      try {
+        let content = response.data.choices[0].message.content;
+
+        if (!content) {
+          throw new Error('Nessun contenuto nella risposta AI');
+        }
+
+        // Rimuovi backticks e formato problematico
+        content = content.trim();
+
+        // Se il contenuto inizia con backticks, estrai il JSON interno
+        if (content.startsWith('```')) {
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch && jsonMatch[1]) {
+            content = jsonMatch[1].trim();
+          } else {
+            // Fallback: rimuovi tutti i backticks
+            content = content.replace(/```/g, '').trim();
+          }
+        }
+
+        // Prova parsing JSON
+        aiAnalysis = JSON.parse(content);
+
+      } catch (parseError) {
+        console.error('Errore parsing AI analysis:', parseError);
+        console.error('Contenuto ricevuto:', response.data.choices[0].message.content);
+
+        // Fallback analysis
+        aiAnalysis = {
+          industry: companyContext.sector || 'Generale',
+          recommendedPages: ['Home', 'Chi Siamo', 'Contatti'].concat(
+            companyContext.hasProducts ? ['Prodotti'] : []
+          ),
+          contentStyle: companyContext.companySize === 'media' ? 'Professionale' : 'Moderno',
+          primaryColor: '#3B82F6',
+          targetAudience: 'B2C',
+          keyDifferentiators: [],
+          contentTone: 'Amichevole',
+          seoKeywords: [companyContext.name?.toLowerCase()?.replace(/\s+/g, '-') || 'azienda']
+        };
+      }
 
     } catch (error) {
       console.error('Errore analisi AI:', error);
@@ -285,7 +327,38 @@ router.post('/generate-section-content', checkPermission('SITE_BUILDER'), async 
         }
       });
 
-      generatedContent = JSON.parse(response.data.choices[0].message.content);
+      // Parsing robusto con fallback
+      try {
+        let content = response.data.choices[0].message.content;
+
+        if (!content) {
+          throw new Error('Nessun contenuto nella risposta AI');
+        }
+
+        // Rimuovi backticks e formato problematico
+        content = content.trim();
+
+        // Se il contenuto inizia con backticks, estrai il JSON interno
+        if (content.startsWith('```')) {
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch && jsonMatch[1]) {
+            content = jsonMatch[1].trim();
+          } else {
+            // Fallback: rimuovi tutti i backticks
+            content = content.replace(/```/g, '').trim();
+          }
+        }
+
+        // Prova parsing JSON
+        generatedContent = JSON.parse(content);
+
+      } catch (parseError) {
+        console.error('Errore parsing contenuto sezione:', parseError);
+        console.error('Contenuto ricevuto:', response.data.choices[0].message.content);
+
+        // Fallback content
+        generatedContent = generateFallbackContent(sectionType, context);
+      }
 
     } catch (error) {
       console.error('Errore generazione contenuto AI:', error);
@@ -601,7 +674,38 @@ router.post('/generate-global-styles', checkPermission('SITE_BUILDER'), async (r
         }
       });
 
-      generatedStyles = JSON.parse(response.data.choices[0].message.content);
+      // Parsing robusto con fallback
+      try {
+        let content = response.data.choices[0].message.content;
+
+        if (!content) {
+          throw new Error('Nessun contenuto nella risposta AI');
+        }
+
+        // Rimuovi backticks e formato problematico
+        content = content.trim();
+
+        // Se il contenuto inizia con backticks, estrai il JSON interno
+        if (content.startsWith('```')) {
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch && jsonMatch[1]) {
+            content = jsonMatch[1].trim();
+          } else {
+            // Fallback: rimuovi tutti i backticks
+            content = content.replace(/```/g, '').trim();
+          }
+        }
+
+        // Prova parsing JSON
+        generatedStyles = JSON.parse(content);
+
+      } catch (parseError) {
+        console.error('Errore parsing stili AI:', parseError);
+        console.error('Contenuto ricevuto:', response.data.choices[0].message.content);
+
+        // Fallback basato su template
+        generatedStyles = generateFallbackStyles(templateName, companyContext);
+      }
 
     } catch (error) {
       console.error('Errore generazione stili AI:', error);

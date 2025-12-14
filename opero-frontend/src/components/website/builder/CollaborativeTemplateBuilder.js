@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { FaRobot, FaEdit, FaSave, FaUndo, FaEye, FaPlus, FaTrash, FaMagic } from 'react-icons/fa';
+import { FaRobot, FaEdit, FaSave, FaUndo, FaEye, FaTrash, FaMagic } from 'react-icons/fa';
 import TemplatePageBuilder from './TemplatePageBuilder';
 import SectionEditor from './SectionEditor';
 import AICollaborativeService from '../../../services/aiCollaborativeService';
@@ -25,7 +25,19 @@ const CollaborativeTemplateBuilder = ({
   const [aiSuggestions, setAiSuggestions] = useState([]);
 
   useEffect(() => {
-    setTemplate(initialTemplate || { sections: [] });
+    if (initialTemplate) {
+      // Assicura che tutte le sezioni abbiano ID univoci
+      const templateWithIds = {
+        ...initialTemplate,
+        sections: (initialTemplate.sections || []).map((section, index) => ({
+          ...section,
+          id: section.id || `collab_section_${Date.now()}_${index}` // Assicura ID univoco
+        }))
+      };
+      setTemplate(templateWithIds);
+    } else {
+      setTemplate({ sections: [] });
+    }
   }, [initialTemplate]);
 
   // Seleziona una sezione per l'editing

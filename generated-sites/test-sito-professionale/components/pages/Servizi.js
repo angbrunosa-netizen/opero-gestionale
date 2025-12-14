@@ -7,7 +7,7 @@ import ImageSection from '../sections/ImageSection';
 import ContactSection from '../sections/ContactSection';
 import GallerySection from '../sections/GallerySection';
 
-export default function Galleria({ content }) {
+export default function Servizi({ content }) {
   if (!content || !content.sections) {
     return <div>Nessun contenuto disponibile</div>;
   }

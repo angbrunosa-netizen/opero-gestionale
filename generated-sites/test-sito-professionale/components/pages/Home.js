@@ -7,7 +7,7 @@ import ImageSection from '../sections/ImageSection';
 import ContactSection from '../sections/ContactSection';
 import GallerySection from '../sections/GallerySection';
 
-export default function Home-page({ content }) {
+export default function Home({ content }) {
   if (!content || !content.sections) {
     return <div>Nessun contenuto disponibile</div>;
   }
