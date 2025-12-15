@@ -1,11 +1,14 @@
 /**
  * Migration: Aggiunta campi stile personalizzati pagine
  * Aggiunge opzioni per background, font e stili testo alle pagine
+ * Fix: Rimosso defaultTo da colonne JSON/TEXT per compatibilità MySQL 8.0
  */
 
 exports.up = function(knex) {
   return knex.schema
     .alterTable('pagine_sito_web', (table) => {
+      console.log('🚀 Aggiunta campi stile alla tabella pagine_sito_web...');
+      
       // Background settings
       table.string('background_type', 20).defaultTo('color').comment('Tipo background: color, gradient, image');
       table.string('background_color', 50).nullable().comment('Colore background es. #ffffff');
@@ -30,17 +33,23 @@ exports.up = function(knex) {
 
       // Altri stili
       table.text('custom_css').nullable().comment('CSS personalizzato aggiuntivo');
-      table.json('style_config').defaultTo('{}').comment('Configurazione stili in formato JSON');
+      
+      // --- FIX: Rimosso defaultTo('{}') per risolvere l'errore MySQL ---
+      table.json('style_config').nullable().comment('Configurazione stili in formato JSON');
 
       // Indici
       table.index(['background_type']);
       table.index(['font_family']);
+
+      console.log('✅ Campi stile aggiunti.');
     });
 };
 
 exports.down = function(knex) {
   return knex.schema
     .alterTable('pagine_sito_web', (table) => {
+      console.log('🔄 Rimozione campi stile...');
+      
       // Rimozione campi background
       table.dropColumn('background_type');
       table.dropColumn('background_color');
@@ -66,5 +75,7 @@ exports.down = function(knex) {
       // Rimozione altri stili
       table.dropColumn('custom_css');
       table.dropColumn('style_config');
+      
+      console.log('✅ Campi stile rimossi.');
     });
 };
