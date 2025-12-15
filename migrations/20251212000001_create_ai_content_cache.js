@@ -2,6 +2,7 @@
  * Migration: Creazione tabella ai_content_cache
  * Tabella per caching dei contenuti generati dall'AI
  * Fix: Rimosso defaultTo da colonne JSON per compatibilità MySQL 8.0
+ * Fix 2: Rimossa la creazione del TRIGGER che richiede privilegi SUPER.
  */
 
 exports.up = function(knex) {
@@ -33,7 +34,8 @@ exports.up = function(knex) {
         table.boolean('is_fallback').defaultTo(false).comment('Indica se è un contenuto di fallback');
 
         // Timestamp
-        table.timestamp('created_at').defaultTo(knex.fn.now());
+        // Knex gestisce correttamente l'aggiornamento di questi campi lato MySQL 8.0 senza trigger esterni
+        table.timestamp('created_at').defaultTo(knex.fn.now()); 
         table.timestamp('updated_at').defaultTo(knex.fn.now());
         table.timestamp('expires_at').notNullable().comment('Data di scadenza del cache');
 
@@ -48,29 +50,17 @@ exports.up = function(knex) {
         table.foreign('id_ditta').references('id').inTable('ditte').onDelete('CASCADE');
       });
     })
+    // --- MODIFICA: Rimossa intera sezione che crea il TRIGGER ---
+    // .then(() => { ... })
+    // .then(([result]) => { ... })
     .then(() => {
-      // Crea il trigger solo se la tabella è stata creata e non è già registrato
-      // Nota: Non possiamo usare IF NOT EXISTS per il trigger stesso a causa di restrizioni di sintassi
-      return knex.raw(`
-        SELECT COUNT(*) as count FROM information_schema.triggers
-        WHERE trigger_name = 'ai_content_cache_updated_at'
-      `);
-    })
-    .then(([result]) => {
-      if (result[0].count === 0) { // Fix: Knex può restituire l'array in modi diversi
-        return knex.raw(`
-          CREATE TRIGGER ai_content_cache_updated_at
-            BEFORE UPDATE ON ai_content_cache
-            FOR EACH ROW
-          SET NEW.updated_at = CURRENT_TIMESTAMP;
-        `);
-      }
-      return Promise.resolve();
+        console.log('✅ Tabella ai_content_cache creata. Creazione trigger saltata per privilegi SQL.');
+        return Promise.resolve();
     });
 };
 
 exports.down = function(knex) {
-  // Elimina il trigger se esiste
+  // Elimina il trigger se esiste (per pulizia, ma non dovrebbe essere stato creato)
   return knex.raw('DROP TRIGGER IF EXISTS ai_content_cache_updated_at')
     .then(() => {
         return knex.schema
