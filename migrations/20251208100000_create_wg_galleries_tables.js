@@ -3,6 +3,7 @@
  * @description Knex migration per tabelle gallerie fotografiche Website Builder
  * @author Website Builder Team
  * @date 08/12/2025
+ * Modifica: Rimosso defaultTo da colonne JSON per compatibilità MySQL 8.0
  */
 
 exports.up = async function(knex) {
@@ -30,7 +31,8 @@ exports.up = async function(knex) {
       .comment('Layout visualizzazione');
 
     // Impostazioni avanzate (JSON)
-    table.json('impostazioni').defaultTo('{}')
+    // --- FIX: Rimosso defaultTo('{}') per compatibilità MySQL 8.0 ---
+    table.json('impostazioni').nullable() 
       .comment('Impostazioni aggiuntive (spacing, borders, effects, etc.)');
 
     // Metadati SEO
@@ -87,7 +89,8 @@ exports.up = async function(knex) {
       .comment('Posizione nella galleria');
 
     // Impostazioni specifiche immagine (JSON)
-    table.json('impostazioni').defaultTo('{}')
+    // --- FIX: Rimosso defaultTo('{}') per compatibilità MySQL 8.0 ---
+    table.json('impostazioni').nullable() 
       .comment('Impostazioni singola immagine (link, effetti, etc.)');
 
     // Timestamps
