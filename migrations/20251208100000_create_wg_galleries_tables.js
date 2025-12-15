@@ -4,6 +4,7 @@
  * @author Website Builder Team
  * @date 08/12/2025
  * Modifica: Rimosso defaultTo da colonne JSON per compatibilità MySQL 8.0
+ * Modifica 2: Rimossi i TRIGGERS per evitare l'errore SUPER privilege
  */
 
 exports.up = async function(knex) {
@@ -150,41 +151,15 @@ exports.up = async function(knex) {
     JOIN dm_files f ON gi.id_file = f.id
     WHERE g.is_active = 1
   `);
-
-  // Triggers per aggiornare slug automaticamente
-  await knex.raw(`
-    CREATE TRIGGER tr_wg_galleries_before_insert
-    BEFORE INSERT ON wg_galleries
-    FOR EACH ROW
-    BEGIN
-      IF NEW.slug IS NULL OR NEW.slug = '' THEN
-        SET NEW.slug = LOWER(REPLACE(REPLACE(REPLACE(NEW.nome_galleria, ' ', '-'), '/', '-'), '_', '-'));
-        -- Rimuovi caratteri non validi
-        SET NEW.slug = REGEXP_REPLACE(NEW.slug, '[^a-z0-9\-]', '');
-        -- Assicura che finisca senza trattini multipli
-        SET NEW.slug = REGEXP_REPLACE(NEW.slug, '\-+', '-');
-        SET NEW.slug = TRIM(BOTH '-' FROM NEW.slug);
-      END IF;
-    END
-  `);
-
-  await knex.raw(`
-    CREATE TRIGGER tr_wg_galleries_before_update
-    BEFORE UPDATE ON wg_galleries
-    FOR EACH ROW
-    BEGIN
-      IF NEW.nome_galleria <> OLD.nome_galleria AND (NEW.slug IS NULL OR NEW.slug = '') THEN
-        SET NEW.slug = LOWER(REPLACE(REPLACE(REPLACE(NEW.nome_galleria, ' ', '-'), '/', '-'), '_', '-'));
-        SET NEW.slug = REGEXP_REPLACE(NEW.slug, '[^a-z0-9\-]', '');
-        SET NEW.slug = REGEXP_REPLACE(NEW.slug, '\-+', '-');
-        SET NEW.slug = TRIM(BOTH '-' FROM NEW.slug);
-      END IF;
-    END
-  `);
+  
+  // --- MODIFICA: Rimossi i TRIGGERS Raw SQL ---
+  // I triggers causano l'errore "SUPER privilege" in produzione.
+  // La generazione dello slug sarà gestita a livello di codice applicativo (server Express).
+  // --- FINE MODIFICA ---
 };
 
 exports.down = async function(knex) {
-  // Drop triggers
+  // Drop triggers (sono stati rimossi nell'UP, ma per pulizia li manteniamo qui)
   await knex.raw('DROP TRIGGER IF EXISTS tr_wg_galleries_before_insert');
   await knex.raw('DROP TRIGGER IF EXISTS tr_wg_galleries_before_update');
 
