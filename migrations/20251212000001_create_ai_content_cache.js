@@ -1,6 +1,7 @@
 /**
  * Migration: Creazione tabella ai_content_cache
  * Tabella per caching dei contenuti generati dall'AI
+ * Fix: Rimosso defaultTo da colonne JSON per compatibilità MySQL 8.0
  */
 
 exports.up = function(knex) {
@@ -22,7 +23,9 @@ exports.up = function(knex) {
         table.string('page_type', 50).notNullable().comment('Tipo di pagina: home, about, services, global_styles, etc.');
         table.text('ai_prompt').comment('Prompt completo inviato all\'AI');
         table.json('generated_content').notNullable().comment('Contenuto generato dall\'AI in formato JSON');
-        table.json('ai_metadata').defaultTo('{}').comment('Metadati della generazione AI');
+        
+        // --- FIX: Rimosso defaultTo('{}') per risolvere l'errore MySQL ---
+        table.json('ai_metadata').nullable().comment('Metadati della generazione AI');
 
         // Campi di controllo
         table.string('industry', 100).nullable().comment('Settore merceologico per categorizzazione');
@@ -46,14 +49,15 @@ exports.up = function(knex) {
       });
     })
     .then(() => {
-      // Crea il trigger solo se la tabella è stata creata
+      // Crea il trigger solo se la tabella è stata creata e non è già registrato
+      // Nota: Non possiamo usare IF NOT EXISTS per il trigger stesso a causa di restrizioni di sintassi
       return knex.raw(`
         SELECT COUNT(*) as count FROM information_schema.triggers
         WHERE trigger_name = 'ai_content_cache_updated_at'
       `);
     })
     .then(([result]) => {
-      if (result.count === 0) {
+      if (result[0].count === 0) { // Fix: Knex può restituire l'array in modi diversi
         return knex.raw(`
           CREATE TRIGGER ai_content_cache_updated_at
             BEFORE UPDATE ON ai_content_cache
@@ -66,6 +70,10 @@ exports.up = function(knex) {
 };
 
 exports.down = function(knex) {
-  return knex.schema
-    .dropTableIfExists('ai_content_cache');
+  // Elimina il trigger se esiste
+  return knex.raw('DROP TRIGGER IF EXISTS ai_content_cache_updated_at')
+    .then(() => {
+        return knex.schema
+          .dropTableIfExists('ai_content_cache');
+    });
 };
