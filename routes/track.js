@@ -13,12 +13,30 @@ const s3Service = require('../services/s3Service');
 const emailVisualizationService = require('../services/emailVisualizationService');
 const router = express.Router();
 
+// Funzione helper per ottenere l'IP del client
+function getClientIp(req) {
+  // L'header X-Forwarded-For può contenere una lista di IP.
+  // Il primo è quello del client originale.
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  
+  // Altro header comune usato da Nginx
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    return realIp;
+  }
+  
+  // Fallback sui metodi diretti (ora che 'trust proxy' è attivo, req.ip dovrebbe funzionare)
+  return req.ip || req.connection.remoteAddress || '0.0.0.0';
+}
 
 /**
  * Middleware per logging delle richieste di tracking
  */
 router.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] Tracking request: ${req.method} ${req.originalUrl} - IP: ${req.ip}`);
+    console.log(`[${new Date().toISOString()}] Tracking request: ${req.method} ${req.originalUrl} - IP: ${getClientIp(req)}`);
     next();
 });
 
@@ -29,7 +47,8 @@ router.use((req, res, next) => {
 router.get('/open/:trackingId', async (req, res) => {
     const { trackingId } = req.params;
     const userAgent = req.get('User-Agent') || 'Unknown';
-const ip = getClientIp(req);
+    const ip = getClientIp(req);
+
     try {
         // Calcola numero di apertura per questo tracking ID
         const [openCountResult] = await dbPool.query(`
@@ -74,7 +93,6 @@ const ip = getClientIp(req);
     }
 });
 
-
 /**
  * GET /track/download/:downloadId
  * Endpoint di tracking per download allegati con supporto S3
@@ -82,7 +100,8 @@ const ip = getClientIp(req);
 router.get('/download/:downloadId', async (req, res) => {
     const { downloadId } = req.params;
     const userAgent = req.get('User-Agent') || 'Unknown';
-const ip = getClientIp(req);
+    const ip = getClientIp(req);
+    
     try {
         // Cerca l'allegato nel database
         const [attachmentRows] = await dbPool.query(`
