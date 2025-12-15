@@ -3,120 +3,127 @@
  * @description Knex migration per tabelle gallerie fotografiche Website Builder
  * @author Website Builder Team
  * @date 08/12/2025
- * Modifica: Rimosso defaultTo da colonne JSON per compatibilità MySQL 8.0
- * Modifica 2: Rimossi i TRIGGERS per evitare l'errore SUPER privilege
+ * Modifica: Aggiunti controlli di esistenza (hasTable e DROP/CREATE VIEW) per risolvere l'errore "Table already exists" dopo un fallimento parziale.
  */
 
 exports.up = async function(knex) {
-  // Tabella principale per le gallerie (wg = Website Gallery)
-  await knex.schema.createTable('wg_galleries', function(table) {
-    table.increments('id').primary();
+  
+  // 1. Tabella principale per le gallerie (wg = Website Gallery)
+  const hasGalleriesTable = await knex.schema.hasTable('wg_galleries');
+  if (!hasGalleriesTable) {
+    await knex.schema.createTable('wg_galleries', function(table) {
+      table.increments('id').primary();
 
-    // Foreign keys
-    table.integer('id_sito_web').unsigned().notNullable()
-      .comment('FK verso siti_web_aziendali');
-    table.integer('id_pagina').unsigned().nullable()
-      .comment('FK verso pagine_sito_web - NULL per gallerie globali');
+      // Foreign keys
+      table.integer('id_sito_web').unsigned().notNullable()
+        .comment('FK verso siti_web_aziendali');
+      table.integer('id_pagina').unsigned().nullable()
+        .comment('FK verso pagine_sito_web - NULL per gallerie globali');
 
-    // Campi principali
-    table.string('nome_galleria', 255).notNullable()
-      .comment('Nome identificativo galleria');
-    table.string('slug', 200).nullable()
-      .comment('URL slug per gallerie pubbliche');
-    table.text('descrizione').nullable()
-      .comment('Descrizione galleria');
+      // Campi principali
+      table.string('nome_galleria', 255).notNullable()
+        .comment('Nome identificativo galleria');
+      table.string('slug', 200).nullable()
+        .comment('URL slug per gallerie pubbliche');
+      table.text('descrizione').nullable()
+        .comment('Descrizione galleria');
 
-    // Layout e visualizzazione
-    table.enum('layout', ['grid-2', 'grid-3', 'grid-4', 'masonry', 'carousel'])
-      .defaultTo('grid-3')
-      .comment('Layout visualizzazione');
+      // Layout e visualizzazione
+      table.enum('layout', ['grid-2', 'grid-3', 'grid-4', 'masonry', 'carousel'])
+        .defaultTo('grid-3')
+        .comment('Layout visualizzazione');
 
-    // Impostazioni avanzate (JSON)
-    // --- FIX: Rimosso defaultTo('{}') per compatibilità MySQL 8.0 ---
-    table.json('impostazioni').nullable() 
-      .comment('Impostazioni aggiuntive (spacing, borders, effects, etc.)');
+      // Impostazioni avanzate (JSON) - Rimosso defaultTo per compatibilità
+      table.json('impostazioni').nullable() 
+        .comment('Impostazioni aggiuntive (spacing, borders, effects, etc.)');
 
-    // Metadati SEO
-    table.string('meta_title', 255).nullable();
-    table.text('meta_description').nullable();
+      // Metadati SEO
+      table.string('meta_title', 255).nullable();
+      table.text('meta_description').nullable();
 
-    // Stato e ordinamento
-    table.boolean('is_active').defaultTo(true)
-      .comment('Galleria visibile/pubblicata');
-    table.integer('sort_order').defaultTo(0)
-      .comment('Ordine visualizzazione');
+      // Stato e ordinamento
+      table.boolean('is_active').defaultTo(true)
+        .comment('Galleria visibile/pubblicata');
+      table.integer('sort_order').defaultTo(0)
+        .comment('Ordine visualizzazione');
 
-    // Timestamps
-    table.timestamps(true, true);
+      // Timestamps
+      table.timestamps(true, true);
 
-    // Foreign keys constraints
-    table.foreign('id_sito_web')
-      .references('id')
-      .inTable('siti_web_aziendali')
-      .onDelete('CASCADE');
+      // Foreign keys constraints
+      table.foreign('id_sito_web')
+        .references('id')
+        .inTable('siti_web_aziendali')
+        .onDelete('CASCADE');
 
-    table.foreign('id_pagina')
-      .references('id')
-      .inTable('pagine_sito_web')
-      .onDelete('CASCADE');
+      table.foreign('id_pagina')
+        .references('id')
+        .inTable('pagine_sito_web')
+        .onDelete('CASCADE');
 
-    // Indexes
-    table.index(['id_sito_web'], 'idx_wg_galleries_sito');
-    table.index(['id_pagina'], 'idx_wg_galleries_pagina');
-    table.index(['is_active', 'sort_order'], 'idx_wg_galleries_active');
-    table.index(['slug', 'id_sito_web'], 'idx_wg_galleries_slug');
-  });
+      // Indexes
+      table.index(['id_sito_web'], 'idx_wg_galleries_sito');
+      table.index(['id_pagina'], 'idx_wg_galleries_pagina');
+      table.index(['is_active', 'sort_order'], 'idx_wg_galleries_active');
+      table.index(['slug', 'id_sito_web'], 'idx_wg_galleries_slug');
+    });
+  }
 
-  // Tabella per le immagini nelle gallerie
-  await knex.schema.createTable('wg_gallery_images', function(table) {
-    table.increments('id').primary();
+  // 2. Tabella per le immagini nelle gallerie
+  const hasGalleryImagesTable = await knex.schema.hasTable('wg_gallery_images');
+  if (!hasGalleryImagesTable) {
+    await knex.schema.createTable('wg_gallery_images', function(table) {
+      table.increments('id').primary();
 
-    // Foreign keys
-    table.integer('id_galleria').unsigned().notNullable()
-      .comment('FK verso wg_galleries');
-    table.integer('id_file').unsigned().notNullable()
-      .comment('FK verso dm_files (immagine)');
+      // Foreign keys
+      table.integer('id_galleria').unsigned().notNullable()
+        .comment('FK verso wg_galleries');
+      table.integer('id_file').unsigned().notNullable()
+        .comment('FK verso dm_files (immagine)');
 
-    // Metadati immagine
-    table.text('caption').nullable()
-      .comment('Didascalia immagine');
-    table.string('alt_text', 500).nullable()
-      .comment('Testo alternativo per SEO/Accessibilità');
-    table.string('title_text', 255).nullable()
-      .comment('Titolo immagine (tooltip)');
+      // Metadati immagine
+      table.text('caption').nullable()
+        .comment('Didascalia immagine');
+      table.string('alt_text', 500).nullable()
+        .comment('Testo alternativo per SEO/Accessibilità');
+      table.string('title_text', 255).nullable()
+        .comment('Titolo immagine (tooltip)');
 
-    // Posizione e ordinamento
-    table.integer('order_pos').notNullable().defaultTo(0)
-      .comment('Posizione nella galleria');
+      // Posizione e ordinamento
+      table.integer('order_pos').notNullable().defaultTo(0)
+        .comment('Posizione nella galleria');
 
-    // Impostazioni specifiche immagine (JSON)
-    // --- FIX: Rimosso defaultTo('{}') per compatibilità MySQL 8.0 ---
-    table.json('impostazioni').nullable() 
-      .comment('Impostazioni singola immagine (link, effetti, etc.)');
+      // Impostazioni specifiche immagine (JSON) - Rimosso defaultTo per compatibilità
+      table.json('impostazioni').nullable() 
+        .comment('Impostazioni singola immagine (link, effetti, etc.)');
 
-    // Timestamps
-    table.timestamps(true, true);
+      // Timestamps
+      table.timestamps(true, true);
 
-    // Foreign keys constraints
-    table.foreign('id_galleria')
-      .references('id')
-      .inTable('wg_galleries')
-      .onDelete('CASCADE');
+      // Foreign keys constraints
+      table.foreign('id_galleria')
+        .references('id')
+        .inTable('wg_galleries')
+        .onDelete('CASCADE');
 
-    table.foreign('id_file')
-      .references('id')
-      .inTable('dm_files')
-      .onDelete('CASCADE');
+      table.foreign('id_file')
+        .references('id')
+        .inTable('dm_files')
+        .onDelete('CASCADE');
 
-    // Indexes
-    table.index(['id_galleria', 'order_pos'], 'idx_wg_gallery_images_order');
-    table.index(['id_file'], 'idx_wg_gallery_images_file');
+      // Indexes
+      table.index(['id_galleria', 'order_pos'], 'idx_wg_gallery_images_order');
+      table.index(['id_file'], 'idx_wg_gallery_images_file');
 
-    // Unique constraint
-    table.unique(['id_galleria', 'id_file'], 'uq_wg_gallery_images');
-  });
+      // Unique constraint
+      table.unique(['id_galleria', 'id_file'], 'uq_wg_gallery_images');
+    });
+  }
 
+  // 3. VISTE (DEVONO ESSERE DROPPATE/RICREARE)
+  
   // Vista per facile query gallerie con conteggio immagini
+  await knex.raw('DROP VIEW IF EXISTS v_wg_galleries_complete'); // Aggiunto il DROP per sicurezza
   await knex.raw(`
     CREATE VIEW v_wg_galleries_complete AS
     SELECT
@@ -131,6 +138,7 @@ exports.up = async function(knex) {
   `);
 
   // Vista per immagini galleria con metadati file
+  await knex.raw('DROP VIEW IF EXISTS v_wg_gallery_images_complete'); // Aggiunto il DROP per sicurezza
   await knex.raw(`
     CREATE VIEW v_wg_gallery_images_complete AS
     SELECT
@@ -152,14 +160,11 @@ exports.up = async function(knex) {
     WHERE g.is_active = 1
   `);
   
-  // --- MODIFICA: Rimossi i TRIGGERS Raw SQL ---
-  // I triggers causano l'errore "SUPER privilege" in produzione.
-  // La generazione dello slug sarà gestita a livello di codice applicativo (server Express).
-  // --- FINE MODIFICA ---
+  // --- TRIGGERS: Rimossi, perché causano l'errore "SUPER privilege" ---
 };
 
 exports.down = async function(knex) {
-  // Drop triggers (sono stati rimossi nell'UP, ma per pulizia li manteniamo qui)
+  // Drop triggers (non sono mai stati creati in produzione, ma per pulizia li manteniamo)
   await knex.raw('DROP TRIGGER IF EXISTS tr_wg_galleries_before_insert');
   await knex.raw('DROP TRIGGER IF EXISTS tr_wg_galleries_before_update');
 
