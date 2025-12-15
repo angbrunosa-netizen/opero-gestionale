@@ -26,7 +26,10 @@ exports.up = async function(knex) {
       table.string('instagram_url', 500).nullable().comment('URL Instagram');
       table.string('linkedin_url', 500).nullable().comment('URL LinkedIn');
       table.boolean('enable_catalog').defaultTo(false).comment('Abilita vetrina prodotti');
-      table.json('catalog_settings').defaultTo('{}').comment('Impostazioni catalogo prodotti');
+      
+      // --- FIX: Rimosso defaultTo('{}') che causa errore MySQL 8.0 su colonne JSON/TEXT ---
+      table.json('catalog_settings').nullable().comment('Impostazioni catalogo prodotti'); 
+      
       table.timestamps(true, true);
 
       // Indexes
