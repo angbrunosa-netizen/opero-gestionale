@@ -1,93 +1,114 @@
 /**
- * Migrazione per tabelle tracking email e cleanup file S3
+ * Migrazione per tabelle tracking email e cleanup file S3 - v2.0 (Compatibilità MySQL 5.7/8.0)
  * File: migrations/20251203010000_email_tracking_enhancements.js
+ * Modifiche: Sostituito SQL RAW con Knex Schema Builder per evitare errori "IF NOT EXISTS" su colonne.
  */
 
 exports.up = async function(knex) {
-    // Tabella per tracking download dettagliato
-    await knex.raw(`
-        CREATE TABLE IF NOT EXISTS download_tracking (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            download_id VARCHAR(255) NOT NULL,
-            ip_address VARCHAR(45) NOT NULL,
-            user_agent TEXT,
-            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            referer VARCHAR(500),
-            INDEX idx_download_id (download_id),
-            INDEX idx_timestamp (timestamp),
-            INDEX idx_ip_address (ip_address)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+    // 1. Tabella per tracking download dettagliato
+    const hasDownloadTracking = await knex.schema.hasTable('download_tracking');
+    if (!hasDownloadTracking) {
+        await knex.schema.createTable('download_tracking', function(table) {
+            table.increments('id').primary();
+            table.string('download_id', 255).notNullable().index('idx_download_id');
+            table.string('ip_address', 45).notNullable().index('idx_ip_address');
+            table.text('user_agent');
+            table.datetime('timestamp').notNullable().defaultTo(knex.fn.now()).index('idx_timestamp');
+            table.string('referer', 500);
+            table.charset('utf8mb4');
+            table.collate('utf8mb4_unicode_ci');
+        });
+    }
 
-    // Tabella per tracking aperture email
-    await knex.raw(`
-        CREATE TABLE IF NOT EXISTS email_open_tracking (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            tracking_id VARCHAR(255) NOT NULL UNIQUE,
-            ip_address VARCHAR(45),
-            user_agent TEXT,
-            opened_at DATETIME,
-            open_count INT DEFAULT 1,
-            INDEX idx_tracking_id (tracking_id),
-            INDEX idx_opened_at (opened_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+    // 2. Tabella per tracking aperture email
+    const hasEmailOpenTracking = await knex.schema.hasTable('email_open_tracking');
+    if (!hasEmailOpenTracking) {
+        await knex.schema.createTable('email_open_tracking', function(table) {
+            table.increments('id').primary();
+            table.string('tracking_id', 255).notNullable().unique().index('idx_tracking_id');
+            table.string('ip_address', 45);
+            table.text('user_agent');
+            table.datetime('opened_at').index('idx_opened_at');
+            table.integer('open_count').defaultTo(1);
+            table.charset('utf8mb4');
+            table.collate('utf8mb4_unicode_ci');
+        });
+    }
 
-    // Aggiorna tabella allegati_tracciati con nuovi campi
-    await knex.raw(`
-        ALTER TABLE allegati_tracciati
-        ADD COLUMN IF NOT EXISTS download_count INT DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS ultimo_download DATETIME NULL,
-        ADD COLUMN IF NOT EXISTS created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    `);
+    // 3. Aggiorna tabella allegati_tracciati con nuovi campi (Controllo manuale per compatibilità)
+    const tableAllegati = 'allegati_tracciati';
+    if (await knex.schema.hasTable(tableAllegati)) {
+        await knex.schema.alterTable(tableAllegati, async function(table) {
+            const hasDownloadCount = await knex.schema.hasColumn(tableAllegati, 'download_count');
+            if (!hasDownloadCount) table.integer('download_count').defaultTo(0);
 
-    // Aggiorna tabella email_inviate con campi tracking
-    await knex.raw(`
-        ALTER TABLE email_inviate
-        ADD COLUMN IF NOT EXISTS open_count INT DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS tracking_id VARCHAR(255) UNIQUE,
-        ADD INDEX idx_tracking_id (tracking_id)
-    `);
+            const hasUltimoDownload = await knex.schema.hasColumn(tableAllegati, 'ultimo_download');
+            if (!hasUltimoDownload) table.datetime('ultimo_download').nullable();
 
-    // Tabella per statistiche pulizia
-    await knex.raw(`
-        CREATE TABLE IF NOT EXISTS cleanup_stats (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            cleanup_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            s3_files_deleted INT DEFAULT 0,
-            local_files_deleted INT DEFAULT 0,
-            db_records_deleted INT DEFAULT 0,
-            tracking_logs_deleted INT DEFAULT 0,
-            duration_ms INT DEFAULT 0,
-            INDEX idx_cleanup_date (cleanup_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+            const hasCreatedAt = await knex.schema.hasColumn(tableAllegati, 'created_at');
+            if (!hasCreatedAt) table.datetime('created_at').defaultTo(knex.fn.now());
+        });
+    }
 
-    console.log('✅ Migrazione tracking enhancements completata');
+    // 4. Aggiorna tabella email_inviate con campi tracking
+    const tableEmail = 'email_inviate';
+    if (await knex.schema.hasTable(tableEmail)) {
+        await knex.schema.alterTable(tableEmail, async function(table) {
+            const hasOpenCount = await knex.schema.hasColumn(tableEmail, 'open_count');
+            if (!hasOpenCount) table.integer('open_count').defaultTo(0);
+
+            const hasTrackingId = await knex.schema.hasColumn(tableEmail, 'tracking_id');
+            if (!hasTrackingId) {
+                table.string('tracking_id', 255).nullable().unique();
+                table.index('tracking_id', 'idx_tracking_id'); // Aggiungi indice esplicitamente se la colonna è nuova
+            }
+        });
+    }
+
+    // 5. Tabella per statistiche pulizia
+    const hasCleanupStats = await knex.schema.hasTable('cleanup_stats');
+    if (!hasCleanupStats) {
+        await knex.schema.createTable('cleanup_stats', function(table) {
+            table.increments('id').primary();
+            table.datetime('cleanup_date').notNullable().defaultTo(knex.fn.now()).index('idx_cleanup_date');
+            table.integer('s3_files_deleted').defaultTo(0);
+            table.integer('local_files_deleted').defaultTo(0);
+            table.integer('db_records_deleted').defaultTo(0);
+            table.integer('tracking_logs_deleted').defaultTo(0);
+            table.integer('duration_ms').defaultTo(0);
+            table.charset('utf8mb4');
+            table.collate('utf8mb4_unicode_ci');
+        });
+    }
+
+    console.log('✅ Migrazione tracking enhancements completata (Safe Mode)');
 };
 
 exports.down = async function(knex) {
     // Rimuovi le tabelle create
-    await knex.raw('DROP TABLE IF EXISTS download_tracking');
-    await knex.raw('DROP TABLE IF EXISTS email_open_tracking');
-    await knex.raw('DROP TABLE IF EXISTS cleanup_stats');
+    await knex.schema.dropTableIfExists('download_tracking');
+    await knex.schema.dropTableIfExists('email_open_tracking');
+    await knex.schema.dropTableIfExists('cleanup_stats');
 
-    // Rimuovi colonne aggiunte (con controllo esistenza)
-    await knex.raw(`
-        ALTER TABLE allegati_tracciati
-        DROP COLUMN IF EXISTS download_count,
-        DROP COLUMN IF EXISTS ultimo_download,
-        DROP COLUMN IF EXISTS created_at
-    `);
+    // Rimuovi colonne aggiunte da allegati_tracciati
+    const tableAllegati = 'allegati_tracciati';
+    if (await knex.schema.hasTable(tableAllegati)) {
+        await knex.schema.alterTable(tableAllegati, function(table) {
+            table.dropColumn('download_count');
+            table.dropColumn('ultimo_download');
+            table.dropColumn('created_at');
+        });
+    }
 
-    await knex.raw(`
-        ALTER TABLE email_inviate
-        DROP COLUMN IF EXISTS open_count,
-        DROP COLUMN IF EXISTS tracking_id
-    `);
-
-    // Rimuovi indici
-    await knex.raw('ALTER TABLE email_inviate DROP INDEX IF EXISTS idx_tracking_id');
+    // Rimuovi colonne aggiunte da email_inviate
+    const tableEmail = 'email_inviate';
+    if (await knex.schema.hasTable(tableEmail)) {
+        await knex.schema.alterTable(tableEmail, function(table) {
+            table.dropColumn('open_count');
+            // Nota: rimuovere la colonna rimuove anche l'indice associato
+            table.dropColumn('tracking_id');
+        });
+    }
 
     console.log('✅ Rollback migrazione tracking enhancements completato');
 };
