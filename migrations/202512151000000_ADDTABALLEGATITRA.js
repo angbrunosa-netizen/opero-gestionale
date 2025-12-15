@@ -1,101 +1,74 @@
-// #####################################################################
-// # File di Migrazione per la tabella 'allegati_tracciati'
-// # ID: 001
-// # Descrizione: Crea la tabella se non esiste e aggiunge le colonne mancanti.
-// #####################################################################
+/**
+ * Migrazione per la creazione e aggiornamento della tabella 'allegati_tracciati'.
+ *
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async function(knex) {
+    // Controlla se la tabella esiste
+    const tableExists = await knex.schema.hasTable('allegati_tracciati');
 
-require('dotenv').config();
-const { dbPool } = require('../config/db');
+    if (!tableExists) {
+        // Se non esiste, creala completa
+        console.log('📋 Tabella "allegati_tracciati" non trovata. Creazione in corso...');
+        return knex.schema.createTable('allegati_tracciati', function(table) {
+            table.increments('id').primary();
+            table.integer('id_email_inviata').unsigned().notNullable();
+            table.string('nome_file_originale', 255).notNullable();
+            table.string('percorso_file_salvato', 255).notNullable();
+            table.string('tipo_file', 100).nullable();
+            table.integer('dimensione_file').unsigned().nullable();
+            table.string('download_id', 255).notNullable().unique();
+            table.tinyint('scaricato').notNullable().defaultTo(0);
+            table.timestamp('data_primo_download').nullable();
+            table.integer('download_count').unsigned().notNullable().defaultTo(0);
+            table.timestamp('ultimo_download').nullable();
+            table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
 
-async function runMigration() {
-    let connection;
-    console.log('🚀 Inizio migrazione per la tabella "allegati_tracciati"...');
+            // Definisci la chiave esterna
+            table.foreign('id_email_inviata').references('id').inTable('email_inviate').onDelete('CASCADE');
+        });
+        console.log('✅ Tabella "allegati_tracciati" creata con successo.');
 
-    try {
-        // Ottieni una connessione dal pool
-        connection = await dbPool.getConnection();
-        console.log('✅ Connesso al database.');
-
-        // --- STEP 1: Verifica se la tabella esiste ---
-        const [tables] = await connection.query("SHOW TABLES LIKE 'allegati_tracciati'");
+    } else {
+        // Se esiste, aggiungi solo le colonne mancanti
+        console.log('📋 Tabella "allegati_tracciati" trovata. Verifica colonne mancanti...');
         
-        if (tables.length === 0) {
-            // --- STEP 2A: La tabella NON esiste, creala completa ---
-            console.log('📋 Tabella "allegati_tracciati" non trovata. Creazione in corso...');
-            
-            const createTableSQL = `
-                CREATE TABLE \`allegati_tracciati\` (
-                  \`id\` INT NOT NULL AUTO_INCREMENT,
-                  \`id_email_inviata\` INT NOT NULL,
-                  \`nome_file_originale\` VARCHAR(255) NOT NULL,
-                  \`percorso_file_salvato\` VARCHAR(255) NOT NULL,
-                  \`tipo_file\` VARCHAR(100) NULL,
-                  \`dimensione_file\` INT NULL,
-                  \`download_id\` VARCHAR(255) NOT NULL,
-                  \`scaricato\` TINYINT(1) NOT NULL DEFAULT 0,
-                  \`data_primo_download\` TIMESTAMP NULL,
-                  \`download_count\` INT NOT NULL DEFAULT 0,
-                  \`ultimo_download\` TIMESTAMP NULL,
-                  \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  PRIMARY KEY (\`id\`),
-                  UNIQUE INDEX \`download_id_UNIQUE\` (\`download_id\` ASC),
-                  INDEX \`id_email_inviata_idx\` (\`id_email_inviata\` ASC),
-                  CONSTRAINT \`fk_allegati_tracciati_email_inviate\`
-                    FOREIGN KEY (\`id_email_inviata\`)
-                    REFERENCES \`email_inviate\` (\`id\`)
-                    ON DELETE CASCADE
-                    ON UPDATE NO ACTION
-                ) ENGINE=InnoDB;
-            `;
-            await connection.query(createTableSQL);
-            console.log('✅ Tabella "allegati_tracciati" creata con successo.');
-
-        } else {
-            // --- STEP 2B: La tabella esiste, aggiungi le colonne mancanti ---
-            console.log('📋 Tabella "allegati_tracciati" trovata. Verifica colonne mancanti...');
-            
-            const columnsToAdd = [
-                {
-                    name: 'download_count',
-                    sql: 'ADD COLUMN `download_count` INT NOT NULL DEFAULT 0 AFTER `data_primo_download`'
-                },
-                {
-                    name: 'ultimo_download',
-                    sql: 'ADD COLUMN `ultimo_download` TIMESTAMP NULL AFTER `download_count`'
-                },
-                {
-                    name: 'created_at',
-                    sql: 'ADD COLUMN `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `ultimo_download`'
-                }
-            ];
-
-            for (const column of columnsToAdd) {
-                const [columns] = await connection.query(`SHOW COLUMNS FROM \`allegati_tracciati\` LIKE '${column.name}'`);
-                
-                if (columns.length === 0) {
-                    console.log(`➕ Colonna "${column.name}" mancante. Aggiunta in corso...`);
-                    await connection.query(`ALTER TABLE \`allegati_tracciati\` ${column.sql}`);
-                    console.log(`✅ Colonna "${column.name}" aggiunta con successo.`);
-                } else {
-                    console.log(`✅ Colonna "${column.name}" già presente.`);
-                }
-            }
+        const hasDownloadCount = await knex.schema.hasColumn('allegati_tracciati', 'download_count');
+        if (!hasDownloadCount) {
+            console.log('➕ Aggiunta colonna "download_count"...');
+            await knex.schema.table('allegati_tracciati', function(table) {
+                table.integer('download_count').unsigned().notNullable().defaultTo(0).after('data_primo_download');
+            });
         }
 
-        console.log('🎉 Migrazione completata con successo!');
-
-    } catch (error) {
-        console.error('❌ Errore durante la migrazione:', error);
-        process.exit(1); // Esci con un codice di errore
-    } finally {
-        if (connection) {
-            connection.release(); // Rilascia la connessione
-            console.log('🔌 Connessione al database rilasciata.');
+        const hasUltimoDownload = await knex.schema.hasColumn('allegati_tracciati', 'ultimo_download');
+        if (!hasUltimoDownload) {
+            console.log('➕ Aggiunta colonna "ultimo_download"...');
+            await knex.schema.table('allegati_tracciati', function(table) {
+                table.timestamp('ultimo_download').nullable().after('download_count');
+            });
         }
-        // Chiudi il pool per permettere allo script di terminare
-        await dbPool.end();
+
+        const hasCreatedAt = await knex.schema.hasColumn('allegati_tracciati', 'created_at');
+        if (!hasCreatedAt) {
+            console.log('➕ Aggiunta colonna "created_at"...');
+            await knex.schema.table('allegati_tracciati', function(table) {
+                table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+            });
+        }
+        
+        console.log('✅ Verifica colonne completata.');
     }
-}
+};
 
-// Esegui la migrazione
-runMigration();
+/**
+ * Annulla la migrazione: droppa la tabella 'allegati_tracciati'.
+ *
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = function(knex) {
+    console.log('🗑️ Rollback: rimozione della tabella "allegati_tracciati"...');
+    return knex.schema.dropTable('allegati_tracciati');
+};
