@@ -49,6 +49,11 @@ const quoteRoutes = require('./routes/quoteRoutes'); // ROTTA PER IL PENSIERO MO
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
 
+// #####################################################################
+// # AGGIUNTA PER IL TRUST PROXY - RISOLVE L'ERRORE IP_ADDRESS NULL #
+// #####################################################################
+app.set('trust proxy', true);
+
 // --- 3. MIDDLEWARE ---
 
 // Middleware per il parsing del corpo delle richieste in JSON (comune a entrambi gli ambienti)

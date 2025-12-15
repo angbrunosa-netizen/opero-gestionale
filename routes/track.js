@@ -29,8 +29,7 @@ router.use((req, res, next) => {
 router.get('/open/:trackingId', async (req, res) => {
     const { trackingId } = req.params;
     const userAgent = req.get('User-Agent') || 'Unknown';
-    const ip = req.ip || req.connection.remoteAddress;
-
+const ip = getClientIp(req);
     try {
         // Calcola numero di apertura per questo tracking ID
         const [openCountResult] = await dbPool.query(`
@@ -83,8 +82,7 @@ router.get('/open/:trackingId', async (req, res) => {
 router.get('/download/:downloadId', async (req, res) => {
     const { downloadId } = req.params;
     const userAgent = req.get('User-Agent') || 'Unknown';
-    const ip = req.ip || req.connection.remoteAddress;
-
+const ip = getClientIp(req);
     try {
         // Cerca l'allegato nel database
         const [attachmentRows] = await dbPool.query(`
