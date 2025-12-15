@@ -125,28 +125,78 @@ const ArchivioPostaModule = () => {
     }, [allegati, searchTerm, sortBy, sortOrder, filterStatus]);
 
     // Gestione download
-    const handleDownload = async (downloadUrl) => {
-        try {
-            const fullUrl = `${api.defaults.baseURL}${downloadUrl}`;
-            window.open(fullUrl, '_blank');
+// Gestione download
+// Gestione download
+const handleDownload = async (downloadUrl) => {
+    try {
+        // --- MODIFICA CHIAVE QUI ---
+        // L'URL dal backend è già un percorso completo (es. /api/archivio-posta/download/...),
+        // quindi non dobbiamo aggiungere il baseURL. Usiamo l'origine della finestra per costruire l'URL completo.
+        const fullUrl = `${window.location.origin}${downloadUrl}`;
+        
+        // 1. Scarica il file come dati binari (blob)
+        const response = await api.get(fullUrl, { 
+            responseType: 'blob' // Fondamentale per gestire file
+        });
 
-            // Aggiorna lo stato locale dopo il download
-            if (selectedAllegato) {
-                setSelectedAllegato({
-                    ...selectedAllegato,
-                    scaricato: true,
-                    data_download: new Date().toISOString()
-                });
-            }
-
-            // Ricarica i dati
-            fetchAllegati();
-        } catch (error) {
-            console.error('Errore download:', error);
-            alert('Errore durante il download del file');
+        // 2. Crea un URL temporaneo per il file scaricato
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        
+        // 3. Crea un link <a> nascosto
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // 4. Estrai il nome del file dagli header della risposta, se disponibile
+        const contentDisposition = response.headers['content-disposition'];
+        let fileName = 'allegato'; // Nome di default
+        if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (fileNameMatch.length === 2) fileName = fileNameMatch[1];
+        } else if (selectedAllegato) {
+            // Fallback sul nome dell'allegato selezionato
+            fileName = selectedAllegato.nome_file_originale;
         }
-    };
+        link.setAttribute('download', fileName);
+        
+        // 5. Aggiungi il link al corpo del documento, cliccalo e rimuovilo
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 6. Pulisci l'URL temporaneo
+        window.URL.revokeObjectURL(url);
 
+        // 7. Aggiorna lo stato locale SOLO ADESSO, dopo il successo
+        if (selectedAllegato) {
+            setSelectedAllegato({
+                ...selectedAllegato,
+                scaricato: true,
+                data_download: new Date().toISOString()
+            });
+        }
+        fetchAllegati(); // Ricarica i dati
+
+        // Mostra un messaggio di successo (opzionale)
+        alert('Download completato con successo!');
+
+    } catch (error) {
+        // ORA QUESTO BLOCC CATTURERÀ VERAMENTE GLI ERRORI!
+        console.error('Errore durante il download:', error);
+        
+        // Mostra un errore specifico se il backend lo fornisce
+        let errorMessage = 'Errore durante il download del file.';
+        if (error.response && error.response.data) {
+            // Se l'errore è un blob (es. pagina di errore HTML), prova a leggerlo
+            if (error.response.data instanceof Blob) {
+                const errorText = await error.response.data.text();
+                errorMessage = `Errore dal server: ${errorText}`;
+            } else {
+                errorMessage = `Errore dal server: ${error.response.data.message || error.response.data}`;
+            }
+        }
+        alert(errorMessage);
+    }
+};
     // Gestione eliminazione
     const handleDelete = async () => {
         if (!selectedAllegato) return;
