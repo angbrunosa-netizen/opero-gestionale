@@ -2,6 +2,7 @@
  * Migration: Aggiunta supporto AI alle tabelle esistenti
  * Data: 2025-12-13
  * Scopo: Estendere tabelle esistenti per supporto AI-generazione mantenendo retrocompatibilità
+ * FIX: Rimosso blocco createTable('ai_content_cache') per evitare conflitto di stato con la migrazione 20251212...
  */
 
 exports.up = function(knex) {
@@ -38,29 +39,16 @@ exports.up = function(knex) {
       table.json('ai_alternative_versions').nullable().after('ai_improvement_suggestions').comment('Versioni alternative generate da AI');
     });
   })
-  .then(() => {
+  // --- MODIFICA: Rimuovo la creazione duplicata di ai_content_cache ---
+  /* .then(() => {
     return knex.schema.createTable('ai_content_cache', (table) => {
       table.increments('id').primary();
       table.string('context_hash', 64).unique().notNullable().comment('Hash del contesto aziendale');
       table.integer('id_ditta').unsigned().notNullable().comment('ID ditta associata');
-      table.string('page_type', 50).notNullable().comment('Tipo pagina generata');
-      table.string('industry', 100).nullable().comment('Settore merceologico');
-      table.text('ai_prompt').nullable().comment('Prompt completo usato');
-      table.json('generated_content').nullable().comment('Contenuto generato');
-      table.json('ai_metadata').nullable().comment('Metadata generazione');
-      table.string('ai_model', 50).nullable().comment('Modello AI usato');
-      table.decimal('confidence_score', 5, 2).nullable().comment('Score di confidenza');
-      table.integer('usage_count').defaultTo(0).comment('Numero volte utilizzato');
-      table.timestamp('created_at').defaultTo(knex.fn.now());
-      table.timestamp('expires_at').nullable().comment('Scadenza cache');
-
-      // Indexes
-      table.index('context_hash', 'idx_context_hash');
-      table.index('id_ditta', 'idx_ditta');
-      table.index('page_type', 'idx_page_type');
-      table.index('expires_at', 'idx_expires_at');
+      // ... [resto dei campi della tabella]
     });
-  })
+  }) */
+  // --- FINE RIMOZIONE ---
   .then(() => {
     return knex.schema.createTable('ai_template_suggestions', (table) => {
       table.increments('id').primary();
@@ -85,7 +73,9 @@ exports.up = function(knex) {
 exports.down = function(knex) {
   return knex.schema.dropTableIfExists('ai_template_suggestions')
     .then(() => {
-      return knex.schema.dropTableIfExists('ai_content_cache');
+      // NON droppiamo ai_content_cache qui, perché appartiene alla migrazione precedente
+      // return knex.schema.dropTableIfExists('ai_content_cache');
+      return Promise.resolve();
     })
     .then(() => {
       return knex.schema.alterTable('pagine_sito_web', (table) => {
