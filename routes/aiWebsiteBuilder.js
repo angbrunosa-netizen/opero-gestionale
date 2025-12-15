@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { checkPermission } = require('../utils/auth');
 const { knex } = require('../config/db');
-const S3Service = require('../services/S3Service');
+const S3Service = require('../services/s3Service');
 const axios = require('axios');
 
 // Configurazione API Z.ai
