@@ -9,10 +9,9 @@
 import { NextResponse } from "next/server";
 
 export const config = {
-  // Versione più semplice del matcher. 
-  // Ignora solo le cartelle interne di Next.js e i file statici.
+  // Matcher per tutte le richieste tranne quelle interne di Next.js
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico).*)", // Rimuovo _sites dall'esclusione
   ],
 };
 
