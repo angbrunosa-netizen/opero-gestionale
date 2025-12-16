@@ -1,0 +1,20 @@
+/**
+ * Nome File: BlockRegistry.js
+ * Percorso: components/BlockRegistry.js
+ * Data: 15/12/2025
+ * Versione: 1.0.0
+ * Descrizione: Mappa i codici DB ai componenti React.
+ */
+import dynamic from 'next/dynamic';
+
+const HeroBlock = dynamic(() => import('./blocks/HeroBlock'));
+const VetrinaBlock = dynamic(() => import('./blocks/VetrinaBlock'));
+const HtmlBlock = dynamic(() => import('./blocks/HtmlBlock'));
+const MapsBlock = dynamic(() => import('./blocks/MapsBlock'));
+
+export const BLOCK_REGISTRY = {
+  'HERO': HeroBlock,
+  'VETRINA': VetrinaBlock,
+  'HTML': HtmlBlock,
+  'MAPS': MapsBlock,
+};

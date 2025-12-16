@@ -1,7 +1,6 @@
 // #####################################################################
-// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v8.1
-// # Progettato per funzionare sia in Sviluppo (Windows) che in Produzione (Linux)
-// # Con integrazione S3 Aruba Cloud Storage
+// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v8.2
+// # Fix: Correzione rotta Admin CMS (admin-cms -> admin/cms)
 // #####################################################################
 require('dotenv').config(); // Carica le variabili d'ambiente dal file .env
 
@@ -16,7 +15,6 @@ const path = require('path');
 const fs = require('fs');
 
 // --- 1. IMPORTAZIONE DELLE ROTTE E DEL "GUARDIANO" DI SICUREZZA ---
-// Unifichiamo tutte le importazioni necessarie da entrambe le versioni
 const { verifyToken } = require('./utils/auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -31,51 +29,40 @@ const trackRoutes = require('./routes/track');
 
 const reportRoutes = require('./routes/reports');
 const beniStrumentaliRoutes = require('./routes/benistrumentali');
-const catalogoRoutes = require('./routes/catalogo'); // <-- NUOVA INTEGRAZIONE
+const catalogoRoutes = require('./routes/catalogo');
 const magazzinoRoutes = require('./routes/magazzino');
-const venditeRoutes = require('./routes/vendite'); // <-- NUOVA INTEGRAZIONE
-const anagraficaRoutes = require('./routes/anagrafica'); // <-- NUOVA INTEGRAZIONE
-const listeRoutes = require('./routes/liste'); // <-- ROTTA PREZZI E LISTINI
-const AcquistiRoutes = require('./routes/acquisti'); // <-- NUOVA INTEGRAZIONE
+const venditeRoutes = require('./routes/vendite');
+const anagraficaRoutes = require('./routes/anagrafica');
+const listeRoutes = require('./routes/liste');
+const AcquistiRoutes = require('./routes/acquisti');
 const documentiRoutes = require('./routes/documenti');
 const archivioRoutes = require('./routes/archivio');
-const archivioPostaRoutes = require('./routes/archivio-posta'); // <-- NUOVA ROTTA ARCHIVIO POSTA
+const archivioPostaRoutes = require('./routes/archivio-posta');
 const systemRoutes = require('./routes/system');
-const adminS3Routes = require('./routes/admin-s3'); // <-- NUOVA ROTTA S3 ADMIN
-const websiteRoutes = require('./routes/website'); // <-- NUOVA ROTTA WEBSITE BUILDER
-const websiteGeneratorRoutes = require('./routes/website-generator'); // <-- NUOVA ROTTA GENERAZIONE SITI STATICI
-const quoteRoutes = require('./routes/quoteRoutes'); // ROTTA PER IL PENSIERO MOTIVAZIONALE
+const adminS3Routes = require('./routes/admin-s3');
+const websiteRoutes = require('./routes/website');
+const websiteGeneratorRoutes = require('./routes/website-generator');
+const quoteRoutes = require('./routes/quoteRoutes');
+const adminCmsRoutes = require('./routes/admin_cms'); // <-- NUOVA ROTTA ADMIN CMS
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
 
-// #####################################################################
-// # AGGIUNTA PER IL TRUST PROXY - RISOLVE L'ERRORE IP_ADDRESS NULL #
-// #####################################################################
 app.set('trust proxy', true);
 
 // --- 3. MIDDLEWARE ---
-
-// Middleware per il parsing del corpo delle richieste in JSON (comune a entrambi gli ambienti)
-// Aumentiamo i limiti per gestire header più grandi e risolvere l'errore 431
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb', parameterLimit: 10000 }));
 
-// Configurazione personalizzata per aumentare il limite degli header
 app.use((req, res, next) => {
-  // Aumenta il limite massimo per gli header (default è 8KB)
   req.headers['max-header-size'] = '64kb';
   next();
 });
 
-// Middleware per il CORS, con logica condizionale
+// Middleware per il CORS
 if (process.env.NODE_ENV === 'production') {
-  // In produzione, una configurazione CORS più semplice è sufficiente
-  // perché Nginx funge da proxy e serve tutto dallo stesso dominio.
   app.use(cors());
 } else {
-  // In sviluppo, abbiamo bisogno di una configurazione CORS robusta
-  // per permettere la comunicazione tra il frontend (es. porta 3000) e il backend (es. porta 3001).
   const allowedOrigins = [
     process.env.FRONTEND_URL,
     'http://localhost:3000',
@@ -93,17 +80,12 @@ if (process.env.NODE_ENV === 'production') {
   ];
   const corsOptions = {
     origin: (origin, callback) => {
-      // Permetti richieste senza origin (es. Postman, curl)
       if (!origin) {
         return callback(null, true);
       }
-
-      console.log(`[CORS] Request from origin: ${origin}`);
-
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        // In development, permetti tutte le origini con un warning
         if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
           console.warn(`[CORS] Allowing origin ${origin} in development mode`);
           callback(null, true);
@@ -121,18 +103,18 @@ if (process.env.NODE_ENV === 'production') {
   app.options('*', cors(corsOptions));
 }
 
-// Creazione della cartella 'uploads' se non esiste (utile in entrambi gli ambienti)
+// Creazione cartella uploads
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR);
 }
 
 // --- 4. REGISTRAZIONE DELLE ROTTE API ---
-// Usiamo la struttura più sicura della versione di produzione, che protegge le rotte con il "guardiano" verifyToken
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/track', trackRoutes);
-// Le seguenti rotte richiedono un token di autenticazione valido
+
+// Rotte protette
 app.use('/api/mail', verifyToken, mailRoutes);
 app.use('/api/admin', verifyToken, adminRoutes);
 app.use('/api/user', verifyToken, userRoutes);
@@ -144,60 +126,56 @@ app.use('/api/ppa', verifyToken, ppaRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/beni-strumentali', verifyToken, beniStrumentaliRoutes);
 app.use('/api/benistrumentali', verifyToken, beniStrumentaliRoutes);
-app.use('/api/catalogo', verifyToken, catalogoRoutes); // <-- NUOVA INTEGRAZIONE
-app.use('/api/magazzino', magazzinoRoutes); // <-- NUOVA RIGA DA AGGIUNGERE
-app.use('/api/vendite', venditeRoutes); // <-- AGGIUNGI QUESTA RIGA
-app.use('/api/anagrafica', verifyToken, anagraficaRoutes); // <-- NUOVA ROTTA AGGIUNTA
-app.use('/api/liste', verifyToken, listeRoutes); // <-- ROTTA PREZZI E LISTINI
-app.use('/api/acquisti', AcquistiRoutes); // <-- AGGIUNGI QUESTA RIGA
+app.use('/api/catalogo', verifyToken, catalogoRoutes);
+app.use('/api/magazzino', magazzinoRoutes);
+app.use('/api/vendite', venditeRoutes);
+app.use('/api/anagrafica', verifyToken, anagraficaRoutes);
+app.use('/api/liste', verifyToken, listeRoutes);
+app.use('/api/acquisti', AcquistiRoutes);
 app.use('/api/documenti', documentiRoutes);
 app.use('/api/archivio', verifyToken, archivioRoutes);
-app.use('/api/archivio-posta', verifyToken, archivioPostaRoutes); // <-- NUOVA ROTTA ARCHIVIO POSTA
+app.use('/api/archivio-posta', verifyToken, archivioPostaRoutes);
 app.use('/api/system', verifyToken, systemRoutes);
-app.use('/api/quotes', quoteRoutes); // ROTTA PER IL PENSIERO MOTIVAZIONALE
-app.use('/api/admin-s3', adminS3Routes); // <-- NUOVA ROTTA AMMINISTRAZIONE S3
-// TODO: Riattivare verifyToken quando il debug è completato
-app.use('/api/website', websiteRoutes); // <-- NUOVA ROTTA WEBSITE BUILDER SENZA AUTH PER DEBUG
-app.use('/api/website-generator', verifyToken, websiteGeneratorRoutes); // <-- NUOVA ROTTA GENERAZIONE SITI STATICI
-app.use('/api/ai-enhanced-website', verifyToken, require('./routes/ai-enhanced-website')); // <-- NUOVA ROTTA AI-ENHANCED WEBSITE BUILDER
-app.use('/api/ai-collaborative-assistant', verifyToken, require('./routes/ai-collaborative-assistant')); // <-- NUOVA ROTTA AI COLLABORATIVE ASSISTANT
-app.use('/api/ai-content-generator', require('./routes/ai-content-generator')); // <-- NUOVA ROTTA AI CONTENT GENERATOR (NO AUTH PER TEST)
-app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuilder')); // <-- ROUTA AI WEBSITE BUILDER ESISTENTE
+app.use('/api/quotes', quoteRoutes);
+app.use('/api/admin-s3', adminS3Routes);
 
-// --- 5. GESTIONE DEL FRONTEND (SOLO IN AMBIENTE DI PRODUZIONE) ---
+// --- SEZIONE WEBSITE BUILDER & CMS ---
+app.use('/api/website', websiteRoutes); 
+app.use('/api/website-generator', verifyToken, websiteGeneratorRoutes);
+app.use('/api/ai-enhanced-website', verifyToken, require('./routes/ai-enhanced-website'));
+app.use('/api/ai-collaborative-assistant', verifyToken, require('./routes/ai-collaborative-assistant'));
+app.use('/api/ai-content-generator', require('./routes/ai-content-generator'));
+app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuilder'));
+
+// *** FIX QUI: Modificato da 'admin-cms' a 'admin/cms' per matchare il frontend ***
+app.use('/api/admin/cms', verifyToken, adminCmsRoutes); 
+
+// --- 5. GESTIONE DEL FRONTEND ---
 if (process.env.NODE_ENV === 'production') {
-  // Serve i file statici della build di React
   app.use(express.static(path.join(__dirname, 'opero-frontend', 'build')));
-
-  // Rotta "catch-all" che rimanda a index.html per gestire il routing lato client di React
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'opero-frontend', 'build', 'index.html'));
   });
 }
 
-// --- 6. AVVIO DEL SERVER (LOGICA CONDIZIONALE) ---
+// --- 6. AVVIO DEL SERVER ---
 if (process.env.NODE_ENV === 'production') {
-  // --- AVVIO IN PRODUZIONE SU SOCKET ---
   const socketPath = path.join(__dirname, 'opero.sock');
   if (fs.existsSync(socketPath)) {
     fs.unlinkSync(socketPath);
   }
   app.listen(socketPath, () => {
-    fs.chmodSync(socketPath, '666'); // Permessi per Nginx
+    fs.chmodSync(socketPath, '666');
     console.log(`✅ Server Opero in PRODUZIONE avviato e in ascolto sul socket: ${socketPath}`);
   });
 } else {
-  // --- AVVIO IN SVILUPPO SU PORTA DI RETE ---
   const PORT = process.env.PORT || 3001;
   if (require.main === module) {
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`💻 Server Opero in SVILUPPO avviato e in ascolto sulla porta: ${PORT}`);
       console.log(`🔧 Header limit aumentato per risolvere errore 431`);
     });
-
-    // Aumenta il limite massimo per gli header HTTP (risolve l'errore 431)
-    server.maxHeadersCount = 1000;  // Default è 100
-    // Nota: maxHeaderSize non è direttamente configurabile in Node.js, ma aumentiamo il numero di header
+    server.maxHeadersCount = 1000;
   }
 }
 

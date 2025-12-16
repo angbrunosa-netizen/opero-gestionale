@@ -43,6 +43,7 @@ const PPAModule = React.lazy(() => import('../components/PPAModule'));
  const VenditeModule = React.lazy(() => import('../components/VenditeModule'));
 const WebsiteBuilderModule = React.lazy(() => import('../components/WebsiteBuilderModule'));
 const ListModule = React.lazy(() => import('../components/ListModule')); // Componente per il modulo LISTE
+const SiteBuilderModule = React.lazy(() => import('../components/SiteBuilderModule'));
 
 // --- Mappa dei Componenti (BASATA SUL TUO SQL) ---
 // Collega la 'chiave_componente' del DB al componente React.
@@ -55,7 +56,7 @@ export const componentMap = {
   BSSMART: BeniStrumentaliModule,
   CT_VIEW: CatalogoModule,
   DOCUMENTI: ArchivioDocumentale,
-  SITE_BUILDER: WebsiteBuilderModule,
+  SITE_BUILDER: SiteBuilderModule,
   // --- Moduli pronti per essere attivati ---
   // Per attivarli: 1. Crea il componente. 2. Decommenta le due righe.
 LISTE: ListModule,  

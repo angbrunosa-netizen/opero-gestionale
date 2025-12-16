@@ -139,4 +139,95 @@ router.get('/verify-email/:token', async (req, res) => {
     }
 });
 
+/**
+ * Nome File: public_cms.js
+ * Percorso: routes/public_cms.js
+ * Data: 15/12/2025
+ * Versione: 1.0.0
+ * Descrizione: API pubbliche per il CMS. Gestisce il recupero della struttura delle pagine
+ * e dei componenti per il rendering lato frontend.
+ */
+
+// Middleware per risolvere il tenant (Ditta) dallo slug
+const resolveTenant = async (req, res, next) => {
+    const { slug } = req.params;
+    try {
+        const [rows] = await dbPool.query(
+            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario, 
+                    d.shop_colore_secondario, 
+                    COALESCE(t.codice, 'standard') as template_code 
+             FROM ditte d 
+             LEFT JOIN web_templates t ON d.id_web_template = t.id 
+             WHERE d.url_slug = ? AND d.shop_attivo = 1`, 
+            [slug]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sito non trovato o non attivo.' });
+        }
+        
+        req.shopDitta = rows[0];
+        next();
+    } catch (error) {
+        console.error('Errore lookup tenant:', error);
+        res.status(500).json({ success: false, error: 'Errore server' });
+    }
+};
+
+// GET: Recupera la struttura completa di una pagina
+// Esempio: /api/public/shop/dittaprova/page/chi-siamo
+router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
+    try {
+        const { pageSlug } = req.params;
+        const targetPage = pageSlug || 'home'; // Default alla home se slug vuoto
+
+        // 1. Recupera i metadati della pagina
+        const [pages] = await dbPool.query(
+            `SELECT id, titolo_seo, descrizione_seo 
+             FROM web_pages 
+             WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`, 
+            [req.shopDitta.id, targetPage]
+        );
+
+        if (pages.length === 0) {
+            return res.status(404).json({ success: false, message: 'Pagina non trovata' });
+        }
+        const page = pages[0];
+
+        // 2. Recupera i componenti ordinati
+        const [components] = await dbPool.query(
+            `SELECT tipo_componente, dati_config 
+             FROM web_page_components 
+             WHERE id_page = ? 
+             ORDER BY ordine ASC`, 
+            [page.id]
+        );
+
+        // 3. Risposta strutturata per il Frontend
+        res.json({
+            success: true,
+            siteConfig: {
+                name: req.shopDitta.ragione_sociale,
+                logo: req.shopDitta.logo_url,
+                colors: {
+                    primary: req.shopDitta.shop_colore_primario,
+                    secondary: req.shopDitta.shop_colore_secondario
+                },
+                template: req.shopDitta.template_code
+            },
+            page: {
+                title: page.titolo_seo,
+                description: page.descrizione_seo
+            },
+            components: components // L'array di blocchi da renderizzare
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+});
+
 module.exports = router;
+
+
