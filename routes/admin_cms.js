@@ -226,4 +226,184 @@ router.post('/page/:idPage/components', async (req, res) => {
     }
 });
 
+// ... (codice esistente)
+
+// ----------------------------------------------------------------------
+// 4. GESTIONE MEDIA (Galleria dall'Archivio)
+// ----------------------------------------------------------------------
+
+// GET Immagini dall'Archivio Ditta
+// Recupera tutti i file con mime_type 'image/%' dalla tabella dm_files
+router.get('/media/:idDitta', async (req, res) => {
+    try {
+        const [images] = await dbPool.query(
+            `SELECT id, file_name_originale, s3_key, mime_type, created_at 
+             FROM dm_files 
+             WHERE id_ditta = ? 
+             AND mime_type LIKE 'image/%'
+             ORDER BY created_at DESC`,
+            [req.params.idDitta]
+        );
+        
+        // Costruiamo l'URL pubblico (CDN) per ogni immagine
+        // Assumiamo che la struttura CDN sia standard
+        const imagesWithUrl = images.map(img => ({
+            ...img,
+            publicUrl: `https://cdn.operocloud.it/operogo/${img.s3_key}`
+        }));
+
+        res.json(imagesWithUrl);
+    } catch (e) {
+        console.error("Errore recupero media:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST Upload Immagine al Volo (Proxy verso il sistema documenti)
+// Questo endpoint serve per caricare un'immagine direttamente dal CMS
+// e salvarla in dm_files come se fosse un allegato generico del sito.
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/temp/' }); // Cartella temp
+
+router.post('/media/upload/:idDitta', upload.single('file'), async (req, res) => {
+    const { idDitta } = req.params;
+    const { s3Upload } = require('../utils/s3Client'); // Assicurati che il percorso sia corretto
+    const fs = require('fs');
+
+    try {
+        if (!req.file) throw new Error("Nessun file caricato");
+
+        // 1. Upload su S3
+        // Usiamo una struttura chiave dedicata al sito: ditta-{id}/website/{filename}
+        const s3Key = `ditta-${idDitta}/website/${Date.now()}-${req.file.originalname}`;
+        
+        const fileStream = fs.createReadStream(req.file.path);
+        await s3Upload(s3Key, fileStream, req.file.mimetype);
+
+        // 2. Salva record in dm_files
+        const [result] = await dbPool.query(
+            `INSERT INTO dm_files 
+            (id_ditta, id_utente_upload, file_name_originale, file_size_bytes, mime_type, privacy, s3_key) 
+            VALUES (?, ?, ?, ?, ?, 'public', ?)`,
+            [idDitta, req.user.id, req.file.originalname, req.file.size, req.file.mimetype, s3Key]
+        );
+
+        // 3. (Opzionale) Collega a dm_allegati_link con entita 'website'
+        await dbPool.query(
+            `INSERT INTO dm_allegati_link (id_ditta, id_file, entita_tipo, entita_id) VALUES (?, ?, 'website', ?)`,
+            [idDitta, result.insertId, idDitta]
+        );
+
+        // Pulizia
+        fs.unlink(req.file.path, () => {});
+
+        res.json({
+            success: true,
+            url: `https://cdn.operocloud.it/operogo/${s3Key}`,
+            id: result.insertId
+        });
+
+    } catch (e) {
+        console.error("Errore upload media:", e);
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: e.message });
+    }
+});
+// ... (tutto il codice precedente di login/registrazione resta uguale)
+
+// =============================================================================
+// SEZIONE 2: MOTORE CMS (Recupero contenuti sito)
+// =============================================================================
+
+// Middleware Helper: Trova la ditta dallo slug (sottodominio)
+const resolveTenant = async (req, res, next) => {
+    const { slug } = req.params;
+    try {
+        const [rows] = await dbPool.query(
+            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario, 
+                    d.shop_colore_secondario, 
+                    COALESCE(t.codice, 'standard') as template_code 
+             FROM ditte d 
+             LEFT JOIN web_templates t ON d.id_web_template = t.id 
+             WHERE d.url_slug = ? AND d.shop_attivo = 1`, 
+            [slug]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sito non trovato o non attivo.' });
+        }
+        
+        req.shopDitta = rows[0];
+        next();
+    } catch (error) {
+        console.error('Errore lookup tenant:', error);
+        res.status(500).json({ success: false, error: 'Errore server' });
+    }
+};
+
+// API Principale CMS: Restituisce struttura pagina, componenti E MENU DI NAVIGAZIONE
+router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
+    try {
+        const { pageSlug } = req.params;
+        const targetPage = pageSlug || 'home'; 
+
+        // 1. Recupera la pagina corrente
+        const [pages] = await dbPool.query(
+            `SELECT id, titolo_seo, descrizione_seo 
+             FROM web_pages 
+             WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`, 
+            [req.shopDitta.id, targetPage]
+        );
+
+        if (pages.length === 0) {
+            return res.status(404).json({ success: false, message: 'Pagina non trovata' });
+        }
+        const page = pages[0];
+
+        // 2. Recupera i componenti della pagina corrente
+        const [components] = await dbPool.query(
+            `SELECT tipo_componente, dati_config 
+             FROM web_page_components 
+             WHERE id_page = ? 
+             ORDER BY ordine ASC`, 
+            [page.id]
+        );
+
+        // 3. RECUPERA IL MENU DI NAVIGAZIONE (Tutte le pagine pubblicate) <-- NOVITÀ
+        const [navigation] = await dbPool.query(
+            `SELECT slug, titolo_seo 
+             FROM web_pages 
+             WHERE id_ditta = ? AND pubblicata = 1 
+             ORDER BY id ASC`, // O usa un campo 'ordine_menu' se lo aggiungerai in futuro
+            [req.shopDitta.id]
+        );
+
+        // 4. Risposta JSON Completa
+        res.json({
+            success: true,
+            siteConfig: {
+                name: req.shopDitta.ragione_sociale,
+                logo: req.shopDitta.logo_url,
+                colors: {
+                    primary: req.shopDitta.shop_colore_primario,
+                    secondary: req.shopDitta.shop_colore_secondario
+                },
+                template: req.shopDitta.template_code,
+                navigation: navigation // Passiamo la lista delle pagine al frontend
+            },
+            page: {
+                title: page.titolo_seo,
+                description: page.descrizione_seo
+            },
+            components: components
+        });
+
+    } catch (error) {
+        console.error("Errore CMS:", error);
+        res.status(500).json({ success: false, error: 'Errore interno.' });
+    }
+});
+
+
+
 module.exports = router;

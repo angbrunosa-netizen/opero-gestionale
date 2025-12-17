@@ -1,251 +1,270 @@
 /**
  * Nome File: PageManager.js
- * Percorso: src/components/cms/PageManager.js
- * Descrizione: Gestisce l'elenco delle pagine e l'aggiunta di componenti (blocchi).
+ * Descrizione: Editor CMS con integrazione MediaPicker (Archivio S3).
  */
-
 import React, { useState, useEffect } from 'react';
-import  {api} from '../../services/api';
+import { api } from '../../services/api';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import { 
+    PlusIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, 
+    RectangleStackIcon, PhotoIcon 
+} from '@heroicons/react/24/outline';
+
+// Importa il nuovo modale
+import MediaPickerModal from '../../shared/MediaPickerModal';
 
 const PageManager = ({ dittaId }) => {
     const [pages, setPages] = useState([]);
     const [selectedPage, setSelectedPage] = useState(null);
-    const [components, setComponents] = useState([]); // Componenti della pagina selezionata
+    const [components, setComponents] = useState([]); 
+    const [loading, setLoading] = useState(false);
     
-    // Lista dei blocchi disponibili (deve coincidere con BlockRegistry su Next.js)
+    // Stato per il Media Picker
+    const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+    const [mediaPickerTarget, setMediaPickerTarget] = useState(null); // { compIndex, fieldKey, isArray, arrayIndex }
+
+    // Configurazione Quill
+    const quillModules = {
+        toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{'list': 'ordered'}, {'list': 'bullet'}],
+            ['link', 'clean']
+        ],
+    };
+
     const AVAILABLE_BLOCKS = [
-        { type: 'HERO', label: 'Banner Hero', defaultData: { titolo: 'Benvenuti', sottotitolo: 'Sottotitolo qui', cta_text: 'Scopri di più' } },
-        { type: 'VETRINA', label: 'Griglia Prodotti', defaultData: { limit: 8 } },
-        { type: 'HTML', label: 'Testo Libero', defaultData: { html: '<p>Inserisci qui il tuo testo...</p>' } },
-        { type: 'MAPS', label: 'Mappa Google', defaultData: { lat: 41.90, lng: 12.49 } }
+        { type: 'HERO', label: 'Banner Hero', icon: '🖼️', defaultData: { titolo: 'Benvenuti', sottotitolo: '', cta_text: '', allineamento: 'center', immagine_url: '' } },
+        { type: 'VETRINA', label: 'Vetrina Prodotti', icon: '🛍️', defaultData: { limit: 4, titolo: 'I Nostri Prodotti' } },
+        { type: 'HTML', label: 'Testo Formattato', icon: '📝', defaultData: { html: '<h3>Titolo Sezione</h3><p>Scrivi qui il tuo contenuto...</p>' } },
+        { type: 'MAPS', label: 'Mappa', icon: '📍', defaultData: { lat: 41.90, lng: 12.49, zoom: 15 } },
+        { type: 'MEDIA_SOCIAL', label: 'Galleria & Social', icon: '📸', defaultData: { titolo: 'Seguici', layout: 'grid', facebook: '', instagram: '', images: [] } }
     ];
 
-    useEffect(() => {
-        loadPages();
-    }, [dittaId]);
+    useEffect(() => { loadPages(); }, [dittaId]);
 
     const loadPages = async () => {
         try {
             const res = await api.get(`/admin/cms/pages/${dittaId}`);
             setPages(res.data);
-        } catch (error) {
-            console.error("Errore caricamento pagine:", error);
-        }
+        } catch (error) { console.error("Errore pagine:", error); }
     };
 
     const selectPage = async (page) => {
+        setLoading(true);
         setSelectedPage(page);
         try {
             const res = await api.get(`/admin/cms/page/${page.id}/components`);
-            // Parsifica il JSON dei dati di configurazione
-            const parsedComponents = res.data.map(c => ({
-                ...c,
-                dati_config: typeof c.dati_config === 'string' ? JSON.parse(c.dati_config) : c.dati_config
-            }));
+            const parsedComponents = res.data.map(c => {
+                let config = c.dati_config;
+                if (typeof config === 'string') {
+                    try { config = JSON.parse(config); } catch(e) {}
+                }
+                if (c.tipo_componente === 'MEDIA_SOCIAL' && typeof config.images === 'string') {
+                     try { config.images = JSON.parse(config.images); } catch(e) { config.images = []; }
+                }
+                return { ...c, dati_config: config || {} };
+            });
             setComponents(parsedComponents);
-        } catch (error) {
-            console.error("Errore caricamento componenti:", error);
+        } catch (error) { console.error(error); } finally { setLoading(false); }
+    };
+
+    const addComponent = (type) => {
+        const def = AVAILABLE_BLOCKS.find(b => b.type === type);
+        setComponents([...components, { tipo_componente: type, dati_config: { ...def.defaultData } }]);
+    };
+
+    const updateConfig = (index, key, value) => {
+        const newComps = [...components];
+        newComps[index].dati_config = { ...newComps[index].dati_config, [key]: value };
+        setComponents(newComps);
+    };
+
+    // --- LOGICA APERTURA MEDIA PICKER ---
+    const openMediaPicker = (compIndex, fieldKey, isArray = false) => {
+        setMediaPickerTarget({ compIndex, fieldKey, isArray });
+        setIsMediaPickerOpen(true);
+    };
+
+    // --- CALLBACK QUANDO SI SELEZIONA UN'IMMAGINE ---
+    const handleMediaSelect = (url) => {
+        if (!mediaPickerTarget) return;
+        const { compIndex, fieldKey, isArray } = mediaPickerTarget;
+
+        if (isArray) {
+            // Aggiungi a galleria
+            const newComps = [...components];
+            const currentImages = newComps[compIndex].dati_config[fieldKey] || [];
+            const imgArray = Array.isArray(currentImages) ? currentImages : [];
+            imgArray.push({ src: url, caption: '' });
+            newComps[compIndex].dati_config[fieldKey] = imgArray;
+            setComponents(newComps);
+        } else {
+            // Sostituisci campo singolo (es. Hero background)
+            updateConfig(compIndex, fieldKey, url);
         }
     };
 
-    const addComponent = (blockType) => {
-        const blockDef = AVAILABLE_BLOCKS.find(b => b.type === blockType);
-        const newComponent = {
-            tipo_componente: blockType,
-            dati_config: { ...blockDef.defaultData } // Clone
-        };
-        setComponents([...components, newComponent]);
+    const removeImageFromGallery = (compIndex, imgIndex) => {
+        const newComps = [...components];
+        const imgArray = [...(newComps[compIndex].dati_config.images || [])];
+        imgArray.splice(imgIndex, 1);
+        newComps[compIndex].dati_config.images = imgArray;
+        setComponents(newComps);
     };
 
-    const removeComponent = (index) => {
-        const newComponents = [...components];
-        newComponents.splice(index, 1);
-        setComponents(newComponents);
-    };
-    
-    const moveComponent = (index, direction) => {
-        if (direction === -1 && index === 0) return;
-        if (direction === 1 && index === components.length - 1) return;
-        
-        const newComponents = [...components];
-        const temp = newComponents[index];
-        newComponents[index] = newComponents[index + direction];
-        newComponents[index + direction] = temp;
-        setComponents(newComponents);
-    };
-    
-    const updateComponentConfig = (index, key, value) => {
-        const newComponents = [...components];
-        newComponents[index].dati_config = { 
-            ...newComponents[index].dati_config, 
-            [key]: value 
-        };
-        setComponents(newComponents);
+    const moveComp = (idx, dir) => {
+        if ((dir === -1 && idx === 0) || (dir === 1 && idx === components.length - 1)) return;
+        const newComps = [...components];
+        [newComps[idx], newComps[idx + dir]] = [newComps[idx + dir], newComps[idx]];
+        setComponents(newComps);
     };
 
-    const savePageComponents = async () => {
-        if (!selectedPage) return;
+    const savePage = async () => {
         try {
-            await api.post(`/admin/cms/page/${selectedPage.id}/components`, { components });
-            alert('Pagina salvata!');
-        } catch (error) {
-            alert('Errore salvataggio: ' + error.message);
-        }
+            const compsToSave = components.map(c => ({ ...c, dati_config: { ...c.dati_config } }));
+            await api.post(`/admin/cms/page/${selectedPage.id}/components`, { components: compsToSave });
+            alert('Salvato!');
+        } catch (e) { alert('Errore: ' + e.message); }
     };
 
-    // --- RENDER ---
-    
-    if (selectedPage) {
-        // VISTA EDITOR PAGINA
-        return (
-            <div className="flex h-full gap-6">
-                {/* Sidebar Componenti Disponibili */}
-                <div className="w-1/4 bg-white p-4 rounded shadow">
-                    <h3 className="font-bold mb-4">Aggiungi Blocco</h3>
-                    <div className="space-y-2">
-                        {AVAILABLE_BLOCKS.map(block => (
-                            <button 
-                                key={block.type}
-                                onClick={() => addComponent(block.type)}
-                                className="w-full text-left px-4 py-2 border rounded hover:bg-gray-50 flex items-center justify-between"
-                            >
-                                <span>{block.label}</span>
-                                <span className="text-xl text-blue-500">+</span>
-                            </button>
-                        ))}
-                    </div>
-                    <button 
-                        onClick={() => setSelectedPage(null)}
-                        className="mt-8 w-full py-2 border border-gray-300 rounded text-gray-600 hover:bg-gray-100"
-                    >
-                        ← Torna alla lista
-                    </button>
-                </div>
+    if (!selectedPage) return (
+        <div className="bg-white shadow rounded-lg p-6">
+            <h3 className="text-lg font-bold mb-4">Gestione Pagine</h3>
+            <ul className="divide-y">
+                {pages.map(p => (
+                    <li key={p.id} onClick={() => selectPage(p)} className="py-3 px-2 hover:bg-gray-50 cursor-pointer flex justify-between rounded">
+                        <span className="font-mono text-blue-600">/{p.slug}</span>
+                        <span className="text-gray-500 text-sm">{p.titolo_seo}</span>
+                    </li>
+                ))}
+            </ul>
+             <button className="mt-4 text-sm text-blue-600 underline" onClick={() => {
+                const slug = prompt("Slug nuova pagina:");
+                if(slug) api.post('/admin/cms/pages', { id_ditta: dittaId, slug, titolo: slug, pubblicata: 1 }).then(loadPages);
+             }}>+ Crea Pagina</button>
+        </div>
+    );
 
-                {/* Area Editor Centrale */}
-                <div className="flex-1 bg-white p-6 rounded shadow overflow-y-auto">
-                    <div className="flex justify-between items-center mb-6 border-b pb-4">
-                        <h2 className="text-xl font-bold">Modifica Pagina: {selectedPage.slug}</h2>
-                        <button 
-                            onClick={savePageComponents}
-                            className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"
-                        >
-                            Salva Modifiche
-                        </button>
-                    </div>
-
-                    <div className="space-y-6">
-                        {components.length === 0 && <p className="text-gray-400 text-center py-10">Nessun componente. Aggiungine uno dalla sinistra.</p>}
-                        
-                        {components.map((comp, index) => (
-                            <div key={index} className="border rounded-lg p-4 bg-gray-50 relative group">
-                                {/* Header del blocco */}
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="font-bold text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                        {AVAILABLE_BLOCKS.find(b => b.type === comp.tipo_componente)?.label || comp.tipo_componente}
-                                    </span>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => moveComponent(index, -1)} className="p-1 hover:bg-gray-200 rounded">⬆️</button>
-                                        <button onClick={() => moveComponent(index, 1)} className="p-1 hover:bg-gray-200 rounded">⬇️</button>
-                                        <button onClick={() => removeComponent(index)} className="p-1 hover:bg-red-100 text-red-600 rounded">🗑️</button>
-                                    </div>
-                                </div>
-                                
-                                {/* Controlli specifici per tipo (Semplificati per ora) */}
-                                <div className="grid grid-cols-1 gap-3">
-                                    {comp.tipo_componente === 'HERO' && (
-                                        <>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Titolo"
-                                                className="border p-2 rounded w-full"
-                                                value={comp.dati_config.titolo || ''}
-                                                onChange={(e) => updateComponentConfig(index, 'titolo', e.target.value)}
-                                            />
-                                            <input 
-                                                type="text" 
-                                                placeholder="Sottotitolo"
-                                                className="border p-2 rounded w-full"
-                                                value={comp.dati_config.sottotitolo || ''}
-                                                onChange={(e) => updateComponentConfig(index, 'sottotitolo', e.target.value)}
-                                            />
-                                        </>
-                                    )}
-                                    
-                                    {comp.tipo_componente === 'HTML' && (
-                                        <textarea 
-                                            placeholder="Contenuto HTML"
-                                            className="border p-2 rounded w-full h-32 font-mono text-sm"
-                                            value={comp.dati_config.html || ''}
-                                            onChange={(e) => updateComponentConfig(index, 'html', e.target.value)}
-                                        />
-                                    )}
-                                    
-                                    {/* Altri controlli generici */}
-                                    {comp.tipo_componente !== 'HERO' && comp.tipo_componente !== 'HTML' && (
-                                        <p className="text-xs text-gray-500">Configurazione JSON diretta non supportata in questa vista semplificata.</p>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // VISTA LISTA PAGINE
     return (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug URL</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Titolo SEO</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {pages.map(page => (
-                        <tr key={page.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => selectPage(page)}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">/{page.slug}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{page.titolo_seo}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${page.pubblicata ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                    {page.pubblicata ? 'Pubblicata' : 'Bozza'}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onClick={(e) => { e.stopPropagation(); selectPage(page); }} className="text-indigo-600 hover:text-indigo-900 mr-4">Modifica</button>
-                            </td>
-                        </tr>
+        <div className="flex h-full gap-6 items-start">
+            {/* Toolbox */}
+            <div className="w-64 bg-white rounded-lg shadow sticky top-0 p-4">
+                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase">Componenti</h4>
+                <div className="space-y-2">
+                    {AVAILABLE_BLOCKS.map(b => (
+                        <button key={b.type} onClick={() => addComponent(b.type)} className="w-full flex items-center gap-2 p-2 border rounded hover:bg-blue-50 text-sm text-left">
+                            <span>{b.icon}</span> {b.label}
+                        </button>
                     ))}
-                    {pages.length === 0 && (
-                        <tr>
-                            <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
-                                Nessuna pagina trovata. Crea la "home" per iniziare.
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-            
-            {/* Pulsante Crea Pagina (Logica semplificata: crea home se vuoto) */}
-            <div className="p-4 border-t bg-gray-50">
-                <button 
-                    onClick={async () => {
-                        const slug = prompt("Inserisci lo slug della pagina (es. 'chi-siamo'):");
-                        if(slug) {
-                             await api.post('/admin/cms/pages', { id_ditta: dittaId, slug, titolo: slug, pubblicata: 1 });
-                             loadPages();
-                        }
-                    }}
-                    className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
-                >
-                    + Crea Nuova Pagina
-                </button>
+                </div>
+                <button onClick={() => setSelectedPage(null)} className="mt-6 w-full text-sm text-gray-500">← Indietro</button>
             </div>
+
+            {/* Editor Area */}
+            <div className="flex-1 space-y-4 pb-20">
+                <div className="bg-white p-4 rounded shadow flex justify-between items-center sticky top-0 z-10 border-b">
+                    <h2 className="font-bold text-lg">Modifica: /{selectedPage.slug}</h2>
+                    <button onClick={savePage} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Salva Pagina</button>
+                </div>
+
+                {components.map((comp, i) => (
+                    <div key={i} className="bg-white border rounded shadow-sm p-4 relative group">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <span className="font-bold text-blue-800 text-sm bg-blue-100 px-2 py-1 rounded">
+                                {AVAILABLE_BLOCKS.find(b => b.type === comp.tipo_componente)?.label}
+                            </span>
+                            <div className="flex gap-1">
+                                <button onClick={() => moveComp(i, -1)} className="p-1 hover:text-black">⬆️</button>
+                                <button onClick={() => moveComp(i, 1)} className="p-1 hover:text-black">⬇️</button>
+                                <button onClick={() => {const newC = [...components]; newC.splice(i, 1); setComponents(newC);}} className="p-1 text-red-500">🗑️</button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* --- HERO --- */}
+                            {comp.tipo_componente === 'HERO' && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500">TITOLO</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.titolo || ''} onChange={e => updateConfig(i, 'titolo', e.target.value)} />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500">SOTTOTITOLO</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.sottotitolo || ''} onChange={e => updateConfig(i, 'sottotitolo', e.target.value)} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 block mb-1">IMMAGINE SFONDO</label>
+                                        <div className="flex gap-2 items-center">
+                                            <input type="text" className="flex-1 border p-2 rounded text-sm bg-gray-50" value={comp.dati_config.immagine_url || ''} readOnly />
+                                            {/* PULSANTE CHE APRE IL MEDIA PICKER */}
+                                            <button 
+                                                onClick={() => openMediaPicker(i, 'immagine_url', false)}
+                                                className="bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium hover:bg-blue-200 flex items-center gap-1"
+                                            >
+                                                <PhotoIcon className="h-4 w-4"/> Seleziona
+                                            </button>
+                                        </div>
+                                        {comp.dati_config.immagine_url && <img src={comp.dati_config.immagine_url} alt="Preview" className="h-20 mt-2 rounded border object-cover" />}
+                                    </div>
+                                </>
+                            )}
+
+                            {/* --- HTML --- */}
+                            {comp.tipo_componente === 'HTML' && (
+                                <div className="h-64 mb-10">
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">CONTENUTO</label>
+                                    <ReactQuill theme="snow" value={comp.dati_config.html || ''} onChange={(val) => updateConfig(i, 'html', val)} modules={quillModules} className="h-48" />
+                                </div>
+                            )}
+
+                            {/* --- MEDIA_SOCIAL --- */}
+                            {comp.tipo_componente === 'MEDIA_SOCIAL' && (
+                                <>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500">TITOLO SEZIONE</label>
+                                        <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.titolo || ''} onChange={e => updateConfig(i, 'titolo', e.target.value)} />
+                                    </div>
+                                    <div className="p-3 bg-gray-50 rounded border">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="text-xs font-bold text-gray-700">GALLERIA FOTO</label>
+                                            {/* PULSANTE CHE APRE IL MEDIA PICKER PER GALLERIA */}
+                                            <button 
+                                                onClick={() => openMediaPicker(i, 'images', true)}
+                                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
+                                            >
+                                                <PlusIcon className="h-3 w-3" /> Aggiungi Foto
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-3">
+                                            {(comp.dati_config.images || []).map((img, imgIdx) => (
+                                                <div key={imgIdx} className="relative w-24 h-24 border rounded overflow-hidden group">
+                                                    <img src={img.src} alt="" className="w-full h-full object-cover" />
+                                                    <button onClick={() => removeImageFromGallery(i, imgIdx)} className="absolute top-0 right-0 bg-red-600 text-white p-1 opacity-0 group-hover:opacity-100">
+                                                        <TrashIcon className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {(!comp.dati_config.images?.length) && <p className="text-xs text-gray-400">Nessuna foto.</p>}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* MODALE MEDIA PICKER */}
+            <MediaPickerModal 
+                isOpen={isMediaPickerOpen} 
+                onClose={() => setIsMediaPickerOpen(false)}
+                onSelect={handleMediaSelect}
+                dittaId={dittaId}
+            />
         </div>
     );
 };

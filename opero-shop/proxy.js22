@@ -1,0 +1,32 @@
+/**
+ * Proxy file for Next.js 16 multi-tenant routing
+ * Sostituisce il middleware deprecato
+ */
+
+export default function proxy(request) {
+  const url = request.nextUrl;
+  let hostname = request.headers.get("host") || "";
+  hostname = hostname.split(":")[0];
+
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost";
+
+  const isSubdomain =
+    hostname.includes(rootDomain) &&
+    hostname !== rootDomain &&
+    hostname !== "www." + rootDomain;
+
+  if (isSubdomain) {
+    const subdomain = hostname.replace(`.${rootDomain}`, "");
+
+    // Rewrite to the multi-tenant route
+    url.pathname = `/_sites/${subdomain}${url.pathname}`;
+  }
+
+  return;
+}
+
+export const config = {
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
+};

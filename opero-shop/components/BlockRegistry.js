@@ -7,14 +7,18 @@
  */
 import dynamic from 'next/dynamic';
 
+// Importazione dinamica (Lazy Loading) per performance ottimali
 const HeroBlock = dynamic(() => import('./blocks/HeroBlock'));
 const VetrinaBlock = dynamic(() => import('./blocks/VetrinaBlock'));
 const HtmlBlock = dynamic(() => import('./blocks/HtmlBlock'));
 const MapsBlock = dynamic(() => import('./blocks/MapsBlock'));
+const MediaSocialBlock = dynamic(() => import('./blocks/MediaSocialBlock'));
 
+// Mappa: Nome nel Database -> Componente React
 export const BLOCK_REGISTRY = {
   'HERO': HeroBlock,
   'VETRINA': VetrinaBlock,
   'HTML': HtmlBlock,
   'MAPS': MapsBlock,
+  'MEDIA_SOCIAL': MediaSocialBlock,
 };

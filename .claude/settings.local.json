@@ -31,7 +31,8 @@
       "Bash(wmic:*)",
       "Bash(cat:*)",
       "Bash(PORT=3000 node:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
