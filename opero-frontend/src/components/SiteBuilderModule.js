@@ -11,9 +11,10 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api'; // Import con graffe corretto
 import SiteConfig from './cms/SiteConfig';
 import PageManager from './cms/PageManager';
-import { 
-    GlobeAltIcon, Cog6ToothIcon, DocumentDuplicateIcon, 
-    BuildingOfficeIcon, ArrowLeftOnRectangleIcon 
+import BlogManager from './cms/BlogManager';
+import {
+    GlobeAltIcon, Cog6ToothIcon, DocumentDuplicateIcon,
+    BuildingOfficeIcon, ArrowLeftOnRectangleIcon, NewspaperIcon
 } from '@heroicons/react/24/outline';
 
 const SiteBuilderModule = () => {
@@ -195,6 +196,17 @@ const SiteBuilderModule = () => {
                         <DocumentDuplicateIcon className="h-5 w-5" />
                         Pagine & Contenuti
                     </button>
+                    <button
+                        onClick={() => setActiveTab('blog')}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition ${
+                            activeTab === 'blog'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                    >
+                        <NewspaperIcon className="h-5 w-5" />
+                        Blog & News
+                    </button>
                 </nav>
             </div>
 
@@ -202,6 +214,7 @@ const SiteBuilderModule = () => {
             <div className="flex-1 overflow-auto p-8">
                 {activeTab === 'config' && <SiteConfig dittaId={targetDitta.id} key={`conf-${targetDitta.id}`} />}
                 {activeTab === 'pages' && <PageManager dittaId={targetDitta.id} key={`pages-${targetDitta.id}`} />}
+                {activeTab === 'blog' && <BlogManager dittaId={targetDitta.id} key={`blog-${targetDitta.id}`} />}
             </div>
         </div>
     );

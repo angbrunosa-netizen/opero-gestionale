@@ -44,6 +44,7 @@ const websiteRoutes = require('./routes/website');
 const websiteGeneratorRoutes = require('./routes/website-generator');
 const quoteRoutes = require('./routes/quoteRoutes');
 const adminCmsRoutes = require('./routes/admin_cms'); // <-- NUOVA ROTTA ADMIN CMS
+const adminBlogRoutes = require('./routes/admin_blog'); // <-- NUOVA ROTTA ADMIN BLOG
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
@@ -148,7 +149,8 @@ app.use('/api/ai-content-generator', require('./routes/ai-content-generator'));
 app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuilder'));
 
 // *** FIX QUI: Modificato da 'admin-cms' a 'admin/cms' per matchare il frontend ***
-app.use('/api/admin/cms', verifyToken, adminCmsRoutes); 
+app.use('/api/admin/cms', verifyToken, adminCmsRoutes);
+app.use('/api/admin/blog', verifyToken, adminBlogRoutes); // <-- NUOVA ROTTA ADMIN BLOG 
 
 // --- 5. GESTIONE DEL FRONTEND ---
 if (process.env.NODE_ENV === 'production') {

@@ -13,6 +13,7 @@ const VetrinaBlock = dynamic(() => import('./blocks/VetrinaBlock'));
 const HtmlBlock = dynamic(() => import('./blocks/HtmlBlock'));
 const MapsBlock = dynamic(() => import('./blocks/MapsBlock'));
 const MediaSocialBlock = dynamic(() => import('./blocks/MediaSocialBlock'));
+const BlogListBlock = dynamic(() => import('./blocks/BlogListBlock'));
 
 // Mappa: Nome nel Database -> Componente React
 export const BLOCK_REGISTRY = {
@@ -21,4 +22,5 @@ export const BLOCK_REGISTRY = {
   'HTML': HtmlBlock,
   'MAPS': MapsBlock,
   'MEDIA_SOCIAL': MediaSocialBlock,
+  'BLOG_LIST': BlogListBlock,
 };

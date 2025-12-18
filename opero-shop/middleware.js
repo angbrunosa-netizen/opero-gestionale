@@ -35,11 +35,13 @@ export default function middleware(req) {
     // Estrai lo slug (es. "mia-azienda")
     const subdomain = hostname.replace(`.${rootDomain}`, "");
 
-    // Riscrivi l'URL internamente verso la cartella dinamica _sites/[site]
-    // Esempio: /chi-siamo -> /_sites/mia-azienda/chi-siamo
-    return NextResponse.rewrite(
-      new URL(`/_sites/${subdomain}${url.pathname}`, req.url)
-    );
+    // Riscrivi l'URL internamente verso la struttura [[...slug]]
+    // Mantieni il pathname originale (es. /chi-siamo) e passa il sottodominio come parametro
+    // Esempio: /chi-siamo -> /chi-siamo?site=mia-azienda
+    const newUrl = new URL(url.pathname, req.url);
+    newUrl.searchParams.set('site', subdomain);
+
+    return NextResponse.rewrite(newUrl);
   }
 
   return NextResponse.next();

@@ -370,40 +370,16 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
         );
 
         // 3. RECUPERA IL MENU DI NAVIGAZIONE (Tutte le pagine pubblicate) <-- NOVITÀ
-        let navigation = [];
-        try {
-            console.log("Querying navigation for ditta:", req.shopDitta.id);
-            const [navResult] = await dbPool.query(
-                `SELECT slug, titolo_seo
-                 FROM web_pages
-                 WHERE id_ditta = ? AND pubblicata = 1
-                 ORDER BY id ASC`,
-                [req.shopDitta.id]
-            );
-            navigation = navResult || [];
-            console.log("Navigation found:", navigation.length);
-            console.log("Navigation results:", navigation);
-        } catch (navError) {
-            console.error("Navigation error:", navError);
-            navigation = [];
-        }
-
-        // Fallback: Se non troviamo pagine, creiamo un menu di base
-        if (navigation.length === 0) {
-            console.log("Creating fallback navigation menu");
-            navigation = [
-                { slug: 'home', titolo_seo: 'Home' },
-                { slug: 'chi-siamo', titolo_seo: 'Chi Siamo' }
-            ];
-        }
+        const [navigation] = await dbPool.query(
+            `SELECT slug, titolo_seo 
+             FROM web_pages 
+             WHERE id_ditta = ? AND pubblicata = 1 
+             ORDER BY id ASC`, // O usa un campo 'ordine_menu' se lo aggiungerai in futuro
+            [req.shopDitta.id]
+        );
 
         // 4. Risposta JSON Completa
-        console.log("=== DEBUG RESPONSE ===");
-        console.log("Navigation items being sent:", navigation.length);
-        console.log("Navigation content:", navigation);
-        console.log("===================");
-
-        const response = {
+        res.json({
             success: true,
             siteConfig: {
                 name: req.shopDitta.ragione_sociale,
@@ -420,10 +396,7 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
                 description: page.descrizione_seo
             },
             components: components
-        };
-
-        console.log("Final response navigation count:", response.siteConfig.navigation.length);
-        res.json(response);
+        });
 
     } catch (error) {
         console.error("Errore CMS:", error);

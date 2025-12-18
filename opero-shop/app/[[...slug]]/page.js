@@ -3,25 +3,35 @@
  */
 
 import { headers } from 'next/headers';
-import StandardLayout from '../components/templates/Standard/Layout';
-import FashionLayout from '../components/templates/Fashion/Layout';
-import IndustrialLayout from '../components/templates/Industrial/Layout';
+import StandardLayout from '../../components/templates/Standard/Layout';
+import FashionLayout from '../../components/templates/Fashion/Layout';
+import IndustrialLayout from '../../components/templates/Industrial/Layout';
 
 
-export default async function HomePage() {
+export default async function HomePage({ params }) {
+  // Unwrap params con await (Next.js 16 requirement)
+  const resolvedParams = await params;
+
+  // Funzione helper per estrarre lo slug in modo sicuro
+  const getSlug = () => {
+    if (resolvedParams && resolvedParams.slug && Array.isArray(resolvedParams.slug) && resolvedParams.slug.length > 0) {
+      return resolvedParams.slug.join('/');
+    }
+    return 'home';
+  };
+
+  // Estrai l'hostname per determinare se è un sottodominio
   const headersList = await headers();
   let hostname = headersList.get('host') || '';
+  hostname = hostname.split(':')[0]; // Rimuovi porta
 
-  // Rimuovi la porta se presente
-  hostname = hostname.split(':')[0];
-
-  // Se è un sottodominio, mostra il contenuto CMS appropriato
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost";
   const isSubdomain = hostname.includes(rootDomain) && hostname !== rootDomain;
 
   if (isSubdomain) {
     const subdomain = hostname.replace(`.${rootDomain}`, "");
-    return <TenantPage site={subdomain} />;
+    const slug = getSlug();
+    return <TenantPage site={subdomain} slug={slug} />;
   }
 
   // Homepage principale per il dominio root
@@ -42,13 +52,13 @@ const TEMPLATES = {
 };
 
 // Componente per gestire i siti tenant con CMS
-async function TenantPage({ site }) {
+async function TenantPage({ site, slug }) {
   // Import dinamico dei componenti CMS
-  const { BLOCK_REGISTRY } = await import('../components/BlockRegistry');
+  const { BLOCK_REGISTRY } = await import('../../components/BlockRegistry');
 
   // Fetch dati dal backend CMS
-  async function getPageData(siteSlug) {
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/page/home`;
+  async function getPageData(siteSlug, pageSlug) {
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/page/${pageSlug}`;
 
     try {
       const res = await fetch(apiUrl, { cache: 'no-store' });
@@ -60,7 +70,7 @@ async function TenantPage({ site }) {
     }
   }
 
-  const data = await getPageData(site);
+  const data = await getPageData(site, slug);
 
   // Se il backend non risponde, mostra una pagina di fallback
   if (!data || !data.success) {

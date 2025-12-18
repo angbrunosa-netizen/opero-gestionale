@@ -196,14 +196,47 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
 
         // 2. Recupera i componenti ordinati
         const [components] = await dbPool.query(
-            `SELECT tipo_componente, dati_config 
-             FROM web_page_components 
-             WHERE id_page = ? 
-             ORDER BY ordine ASC`, 
+            `SELECT tipo_componente, dati_config
+             FROM web_page_components
+             WHERE id_page = ?
+             ORDER BY ordine ASC`,
             [page.id]
         );
 
-        // 3. Risposta strutturata per il Frontend
+        // 3. RECUPERA IL MENU DI NAVIGAZIONE (Tutte le pagine pubblicate)
+        let navigation = [];
+        try {
+            console.log("Querying navigation for ditta:", req.shopDitta.id);
+            const [navResult] = await dbPool.query(
+                `SELECT slug, titolo_seo
+                 FROM web_pages
+                 WHERE id_ditta = ? AND pubblicata = 1
+                 ORDER BY id ASC`,
+                [req.shopDitta.id]
+            );
+            navigation = navResult || [];
+            console.log("Navigation found:", navigation.length);
+            console.log("Navigation results:", navigation);
+        } catch (navError) {
+            console.error("Navigation error:", navError);
+            navigation = [];
+        }
+
+        // Fallback: Se non troviamo pagine, creiamo un menu di base
+        if (navigation.length === 0) {
+            console.log("Creating fallback navigation menu");
+            navigation = [
+                { slug: 'home', titolo_seo: 'Home' },
+                { slug: 'chi-siamo', titolo_seo: 'Chi Siamo' }
+            ];
+        }
+
+        // 4. Risposta strutturata per il Frontend
+        console.log("=== PUBLIC API DEBUG RESPONSE ===");
+        console.log("Navigation items being sent:", navigation.length);
+        console.log("Navigation content:", navigation);
+        console.log("===============================");
+
         res.json({
             success: true,
             siteConfig: {
@@ -213,7 +246,8 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
                     primary: req.shopDitta.shop_colore_primario,
                     secondary: req.shopDitta.shop_colore_secondario
                 },
-                template: req.shopDitta.template_code
+                template: req.shopDitta.template_code,
+                navigation: navigation // Passiamo la lista delle pagine al frontend
             },
             page: {
                 title: page.titolo_seo,
@@ -225,6 +259,176 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+});
+
+// API PUBBLICHE BLOG
+router.get('/shop/:slug/blog/posts', resolveTenant, async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const { limit = 10, category } = req.query;
+
+        // Trova l'ID della ditta dallo slug
+        const [ditta] = await dbPool.query(
+            'SELECT id FROM ditte WHERE url_slug = ? AND shop_attivo = 1',
+            [slug]
+        );
+
+        if (ditta.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        let whereClause = 'WHERE p.id_ditta = ? AND p.pubblicato = 1';
+        let params = [ditta[0].id];
+
+        if (category) {
+            whereClause += ' AND c.slug = ?';
+            params.push(category);
+        }
+
+        const [posts] = await dbPool.query(
+            `SELECT p.id, p.titolo, p.slug, p.descrizione_breve, p.copertina_url,
+                    p.pdf_url, p.pdf_filename, p.data_pubblicazione, p.autore,
+                    c.nome as categoria_nome, c.slug as categoria_slug, c.colore as categoria_colore
+             FROM web_blog_posts p
+             LEFT JOIN web_blog_categories c ON p.id_category = c.id
+             ${whereClause}
+             ORDER BY p.data_pubblicazione DESC
+             LIMIT ?`,
+            [...params, parseInt(limit)]
+        );
+
+        // Incrementa contatore visualizzazioni per ogni post
+        for (const post of posts) {
+            await dbPool.query(
+                'UPDATE web_blog_posts SET visualizzazioni = visualizzazioni + 1 WHERE id = ?',
+                [post.id]
+            );
+        }
+
+        res.json({
+            success: true,
+            posts: posts || []
+        });
+    } catch (error) {
+        console.error('Errore caricamento posts blog:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore nel caricare gli articoli'
+        });
+    }
+});
+
+router.get('/shop/:slug/blog/post/:postSlug', resolveTenant, async (req, res) => {
+    try {
+        const { slug, postSlug } = req.params;
+
+        // Trova l'ID della ditta dallo slug
+        const [ditta] = await dbPool.query(
+            'SELECT id FROM ditte WHERE url_slug = ? AND shop_attivo = 1',
+            [slug]
+        );
+
+        if (ditta.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        // Recupera dettaglio post con categorie
+        const [posts] = await dbPool.query(
+            `SELECT p.*, c.nome as categoria_nome, c.slug as categoria_slug, c.colore as categoria_colore
+             FROM web_blog_posts p
+             LEFT JOIN web_blog_categories c ON p.id_category = c.id
+             WHERE p.id_ditta = ? AND p.slug = ? AND p.pubblicato = 1`,
+            [ditta[0].id, postSlug]
+        );
+
+        if (posts.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Articolo non trovato'
+            });
+        }
+
+        const post = posts[0];
+
+        // Incrementa visualizzazioni
+        await dbPool.query(
+            'UPDATE web_blog_posts SET visualizzazioni = visualizzazioni + 1 WHERE id = ?',
+            [post.id]
+        );
+
+        // Recupera post correlati (stessa categoria, escluso il post corrente)
+        const [relatedPosts] = await dbPool.query(
+            `SELECT p.titolo, p.slug, p.copertina_url, p.descrizione_breve, p.data_pubblicazione,
+                    p.pdf_url, p.pdf_filename
+             FROM web_blog_posts p
+             WHERE p.id_ditta = ? AND p.pubblicato = 1
+                   AND p.id != ? AND (p.id_category = ? OR p.id_category IS NULL)
+             ORDER BY p.data_pubblicazione DESC
+             LIMIT 3`,
+            [ditta[0].id, post.id, post.id_category]
+        );
+
+        res.json({
+            success: true,
+            post: {
+                ...post,
+                relatedPosts: relatedPosts || []
+            }
+        });
+    } catch (error) {
+        console.error('Errore caricamento dettaglio post:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore nel caricare l\'articolo'
+        });
+    }
+});
+
+router.get('/shop/:slug/blog/categories', resolveTenant, async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        // Trova l'ID della ditta dallo slug
+        const [ditta] = await dbPool.query(
+            'SELECT id FROM ditte WHERE url_slug = ? AND shop_attivo = 1',
+            [slug]
+        );
+
+        if (ditta.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        // Recupera categorie con conteggio post
+        const [categories] = await dbPool.query(
+            `SELECT c.*, COUNT(p.id) as posts_count
+             FROM web_blog_categories c
+             LEFT JOIN web_blog_posts p ON c.id = p.id_category AND p.pubblicato = 1
+             WHERE c.id_ditta = ? AND c.attivo = 1
+             GROUP BY c.id
+             ORDER BY c.ordine ASC, c.nome ASC`,
+            [ditta[0].id]
+        );
+
+        res.json({
+            success: true,
+            categories: categories || []
+        });
+    } catch (error) {
+        console.error('Errore caricamento categorie blog:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore nel caricare le categorie'
+        });
     }
 });
 

@@ -32,7 +32,9 @@
       "Bash(cat:*)",
       "Bash(PORT=3000 node:*)",
       "Bash(ping:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm run dev:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []
