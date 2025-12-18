@@ -8,30 +8,91 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs').promises;
+
+// Importazioni AWS con gestione errori
+let S3Client, PutObjectCommand, DeleteObjectCommand;
+try {
+  const aws = require('@aws-sdk/client-s3');
+  S3Client = aws.S3Client;
+  PutObjectCommand = aws.PutObjectCommand;
+  DeleteObjectCommand = aws.DeleteObjectCommand;
+  console.log('✅ AWS SDK caricato correttamente');
+} catch (error) {
+  console.error('❌ Errore caricamento AWS SDK:', error.message);
+  console.warn('⚠️ Upload S3 disabilitato, i file verranno salvati localmente');
+}
+
+// Importazioni database - FIX ERRORE req.dbPool undefined
+const { dbPool, knex } = require('../config/db');
 
 // Configurazione S3 (stessa configurazione di uploads.js)
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
+let s3Client;
+try {
+  if (S3Client && process.env.AWS_REGION && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    s3Client = new S3Client({
+      region: process.env.AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+    });
+    console.log('✅ S3 Client inizializzato correttamente');
+  } else {
+    console.warn('⚠️ S3 Client non inizializzato: AWS SDK o credenziali mancanti');
+  }
+} catch (error) {
+  console.error('❌ Errore inizializzazione S3 Client:', error.message);
+}
 
-// Configurazione Multer per upload PDF in memoria
+// Funzione fallback per salvare file localmente quando S3 non è disponibile
+async function saveFileLocally(buffer, filename, subfolder = 'blog') {
+  try {
+    const uploadDir = path.join(__dirname, '../uploads', subfolder);
+
+    // Crea la cartella se non esiste
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const uniqueFilename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${filename}`;
+    const filePath = path.join(uploadDir, uniqueFilename);
+
+    await fs.writeFile(filePath, buffer);
+
+    // Restituisce URL relativo per accesso web
+    const relativeUrl = `/uploads/${subfolder}/${uniqueFilename}`;
+    console.log(`✅ File salvato localmente: ${relativeUrl}`);
+
+    return relativeUrl;
+  } catch (error) {
+    console.error('❌ Errore salvataggio file locale:', error.message);
+    return null;
+  }
+}
+
+// Configurazione Multer per upload PDF e immagini in memoria
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB max per PDF
+    fileSize: 50 * 1024 * 1024, // 50MB max per file
+    files: 2 // Massimo 2 file (immagine + PDF)
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+    // Accetta sia PDF che immagini comuni
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/gif'
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Sono ammessi solo file PDF'), false);
+      cb(new Error(`Tipo file non supportato: ${file.mimetype}. Tipi supportati: PDF, JPEG, PNG, WebP, GIF`), false);
     }
   }
 });
@@ -61,24 +122,104 @@ async function generateUniqueSlug(dbPool, idDitta, slug, table, column = 'slug')
 }
 
 /**
- * Upload PDF su S3
+ * Upload PDF su S3 con gestione errori migliorata
  */
 async function uploadPDFToS3(buffer, filename, idDitta) {
-  const fileExtension = path.extname(filename);
-  const uniqueFilename = `blog/pdfs/${idDitta}/${Date.now()}-${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
+  try {
+    // Verifica che S3Client sia disponibile e configurazione S3
+    if (!s3Client || !process.env.AWS_S3_BUCKET || !process.env.AWS_REGION || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      console.warn('⚠️ Configurazione S3 incompleta o S3Client non disponibile, salto upload PDF');
+      return null;
+    }
 
-  const params = {
-    Bucket: process.env.AWS_S3_BUCKET,
-    Key: uniqueFilename,
-    Body: buffer,
-    ContentType: 'application/pdf',
-    ServerSideEncryption: 'AES256'
-  };
+    const fileExtension = path.extname(filename);
+    const uniqueFilename = `blog/pdfs/${idDitta}/${Date.now()}-${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
 
-  const command = new PutObjectCommand(params);
-  await s3Client.send(command);
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: uniqueFilename,
+      Body: buffer,
+      ContentType: 'application/pdf',
+      ServerSideEncryption: 'AES256'
+    };
 
-  return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFilename}`;
+    const command = new PutObjectCommand(params);
+    await s3Client.send(command);
+
+    const pdfUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFilename}`;
+    console.log('✅ PDF caricato su S3:', pdfUrl);
+    return pdfUrl;
+
+  } catch (error) {
+    console.error('❌ Errore upload PDF su S3:', error.message);
+    console.warn('⚠️ Tentativo salvataggio PDF come fallback locale...');
+
+    // Fallback: salva localmente
+    try {
+      const localUrl = await saveFileLocally(buffer, filename, 'blog/pdfs');
+      return localUrl;
+    } catch (localError) {
+      console.error('❌ Errore anche salvataggio locale:', localError.message);
+      return null;
+    }
+  }
+}
+
+/**
+ * Upload immagine su S3 con gestione errori migliorata
+ */
+async function uploadImageToS3(buffer, filename, idDitta) {
+  try {
+    // Verifica che S3Client sia disponibile e configurazione S3
+    if (!s3Client || !process.env.AWS_S3_BUCKET || !process.env.AWS_REGION || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      console.warn('⚠️ Configurazione S3 incompleta o S3Client non disponibile, salto upload immagine');
+      return null;
+    }
+
+    const fileExtension = path.extname(filename).toLowerCase();
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
+    if (!allowedExtensions.includes(fileExtension)) {
+      throw new Error('Estensione immagine non supportata');
+    }
+
+    const uniqueFilename = `blog/images/${idDitta}/${Date.now()}-${crypto.randomBytes(16).toString('hex')}${fileExtension}`;
+
+    // Determina il content type corretto per l'immagine
+    let contentType = 'image/jpeg';
+    if (fileExtension === '.png') contentType = 'image/png';
+    else if (fileExtension === '.webp') contentType = 'image/webp';
+    else if (fileExtension === '.gif') contentType = 'image/gif';
+
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: uniqueFilename,
+      Body: buffer,
+      ContentType: contentType,
+      ServerSideEncryption: 'AES256',
+      CacheControl: 'public, max-age=31536000' // Cache di 1 anno per immagini
+    };
+
+    const command = new PutObjectCommand(params);
+    await s3Client.send(command);
+
+    const imageUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFilename}`;
+    console.log('✅ Immagine caricata su S3:', imageUrl);
+    return imageUrl;
+
+  } catch (error) {
+    console.error('❌ Errore upload immagine su S3:', error.message);
+    console.warn('⚠️ Tentativo salvataggio immagine come fallback locale...');
+
+    // Fallback: salva localmente
+    try {
+      const localUrl = await saveFileLocally(buffer, filename, 'blog/images');
+      return localUrl;
+    } catch (localError) {
+      console.error('❌ Errore anche salvataggio locale:', localError.message);
+      return null;
+    }
+  }
 }
 
 // API CATEGORIE
@@ -88,7 +229,7 @@ router.get('/categories/:idDitta', async (req, res) => {
   try {
     const { idDitta } = req.params;
 
-    const [categories] = await req.dbPool.query(
+    const [categories] = await dbPool.query(
       `SELECT * FROM web_blog_categories
        WHERE id_ditta = ? AND attivo = 1
        ORDER BY ordine ASC, nome ASC`,
@@ -130,9 +271,9 @@ router.post('/categories', async (req, res) => {
       .trim('-');
 
     // Assicura slug univoco
-    slug = await generateUniqueSlug(req.dbPool, id_ditta, slug, 'web_blog_categories');
+    slug = await generateUniqueSlug(dbPool, id_ditta, slug, 'web_blog_categories');
 
-    const [result] = await req.dbPool.query(
+    const [result] = await dbPool.query(
       `INSERT INTO web_blog_categories (id_ditta, nome, slug, colore, descrizione, ordine)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [id_ditta, nome, slug, colore || '#2563eb', descrizione, ordine || 0]
@@ -181,7 +322,7 @@ router.get('/posts/:idDitta', async (req, res) => {
       params.push(published === 'true' ? 1 : 0);
     }
 
-    const [posts] = await req.dbPool.query(
+    const [posts] = await dbPool.query(
       `SELECT p.*, c.nome as categoria_nome, c.colore as categoria_colore
        FROM web_blog_posts p
        LEFT JOIN web_blog_categories c ON p.id_category = c.id
@@ -192,7 +333,7 @@ router.get('/posts/:idDitta', async (req, res) => {
     );
 
     // Conteggio totale per paginazione
-    const [countResult] = await req.dbPool.query(
+    const [countResult] = await dbPool.query(
       `SELECT COUNT(*) as total FROM web_blog_posts p ${whereClause}`,
       params
     );
@@ -214,8 +355,28 @@ router.get('/posts/:idDitta', async (req, res) => {
 });
 
 // POST /api/admin/blog/posts - Crea/Aggiorna post
-router.post('/posts', upload.single('pdf'), async (req, res) => {
+router.post('/posts', upload.any(), async (req, res) => {
+  // Wrapping try-catch principale per catturare qualsiasi errore
   try {
+    console.log('🚀 START POST /api/admin/blog/posts');
+
+    // Limita numero di file per evitare abusi
+    if (req.files && req.files.length > 5) {
+      return res.status(400).json({
+        success: false,
+        error: 'Troppi file caricati. Massimo 5 file consentiti.'
+      });
+    }
+
+    // Debug: logga tutto ciò che viene ricevuto
+    console.log('📝 DEBUG - Body ricevuto:', Object.keys(req.body));
+    console.log('📁 DEBUG - Files ricevuti:', req.files ? req.files.length : 'Nessun file');
+    if (req.files) {
+      req.files.forEach((file, index) => {
+        console.log(`   - File ${index + 1}: ${file.fieldname} (${file.originalname})`);
+      });
+    }
+
     const {
       id_ditta, id, titolo, contenuto_html, descrizione_breve,
       id_category, pubblicato, in_evidenza, data_pubblicazione,
@@ -230,20 +391,40 @@ router.post('/posts', upload.single('pdf'), async (req, res) => {
       });
     }
 
-    // Gestione PDF upload
+    // Gestione upload file (PDF e immagine copertina) con graceful fallback
     let pdf_url = null;
     let pdf_filename = null;
+    let copertina_url = null;
 
-    if (req.file) {
-      try {
-        pdf_url = await uploadPDFToS3(req.file.buffer, req.file.originalname, id_ditta);
-        pdf_filename = req.file.originalname;
-      } catch (uploadError) {
-        console.error("Errore upload PDF:", uploadError);
-        return res.status(500).json({
-          success: false,
-          error: 'Errore nel caricare il file PDF'
-        });
+    // Con upload.any(), i file sono in un array e dobbiamo filtrarli per fieldname
+    if (req.files && req.files.length > 0) {
+      console.log('📁 Gestione upload files...');
+
+      // Trova il file PDF
+      const pdfFile = req.files.find(file => file.fieldname === 'pdf');
+      if (pdfFile) {
+        console.log('📁 Gestione upload PDF...');
+        pdf_url = await uploadPDFToS3(pdfFile.buffer, pdfFile.originalname, id_ditta);
+
+        if (pdf_url) {
+          pdf_filename = pdfFile.originalname;
+          console.log('✅ PDF caricato correttamente:', pdf_filename);
+        } else {
+          console.warn('⚠️ Upload PDF fallito, salvataggio post prosegue senza PDF');
+        }
+      }
+
+      // Trova il file copertina
+      const copertinaFile = req.files.find(file => file.fieldname === 'copertina');
+      if (copertinaFile) {
+        console.log('📁 Gestione upload immagine copertina...');
+        copertina_url = await uploadImageToS3(copertinaFile.buffer, copertinaFile.originalname, id_ditta);
+
+        if (copertina_url) {
+          console.log('✅ Immagine copertina caricata correttamente:', copertinaFile.originalname);
+        } else {
+          console.warn('⚠️ Upload immagine copertina fallito, salvataggio post prosegue senza immagine');
+        }
       }
     }
 
@@ -256,12 +437,12 @@ router.post('/posts', upload.single('pdf'), async (req, res) => {
       .trim('-');
 
     // Assicura slug univoco
-    slug = await generateUniqueSlug(req.dbPool, id_ditta, slug, 'web_blog_posts');
+    slug = await generateUniqueSlug(dbPool, id_ditta, slug, 'web_blog_posts');
 
     // Insert o Update
     if (id && id !== 'null') {
       // UPDATE - Mantieni PDF esistente se non ne viene caricato uno nuovo
-      const [existingPost] = await req.dbPool.query(
+      const [existingPost] = await dbPool.query(
         'SELECT pdf_url, pdf_filename FROM web_blog_posts WHERE id = ? AND id_ditta = ?',
         [id, id_ditta]
       );
@@ -273,18 +454,19 @@ router.post('/posts', upload.single('pdf'), async (req, res) => {
         });
       }
 
-      await req.dbPool.query(
+      await dbPool.query(
         `UPDATE web_blog_posts SET
-         titolo = ?, slug = ?, contenuto_html = ?, descrizione_breve = ?,
+         titolo = ?, slug = ?, contenuto = ?, descrizione_breve = ?,
          id_category = ?, pubblicato = ?, in_evidenza = ?, data_pubblicazione = ?,
-         autore = ?, meta_titolo = ?, meta_descrizione = ?,
-         pdf_url = COALESCE(?, pdf_url), pdf_filename = COALESCE(?, pdf_filename)
+         autore = ?, meta_title = ?, meta_description = ?,
+         pdf_url = COALESCE(?, pdf_url), pdf_filename = COALESCE(?, pdf_filename),
+         copertina_url = COALESCE(?, copertina_url)
          WHERE id = ? AND id_ditta = ?`,
         [
           titolo, slug, contenuto_html, descrizione_breve,
           id_category || null, pubblicato ? 1 : 0, in_evidenza ? 1 : 0,
           data_pubblicazione || new Date(), autore, meta_titolo, meta_descrizione,
-          pdf_url, pdf_filename, id, id_ditta
+          pdf_url, pdf_filename, copertina_url, id, id_ditta
         ]
       );
 
@@ -294,15 +476,15 @@ router.post('/posts', upload.single('pdf'), async (req, res) => {
       });
     } else {
       // INSERT
-      const [result] = await req.dbPool.query(
+      const [result] = await dbPool.query(
         `INSERT INTO web_blog_posts
-         (id_ditta, id_category, titolo, slug, contenuto_html, descrizione_breve,
+         (id_ditta, id_category, titolo, slug, contenuto, descrizione_breve,
           copertina_url, pdf_url, pdf_filename, pubblicato, in_evidenza,
-          data_pubblicazione, autore, meta_titolo, meta_descrizione)
+          data_pubblicazione, autore, meta_title, meta_description)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id_ditta, id_category || null, titolo, slug, contenuto_html,
-          descrizione_breve, null, pdf_url, pdf_filename, pubblicato ? 1 : 0,
+          descrizione_breve, copertina_url, pdf_url, pdf_filename, pubblicato ? 1 : 0,
           in_evidenza ? 1 : 0, data_pubblicazione || new Date(), autore,
           meta_titolo, meta_descrizione
         ]
@@ -315,10 +497,17 @@ router.post('/posts', upload.single('pdf'), async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Errore nel salvare post:", error);
+    console.error("💥 ERRORE nel salvare post:", error);
+    console.error("💥 Stack trace:", error.stack);
+    console.error("💥 Error details:", {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
+
     res.status(500).json({
       success: false,
-      error: 'Errore nel salvare il post'
+      error: 'Errore nel salvare il post: ' + error.message
     });
   }
 });
@@ -337,7 +526,7 @@ router.delete('/posts/:id', async (req, res) => {
     }
 
     // Recupera info post per eliminare PDF da S3
-    const [post] = await req.dbPool.query(
+    const [post] = await dbPool.query(
       'SELECT pdf_url FROM web_blog_posts WHERE id = ? AND id_ditta = ?',
       [id, id_ditta]
     );
@@ -369,7 +558,7 @@ router.delete('/posts/:id', async (req, res) => {
     }
 
     // Elimina post dal database
-    await req.dbPool.query(
+    await dbPool.query(
       'DELETE FROM web_blog_posts WHERE id = ? AND id_ditta = ?',
       [id, id_ditta]
     );
@@ -383,6 +572,42 @@ router.delete('/posts/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Errore nell\'eliminare il post'
+    });
+  }
+});
+
+// TEMP: Endpoint di test senza autenticazione per debug upload
+router.post('/test-upload', upload.any(), async (req, res) => {
+  console.log('🧪 TEST UPLOAD SENZA AUTENTICAZIONE');
+
+  try {
+    console.log('📝 Body:', Object.keys(req.body));
+    console.log('📁 Files:', req.files ? Object.keys(req.files) : 'Nessun file');
+
+    if (req.files?.pdf?.[0]) {
+      console.log('✅ PDF ricevuto:', req.files.pdf[0].originalname);
+    }
+
+    if (req.files?.copertina?.[0]) {
+      console.log('✅ Immagine ricevuta:', req.files.copertina[0].originalname);
+    }
+
+    res.json({
+      success: true,
+      message: 'Test upload completato con successo',
+      received: {
+        body: Object.keys(req.body),
+        files: req.files ? Object.keys(req.files) : null,
+        pdfName: req.files?.pdf?.[0]?.originalname || null,
+        imageName: req.files?.copertina?.[0]?.originalname || null
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Errore test upload:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Errore nel test upload: ' + error.message
     });
   }
 });

@@ -432,6 +432,67 @@ router.get('/shop/:slug/blog/categories', resolveTenant, async (req, res) => {
     }
 });
 
+// GET: Recupera la configurazione base del sito
+// Esempio: /api/public/shop/mia-azienda/config
+router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        // 1. Recupera i dati base della ditta
+        const [ditte] = await dbPool.query(
+            `SELECT id, ragione_sociale, url_slug, shop_colore_primario, shop_colore_secondario,
+                    shop_attivo, shop_banner_url, shop_descrizione_home, id_web_template, shop_template
+             FROM ditte
+             WHERE url_slug = ? AND shop_attivo = 1`,
+            [slug]
+        );
+
+        if (ditte.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sito non trovato o non attivo' });
+        }
+
+        const ditta = ditte[0];
+
+        // 2. Costruisce la configurazione del sito
+        const siteConfig = {
+            id: ditta.id,
+            nome: ditta.ragione_sociale || slug,
+            slug: ditta.url_slug,
+            colors: {
+                primary: ditta.shop_colore_primario || '#06215b',
+                secondary: ditta.shop_colore_secondario || '#1e40af'
+            },
+            banner_url: ditta.shop_banner_url,
+            descrizione_home: ditta.shop_descrizione_home,
+            template_code: ditta.shop_template || 'default',
+            id_web_template: ditta.id_web_template
+        };
+
+        // 3. Recupera menu di navigazione (pagine pubblicate)
+        const [navigation] = await dbPool.query(
+            `SELECT slug, titolo_seo as title
+             FROM web_pages
+             WHERE id_ditta = ? AND pubblicata = 1
+             ORDER BY id ASC`,
+            [ditta.id]
+        );
+
+        res.json({
+            success: true,
+            siteConfig,
+            navigation,
+            ditta_id: ditta.id
+        });
+
+    } catch (error) {
+        console.error('Errore recupero configurazione sito:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore nel caricamento della configurazione del sito'
+        });
+    }
+});
+
 module.exports = router;
 
 

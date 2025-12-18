@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import MediaPickerModal from '../../shared/MediaPickerModal';
+import AllegatiManager from '../../shared/AllegatiManager';
 import { api } from '../../services/api';
 
 const BlogManager = ({ dittaId }) => {
@@ -20,6 +21,7 @@ const BlogManager = ({ dittaId }) => {
     const [editingPost, setEditingPost] = useState(null);
     const [editingCategory, setEditingCategory] = useState(null);
     const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+    const [postAllegati, setPostAllegati] = useState([]);
 
     // Variabile temporanea per tracciare il campo corrente nel media picker
     const [currentMediaField, setCurrentMediaField] = useState('');
@@ -69,6 +71,13 @@ const BlogManager = ({ dittaId }) => {
         }
     }, [dittaId, activeTab]);
 
+    useEffect(() => {
+        if (editingPost) {
+            // Carica gli allegati quando si inizia a modificare un post
+            loadPostAllegati(editingPost.id);
+        }
+    }, [editingPost]);
+
     // Funzioni di caricamento dati
     const loadPosts = async () => {
         try {
@@ -95,6 +104,31 @@ const BlogManager = ({ dittaId }) => {
         }
     };
 
+    // Carica allegati di un post
+    const loadPostAllegati = async (postId) => {
+        if (!postId) return;
+
+        try {
+            const res = await api.get(`/archivio/entita/Blog/${postId}`);
+            if (res.data) {
+                setPostAllegati(res.data);
+                // Se c'è un PDF, aggiorna il form
+                const pdfAllegato = res.data.find(a =>
+                    a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf')
+                );
+                if (pdfAllegato) {
+                    setPostForm(prev => ({
+                        ...prev,
+                        pdf_url: pdfAllegato.previewUrl,
+                        pdf_filename: pdfAllegato.file_name_originale
+                    }));
+                }
+            }
+        } catch (error) {
+            console.error('Errore caricamento allegati post:', error);
+        }
+    };
+
     // Gestione form post
     const handlePostSubmit = async (e) => {
         e.preventDefault();
@@ -103,17 +137,12 @@ const BlogManager = ({ dittaId }) => {
             setLoading(true);
             const formData = new FormData();
 
-            // Aggiungi campi testo
+            // Aggiungi campi testo (escludi i campi relativi a file)
             Object.keys(postForm).forEach(key => {
-                if (key !== 'contentType') {
+                if (key !== 'contentType' && key !== 'pdf_file' && key !== 'pdf_url' && key !== 'pdf_filename') {
                     formData.append(key, postForm[key]);
                 }
             });
-
-            // Aggiungi file PDF se presente
-            if (postForm.contentType === 'pdf' && postForm.pdf_file) {
-                formData.append('pdf', postForm.pdf_file);
-            }
 
             formData.append('id_ditta', dittaId);
 
@@ -332,12 +361,23 @@ const BlogManager = ({ dittaId }) => {
                             ) : (
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Carica Documento PDF</label>
-                                    <input
-                                        type="file"
-                                        accept=".pdf"
-                                        onChange={(e) => setPostForm(prev => ({ ...prev, pdf_file: e.target.files[0] }))}
-                                        className="w-full border p-2 rounded"
-                                    />
+                                    {editingPost ? (
+                                        <AllegatiManager
+                                            entita_tipo="Blog"
+                                            entita_id={editingPost.id}
+                                            isPublic={true}
+                                            onFilesUploaded={() => {
+                                                // Aggiorna l'elenco dei PDF del post
+                                                loadPostAllegati(editingPost.id);
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                                            <p className="text-gray-500 text-sm">
+                                                Salva prima il post per poter caricare allegati PDF
+                                            </p>
+                                        </div>
+                                    )}
                                     {postForm.pdf_url && (
                                         <div className="mt-2">
                                             <a href={postForm.pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">

@@ -16,7 +16,7 @@ export default async function BlogArchivePage({ params, searchParams }) {
     // 1. Fetch dati del sito e articoli
     const [siteResponse, postsResponse, categoriesResponse] = await Promise.all([
       // Dati sito
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${site}`, {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${site}/config`, {
         cache: 'no-store',
       }),
       // Articoli blog
@@ -41,8 +41,18 @@ export default async function BlogArchivePage({ params, searchParams }) {
 
     const { siteConfig } = siteData;
 
+    // Mapping template_code -> nome cartella corretto
+    const templateMap = {
+      'standard': 'Standard',
+      'fashion': 'Fashion',
+      'industrial': 'Industrial',
+      'default': 'Standard'
+    };
+
+    const templateFolder = templateMap[siteConfig.template_code] || 'Standard';
+
     // Recupera layout dinamico
-    const Layout = (await import(`../../../../components/templates/${siteConfig.template_code}/Layout.js`)).default;
+    const Layout = (await import(`../../../../components/templates/${templateFolder}/Layout.js`)).default;
 
     // Componente BlogArchiveContent
     function BlogArchiveContent() {

@@ -152,7 +152,10 @@ app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuild
 app.use('/api/admin/cms', verifyToken, adminCmsRoutes);
 app.use('/api/admin/blog', verifyToken, adminBlogRoutes); // <-- NUOVA ROTTA ADMIN BLOG 
 
-// --- 5. GESTIONE DEL FRONTEND ---
+// --- 5. SERVE LOCAL UPLOADS (PDF, Immagini Blog) ---
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// --- 6. GESTIONE DEL FRONTEND ---
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'opero-frontend', 'build')));
   app.get('*', (req, res) => {

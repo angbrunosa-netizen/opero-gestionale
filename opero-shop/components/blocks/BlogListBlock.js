@@ -32,8 +32,15 @@ export default function BlogListBlock({ config }) {
             const hostname = window.location.hostname;
             const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost';
 
+            console.log('🔍 BlogListBlock DEBUG - hostname:', hostname);
+            console.log('🔍 BlogListBlock DEBUG - rootDomain:', rootDomain);
+
             if (hostname.includes(rootDomain) && hostname !== rootDomain) {
-                return hostname.replace(`.${rootDomain}`, '');
+                const site = hostname.replace(`.${rootDomain}`, '');
+                console.log('🔍 BlogListBlock DEBUG - site detected:', site);
+                return site;
+            } else {
+                console.log('🔍 BlogListBlock DEBUG - using default site');
             }
         }
         return 'default';
@@ -49,24 +56,33 @@ export default function BlogListBlock({ config }) {
             setError(null);
 
             const site = getCurrentSite();
-            let url = `${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${site}/blog/posts?limit=${limite}`;
+            let url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${site}/blog/posts?limit=${limite}`;
+
+            console.log('🔍 BlogListBlock DEBUG - site:', site);
+            console.log('🔍 BlogListBlock DEBUG - URL:', url);
 
             if (categoriaSlug) {
                 url += `&category=${categoriaSlug}`;
+                console.log('🔍 BlogListBlock DEBUG - URL with category:', url);
             }
 
             const response = await fetch(url);
+            console.log('🔍 BlogListBlock DEBUG - response status:', response.status);
+
             const data = await response.json();
+            console.log('🔍 BlogListBlock DEBUG - response data:', data);
 
             if (data.success) {
                 // Se mostRecentOnly è true, mostra solo il primo post
                 const filteredPosts = mostRecentOnly ? [data.posts[0]] : data.posts;
                 setPosts(filteredPosts || []);
+                console.log('🔍 BlogListBlock DEBUG - posts loaded:', filteredPosts?.length || 0);
             } else {
+                console.error('🔍 BlogListBlock DEBUG - API returned error:', data);
                 setError('Impossibile caricare gli articoli');
             }
         } catch (err) {
-            console.error('Errore caricamento posts:', err);
+            console.error('🔍 BlogListBlock DEBUG - Errore caricamento posts:', err);
             setError('Errore nel caricare gli articoli');
         } finally {
             setLoading(false);
