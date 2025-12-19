@@ -5,7 +5,7 @@
  * Descrizione: Componente React per la gestione completa del sistema blog
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import MediaPickerModal from '../../shared/MediaPickerModal';
@@ -37,7 +37,9 @@ const BlogManager = ({ dittaId }) => {
         data_pubblicazione: new Date().toISOString().split('T')[0],
         autore: '',
         copertina_url: '',
+        copertina_file: null, // File object per l'immagine copertina
         pdf_url: '',
+        pdf_filename: '',
         meta_titolo: '',
         meta_descrizione: '',
         contentType: 'html' // 'html' o 'pdf'
@@ -73,10 +75,69 @@ const BlogManager = ({ dittaId }) => {
 
     useEffect(() => {
         if (editingPost) {
+            // Popola il form con i dati del post da modificare
+            setPostForm({
+                titolo: editingPost.titolo || '',
+                contenuto_html: editingPost.contenuto_html || '',
+                descrizione_breve: editingPost.descrizione_breve || '',
+                id_category: editingPost.id_category || '',
+                pubblicato: editingPost.pubblicato || false,
+                in_evidenza: editingPost.in_evidenza || false,
+                data_pubblicazione: editingPost.data_pubblicazione ?
+                    new Date(editingPost.data_pubblicazione).toISOString().split('T')[0] :
+                    new Date().toISOString().split('T')[0],
+                autore: editingPost.autore || '',
+                copertina_url: editingPost.copertina_url || '',
+                copertina_file: null,
+                pdf_url: editingPost.pdf_url || '',
+                pdf_filename: editingPost.pdf_filename || '',
+                meta_titolo: editingPost.meta_titolo || '',
+                meta_descrizione: editingPost.meta_descrizione || '',
+                contentType: editingPost.pdf_url ? 'pdf' : 'html'
+            });
+
             // Carica gli allegati quando si inizia a modificare un post
             loadPostAllegati(editingPost.id);
+
+            // Aggiorna i dati PDF se già presenti nel database
+            if (editingPost.id) {
+                updateFormWithPDFData(editingPost.id);
+            }
+        } else {
+            // Resetta il form se non c'è nessun post in modifica
+            resetPostForm();
         }
     }, [editingPost]);
+
+    // Funzione per aggiornare il form con i dati PDF dagli allegati
+    const updateFormWithPDFData = async (postId) => {
+        try {
+            const res = await api.get(`/admin/blog/allegati/${postId}`);
+            if (res.data.success && res.data.allegati) {
+                const pdfAllegati = res.data.allegati.filter(a => a.nome_file.toLowerCase().endsWith('.pdf'));
+                if (pdfAllegati.length > 0) {
+                    // Prende il primo PDF come documento principale
+                    const primoPDF = pdfAllegati[0];
+                    setPostForm(prev => ({
+                        ...prev,
+                        pdf_url: primoPDF.url,
+                        pdf_filename: primoPDF.nome_file,
+                        contentType: 'pdf'
+                    }));
+                } else {
+                    // Rimuovi i dati PDF se non ci sono più PDF
+                    setPostForm(prev => ({
+                        ...prev,
+                        pdf_url: '',
+                        pdf_filename: '',
+                        contentType: 'html'
+                    }));
+                }
+            }
+        } catch (error) {
+            console.error('Errore caricamento dati PDF:', error);
+        }
+    };
 
     // Funzioni di caricamento dati
     const loadPosts = async () => {
@@ -109,11 +170,15 @@ const BlogManager = ({ dittaId }) => {
         if (!postId) return;
 
         try {
-            const res = await api.get(`/archivio/entita/Blog/${postId}`);
-            if (res.data) {
-                setPostAllegati(res.data);
+            // TEMP: Usa endpoint di test per debug
+            const res = await api.get(`/archivio-test/test-entita/Blog/${postId}`);
+            if (res.data && res.data.success) {
+                const allegati = res.data.allegati || [];
+                setPostAllegati(allegati);
+                console.log(`📎 Caricati ${allegati.length} allegati per post ${postId}`);
+
                 // Se c'è un PDF, aggiorna il form
-                const pdfAllegato = res.data.find(a =>
+                const pdfAllegato = allegati.find(a =>
                     a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf')
                 );
                 if (pdfAllegato) {
@@ -137,14 +202,38 @@ const BlogManager = ({ dittaId }) => {
             setLoading(true);
             const formData = new FormData();
 
-            // Aggiungi campi testo (escludi i campi relativi a file)
+            // Aggiungi ID se siamo in modifica
+            if (editingPost) {
+                formData.append('id', editingPost.id);
+            }
+
+            // Aggiungi campi testo
             Object.keys(postForm).forEach(key => {
-                if (key !== 'contentType' && key !== 'pdf_file' && key !== 'pdf_url' && key !== 'pdf_filename') {
-                    formData.append(key, postForm[key]);
+                if (key !== 'contentType' && key !== 'copertina_file') {
+                    // Non includere campi vuoti nel formData
+                    if (postForm[key] !== '' && postForm[key] !== null && postForm[key] !== undefined) {
+                        formData.append(key, postForm[key]);
+                    }
                 }
             });
 
+            // Aggiungi sempre id_ditta
             formData.append('id_ditta', dittaId);
+
+            // Aggiungi immagine copertina se presente
+            if (postForm.copertina_file && postForm.copertina_file instanceof File) {
+                formData.append('copertina', postForm.copertina_file);
+            }
+
+            // Debug: logga il contenuto del formData
+            console.log('📤 FormData contents:');
+            for (let [key, value] of formData.entries()) {
+                if (value instanceof File) {
+                    console.log(`  ${key}:`, value.name, `(${value.size} bytes)`);
+                } else {
+                    console.log(`  ${key}:`, value);
+                }
+            }
 
             const res = await api.post('/admin/blog/posts', formData, {
                 headers: {
@@ -156,10 +245,12 @@ const BlogManager = ({ dittaId }) => {
                 window.alert(res.data.message);
                 resetPostForm();
                 loadPosts();
+            } else {
+                window.alert(res.data.error || 'Errore nel salvare il post');
             }
         } catch (error) {
             console.error('Errore salvataggio post:', error);
-            window.alert('Errore nel salvare il post');
+            window.alert('Errore nel salvare il post: ' + (error.response?.data?.error || error.message));
         } finally {
             setLoading(false);
         }
@@ -176,7 +267,9 @@ const BlogManager = ({ dittaId }) => {
             data_pubblicazione: new Date().toISOString().split('T')[0],
             autore: '',
             copertina_url: '',
+            copertina_file: null,
             pdf_url: '',
+            pdf_filename: '',
             meta_titolo: '',
             meta_descrizione: '',
             contentType: 'html'
@@ -360,29 +453,85 @@ const BlogManager = ({ dittaId }) => {
                                 </div>
                             ) : (
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Carica Documento PDF</label>
+                                    <label className="block text-sm font-medium mb-1">Gestione Documenti PDF</label>
+
                                     {editingPost ? (
-                                        <AllegatiManager
-                                            entita_tipo="Blog"
-                                            entita_id={editingPost.id}
-                                            isPublic={true}
-                                            onFilesUploaded={() => {
-                                                // Aggiorna l'elenco dei PDF del post
-                                                loadPostAllegati(editingPost.id);
-                                            }}
-                                        />
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                Usa l'archivio qui sotto per caricare documenti PDF. Il primo PDF caricato verrà automaticamente associato all'articolo.
+                                            </p>
+                                            <AllegatiManager
+                                                entita_tipo="Blog"
+                                                entita_id={editingPost.id}
+                                                isPublic={true}
+                                                onFilesUploaded={() => {
+                                                    // Ricarica gli allegati dopo l'upload
+                                                    loadPostAllegati(editingPost.id);
+                                                    // Aggiorna anche il form per rilevare i PDF
+                                                    updateFormWithPDFData(editingPost.id);
+                                                }}
+                                            />
+
+                                            {/* Riepilogo PDF allegati */}
+                                            {postAllegati.length > 0 && (
+                                                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                                                    <h4 className="text-sm font-medium text-blue-800 mb-2">
+                                                        📄 Documenti PDF caricati ({postAllegati.length})
+                                                    </h4>
+                                                    <ul className="text-sm space-y-2">
+                                                        {postAllegati.filter(a => a.nome_file.toLowerCase().endsWith('.pdf')).map((allegato, index) => (
+                                                            <li key={allegato.id} className="flex items-center justify-between p-2 bg-white rounded border border-blue-200">
+                                                                <div className="flex items-center space-x-2">
+                                                                    {index === 0 && (
+                                                                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Principale</span>
+                                                                    )}
+                                                                    <span className="text-gray-700">{allegato.nome_file}</span>
+                                                                </div>
+                                                                <div className="flex items-center space-x-2">
+                                                                    <span className="text-xs text-gray-500">
+                                                                        {(allegato.dimensioni / 1024 / 1024).toFixed(1)} MB
+                                                                    </span>
+                                                                    <a href={allegato.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-xs underline">
+                                                                        Visualizza
+                                                                    </a>
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    {postAllegati.filter(a => a.nome_file.toLowerCase().endsWith('.pdf')).length === 0 && (
+                                                        <p className="text-sm text-orange-600">
+                                                            ⚠️ Nessun PDF trovato tra gli allegati. Carica un file PDF per abilitare la modalità documento.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     ) : (
-                                        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center">
-                                            <p className="text-gray-500 text-sm">
-                                                Salva prima il post per poter caricare allegati PDF
+                                        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center bg-gray-50">
+                                            <div className="text-gray-600 mb-2">
+                                                <svg className="w-12 h-12 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </div>
+                                            <h3 className="text-sm font-medium text-gray-700 mb-1">Salva prima l'articolo</h3>
+                                            <p className="text-xs text-gray-500">
+                                                Dopo aver salvato l'articolo potrai caricare documenti PDF attraverso l'archivio.
                                             </p>
                                         </div>
                                     )}
+
+                                    {/* Stato PDF corrente per post con PDF già associato */}
                                     {postForm.pdf_url && (
-                                        <div className="mt-2">
-                                            <a href={postForm.pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                                                Visualizza PDF corrente
-                                            </a>
+                                        <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="text-sm font-medium text-green-800">✅ PDF Principale Associato:</span>
+                                                    <p className="text-sm text-green-700">{postForm.pdf_filename || 'documento.pdf'}</p>
+                                                    <a href={postForm.pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-xs underline">
+                                                        Visualizza PDF Principale
+                                                    </a>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -391,24 +540,92 @@ const BlogManager = ({ dittaId }) => {
                             {/* Immagine copertina */}
                             <div>
                                 <label className="block text-sm font-medium mb-1">Immagine Copertina</label>
-                                <div className="flex space-x-2">
-                                    <input
-                                        type="text"
-                                        value={postForm.copertina_url}
-                                        onChange={(e) => setPostForm(prev => ({ ...prev, copertina_url: e.target.value }))}
-                                        className="flex-1 border p-2 rounded"
-                                        placeholder="URL immagine copertina"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => openMediaPicker('copertina_url')}
-                                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                                    >
-                                        Scegli
-                                    </button>
+
+                                {/* Input per URL manuale */}
+                                <div className="mb-3">
+                                    <div className="flex space-x-2">
+                                        <input
+                                            type="text"
+                                            value={postForm.copertina_url}
+                                            onChange={(e) => setPostForm(prev => ({ ...prev, copertina_url: e.target.value }))}
+                                            className="flex-1 border p-2 rounded"
+                                            placeholder="URL immagine copertina"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => openMediaPicker('copertina_url')}
+                                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                        >
+                                            Archivio
+                                        </button>
+                                    </div>
                                 </div>
-                                {postForm.copertina_url && (
-                                    <img src={postForm.copertina_url} alt="Copertina" className="mt-2 h-20 rounded object-cover" />
+
+                                {/* Upload diretto file */}
+                                <div className="mb-3">
+                                    <label className="block text-xs text-gray-600 mb-1">Oppure carica un file:</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                                setPostForm(prev => ({
+                                                    ...prev,
+                                                    copertina_file: file
+                                                }));
+                                            }
+                                        }}
+                                        className="w-full border p-2 rounded text-sm"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Max 5MB. Formati: JPEG, PNG, WebP, GIF
+                                    </p>
+                                </div>
+
+                                {/* Anteprima immagine */}
+                                {(postForm.copertina_url || postForm.copertina_file) && (
+                                    <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                                        <p className="text-sm font-medium text-gray-700 mb-2">Anteprima:</p>
+                                        {postForm.copertina_file ? (
+                                            <div className="relative inline-block">
+                                                <img
+                                                    src={URL.createObjectURL(postForm.copertina_file)}
+                                                    alt="Anteprima copertina"
+                                                    className="h-20 rounded object-cover"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPostForm(prev => ({ ...prev, copertina_file: null }))}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs hover:bg-red-600"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="relative inline-block">
+                                                <img
+                                                    src={postForm.copertina_url}
+                                                    alt="Copertina"
+                                                    className="h-20 rounded object-cover"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'block';
+                                                    }}
+                                                />
+                                                <div className="hidden text-red-500 text-sm">
+                                                    Errore caricamento immagine
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPostForm(prev => ({ ...prev, copertina_url: '' }))}
+                                                    className="ml-2 text-red-500 hover:text-red-700 text-sm"
+                                                >
+                                                    Rimuovi
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 

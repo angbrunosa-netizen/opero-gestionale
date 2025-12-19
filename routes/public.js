@@ -470,18 +470,26 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
 
         // 3. Recupera menu di navigazione (pagine pubblicate)
         const [navigation] = await dbPool.query(
-            `SELECT slug, titolo_seo as title
+            `SELECT slug, titolo_seo
              FROM web_pages
              WHERE id_ditta = ? AND pubblicata = 1
              ORDER BY id ASC`,
             [ditta.id]
         );
 
+        // 4. Assicura che Blog sia nel menu di navigazione
+        const hasBlog = navigation.find(item => item.slug === 'blog');
+        if (!hasBlog) {
+            navigation.push({ slug: 'blog', titolo_seo: 'Blog' });
+        }
+
+        // 5. Aggiorna siteConfig con navigazione e logo
+        siteConfig.navigation = navigation;
+        siteConfig.logo = ditta.shop_logo_url;
+
         res.json({
             success: true,
-            siteConfig,
-            navigation,
-            ditta_id: ditta.id
+            siteConfig: siteConfig
         });
 
     } catch (error) {

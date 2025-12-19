@@ -576,6 +576,40 @@ router.delete('/posts/:id', async (req, res) => {
   }
 });
 
+// GET /api/admin/blog/allegati/:postId - Recupera allegati di un post
+router.get('/allegati/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    if (!postId) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID post richiesto'
+      });
+    }
+
+    // Query per recuperare gli allegati del post dalla tabella archivio
+    const [allegati] = await dbPool.query(
+      `SELECT id, nome_file, nome_originale, tipo_file, dimensioni, url, data_caricamento
+       FROM archivio
+       WHERE entita_tipo = 'Blog' AND entita_id = ?
+       ORDER BY data_caricamento DESC`,
+      [postId]
+    );
+
+    res.json({
+      success: true,
+      allegati: allegati || []
+    });
+  } catch (error) {
+    console.error('Errore caricamento allegati post:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Errore nel caricare gli allegati'
+    });
+  }
+});
+
 // TEMP: Endpoint di test senza autenticazione per debug upload
 router.post('/test-upload', upload.any(), async (req, res) => {
   console.log('🧪 TEST UPLOAD SENZA AUTENTICAZIONE');

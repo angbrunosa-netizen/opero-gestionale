@@ -346,6 +346,30 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
         // 7. Conferma la transazione
         await trx.commit();
 
+        // Hook: Se è un PDF caricato per un post del blog, aggiorna automaticamente il post
+        if (file.originalname.toLowerCase().endsWith('.pdf') && entitaTipo === 'Blog' && entitaId) {
+            try {
+                // Costruisci l'URL del file
+                const fileUrl = filePrivacy === 'public'
+                    ? `${process.env.CDN_BASE_URL || 'https://cdn.operobase.com'}/${process.env.S3_BUCKET_NAME}/${s3Key}`
+                    : `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${s3Key}`;
+
+                // Aggiorna il post del blog con il primo PDF (solo se non ha già un PDF)
+                const { dbPool } = require('../config/db');
+                await dbPool.query(
+                    `UPDATE web_blog_posts
+                     SET pdf_url = ?, pdf_filename = ?, updated_at = NOW()
+                     WHERE id = ? AND (pdf_url IS NULL OR pdf_url = '')`,
+                    [fileUrl, file.originalname, entitaId]
+                );
+
+                console.log(`🔄 Aggiornato post blog ${entitaId} con PDF: ${file.originalname}`);
+            } catch (blogUpdateError) {
+                console.error('⚠️ Errore aggiornamento post blog con PDF:', blogUpdateError);
+                // Non bloccare la risposta anche se l'aggiornamento del post fallisce
+            }
+        }
+
         res.status(201).json({
             message: 'File caricato con successo.',
             file: {
@@ -427,5 +451,137 @@ async function linkExistingFile(req, res, { existingFileId, entitaId, entitaTipo
         res.status(500).json({ error: 'Impossibile collegare il file.' });
     }
 }
+
+// TEMP: Endpoint di test senza autenticazione per debug BlogManager
+router.get('/test-entita/:entitaTipo/:entitaId', async (req, res) => {
+    console.log('🧪 TEST GET /archivio/entita SENZA AUTENTICAZIONE');
+
+    const { entitaTipo, entitaId } = req.params;
+
+    try {
+        // Simula utente e ditta per test
+        req.user = {
+            id: 1,
+            id_ditta: 1,
+            email: 'test@example.com'
+        };
+        const idDitta = 1;
+
+        console.log(`🔍 Ricerca allegati per: entita_tipo=${entitaTipo}, entita_id=${entitaId}, id_ditta=${idDitta}`);
+
+        const allegati = await knex('dm_allegati_link as link')
+            .join('dm_files as file', 'link.id_file', 'file.id')
+            .where({
+                'link.entita_tipo': entitaTipo,
+                'link.entita_id': entitaId,
+                'link.id_ditta': idDitta
+            })
+            .select(
+                'file.id as id_link',
+                'file.file_name_originale',
+                'file.file_size',
+                'file.file_mime_type',
+                'file.privacy',
+                'file.created_at',
+                'file.s3_key'
+            )
+            .orderBy('file.created_at', 'desc');
+
+        console.log(`📎 Trovati ${allegati.length} allegati`);
+
+        for (const allegato of allegati) {
+            console.log(`   - ${allegato.file_name_originale} (${allegato.file_mime_type})`);
+
+            if (allegato.privacy === 'public') {
+                allegato.previewUrl = `${CDN_BASE_URL}/${S3_BUCKET_NAME}/${allegato.s3_key}`;
+            } else if (allegato.s3_key) {
+                // Per i file non pubblici, genera URL base (senza firma per test)
+                allegato.previewUrl = `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${allegato.s3_key}`;
+            }
+            delete allegato.s3_key;
+        }
+
+        res.json({
+            success: true,
+            allegati: allegati,
+            debug: {
+                entita_tipo: entitaTipo,
+                entita_id: entitaId,
+                id_ditta: idDitta,
+                count: allegati.length
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Errore test allegati entità:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore nel test recupero allegati: ' + error.message
+        });
+    }
+});
+
+// TEMP: Endpoint di test per upload senza autenticazione
+router.post('/test-upload', upload.single('file'), async (req, res) => {
+    console.log('🧪 TEST UPLOAD /archivio/upload SENZA AUTENTICAZIONE');
+
+    try {
+        // Simula utente e ditta per test
+        req.user = {
+            id: 1,
+            id_ditta: 1,
+            email: 'test@example.com'
+        };
+        const idDitta = 1;
+        const idUtenteUpload = 1;
+
+        const { entita_tipo, entita_id, privacy = 'public' } = req.body;
+
+        console.log('📝 Dati ricevuti:', {
+            entita_tipo,
+            entita_id,
+            privacy,
+            file: req.file ? req.file.originalname : 'Nessun file'
+        });
+
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'Nessun file caricato'
+            });
+        }
+
+        if (!entita_tipo || !entita_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Dati entita_tipo e entita_id obbligatori'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Test upload completato con successo',
+            data: {
+                id_ditta: idDitta,
+                id_utente: idUtenteUpload,
+                entita_tipo,
+                entita_id,
+                privacy,
+                file_info: {
+                    originalname: req.file.originalname,
+                    mimetype: req.file.mimetype,
+                    size: req.file.size
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Errore test upload:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore nel test upload: ' + error.message
+        });
+    }
+});
 
 module.exports = router;

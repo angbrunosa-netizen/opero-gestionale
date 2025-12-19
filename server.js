@@ -115,6 +115,9 @@ app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/track', trackRoutes);
 
+// Rotte di test per debug (senza autenticazione)
+app.use('/api/archivio-test', archivioRoutes);
+
 // Rotte protette
 app.use('/api/mail', verifyToken, mailRoutes);
 app.use('/api/admin', verifyToken, adminRoutes);

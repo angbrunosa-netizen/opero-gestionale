@@ -138,7 +138,7 @@ export default function StandardLayout({ children, siteConfig }) {
             </div>
           </div>
           <div className="text-center text-xs text-gray-600 border-t border-gray-800 pt-8">
-            © {new Date().getFullYear()} {name || 'Nome Azienda'}. Powered by Opero CMS.
+            © {new Date().getFullYear()} {name || 'Nome Azienda'}. Powered by OperoCloud CMS.
           </div>
         </div>
       </footer>
