@@ -7,8 +7,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
-const { dbPool } = require('../config/db');
-const { knex } = require('../config/db');
+const { dbPool, knex } = require('../config/db');
 const router = express.Router();
 
 // --- GET (Recupera dati per la pagina di registrazione) ---
@@ -363,6 +362,42 @@ router.get('/shop/:slug/blog/post/:postSlug', resolveTenant, async (req, res) =>
             [post.id]
         );
 
+        // Recupera allegati del post (PDF caricati con AllegatiManager)
+        let postAllegati = [];
+        try {
+            postAllegati = await knex('dm_allegati_link as link')
+                .join('dm_files as file', 'link.id_file', 'file.id')
+                .where({
+                    'link.entita_tipo': 'Blog',
+                    'link.entita_id': post.id,
+                    'link.id_ditta': ditta[0].id
+                })
+                .select(
+                    'file.id as id_link',
+                    'file.file_name_originale',
+                    'file.file_size_bytes',
+                    'file.mime_type',
+                    'file.privacy',
+                    'file.created_at',
+                    'file.s3_key'
+                )
+                .orderBy('file.created_at', 'desc');
+
+            // Genera URL per ogni allegato
+            const CDN_BASE_URL = 'https://cdn.operocloud.it';
+            const S3_BUCKET_NAME = 'operogo';
+
+            for (const allegato of postAllegati) {
+                if (allegato.privacy === 'public') {
+                    allegato.previewUrl = `${CDN_BASE_URL}/${S3_BUCKET_NAME}/${allegato.s3_key}`;
+                }
+                delete allegato.s3_key;
+            }
+
+        } catch (error) {
+            console.error('Errore recupero allegati post:', error);
+        }
+
         // Recupera post correlati (stessa categoria, escluso il post corrente)
         const [relatedPosts] = await dbPool.query(
             `SELECT p.titolo, p.slug, p.copertina_url, p.descrizione_breve, p.data_pubblicazione,
@@ -379,6 +414,7 @@ router.get('/shop/:slug/blog/post/:postSlug', resolveTenant, async (req, res) =>
             success: true,
             post: {
                 ...post,
+                allegati: postAllegati || [],
                 relatedPosts: relatedPosts || []
             }
         });

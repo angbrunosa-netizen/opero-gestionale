@@ -124,7 +124,7 @@ export default async function BlogPostPage({ params, searchParams }) {
 
           {/* Contenuto principale */}
           <div className="prose prose-lg max-w-none">
-            {post.pdf_url ? (
+            {(post.pdf_url || (post.allegati && post.allegati.length > 0)) ? (
               /* PDF Viewer */
               <div className="w-full">
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -133,11 +133,37 @@ export default async function BlogPostPage({ params, searchParams }) {
                       <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      <span className="text-blue-800 font-medium">Documento PDF: {post.pdf_filename}</span>
+                      <span className="text-blue-800 font-medium">Documento PDF: {
+                        (() => {
+                          const pdfAllegato = post.allegati && post.allegati.find(a =>
+                            a.mime_type === 'application/pdf' ||
+                            (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                          );
+                          return pdfAllegato?.file_name_originale || post.pdf_filename;
+                        })()
+                      }</span>
                     </div>
                     <a
-                      href={post.pdf_url}
-                      download={post.pdf_filename}
+                      href={
+                        (() => {
+                          const pdfAllegato = post.allegati && post.allegati.find(a =>
+                            a.mime_type === 'application/pdf' ||
+                            (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                          );
+                          return pdfAllegato?.previewUrl || post.pdf_url;
+                        })()
+                      }
+                      download={
+                        (() => {
+                          const pdfAllegato = post.allegati && post.allegati.find(a =>
+                            a.mime_type === 'application/pdf' ||
+                            (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                          );
+                          return pdfAllegato?.file_name_originale || post.pdf_filename;
+                        })()
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,14 +174,93 @@ export default async function BlogPostPage({ params, searchParams }) {
                   </div>
                 </div>
 
-                {/* PDF Viewer iframe */}
-                <div className="w-full h-screen max-h-4xl bg-gray-100 rounded-lg shadow-lg overflow-hidden border">
-                  <iframe
-                    src={`${post.pdf_url}#toolbar=1&navpanes=1&scrollbar=1`}
-                    className="w-full h-full"
-                    title={`PDF Viewer - ${post.titolo}`}
-                    frameBorder="0"
-                  />
+                {/* PDF Viewer with controls */}
+                <div className="w-full">
+                  {/* Controls bar */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-t-lg p-3 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-700">
+                        PDF Viewer
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {/* Download button - only show if PDF is downloadable */}
+                      {post.pdf_downloadable && (
+                        <a
+                          href={
+                            (() => {
+                              const pdfAllegato = post.allegati && post.allegati.find(a =>
+                                a.mime_type === 'application/pdf' ||
+                                (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                              );
+                              return pdfAllegato?.previewUrl || post.pdf_url;
+                            })()
+                          }
+                          download={
+                            (() => {
+                              const pdfAllegato = post.allegati && post.allegati.find(a =>
+                                a.mime_type === 'application/pdf' ||
+                                (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                              );
+                              return pdfAllegato?.file_name_originale || post.pdf_filename;
+                            })()
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                        >
+                          <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download PDF
+                        </a>
+                      )}
+
+                      {/* Open in new tab button */}
+                      <a
+                        href={
+                          (() => {
+                            const pdfAllegato = post.allegati && post.allegati.find(a =>
+                              a.mime_type === 'application/pdf' ||
+                              (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                            );
+                            return pdfAllegato?.previewUrl || post.pdf_url;
+                          })()
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        Apri in nuova finestra
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* PDF Viewer iframe */}
+                  <div className="bg-white border border-gray-200 rounded-b-lg shadow-lg overflow-hidden">
+                    <iframe
+                      src={
+                        (() => {
+                          const pdfAllegato = post.allegati && post.allegati.find(a =>
+                            a.mime_type === 'application/pdf' ||
+                            (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                          );
+                          return `${pdfAllegato?.previewUrl || post.pdf_url}#toolbar=1&navpanes=1&scrollbar=1`;
+                        })()
+                      }
+                      className="w-full h-96 lg:h-screen max-h-4xl"
+                      style={{ height: '600px' }}
+                      title={`PDF Viewer - ${post.titolo}`}
+                      frameBorder="0"
+                    />
+                  </div>
                 </div>
 
                 {/* Fallback link per dispositivi mobile */}
@@ -163,7 +268,15 @@ export default async function BlogPostPage({ params, searchParams }) {
                   <p className="text-sm text-gray-600">
                     Se il PDF non è visibile,{' '}
                     <a
-                      href={post.pdf_url}
+                      href={
+                        (() => {
+                          const pdfAllegato = post.allegati && post.allegati.find(a =>
+                            a.mime_type === 'application/pdf' ||
+                            (a.file_name_originale && a.file_name_originale.toLowerCase().endsWith('.pdf'))
+                          );
+                          return pdfAllegato?.previewUrl || post.pdf_url;
+                        })()
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline font-medium"

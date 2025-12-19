@@ -380,7 +380,7 @@ router.post('/posts', upload.any(), async (req, res) => {
     const {
       id_ditta, id, titolo, contenuto_html, descrizione_breve,
       id_category, pubblicato, in_evidenza, data_pubblicazione,
-      autore, meta_titolo, meta_descrizione
+      autore, meta_titolo, meta_descrizione, pdf_downloadable
     } = req.body;
 
     // Validazione base
@@ -460,13 +460,13 @@ router.post('/posts', upload.any(), async (req, res) => {
          id_category = ?, pubblicato = ?, in_evidenza = ?, data_pubblicazione = ?,
          autore = ?, meta_title = ?, meta_description = ?,
          pdf_url = COALESCE(?, pdf_url), pdf_filename = COALESCE(?, pdf_filename),
-         copertina_url = COALESCE(?, copertina_url)
+         copertina_url = COALESCE(?, copertina_url), pdf_downloadable = ?
          WHERE id = ? AND id_ditta = ?`,
         [
           titolo, slug, contenuto_html, descrizione_breve,
           id_category || null, pubblicato ? 1 : 0, in_evidenza ? 1 : 0,
           data_pubblicazione || new Date(), autore, meta_titolo, meta_descrizione,
-          pdf_url, pdf_filename, copertina_url, id, id_ditta
+          pdf_url, pdf_filename, copertina_url, pdf_downloadable !== undefined ? (pdf_downloadable === 'true' || pdf_downloadable === true ? 1 : 0) : 1, id, id_ditta
         ]
       );
 
@@ -479,13 +479,14 @@ router.post('/posts', upload.any(), async (req, res) => {
       const [result] = await dbPool.query(
         `INSERT INTO web_blog_posts
          (id_ditta, id_category, titolo, slug, contenuto, descrizione_breve,
-          copertina_url, pdf_url, pdf_filename, pubblicato, in_evidenza,
+          copertina_url, pdf_url, pdf_filename, pdf_downloadable, pubblicato, in_evidenza,
           data_pubblicazione, autore, meta_title, meta_description)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id_ditta, id_category || null, titolo, slug, contenuto_html,
-          descrizione_breve, copertina_url, pdf_url, pdf_filename, pubblicato ? 1 : 0,
-          in_evidenza ? 1 : 0, data_pubblicazione || new Date(), autore,
+          descrizione_breve, copertina_url, pdf_url, pdf_filename,
+          pdf_downloadable !== undefined ? (pdf_downloadable === 'true' || pdf_downloadable === true ? 1 : 0) : 1,
+          pubblicato ? 1 : 0, in_evidenza ? 1 : 0, data_pubblicazione || new Date(), autore,
           meta_titolo, meta_descrizione
         ]
       );

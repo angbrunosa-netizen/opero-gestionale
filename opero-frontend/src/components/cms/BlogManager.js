@@ -10,9 +10,13 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import MediaPickerModal from '../../shared/MediaPickerModal';
 import AllegatiManager from '../../shared/AllegatiManager';
+import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 
 const BlogManager = ({ dittaId }) => {
+    // Auth context - ottieni dati utente loggato
+    const { user } = useAuth();
+
     // Stati
     const [activeTab, setActiveTab] = useState('posts'); // posts, categories
     const [posts, setPosts] = useState([]);
@@ -40,6 +44,7 @@ const BlogManager = ({ dittaId }) => {
         copertina_file: null, // File object per l'immagine copertina
         pdf_url: '',
         pdf_filename: '',
+        pdf_downloadable: true, // Se il PDF è scaricabile
         meta_titolo: '',
         meta_descrizione: '',
         contentType: 'html' // 'html' o 'pdf'
@@ -86,11 +91,12 @@ const BlogManager = ({ dittaId }) => {
                 data_pubblicazione: editingPost.data_pubblicazione ?
                     new Date(editingPost.data_pubblicazione).toISOString().split('T')[0] :
                     new Date().toISOString().split('T')[0],
-                autore: editingPost.autore || '',
+                autore: editingPost.autore || (user?.nome + ' ' + (user?.cognome || '')) || '',
                 copertina_url: editingPost.copertina_url || '',
                 copertina_file: null,
                 pdf_url: editingPost.pdf_url || '',
                 pdf_filename: editingPost.pdf_filename || '',
+                pdf_downloadable: editingPost.pdf_downloadable !== undefined ? editingPost.pdf_downloadable : true,
                 meta_titolo: editingPost.meta_titolo || '',
                 meta_descrizione: editingPost.meta_descrizione || '',
                 contentType: editingPost.pdf_url ? 'pdf' : 'html'
@@ -270,6 +276,7 @@ const BlogManager = ({ dittaId }) => {
             copertina_file: null,
             pdf_url: '',
             pdf_filename: '',
+            pdf_downloadable: true,
             meta_titolo: '',
             meta_descrizione: '',
             contentType: 'html'
@@ -422,10 +429,17 @@ const BlogManager = ({ dittaId }) => {
                                     <label className="block text-sm font-medium mb-1">Autore</label>
                                     <input
                                         type="text"
-                                        value={postForm.autore}
+                                        value={postForm.autore || (user?.nome + ' ' + (user?.cognome || '')) || ''}
                                         onChange={(e) => setPostForm(prev => ({ ...prev, autore: e.target.value }))}
-                                        className="w-full border p-2 rounded"
+                                        className="w-full border p-2 rounded bg-gray-50"
+                                        readOnly={!editingPost} // Read-only per nuovi post, editable solo per modifiche
+                                        placeholder={user?.nome + ' ' + (user?.cognome || '') || 'Utente loggato'}
                                     />
+                                    {!editingPost && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Autore pre-impostato dall'utente loggato
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -532,6 +546,26 @@ const BlogManager = ({ dittaId }) => {
                                                     </a>
                                                 </div>
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* Opzioni PDF */}
+                                    {postForm.contentType === 'pdf' && postForm.pdf_url && (
+                                        <div className="mt-3">
+                                            <label className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={postForm.pdf_downloadable}
+                                                    onChange={(e) => setPostForm(prev => ({ ...prev, pdf_downloadable: e.target.checked }))}
+                                                    className="mr-2"
+                                                />
+                                                <span className="text-sm font-medium">
+                                                    Rendi PDF scaricabile
+                                                </span>
+                                            </label>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Se abilitato, gli utenti potranno scaricare il PDF. Altrimenti sarà solo visualizzabile.
+                                            </p>
                                         </div>
                                     )}
                                 </div>

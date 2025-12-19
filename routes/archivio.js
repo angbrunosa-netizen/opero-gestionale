@@ -351,7 +351,7 @@ router.post('/upload', checkPermission('DM_FILE_UPLOAD'), upload.single('file'),
             try {
                 // Costruisci l'URL del file
                 const fileUrl = filePrivacy === 'public'
-                    ? `${process.env.CDN_BASE_URL || 'https://cdn.operobase.com'}/${process.env.S3_BUCKET_NAME}/${s3Key}`
+                    ? `${process.env.CDN_BASE_URL || 'https://cdn.operocloud.it'}/${process.env.S3_BUCKET_NAME}/${s3Key}`
                     : `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${s3Key}`;
 
                 // Aggiorna il post del blog con il primo PDF (solo se non ha già un PDF)
