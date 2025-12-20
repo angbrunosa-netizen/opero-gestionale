@@ -45,8 +45,8 @@ router.get('/companies', async (req, res) => {
 router.get('/config/:idDitta', async (req, res) => {
     try {
         const [rows] = await dbPool.query(
-            `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template 
-             FROM ditte WHERE id = ?`, 
+            `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template, shop_colore_sfondo_blocchi
+             FROM ditte WHERE id = ?`,
             [req.params.idDitta]
         );
         
@@ -70,7 +70,7 @@ router.get('/config/:idDitta', async (req, res) => {
 // SAVE Configurazione Sito
 router.post('/config/:idDitta', async (req, res) => {
     try {
-        const { url_slug, shop_template, shop_colore_primario, shop_colore_secondario, shop_attivo } = req.body;
+        const { url_slug, shop_template, shop_colore_primario, shop_colore_secondario, shop_colore_sfondo_blocchi, shop_attivo } = req.body;
         const idDitta = req.params.idDitta;
         
         // Verifica unicità slug se cambiato e non vuoto
@@ -102,14 +102,15 @@ router.post('/config/:idDitta', async (req, res) => {
         // Adatterò la query alla migrazione base che usa la relazione id_web_template.
         
         await dbPool.query(
-            `UPDATE ditte SET 
-                url_slug = ?, 
-                id_web_template = ?, 
-                shop_colore_primario = ?, 
-                shop_colore_secondario = ?, 
-                shop_attivo = ? 
+            `UPDATE ditte SET
+                url_slug = ?,
+                id_web_template = ?,
+                shop_colore_primario = ?,
+                shop_colore_secondario = ?,
+                shop_colore_sfondo_blocchi = ?,
+                shop_attivo = ?
              WHERE id = ?`,
-            [url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo ? 1 : 0, idDitta]
+            [url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_colore_sfondo_blocchi, shop_attivo ? 1 : 0, idDitta]
         );
         
         res.json({ success: true });
@@ -320,12 +321,12 @@ const resolveTenant = async (req, res, next) => {
     const { slug } = req.params;
     try {
         const [rows] = await dbPool.query(
-            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario, 
-                    d.shop_colore_secondario, 
-                    COALESCE(t.codice, 'standard') as template_code 
-             FROM ditte d 
-             LEFT JOIN web_templates t ON d.id_web_template = t.id 
-             WHERE d.url_slug = ? AND d.shop_attivo = 1`, 
+            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario,
+                    d.shop_colore_secondario, d.shop_colore_sfondo_blocchi,
+                    COALESCE(t.codice, 'standard') as template_code
+             FROM ditte d
+             LEFT JOIN web_templates t ON d.id_web_template = t.id
+             WHERE d.url_slug = ? AND d.shop_attivo = 1`,
             [slug]
         );
         
@@ -410,7 +411,8 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
                 logo: req.shopDitta.logo_url,
                 colors: {
                     primary: req.shopDitta.shop_colore_primario,
-                    secondary: req.shopDitta.shop_colore_secondario
+                    secondary: req.shopDitta.shop_colore_secondario,
+                    background: req.shopDitta.shop_colore_sfondo_blocchi
                 },
                 template: req.shopDitta.template_code,
                 navigation: navigation // Passiamo la lista delle pagine al frontend

@@ -34,7 +34,8 @@
       "Bash(ping:*)",
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

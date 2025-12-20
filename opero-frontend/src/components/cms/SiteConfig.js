@@ -15,6 +15,7 @@ const SiteConfig = ({ dittaId }) => {
         shop_template: 'standard',
         shop_colore_primario: '#000000',
         shop_colore_secondario: '#ffffff',
+        shop_colore_sfondo_blocchi: '#ffffff', // Nuovo: colore sfondo per tutti i blocchi
         shop_attivo: false
     });
     const [loading, setLoading] = useState(false);
@@ -150,6 +151,86 @@ const SiteConfig = ({ dittaId }) => {
                                         className="h-8 w-8 p-0 border-0 rounded cursor-pointer overflow-hidden"
                                     />
                                     <span className="text-sm font-mono text-gray-600 uppercase">{config.shop_colore_secondario}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sfondo Blocchi Pagina */}
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                    <span className="w-2 h-6 bg-green-500 rounded-sm"></span>
+                                    Sfondo Blocchi Pagina
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-6 h-6 rounded border border-gray-300"
+                                        style={{ backgroundColor: config.shop_colore_sfondo_blocchi }}
+                                    ></div>
+                                    <span className="text-xs text-gray-500 font-mono uppercase">{config.shop_colore_sfondo_blocchi}</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Colore Sfondo Unico</label>
+                                    <div className="flex items-center gap-3 p-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                                        <input
+                                            type="color"
+                                            value={config.shop_colore_sfondo_blocchi}
+                                            onChange={e => setConfig({...config, shop_colore_sfondo_blocchi: e.target.value})}
+                                            className="h-10 w-12 p-0 border-0 rounded cursor-pointer overflow-hidden"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={config.shop_colore_sfondo_blocchi}
+                                            onChange={e => setConfig({...config, shop_colore_sfondo_blocchi: e.target.value})}
+                                            className="flex-1 px-3 py-2 border border-gray-200 rounded text-sm font-mono"
+                                            placeholder="#ffffff"
+                                        />
+                                    </div>
+                                    <p className="mt-2 text-xs text-gray-500">Questo colore verrà applicato come sfondo a tutti i blocchi delle pagine.</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Colori Predefiniti</label>
+                                    <div className="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-md bg-white">
+                                        {['#ffffff', '#f8f9fa', '#f3f4f6', '#e5e7eb', '#fef3c7', '#dbeafe', '#e0e7ff', '#fce7f3', '#d1fae5', '#fed7aa'].map((color) => (
+                                            <button
+                                                key={color}
+                                                onClick={() => setConfig({...config, shop_colore_sfondo_blocchi: color})}
+                                                className={`w-8 h-8 rounded border-2 transition-all hover:scale-110 ${
+                                                    config.shop_colore_sfondo_blocchi === color ? 'border-blue-500 shadow-lg' : 'border-gray-300'
+                                                }`}
+                                                style={{ backgroundColor: color }}
+                                                title={color}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Anteprima Sfondo */}
+                            <div className="mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Anteprima Sfondo</label>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div
+                                        className="h-20 rounded-md border border-gray-300 flex items-center justify-center text-xs font-medium text-gray-700"
+                                        style={{ backgroundColor: config.shop_colore_sfondo_blocchi }}
+                                    >
+                                        Blocco 1
+                                    </div>
+                                    <div
+                                        className="h-20 rounded-md border border-gray-300 flex items-center justify-center text-xs font-medium text-gray-700"
+                                        style={{ backgroundColor: config.shop_colore_sfondo_blocchi }}
+                                    >
+                                        Blocco 2
+                                    </div>
+                                    <div
+                                        className="h-20 rounded-md border border-gray-300 flex items-center justify-center text-xs font-medium text-gray-700"
+                                        style={{ backgroundColor: config.shop_colore_sfondo_blocchi }}
+                                    >
+                                        Blocco 3
+                                    </div>
                                 </div>
                             </div>
                         </div>

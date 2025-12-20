@@ -66,7 +66,7 @@ const SiteBuilderModule = () => {
                 <div className="max-w-5xl mx-auto">
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-gray-900">Gestione Siti Web Ditte</h1>
-                        <p className="text-gray-600 mt-2">Seleziona una Ditta Proprietaria (Tipo 1) per creare o modificare il suo sito web.</p>
+                        <p className="text-gray-600 mt-2">Selezio1na una Ditta Proprietaria (Tipo 1) per creare o modificare il suo sito web.</p>
                     </div>
 
                     {isLoadingList ? (

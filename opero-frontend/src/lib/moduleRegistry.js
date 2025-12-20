@@ -41,7 +41,7 @@ const FinanzeModule = React.lazy(() => import('../components/FinanzeModule'));
 const PPAModule = React.lazy(() => import('../components/PPAModule'));
  const MagazzinoModule = React.lazy(() => import('../components/MagazzinoModule'));
  const VenditeModule = React.lazy(() => import('../components/VenditeModule'));
-const WebsiteBuilderModule = React.lazy(() => import('../components/WebsiteBuilderModule'));
+//const WebsiteBuilderModule = React.lazy(() => import('../components/WebsiteBuilderModule'));
 const ListModule = React.lazy(() => import('../components/ListModule')); // Componente per il modulo LISTE
 const SiteBuilderModule = React.lazy(() => import('../components/SiteBuilderModule'));
 

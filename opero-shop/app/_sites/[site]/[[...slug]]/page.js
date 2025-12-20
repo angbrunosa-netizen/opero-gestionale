@@ -49,6 +49,7 @@ export default async function TenantSubPage({ params }) {
   const themeStyles = {
       '--primary-color': siteConfig.colors.primary || '#000000',
       '--secondary-color': siteConfig.colors.secondary || '#ffffff',
+      '--background-color': siteConfig.colors.background || '#ffffff',
   };
 
   return (
