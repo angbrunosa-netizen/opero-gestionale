@@ -152,12 +152,12 @@ const resolveTenant = async (req, res, next) => {
     const { slug } = req.params;
     try {
         const [rows] = await dbPool.query(
-            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario, 
-                    d.shop_colore_secondario, 
-                    COALESCE(t.codice, 'standard') as template_code 
-             FROM ditte d 
-             LEFT JOIN web_templates t ON d.id_web_template = t.id 
-             WHERE d.url_slug = ? AND d.shop_attivo = 1`, 
+            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario,
+                    d.shop_colore_secondario, d.shop_colore_sfondo_blocchi,
+                    COALESCE(t.codice, 'standard') as template_code
+             FROM ditte d
+             LEFT JOIN web_templates t ON d.id_web_template = t.id
+             WHERE d.url_slug = ? AND d.shop_attivo = 1`,
             [slug]
         );
         
@@ -243,7 +243,12 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
                 logo: req.shopDitta.logo_url,
                 colors: {
                     primary: req.shopDitta.shop_colore_primario,
-                    secondary: req.shopDitta.shop_colore_secondario
+                    secondary: req.shopDitta.shop_colore_secondario,
+                    blockBackground: req.shopDitta.shop_colore_sfondo_blocchi || '#ffffff',
+                    // Header personalization
+                    headerBackground: req.shopDitta.shop_colore_header_sfondo || '#ffffff',
+                    headerText: req.shopDitta.shop_colore_header_testo || '#333333',
+                    logoPosition: req.shopDitta.shop_logo_posizione || 'left' // left, center, right
                 },
                 template: req.shopDitta.template_code,
                 navigation: navigation // Passiamo la lista delle pagine al frontend
@@ -477,7 +482,8 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
         // 1. Recupera i dati base della ditta
         const [ditte] = await dbPool.query(
             `SELECT id, ragione_sociale, url_slug, shop_colore_primario, shop_colore_secondario,
-                    shop_attivo, shop_banner_url, shop_descrizione_home, id_web_template, shop_template
+                    shop_colore_sfondo_blocchi, shop_attivo, shop_banner_url, shop_descrizione_home,
+                    id_web_template, shop_template
              FROM ditte
              WHERE url_slug = ? AND shop_attivo = 1`,
             [slug]
@@ -496,7 +502,12 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
             slug: ditta.url_slug,
             colors: {
                 primary: ditta.shop_colore_primario || '#06215b',
-                secondary: ditta.shop_colore_secondario || '#1e40af'
+                secondary: ditta.shop_colore_secondario || '#1e40af',
+                blockBackground: ditta.shop_colore_sfondo_blocchi || '#ffffff',
+                // Header personalization
+                headerBackground: ditta.shop_colore_header_sfondo || '#ffffff',
+                headerText: ditta.shop_colore_header_testo || '#333333',
+                logoPosition: ditta.shop_logo_posizione || 'left' // left, center, right
             },
             banner_url: ditta.shop_banner_url,
             descrizione_home: ditta.shop_descrizione_home,

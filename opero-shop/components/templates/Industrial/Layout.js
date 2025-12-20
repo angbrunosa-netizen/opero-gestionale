@@ -11,6 +11,19 @@ export default function IndustrialLayout({ children, siteConfig }) {
   const { name, logo, navigation } = siteConfig || {};
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // Definisci le variabili CSS globali per i Client Components
+  const themeStyles = {
+    '--primary-color': siteConfig?.colors?.primary || '#000000',
+    '--secondary-color': siteConfig?.colors?.secondary || '#ffffff',
+    '--background-color': siteConfig?.colors?.background || '#ffffff',
+    '--block-background-color': siteConfig?.colors?.blockBackground || '#ffffff',
+    // Header personalization
+    '--header-background-color': siteConfig?.colors?.headerBackground || '#1e293b', // Industrial default: dark
+    '--header-text-color': siteConfig?.colors?.headerText || '#ffffff',
+  };
+
+  const logoPosition = siteConfig?.colors?.logoPosition || 'left'; // Industrial default: left
+
   const menuItems = (navigation || []).map(page => ({
     label: page.titolo_seo || page.slug,
     href: page.slug === 'home' ? '/' : `/${page.slug}`
@@ -18,11 +31,17 @@ export default function IndustrialLayout({ children, siteConfig }) {
   if (!menuItems.find(i => i.href === '/') && menuItems.length > 0) menuItems.unshift({ label: 'Home', href: '/' });
 
   return (
-    <div className="flex flex-col min-h-screen font-mono text-gray-800 bg-gray-50">
+    <div className="flex flex-col min-h-screen font-mono text-gray-800 bg-gray-50" style={themeStyles}>
       
-      {/* NAVBAR INDUSTRIAL: Dark, Full Width, Strong Contrast */}
-      <nav className="bg-slate-900 text-white sticky top-0 z-50 border-b-4 border-[var(--primary-color)] shadow-lg">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+      {/* NAVBAR INDUSTRIAL: Personalizzabile */}
+      <nav className="sticky top-0 z-50 border-b-4 shadow-lg" style={{
+        backgroundColor: 'var(--header-background-color)',
+        color: 'var(--header-text-color)',
+        borderBottomColor: 'var(--primary-color)'
+      }}>
+        <div className="container mx-auto px-4 h-20 flex items-center" style={{
+          justifyContent: logoPosition === 'center' ? 'center' : logoPosition === 'right' ? 'flex-end' : 'flex-start'
+        }}>
           
           <Link href="/" className="flex items-center gap-3">
             {logo ? (
@@ -76,7 +95,10 @@ export default function IndustrialLayout({ children, siteConfig }) {
       </main>
 
       {/* FOOTER INDUSTRIAL */}
-      <footer className="bg-slate-900 text-slate-400 pt-12 pb-6 border-t-8 border-[var(--primary-color)]">
+      <footer className="text-slate-400 pt-12 pb-6 border-t-8" style={{
+          backgroundColor: 'var(--secondary-color)',
+          borderColor: 'var(--primary-color)'
+      }}>
         <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
             <div>
                 <h4 className="text-white font-bold uppercase mb-4">Azienda</h4>

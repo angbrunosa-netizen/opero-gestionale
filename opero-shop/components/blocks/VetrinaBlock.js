@@ -1,6 +1,6 @@
 export default function VetrinaBlock({ config }) {
     return (
-        <div className="py-12 bg-white">
+        <div className="py-12" style={{ backgroundColor: 'var(--block-background-color)' }}>
             <div className="container mx-auto px-4 text-center">
                 <h2 className="text-3xl font-bold mb-8">{config?.titolo || "I Nostri Prodotti"}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">

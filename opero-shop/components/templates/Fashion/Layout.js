@@ -11,6 +11,19 @@ export default function FashionLayout({ children, siteConfig }) {
   const { name, logo, navigation } = siteConfig || {};
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // Definisci le variabili CSS globali per i Client Components
+  const themeStyles = {
+    '--primary-color': siteConfig?.colors?.primary || '#000000',
+    '--secondary-color': siteConfig?.colors?.secondary || '#ffffff',
+    '--background-color': siteConfig?.colors?.background || '#ffffff',
+    '--block-background-color': siteConfig?.colors?.blockBackground || '#ffffff',
+    // Header personalization
+    '--header-background-color': siteConfig?.colors?.headerBackground || '#ffffff',
+    '--header-text-color': siteConfig?.colors?.headerText || '#333333',
+  };
+
+  const logoPosition = siteConfig?.colors?.logoPosition || 'center'; // Fashion default: center
+
   const menuItems = (navigation || []).map(page => ({
     label: page.titolo_seo || page.slug,
     href: page.slug === 'home' ? '/' : `/${page.slug}`
@@ -21,10 +34,13 @@ export default function FashionLayout({ children, siteConfig }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen font-sans text-gray-900 bg-white selection:bg-pink-100 selection:text-pink-900">
+    <div className="flex flex-col min-h-screen font-sans text-gray-900 bg-white selection:bg-pink-100 selection:text-pink-900" style={themeStyles}>
       
-      {/* NAVBAR FASHION: Centrata, Minimal, Fondo Bianco o Trasparente */}
-      <nav className="bg-white/90 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100">
+      {/* NAVBAR FASHION: Personalizzabile */}
+      <nav className="sticky top-0 z-50 border-b border-gray-100 backdrop-blur-md" style={{
+        backgroundColor: logoPosition === 'center' ? 'rgba(255,255,255,0.9)' : 'var(--header-background-color)',
+        color: 'var(--header-text-color)'
+      }}>
         
         {/* Top Bar (Promo) */}
         <div className="bg-black text-white text-[10px] py-1 text-center tracking-widest uppercase">
@@ -88,7 +104,10 @@ export default function FashionLayout({ children, siteConfig }) {
       </main>
 
       {/* FOOTER FASHION: Minimalista */}
-      <footer className="bg-white border-t border-gray-100 pt-16 pb-8 text-center">
+      <footer className="border-t pt-16 pb-8 text-center" style={{
+          backgroundColor: 'var(--block-background-color)',
+          borderColor: 'var(--primary-color)'
+      }}>
         <h3 className="font-serif text-2xl mb-6">{name}</h3>
         <div className="flex justify-center space-x-6 mb-8 text-xs uppercase tracking-widest text-gray-500">
             {menuItems.map((item, idx) => (

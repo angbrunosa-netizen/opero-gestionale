@@ -49,6 +49,65 @@ async function getBlogCategories(siteSlug) {
     }
 }
 
+// Fetch della configurazione del sito
+async function getSiteConfig(siteSlug) {
+    if (!siteSlug) {
+        return {
+            nome: siteSlug,
+            colors: {
+                primary: '#06215b',
+                secondary: '#1e40af',
+                blockBackground: '#ffffff',
+                headerBackground: '#ffffff',
+                headerText: '#333333',
+                logoPosition: 'left'
+            }
+        };
+    }
+
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/config`;
+
+    try {
+        console.log(`🔍 Fetching site config: ${apiUrl}`);
+        const res = await fetch(apiUrl, { cache: 'no-store' });
+
+        if (!res.ok) {
+            console.log(`❌ Site config response non OK: ${res.status} ${res.statusText}`);
+            // Fallback config
+            return {
+                nome: siteSlug,
+                colors: {
+                    primary: '#06215b',
+                    secondary: '#1e40af',
+                    blockBackground: '#ffffff',
+                    headerBackground: '#ffffff',
+                    headerText: '#333333',
+                    logoPosition: 'left'
+                }
+            };
+        }
+
+        const data = await res.json();
+        console.log(`✅ Site config received:`, data.siteConfig);
+        return data;
+
+    } catch (error) {
+        console.error("💥 Errore fetch site config:", error);
+        // Fallback config
+        return {
+            nome: siteSlug,
+            colors: {
+                primary: '#06215b',
+                secondary: '#1e40af',
+                blockBackground: '#ffffff',
+                headerBackground: '#ffffff',
+                headerText: '#333333',
+                logoPosition: 'left'
+            }
+        };
+    }
+}
+
 // Metadata dinamici per SEO
 export async function generateMetadata() {
     const { siteSlug } = await getSiteSlug();
@@ -91,41 +150,37 @@ export default async function BlogListingPage({ searchParams }) {
     }
 
     // Fetch dei dati del sito e dei post del blog
-    const [siteConfigResponse, postsResponse] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${siteSlug}/config`, {
-            cache: 'no-store',
-        }),
+    const [siteConfigData, postsResponse] = await Promise.all([
+        getSiteConfig(siteSlug),
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${siteSlug}/blog/posts?published=true`, {
             cache: 'no-store',
         })
     ]);
 
-    // Recupera siteConfig con fallback
-    let siteConfig = {
-        nome: siteSlug,
-        colors: {
-            primary: '#06215b',
-            secondary: '#1e40af'
-        },
-        navigation: [
-            { slug: 'home', titolo_seo: 'Home' },
-            { slug: 'chi-siamo', titolo_seo: 'Chi Siamo' },
-            { slug: 'blog', titolo_seo: 'Blog' }
-        ]
+    // Usa siteConfig dinamico con fallback
+    let siteConfig = siteConfigData.siteConfig || siteConfigData;
+
+    // Definisci le variabili CSS per il tema
+    const themeStyles = {
+        '--primary-color': siteConfig.colors.primary || '#06215b',
+        '--secondary-color': siteConfig.colors.secondary || '#1e40af',
+        '--background-color': siteConfig.colors.background || '#ffffff',
+        '--block-background-color': siteConfig.colors.blockBackground || '#ffffff',
+        // Header personalization
+        '--header-background-color': siteConfig.colors.headerBackground || '#ffffff',
+        '--header-text-color': siteConfig.colors.headerText || '#333333',
     };
 
-    if (siteConfigResponse.ok) {
-        const siteData = await siteConfigResponse.json();
-        if (siteData.success) {
-            siteConfig = siteData.siteConfig;
-            // Aggiungi Blog al menu di navigazione se non presente
-            const hasBlog = siteConfig.navigation.find(item => item.slug === 'blog');
-            if (!hasBlog) {
-                siteConfig.navigation.push({ slug: 'blog', titolo_seo: 'Blog' });
-            }
-        }
-    }
+    // Debug: verifica i valori dell'header
+    console.log('🎨 DEBUG Header Variables - app/blog/page.js:');
+    console.log('  siteConfig.colors:', siteConfig.colors);
+    console.log('  siteConfig.colors.headerBackground:', siteConfig.colors.headerBackground);
+    console.log('  siteConfig.colors.headerText:', siteConfig.colors.headerText);
+    console.log('  siteConfig.colors.logoPosition:', siteConfig.colors.logoPosition);
+    console.log('  --header-background-color:', themeStyles['--header-background-color']);
+    console.log('  --header-text-color:', themeStyles['--header-text-color']);
 
+    
     const posts = postsResponse.ok ? (await postsResponse.json()).posts || [] : [];
 
     // Componente contenuto del blog
@@ -257,8 +312,10 @@ export default async function BlogListingPage({ searchParams }) {
     );
 
     return (
-        <StandardLayout siteConfig={siteConfig} slug={siteSlug}>
-            {blogContent}
-        </StandardLayout>
+        <div style={themeStyles}>
+            <StandardLayout siteConfig={siteConfig} slug={siteSlug}>
+                {blogContent}
+            </StandardLayout>
+        </div>
     );
 }

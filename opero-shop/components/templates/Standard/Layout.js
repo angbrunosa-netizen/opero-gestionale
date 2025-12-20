@@ -11,6 +11,25 @@ export default function StandardLayout({ children, siteConfig }) {
   const { name, logo, navigation } = siteConfig || {};
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // DEBUG FORZATO - Rimuovi dopo aver testato
+  console.log('🎨🎨🎨 StandardLayout CALLED - siteConfig.colors:', siteConfig?.colors);
+  console.log('🎨🎨🎨 Header Background:', siteConfig?.colors?.headerBackground);
+  console.log('🎨🎨🎨 Header Text:', siteConfig?.colors?.headerText);
+  console.log('🎨🎨🎨 Logo Position:', siteConfig?.colors?.logoPosition);
+
+  // Definisci le variabili CSS globali per i Client Components
+  const themeStyles = {
+    '--primary-color': siteConfig?.colors?.primary || '#000000',
+    '--secondary-color': siteConfig?.colors?.secondary || '#ffffff',
+    '--background-color': siteConfig?.colors?.background || '#ffffff',
+    '--block-background-color': siteConfig?.colors?.blockBackground || '#ffffff',
+    // Header personalization
+    '--header-background-color': siteConfig?.colors?.headerBackground || '#ffffff',
+    '--header-text-color': siteConfig?.colors?.headerText || '#333333',
+  };
+
+  const logoPosition = siteConfig?.colors?.logoPosition || 'left';
+
   // Fallback menu se navigation non è disponibile o vuoto
   const defaultMenuItems = [
     { label: 'Home', href: '/' },
@@ -33,11 +52,16 @@ export default function StandardLayout({ children, siteConfig }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen font-sans text-gray-800">
+    <div className="flex flex-col min-h-screen font-sans text-gray-800" style={themeStyles}>
 
       {/* NAVBAR */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+      <nav className="sticky top-0 z-50 shadow-sm border-b border-gray-200" style={{
+        backgroundColor: siteConfig?.colors?.headerBackground || '#ffffff',
+        color: siteConfig?.colors?.headerText || '#333333'
+      }}>
+        <div className="container mx-auto px-4 h-20 flex items-center" style={{
+          justifyContent: logoPosition === 'center' ? 'center' : logoPosition === 'right' ? 'flex-end' : 'flex-start'
+        }}>
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
@@ -54,7 +78,8 @@ export default function StandardLayout({ children, siteConfig }) {
               <Link
                 key={idx}
                 href={item.href}
-                className="text-sm font-medium text-gray-600 hover:text-[var(--primary-color)] transition-colors uppercase tracking-wider"
+                className="text-sm font-medium hover:text-[var(--primary-color)] transition-colors uppercase tracking-wider"
+                style={{ color: 'inherit' }}
               >
                 {item.label}
               </Link>
@@ -62,7 +87,9 @@ export default function StandardLayout({ children, siteConfig }) {
           </div>
 
           {/* CTA + Mobile Toggle */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4" style={{
+            marginLeft: logoPosition === 'center' ? 'auto' : logoPosition === 'right' ? 'auto' : '0'
+          }}>
              {/* Esempio pulsante fisso (opzionale, si può togliere o rendere dinamico) */}
              <Link
                 href="/login" // Link al login per accedere al gestionale
@@ -84,12 +111,16 @@ export default function StandardLayout({ children, siteConfig }) {
 
         {/* Mobile Menu Dropdown */}
         {isMobileMenuOpen && (
-            <div className="md:hidden bg-white border-t border-gray-100 py-4 px-4 space-y-3 shadow-lg absolute w-full left-0">
+            <div className="md:hidden border-t border-gray-100 py-4 px-4 space-y-3 shadow-lg absolute w-full left-0" style={{
+                backgroundColor: 'var(--header-background-color)',
+                borderColor: 'var(--header-text-color)'
+            }}>
                 {menuItems.map((item, idx) => (
                     <Link
                         key={idx}
                         href={item.href}
-                        className="block text-gray-600 hover:text-[var(--primary-color)] transition-colors font-medium"
+                        className="block hover:text-[var(--primary-color)] transition-colors font-medium"
+                        style={{ color: 'inherit' }}
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         {item.label}
@@ -104,7 +135,7 @@ export default function StandardLayout({ children, siteConfig }) {
       </main>
 
       {/* FOOTER - In futuro rendilo dinamico dal CMS se vuoi */}
-      <footer className="bg-gray-900 text-white pt-16 pb-8">
+      <footer className="text-white pt-16 pb-8" style={{ backgroundColor: 'var(--secondary-color)' }}>
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
             <div>

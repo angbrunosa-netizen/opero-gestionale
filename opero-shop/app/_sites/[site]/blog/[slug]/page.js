@@ -365,10 +365,20 @@ export default async function BlogPostPage({ params, searchParams }) {
       );
     }
 
+    // Apply theme styles including block background color
+    const themeStyles = {
+      '--primary-color': siteConfig.colors.primary || '#000000',
+      '--secondary-color': siteConfig.colors.secondary || '#ffffff',
+      '--background-color': siteConfig.colors.background || '#ffffff',
+      '--block-background-color': siteConfig.colors.blockBackground || '#ffffff',
+    };
+
     return (
-      <Layout siteConfig={siteConfig} page={{ title: post.titolo, description: post.meta_descrizione || post.descrizione_breve }}>
-        <BlogPostContent />
-      </Layout>
+      <div style={themeStyles}>
+        <Layout siteConfig={siteConfig} page={{ title: post.titolo, description: post.meta_descrizione || post.descrizione_breve }}>
+          <BlogPostContent />
+        </Layout>
+      </div>
     );
   } catch (error) {
     console.error('Blog Post Page Error:', error);

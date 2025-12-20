@@ -299,10 +299,26 @@ export default async function BlogArchivePage({ params, searchParams }) {
       );
     }
 
+    // Apply theme styles including block background color
+    const themeStyles = {
+      '--primary-color': siteConfig.colors.primary || '#000000',
+      '--secondary-color': siteConfig.colors.secondary || '#ffffff',
+      '--background-color': siteConfig.colors.background || '#ffffff',
+      '--block-background-color': siteConfig.colors.blockBackground || '#ffffff',
+    };
+
+    // Debug: verifica i valori delle variabili CSS nella pagina blog
+    console.log('🎨 DEBUG CSS Variables - blog/page.js:');
+    console.log('  siteConfig.colors:', siteConfig.colors);
+    console.log('  siteConfig.colors.blockBackground:', siteConfig.colors.blockBackground);
+    console.log('  --block-background-color value:', themeStyles['--block-background-color']);
+
     return (
-      <Layout siteConfig={siteConfig} page={{ title: 'Blog & News', description: 'Scopri le ultime novità e approfondimenti sul nostro blog' }}>
-        <BlogArchiveContent />
-      </Layout>
+      <div style={themeStyles}>
+        <Layout siteConfig={siteConfig} page={{ title: 'Blog & News', description: 'Scopri le ultime novità e approfondimenti sul nostro blog' }}>
+          <BlogArchiveContent />
+        </Layout>
+      </div>
     );
   } catch (error) {
     console.error('Blog Archive Page Error:', error);

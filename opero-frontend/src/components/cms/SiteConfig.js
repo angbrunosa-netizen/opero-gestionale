@@ -15,7 +15,11 @@ const SiteConfig = ({ dittaId }) => {
         shop_template: 'standard',
         shop_colore_primario: '#000000',
         shop_colore_secondario: '#ffffff',
-        shop_colore_sfondo_blocchi: '#ffffff', // Nuovo: colore sfondo per tutti i blocchi
+        shop_colore_sfondo_blocchi: '#ffffff', // Colore sfondo per tutti i blocchi
+        // Header personalization
+        shop_colore_header_sfondo: '#ffffff',
+        shop_colore_header_testo: '#333333',
+        shop_logo_posizione: 'left', // left, center, right
         shop_attivo: false
     });
     const [loading, setLoading] = useState(false);
@@ -230,6 +234,87 @@ const SiteConfig = ({ dittaId }) => {
                                         style={{ backgroundColor: config.shop_colore_sfondo_blocchi }}
                                     >
                                         Blocco 3
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Header Personalization */}
+                        <div className="mt-6 border-t border-gray-200 pt-6">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Personalizzazione Header</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Colore Sfondo Header</label>
+                                    <div className="flex items-center gap-3 p-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                                        <input
+                                            type="color"
+                                            value={config.shop_colore_header_sfondo}
+                                            onChange={e => setConfig({...config, shop_colore_header_sfondo: e.target.value})}
+                                            className="h-10 w-12 p-0 border-0 rounded cursor-pointer overflow-hidden"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={config.shop_colore_header_sfondo}
+                                            onChange={e => setConfig({...config, shop_colore_header_sfondo: e.target.value})}
+                                            className="flex-1 px-3 py-2 border border-gray-200 rounded text-sm font-mono"
+                                            placeholder="#ffffff"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Colore Testo Header</label>
+                                    <div className="flex items-center gap-3 p-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                                        <input
+                                            type="color"
+                                            value={config.shop_colore_header_testo}
+                                            onChange={e => setConfig({...config, shop_colore_header_testo: e.target.value})}
+                                            className="h-10 w-12 p-0 border-0 rounded cursor-pointer overflow-hidden"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={config.shop_colore_header_testo}
+                                            onChange={e => setConfig({...config, shop_colore_header_testo: e.target.value})}
+                                            className="flex-1 px-3 py-2 border border-gray-200 rounded text-sm font-mono"
+                                            placeholder="#333333"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Posizione Logo</label>
+                                    <select
+                                        value={config.shop_logo_posizione}
+                                        onChange={e => setConfig({...config, shop_logo_posizione: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="left">Sinistra</option>
+                                        <option value="center">Centro</option>
+                                        <option value="right">Destra</option>
+                                    </select>
+                                    <p className="mt-2 text-xs text-gray-500">Scegli dove posizionare il logo nell'header</p>
+                                </div>
+                            </div>
+
+                            {/* Header Preview */}
+                            <div className="mt-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Anteprima Header</label>
+                                <div
+                                    className="border border-gray-300 rounded-md overflow-hidden"
+                                    style={{
+                                        backgroundColor: config.shop_colore_header_sfondo,
+                                        color: config.shop_colore_header_testo
+                                    }}
+                                >
+                                    <div className="h-16 flex items-center px-4" style={{
+                                        justifyContent: config.shop_logo_posizione === 'center' ? 'center' : config.shop_logo_posizione === 'right' ? 'flex-end' : 'flex-start'
+                                    }}>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-gray-400 rounded flex items-center justify-center text-white text-xs font-bold">
+                                                L
+                                            </div>
+                                            <span className="text-sm font-medium">{config.url_slug || 'Nome Azienda'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

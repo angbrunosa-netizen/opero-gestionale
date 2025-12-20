@@ -58,8 +58,10 @@ export default async function TenantHomePage({ params }) {
       '--primary-color': siteConfig.colors.primary || '#000000',
       '--secondary-color': siteConfig.colors.secondary || '#ffffff',
       '--background-color': siteConfig.colors.background || '#ffffff',
+      '--block-background-color': siteConfig.colors.blockBackground || '#ffffff',
   };
 
+  
 
   return (
     <div style={themeStyles}>

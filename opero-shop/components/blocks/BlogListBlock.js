@@ -191,12 +191,12 @@ export default function BlogListBlock({ config }) {
     // Layout Lista
     if (layout === 'list') {
         return (
-            <section className="py-12 px-4">
+            <section className="py-12 px-4" style={{ backgroundColor: 'var(--block-background-color)' }}>
                 <div className="container mx-auto">
                     {/* Titolo sezione */}
                     <div className="text-center mb-10">
                         <h2 className="text-3xl font-bold text-gray-800 mb-4">{titolo}</h2>
-                        <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
+                        <div className="w-24 h-1 mx-auto" style={{ backgroundColor: 'var(--primary-color)' }}></div>
                     </div>
 
                     {/* Contenuto */}
@@ -227,7 +227,8 @@ export default function BlogListBlock({ config }) {
                             <div className="text-center mt-10">
                                 <a
                                     href="/blog"
-                                    className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                                    className="inline-flex items-center px-6 py-3 text-white font-semibold rounded-lg transition-colors hover:opacity-90"
+                                style={{ backgroundColor: 'var(--primary-color)' }}
                                 >
                                     Vedi tutti gli articoli
                                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,13 +244,14 @@ export default function BlogListBlock({ config }) {
     }
 
     // Layout Grid (default)
+
     return (
-        <section className="py-12 px-4">
+        <section className="py-12 px-4" style={{ backgroundColor: 'var(--block-background-color)' }}>
             <div className="container mx-auto">
                 {/* Titolo sezione */}
                 <div className="text-center mb-10">
                     <h2 className="text-3xl font-bold text-gray-800 mb-4">{titolo}</h2>
-                    <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
+                    <div className="w-24 h-1 mx-auto" style={{ backgroundColor: 'var(--primary-color)' }}></div>
                 </div>
 
                 {/* Contenuto */}
@@ -284,7 +286,8 @@ export default function BlogListBlock({ config }) {
                         <div className="text-center mt-10">
                             <a
                                 href="/blog"
-                                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                                className="inline-flex items-center px-6 py-3 text-white font-semibold rounded-lg transition-colors hover:opacity-90"
+                                style={{ backgroundColor: 'var(--primary-color)' }}
                             >
                                 Vedi tutti gli articoli
                                 <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

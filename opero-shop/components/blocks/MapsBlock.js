@@ -33,7 +33,7 @@ export default function MapsBlock({ config }) {
     const mapsUrl = generateMapsUrl();
 
     return (
-        <section className="py-16 bg-gray-50">
+        <section className="py-16" style={{ backgroundColor: 'var(--block-background-color)' }}>
             <div className="container mx-auto px-4">
                 {/* Header */}
                 <div className="text-center mb-12">
@@ -92,7 +92,8 @@ export default function MapsBlock({ config }) {
                                         href={mapsUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                                        className="inline-flex items-center gap-2 text-white px-6 py-3 rounded-lg transition-colors hover:opacity-90"
+                                        style={{ backgroundColor: 'var(--primary-color)' }}
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />

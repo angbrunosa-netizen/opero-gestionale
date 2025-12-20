@@ -21,14 +21,14 @@ export default function HeroBlock({ config }) {
     sottotitoloFontWeight = 'font-medium',
     sottotitoloFont = 'Inter, sans-serif',
     ctaColoreTesto = '#ffffff',
-    ctaColoreSfondo = '#2563eb',
-    ctaColoreSfondoHover = '#1d4ed8',
+    ctaColoreSfondo = 'var(--primary-color)',
+    ctaColoreSfondoHover = 'var(--primary-color)',
     // Immagine e overlay
     immagineOpacita = 40,
     overlayColore = '#000000',
     overlayOpacita = 20,
-    // Sfondo sezione
-    backgroundColor = '#f3f4f6'
+    // Sfondo sezione - usa tema come default
+    backgroundColor = null // fallback to theme background
   } = config;
 
   const alignClass = allineamento === 'center' ? 'text-center' :
@@ -66,7 +66,7 @@ export default function HeroBlock({ config }) {
   };
 
   const backgroundStyle = {
-    backgroundColor: immagine_url ? 'transparent' : backgroundColor,
+    backgroundColor: immagine_url ? 'transparent' : (backgroundColor || 'var(--block-background-color)'),
   };
 
   return (

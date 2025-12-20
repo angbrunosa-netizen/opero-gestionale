@@ -9,7 +9,7 @@ export default function HtmlBlock({ config }) {
         fontFamily = 'Arial, sans-serif',
         fontSize = '16px',
         textColor = '#333333',
-        backgroundColor = '#ffffff',
+        backgroundColor = null, // fallback to theme background
         textAlign = 'left'
     } = config;
 
@@ -18,7 +18,7 @@ export default function HtmlBlock({ config }) {
         fontFamily: fontFamily,
         fontSize: fontSize,
         color: textColor,
-        backgroundColor: backgroundColor,
+        backgroundColor: backgroundColor || 'var(--block-background-color)',
         textAlign: textAlign,
         padding: '2rem',
         minHeight: '100px',

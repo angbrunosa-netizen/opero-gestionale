@@ -27,5 +27,31 @@ body {
 
 /* Apply theme background color to all CMS blocks */
 .cms-block {
-  background-color: var(--background-color);
+  background-color: var(--block-background-color);
+}
+
+/* Apply secondary color to common elements */
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+.text-secondary {
+  color: var(--secondary-color);
+}
+
+/* Apply primary color more broadly */
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.text-primary {
+  color: var(--primary-color);
+}
+
+/* Apply block background to other common elements */
+section[class*="block-"],
+.section-block {
+  background-color: var(--block-background-color);
 }

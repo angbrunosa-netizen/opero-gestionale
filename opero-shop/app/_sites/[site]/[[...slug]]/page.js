@@ -50,7 +50,19 @@ export default async function TenantSubPage({ params }) {
       '--primary-color': siteConfig.colors.primary || '#000000',
       '--secondary-color': siteConfig.colors.secondary || '#ffffff',
       '--background-color': siteConfig.colors.background || '#ffffff',
+      '--block-background-color': siteConfig.colors.blockBackground || '#ffffff',
   };
+
+  // Debug: verifica i valori delle variabili CSS
+  console.log('🎨 DEBUG CSS Variables - [[...slug]]/page.js:');
+  console.log('  siteConfig.colors:', siteConfig.colors);
+  console.log('  siteConfig.colors.blockBackground:', siteConfig.colors.blockBackground);
+  console.log('  siteConfig.colors.headerBackground:', siteConfig.colors.headerBackground);
+  console.log('  siteConfig.colors.headerText:', siteConfig.colors.headerText);
+  console.log('  siteConfig.colors.logoPosition:', siteConfig.colors.logoPosition);
+  console.log('  --block-background-color value:', themeStyles['--block-background-color']);
+  console.log('  --header-background-color value:', themeStyles['--header-background-color']);
+  console.log('  --header-text-color value:', themeStyles['--header-text-color']);
 
   return (
     <div style={themeStyles}>

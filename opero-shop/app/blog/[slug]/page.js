@@ -80,7 +80,11 @@ export default async function BlogPostPage({ params }) {
         nome: siteSlug,
         colors: {
             primary: '#06215b',
-            secondary: '#1e40af'
+            secondary: '#1e40af',
+            blockBackground: '#ffffff',
+            headerBackground: '#ffffff',
+            headerText: '#333333',
+            logoPosition: 'left'
         },
         navigation: [
             { slug: 'home', titolo_seo: 'Home' },

@@ -45,7 +45,8 @@ router.get('/companies', async (req, res) => {
 router.get('/config/:idDitta', async (req, res) => {
     try {
         const [rows] = await dbPool.query(
-            `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template, shop_colore_sfondo_blocchi
+            `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template, shop_colore_sfondo_blocchi,
+                    shop_colore_header_sfondo, shop_colore_header_testo, shop_logo_posizione
              FROM ditte WHERE id = ?`,
             [req.params.idDitta]
         );
@@ -70,7 +71,18 @@ router.get('/config/:idDitta', async (req, res) => {
 // SAVE Configurazione Sito
 router.post('/config/:idDitta', async (req, res) => {
     try {
-        const { url_slug, shop_template, shop_colore_primario, shop_colore_secondario, shop_colore_sfondo_blocchi, shop_attivo } = req.body;
+        const {
+            url_slug,
+            shop_template,
+            shop_colore_primario,
+            shop_colore_secondario,
+            shop_colore_sfondo_blocchi,
+            // Header personalization
+            shop_colore_header_sfondo,
+            shop_colore_header_testo,
+            shop_logo_posizione,
+            shop_attivo
+        } = req.body;
         const idDitta = req.params.idDitta;
         
         // Verifica unicità slug se cambiato e non vuoto
@@ -108,9 +120,23 @@ router.post('/config/:idDitta', async (req, res) => {
                 shop_colore_primario = ?,
                 shop_colore_secondario = ?,
                 shop_colore_sfondo_blocchi = ?,
+                shop_colore_header_sfondo = ?,
+                shop_colore_header_testo = ?,
+                shop_logo_posizione = ?,
                 shop_attivo = ?
              WHERE id = ?`,
-            [url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_colore_sfondo_blocchi, shop_attivo ? 1 : 0, idDitta]
+            [
+                url_slug,
+                id_web_template,
+                shop_colore_primario,
+                shop_colore_secondario,
+                shop_colore_sfondo_blocchi,
+                shop_colore_header_sfondo,
+                shop_colore_header_testo,
+                shop_logo_posizione,
+                shop_attivo ? 1 : 0,
+                idDitta
+            ]
         );
         
         res.json({ success: true });
