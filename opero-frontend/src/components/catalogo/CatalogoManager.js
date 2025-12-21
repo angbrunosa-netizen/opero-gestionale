@@ -146,29 +146,200 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                     <div className="p-4 border rounded-md">
                         <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Anagrafici</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label><input type="text" name="codice_entita" value={formData.codice_entita || ''} onChange={handleChange} required disabled={!!(item && item.id)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" /></div>
-                            <div><label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label><input type="text" name="descrizione" value={formData.descrizione || ''} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                            <div className="col-span-2"><label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label><select name="id_categoria" value={formData.id_categoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.categorie && renderCategoryOptions(supportData.categorie)}</select></div>
-                            <div><label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label><input type="number" step="0.01" name="costo_base" value={formData.costo_base || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                            <div><label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label><select name="id_aliquota_iva" value={formData.id_aliquota_iva || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}</select></div>
-                            <div><label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label><select name="id_unita_misura" value={formData.id_unita_misura || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}</select></div>
-                            <div><label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label><select name="id_stato_entita" value={formData.id_stato_entita || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><option value="">-- Seleziona --</option>{supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}</select></div>
-                            <div className="col-span-2 flex items-center"><input type="checkbox" id="gestito_a_magazzino" name="gestito_a_magazzino" checked={formData.gestito_a_magazzino || false} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/><label htmlFor="gestito_a_magazzino" className="ml-2 block text-sm text-gray-900">Gestito a Magazzino</label></div>
+                            <div className="mb-4 md:mb-0">
+                                <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
+                                <input 
+                                    type="text" 
+                                    name="codice_entita" 
+                                    value={formData.codice_entita || ''} 
+                                    onChange={handleChange} 
+                                    required 
+                                    disabled={!!(item && item.id)} 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" 
+                                />
+                            </div>
+                            <div className="mb-4 md:mb-0">
+                                <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700">Descrizione</label>
+                                <input 
+                                    type="text" 
+                                    name="descrizione" 
+                                    value={formData.descrizione || ''} 
+                                    onChange={handleChange} 
+                                    required 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
+                                <select 
+                                    name="id_categoria" 
+                                    value={formData.id_categoria || ''} 
+                                    onChange={handleChange} 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                >
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.categorie && renderCategoryOptions(supportData.categorie)}
+                                </select>
+                            </div>
+                            <div className="mb-4 md:mb-0">
+                                <label htmlFor="costo_base" className="block text-sm font-medium text-gray-700">Costo Base</label>
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    name="costo_base" 
+                                    value={formData.costo_base || 0} 
+                                    onChange={handleChange} 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                />
+                            </div>
+                            <div className="mb-4 md:mb-0">
+                                <label htmlFor="id_aliquota_iva" className="block text-sm font-medium text-gray-700">Aliquota IVA</label>
+                                <select 
+                                    name="id_aliquota_iva" 
+                                    value={formData.id_aliquota_iva || ''} 
+                                    onChange={handleChange} 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                >
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}
+                                </select>
+                            </div>
+                            <div className="mb-4 md:mb-0">
+                                <label htmlFor="id_unita_misura" className="block text-sm font-medium text-gray-700">Unità di Misura</label>
+                                <select 
+                                    name="id_unita_misura" 
+                                    value={formData.id_unita_misura || ''} 
+                                    onChange={handleChange} 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                >
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}
+                                </select>
+                            </div>
+                            <div className="mb-4 md:mb-0">
+                                <label htmlFor="id_stato_entita" className="block text-sm font-medium text-gray-700">Stato</label>
+                                <select 
+                                    name="id_stato_entita" 
+                                    value={formData.id_stato_entita || ''} 
+                                    onChange={handleChange} 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                >
+                                    <option value="">-- Seleziona --</option>
+                                    {supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}
+                                </select>
+                            </div>
+                            <div className="col-span-2 flex items-center">
+                                <input 
+                                    type="checkbox" 
+                                    id="gestito_a_magazzino" 
+                                    name="gestito_a_magazzino" 
+                                    checked={formData.gestito_a_magazzino || false} 
+                                    onChange={handleChange} 
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <label htmlFor="gestito_a_magazzino" className="ml-2 block text-sm text-gray-900">Gestito a Magazzino</label>
+                            </div>
                         </div>
                     </div>
                     {formData.gestito_a_magazzino && (
                         <div className="p-4 border rounded-md bg-gray-50">
                             <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Logistici</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div><label htmlFor="peso_lordo_pz" className="block text-sm font-medium text-gray-700">Peso Lordo (Kg)</label><input type="number" step="0.001" name="peso_lordo_pz" value={formData.peso_lordo_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="volume_pz" className="block text-sm font-medium text-gray-700">Volume (m³)</label><input type="number" step="0.000001" name="volume_pz" value={formData.volume_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="s_im" className="block text-sm font-medium text-gray-700">Pz. per Sottoimballo</label><input type="number" name="s_im" value={formData.s_im || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="l_pz" className="block text-sm font-medium text-gray-700">Larghezza (cm)</label><input type="number" step="0.01" name="l_pz" value={formData.l_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="p_pz" className="block text-sm font-medium text-gray-700">Profondità (cm)</label><input type="number" step="0.01" name="p_pz" value={formData.p_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="h_pz" className="block text-sm font-medium text-gray-700">Altezza (cm)</label><input type="number" step="0.01" name="h_pz" value={formData.h_pz || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="pezzi_per_collo" className="block text-sm font-medium text-gray-700">Pezzi per Collo</label><input type="number" name="pezzi_per_collo" value={formData.pezzi_per_collo || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="colli_per_strato" className="block text-sm font-medium text-gray-700">Colli per Strato</label><input type="number" name="colli_per_strato" value={formData.colli_per_strato || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
-                                <div><label htmlFor="strati_per_pallet" className="block text-sm font-medium text-gray-700">Strati per Pallet</label><input type="number" name="strati_per_pallet" value={formData.strati_per_pallet || 0} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="peso_lordo_pz" className="block text-sm font-medium text-gray-700">Peso Lordo (Kg)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.001" 
+                                        name="peso_lordo_pz" 
+                                        value={formData.peso_lordo_pz || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="volume_pz" className="block text-sm font-medium text-gray-700">Volume (m³)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.000001" 
+                                        name="volume_pz" 
+                                        value={formData.volume_pz || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="s_im" className="block text-sm font-medium text-gray-700">Pz. per Sottoimballo</label>
+                                    <input 
+                                        type="number" 
+                                        name="s_im" 
+                                        value={formData.s_im || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="l_pz" className="block text-sm font-medium text-gray-700">Larghezza (cm)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        name="l_pz" 
+                                        value={formData.l_pz || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="p_pz" className="block text-sm font-medium text-gray-700">Profondità (cm)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        name="p_pz" 
+                                        value={formData.p_pz || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="h_pz" className="block text-sm font-medium text-gray-700">Altezza (cm)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        name="h_pz" 
+                                        value={formData.h_pz || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="pezzi_per_collo" className="block text-sm font-medium text-gray-700">Pezzi per Collo</label>
+                                    <input 
+                                        type="number" 
+                                        name="pezzi_per_collo" 
+                                        value={formData.pezzi_per_collo || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="colli_per_strato" className="block text-sm font-medium text-gray-700">Colli per Strato</label>
+                                    <input 
+                                        type="number" 
+                                        name="colli_per_strato" 
+                                        value={formData.colli_per_strato || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
+                                <div className="mb-4 md:mb-0">
+                                    <label htmlFor="strati_per_pallet" className="block text-sm font-medium text-gray-700">Strati per Pallet</label>
+                                    <input 
+                                        type="number" 
+                                        name="strati_per_pallet" 
+                                        value={formData.strati_per_pallet || 0} 
+                                        onChange={handleChange} 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}
