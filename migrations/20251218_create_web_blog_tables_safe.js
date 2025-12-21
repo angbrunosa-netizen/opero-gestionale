@@ -108,13 +108,13 @@ exports.up = async function(knex) {
         const categoriesCount = await knex('web_blog_categories').count('* as total');
         const postsCount = await knex('web_blog_posts').count('* as total');
 
-        if (parseInt(categoriesCount[0].total) === 0) {
+        if (parseInt(categoriesCount[0]?.total) === 0) {
             console.log('📝 Inserimento categoria di default...');
 
             // Trova la prima ditta attiva come esempio
-            const [ditte] = await knex('ditte').where('shop_attivo', 1).limit(1);
+            const ditte = await knex('ditte').where('shop_attivo', 1).limit(1);
 
-            if (ditte.length > 0) {
+            if (ditte && ditte.length > 0) {
                 await knex('web_blog_categories').insert({
                     id_ditta: ditte[0].id,
                     nome: 'Senza Categoria',
@@ -125,6 +125,8 @@ exports.up = async function(knex) {
                     attivo: 1
                 });
                 console.log('✅ Categoria di default inserita');
+            } else {
+                console.log('ℹ️ Nessuna ditta attiva trovata per inserire categoria di default');
             }
         } else {
             console.log('ℹ️ Categorie già presenti nel database');
@@ -132,8 +134,8 @@ exports.up = async function(knex) {
 
         console.log('🎉 Migration completata con successo!');
         console.log('📊 Statistiche finali:');
-        console.log(`   - Categorie: ${categoriesCount[0].total}`);
-        console.log(`   - Posts: ${postsCount[0].total}`);
+        console.log(`   - Categorie: ${categoriesCount[0]?.total || 0}`);
+        console.log(`   - Posts: ${postsCount[0]?.total || 0}`);
 
     } catch (error) {
         console.error('❌ Errore durante la migration:', error.message);
