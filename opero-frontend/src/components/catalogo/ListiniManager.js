@@ -82,20 +82,27 @@ const validatePrices = () => {
         const prezzoPubblico = parseFloat(formData[`prezzo_pubblico_${i}`]) || 0;
         const iva = parseFloat(aliquotaIva) || 0;
         
-        // Verifica che il prezzo di cessione sia >= costo base
-        if (prezzoCessione < costoBase) {
+        // Salta la validazione se entrambi i prezzi sono zero
+        if (prezzoCessione === 0 && prezzoPubblico === 0) {
+            continue;
+        }
+        
+        // Verifica che il prezzo di cessione sia >= costo base (solo se non è zero)
+        if (prezzoCessione > 0 && prezzoCessione < costoBase) {
             errors.push(`Listino ${i}: Prezzo di cessione (${prezzoCessione.toFixed(2)}€) inferiore al costo base (${costoBase.toFixed(2)}€)`);
         }
         
-        // Verifica che il prezzo al pubblico sia >= prezzo di cessione + IVA
-        const prezzoCessioneConIva = prezzoCessione * (1 + iva / 100);
-        if (prezzoPubblico < prezzoCessioneConIva) {
-            errors.push(`Listino ${i}: Prezzo al pubblico (${prezzoPubblico.toFixed(2)}€) inferiore al prezzo di cessione + IVA (${prezzoCessioneConIva.toFixed(2)}€)`);
+        // Verifica che il prezzo al pubblico sia >= prezzo di cessione + IVA (solo se non è zero)
+        if (prezzoPubblico > 0) {
+            const prezzoCessioneConIva = prezzoCessione * (1 + iva / 100);
+            if (prezzoPubblico < prezzoCessioneConIva) {
+                errors.push(`Listino ${i}: Prezzo al pubblico (${prezzoPubblico.toFixed(2)}€) inferiore al prezzo di cessione + IVA (${prezzoCessioneConIva.toFixed(2)}€)`);
+            }
         }
     }
     
     return errors;
-};
+}; 
     const handleSubmit = async (e) => { 
         e.preventDefault();
         
