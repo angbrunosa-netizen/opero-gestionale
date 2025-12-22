@@ -139,13 +139,13 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                <h2 className="text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità' : 'Nuova Entità'}</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-2 sm:p-4">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-full max-h-[90vh] flex flex-col overflow-hidden">
+                <h2 className="text-lg sm:text-xl font-bold mb-4">{item && item.id ? 'Modifica Entità' : 'Nuova Entità'}</h2>
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
-                    <div className="p-4 border rounded-md">
-                        <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Anagrafici</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-3 sm:p-4 border rounded-md">
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 text-gray-700">Dati Anagrafici</h3>
+                        <div className="space-y-4">
                             <div className="mb-4">
                                 <label htmlFor="codice_entita" className="block text-sm font-medium text-gray-700">Codice</label>
                                 <input 
@@ -155,7 +155,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                     onChange={handleChange} 
                                     required 
                                     disabled={!!(item && item.id)} 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100" 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-base" 
                                 />
                             </div>
                             <div className="mb-4">
@@ -166,16 +166,16 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                     value={formData.descrizione || ''} 
                                     onChange={handleChange} 
                                     required 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                 />
                             </div>
-                            <div className="col-span-2">
+                            <div className="mb-4">
                                 <label htmlFor="id_categoria" className="block text-sm font-medium text-gray-700">Categoria</label>
                                 <select 
                                     name="id_categoria" 
                                     value={formData.id_categoria || ''} 
                                     onChange={handleChange} 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base"
                                 >
                                     <option value="">-- Seleziona --</option>
                                     {supportData.categorie && renderCategoryOptions(supportData.categorie)}
@@ -189,7 +189,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                     name="costo_base" 
                                     value={formData.costo_base || 0} 
                                     onChange={handleChange} 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                 />
                             </div>
                             <div className="mb-4">
@@ -198,7 +198,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                     name="id_aliquota_iva" 
                                     value={formData.id_aliquota_iva || ''} 
                                     onChange={handleChange} 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base"
                                 >
                                     <option value="">-- Seleziona --</option>
                                     {supportData.aliquoteIva?.map(iva => <option key={iva.id} value={iva.id}>{iva.descrizione}</option>)}
@@ -210,7 +210,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                     name="id_unita_misura" 
                                     value={formData.id_unita_misura || ''} 
                                     onChange={handleChange} 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base"
                                 >
                                     <option value="">-- Seleziona --</option>
                                     {supportData.unitaMisura?.map(um => <option key={um.id} value={um.id}>{um.sigla_um}</option>)}
@@ -222,13 +222,13 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                     name="id_stato_entita" 
                                     value={formData.id_stato_entita || ''} 
                                     onChange={handleChange} 
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base"
                                 >
                                     <option value="">-- Seleziona --</option>
                                     {supportData.statiEntita?.map(stato => <option key={stato.id} value={stato.id}>{stato.descrizione}</option>)}
                                 </select>
                             </div>
-                            <div className="col-span-2 flex items-center">
+                            <div className="flex items-center">
                                 <input 
                                     type="checkbox" 
                                     id="gestito_a_magazzino" 
@@ -242,9 +242,9 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                         </div>
                     </div>
                     {formData.gestito_a_magazzino && (
-                        <div className="p-4 border rounded-md bg-gray-50">
-                            <h3 className="text-lg font-semibold mb-3 text-gray-700">Dati Logistici</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-3 sm:p-4 border rounded-md bg-gray-50">
+                            <h3 className="text-base sm:text-lg font-semibold mb-3 text-gray-700">Dati Logistici</h3>
+                            <div className="space-y-4">
                                 <div className="mb-4">
                                     <label htmlFor="peso_lordo_pz" className="block text-sm font-medium text-gray-700">Peso Lordo (Kg)</label>
                                     <input 
@@ -253,7 +253,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="peso_lordo_pz" 
                                         value={formData.peso_lordo_pz || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -264,7 +264,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="volume_pz" 
                                         value={formData.volume_pz || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -274,7 +274,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="s_im" 
                                         value={formData.s_im || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -285,7 +285,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="l_pz" 
                                         value={formData.l_pz || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -296,7 +296,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="p_pz" 
                                         value={formData.p_pz || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -307,7 +307,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="h_pz" 
                                         value={formData.h_pz || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -317,7 +317,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="pezzi_per_collo" 
                                         value={formData.pezzi_per_collo || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -327,7 +327,7 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="colli_per_strato" 
                                         value={formData.colli_per_strato || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -337,15 +337,15 @@ const CatalogoFormModal = ({ item, onSave, onCancel, supportData }) => {
                                         name="strati_per_pallet" 
                                         value={formData.strati_per_pallet || 0} 
                                         onChange={handleChange} 
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" 
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-base" 
                                     />
                                 </div>
                             </div>
                         </div>
                     )}
-                    <div className="mt-6 pt-4 border-t flex justify-end gap-4">
-                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-md hover:bg-gray-400">Annulla</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Salva</button>
+                    <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-md hover:bg-gray-400 text-sm sm:text-base">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 text-sm sm:text-base">Salva</button>
                     </div>
                 </form>
             </div>
