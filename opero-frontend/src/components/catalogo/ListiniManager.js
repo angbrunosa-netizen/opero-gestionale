@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
-import { PlusIcon, ArrowPathIcon, XMarkIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, ArrowPathIcon, XMarkIcon, PencilIcon, TrashIcon, CalculatorIcon } from '@heroicons/react/24/solid';
 
 // --- Sotto-Componente: Form di Creazione/Modifica Listino ---
 const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) => {
     const [formData, setFormData] = useState({});
     const [simulationCostoBase, setSimulationCostoBase] = useState(0);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [validationErrors, setValidationErrors] = useState([]);
 
     useEffect(() => {
         const initialState = { nome_listino: '', data_inizio_validita: new Date().toISOString().slice(0, 10), data_fine_validita: null };
@@ -29,7 +31,10 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
     const calculatePrice = (costoBase, ricarico, aliquotaIva) => {
         const prezzoCessione = costoBase * (1 + (ricarico || 0) / 100);
         const prezzoPubblico = prezzoCessione * (1 + (aliquotaIva || 0) / 100) * (1 + (ricarico || 0) / 100);
-        return { prezzoCessione, prezzoPubblico };
+        return { 
+            prezzoCessione: Math.round(prezzoCessione * 10000) / 10000, // Arrotondato a 4 cifre
+            prezzoPubblico: Math.round(prezzoPubblico * 100) / 100 // Arrotondato a 2 cifre
+        };
     };
 
     const handleRicaricoChange = (index, type, value) => {
@@ -57,14 +62,67 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
         setFormData(prev => ({ ...prev, [fieldName]: value === '' ? 0 : parseFloat(value) }));
     };
 
-    const handleSubmit = (e) => { 
-        e.preventDefault(); 
-        onSave(formData, listino ? listino.id : null); 
+    const calculateAllPrices = (index) => {
+        const ricaricoCessione = formData[`ricarico_cessione_${index}`] || 0;
+        const { prezzoCessione, prezzoPubblico } = calculatePrice(simulationCostoBase, ricaricoCessione, aliquotaIva);
+        
+        setFormData(prev => ({
+            ...prev,
+            [`prezzo_cessione_${index}`]: prezzoCessione,
+            [`prezzo_pubblico_${index}`]: prezzoPubblico
+        }));
+    };
+
+const validatePrices = () => {
+    const errors = [];
+    const costoBase = parseFloat(simulationCostoBase) || 0;
+    
+    for (let i = 1; i <= 6; i++) {
+        const prezzoCessione = parseFloat(formData[`prezzo_cessione_${i}`]) || 0;
+        const prezzoPubblico = parseFloat(formData[`prezzo_pubblico_${i}`]) || 0;
+        const iva = parseFloat(aliquotaIva) || 0;
+        
+        // Verifica che il prezzo di cessione sia >= costo base
+        if (prezzoCessione < costoBase) {
+            errors.push(`Listino ${i}: Prezzo di cessione (${prezzoCessione.toFixed(2)}€) inferiore al costo base (${costoBase.toFixed(2)}€)`);
+        }
+        
+        // Verifica che il prezzo al pubblico sia >= prezzo di cessione + IVA
+        const prezzoCessioneConIva = prezzoCessione * (1 + iva / 100);
+        if (prezzoPubblico < prezzoCessioneConIva) {
+            errors.push(`Listino ${i}: Prezzo al pubblico (${prezzoPubblico.toFixed(2)}€) inferiore al prezzo di cessione + IVA (${prezzoCessioneConIva.toFixed(2)}€)`);
+        }
+    }
+    
+    return errors;
+};
+    const handleSubmit = async (e) => { 
+        e.preventDefault();
+        
+        const errors = validatePrices();
+        if (errors.length > 0) {
+            setValidationErrors(errors);
+            setShowConfirmDialog(true);
+            return;
+        }
+        
+        onSave(formData, listino ? listino.id : null);
+    };
+
+    const handleConfirmSave = () => {
+        setShowConfirmDialog(false);
+        setValidationErrors([]);
+        onSave(formData, listino ? listino.id : null);
+    };
+
+    const handleCancelSave = () => {
+        setShowConfirmDialog(false);
+        setValidationErrors([]);
     };
     
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-[60]">
-             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">{listino ? 'Modifica Listino' : 'Nuovo Listino'}</h2>
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 pb-4 border-b">
@@ -123,10 +181,52 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
                                 className="mt-1 block w-full text-sm rounded-md border-gray-300"
                             />
                         </div>
+                        
+                        <div className="flex items-end">
+                            <button 
+                                type="button"
+                                onClick={() => calculateAllPrices(index)}
+                                title="Calcola prezzi automaticamente"
+                                className="p-2 text-blue-600 hover:text-blue-800 rounded-md hover:bg-blue-50"
+                            >
+                                <CalculatorIcon className="h-5 w-5" />
+                            </button>
+                        </div>
                     </div>); })}</div>
-                    <div className="mt-6 pt-4 border-t flex justify-end gap-4"><button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva</button></div>
+                    <div className="mt-6 pt-4 border-t flex justify-end gap-4">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva</button>
+                    </div>
                 </form>
-             </div>
+            </div>
+
+            {/* Dialog di conferma per errori di validazione */}
+            {showConfirmDialog && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+                        <h3 className="text-lg font-bold mb-4 text-red-600">Attenzione: Prezzi non validi</h3>
+                        <div className="mb-4 max-h-48 overflow-y-auto">
+                            {validationErrors.map((error, index) => (
+                                <p key={index} className="text-sm text-gray-700 mb-2">{error}</p>
+                            ))}
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button 
+                                onClick={handleCancelSave}
+                                className="px-4 py-2 bg-gray-200 rounded-md"
+                            >
+                                Annulla
+                            </button>
+                            <button 
+                                onClick={handleConfirmSave}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md"
+                            >
+                                Conferma e Salva
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
