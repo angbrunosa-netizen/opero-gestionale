@@ -401,10 +401,10 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
         try {
             console.log("Querying navigation for ditta:", req.shopDitta.id);
             const [navResult] = await dbPool.query(
-                `SELECT slug, titolo_seo
+                `SELECT id, slug, titolo_seo, icona_menu, link_esterno, target_link, id_page_parent, livello_menu, ordine_menu
                  FROM web_pages
-                 WHERE id_ditta = ? AND pubblicata = 1
-                 ORDER BY id ASC`,
+                 WHERE id_ditta = ? AND pubblicata = 1 AND mostra_menu = 1
+                 ORDER BY livello_menu ASC, ordine_menu ASC, slug ASC`,
                 [req.shopDitta.id]
             );
             navigation = navResult || [];

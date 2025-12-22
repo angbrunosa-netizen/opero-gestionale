@@ -1,11 +1,3 @@
-/**
- * @file opero-frontend/src/components/catalogo/ListiniManager.js
- * @description Componente modale per la gestione avanzata dei listini di un'entità.
- * - v2.4: Implementata la visualizzazione responsive a card per mobile.
- * @date 2024-05-21
- * @version 2.4 (responsive)
- */
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
@@ -13,21 +5,62 @@ import AdvancedDataGrid from '../../shared/AdvancedDataGrid';
 import { PlusIcon, ArrowPathIcon, XMarkIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/solid';
 
 // --- Sotto-Componente: Form di Creazione/Modifica Listino ---
-// (Il codice di ListinoFormModal rimane invariato)
 const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) => {
     const [formData, setFormData] = useState({});
     const [simulationCostoBase, setSimulationCostoBase] = useState(0);
 
     useEffect(() => {
         const initialState = { nome_listino: '', data_inizio_validita: new Date().toISOString().slice(0, 10), data_fine_validita: null };
-        for (let i = 1; i <= 6; i++) { initialState[`ricarico_cessione_${i}`] = 0; initialState[`prezzo_cessione_${i}`] = 0; initialState[`ricarico_pubblico_${i}`] = 0; initialState[`prezzo_pubblico_${i}`] = 0; }
+        for (let i = 1; i <= 6; i++) { 
+            initialState[`ricarico_cessione_${i}`] = 0; 
+            initialState[`prezzo_cessione_${i}`] = 0; 
+            initialState[`ricarico_pubblico_${i}`] = 0; 
+            initialState[`prezzo_pubblico_${i}`] = 0; 
+        }
         setFormData(listino ? { ...initialState, ...listino } : initialState);
         setSimulationCostoBase(entita?.costo_base || 0);
     }, [listino, entita]);
 
-    const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value === '' ? null : value })); };
-    const handlePriceChange = (index, type, value) => { /* ... logica di calcolo invariata ... */ };
-    const handleSubmit = (e) => { e.preventDefault(); onSave(formData, listino ? listino.id : null); };
+    const handleChange = (e) => { 
+        const { name, value } = e.target; 
+        setFormData(prev => ({ ...prev, [name]: value === '' ? null : value }));
+    };
+
+    const calculatePrice = (costoBase, ricarico, aliquotaIva) => {
+        const prezzoCessione = costoBase * (1 + (ricarico || 0) / 100);
+        const prezzoPubblico = prezzoCessione * (1 + (aliquotaIva || 0) / 100) * (1 + (ricarico || 0) / 100);
+        return { prezzoCessione, prezzoPubblico };
+    };
+
+    const handleRicaricoChange = (index, type, value) => {
+        const ricaricoFieldName = type === 'cessione' ? `ricarico_cessione_${index}` : `ricarico_pubblico_${index}`;
+        const prezzoFieldName = type === 'cessione' ? `prezzo_cessione_${index}` : `prezzo_pubblico_${index}`;
+        
+        // Aggiorna la percentuale di ricarico
+        setFormData(prev => ({ ...prev, [ricaricoFieldName]: value === '' ? 0 : parseFloat(value) }));
+        
+        // Calcola e aggiorna il prezzo corrispondente
+        const { prezzoCessione, prezzoPubblico } = calculatePrice(
+            simulationCostoBase, 
+            type === 'cessione' ? parseFloat(value) : formData[`ricarico_cessione_${index}`] || 0,
+            aliquotaIva
+        );
+        
+        setFormData(prev => ({ 
+            ...prev, 
+            [prezzoFieldName]: type === 'cessione' ? prezzoCessione : prezzoPubblico 
+        }));
+    };
+
+    const handlePrezzoChange = (index, type, value) => {
+        const fieldName = type === 'cessione' ? `prezzo_cessione_${index}` : `prezzo_pubblico_${index}`;
+        setFormData(prev => ({ ...prev, [fieldName]: value === '' ? 0 : parseFloat(value) }));
+    };
+
+    const handleSubmit = (e) => { 
+        e.preventDefault(); 
+        onSave(formData, listino ? listino.id : null); 
+    };
     
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-[60]">
@@ -44,7 +77,53 @@ const ListinoFormModal = ({ listino, onSave, onCancel, entita, aliquotaIva }) =>
                         <input type="number" step="0.01" id="simulationCostoBase" value={simulationCostoBase} onChange={(e) => setSimulationCostoBase(parseFloat(e.target.value) || 0)} className="w-32 text-lg font-bold text-indigo-900 bg-white border border-indigo-200 rounded-md text-center p-1"/>
                         <button type="button" onClick={() => setSimulationCostoBase(entita?.costo_base || 0)} title="Ripristina al costo base originale dell'entità" className="p-2 text-indigo-600 hover:text-indigo-800 rounded-full hover:bg-indigo-100"><ArrowPathIcon className="h-5 w-5" /></button>
                     </div>
-                    <div className="space-y-3">{[...Array(6)].map((_, i) => { const index = i + 1; return (<div key={index} className="grid grid-cols-5 gap-3 items-center p-3 border rounded-lg bg-gray-50"><div className="font-bold text-gray-700">Listino {index}</div><div><label className="text-xs font-medium text-gray-500">Ric. Cessione %</label><input type="number" step="0.01" value={formData[`ricarico_cessione_${index}`] || 0} onChange={(e) => handlePriceChange(index, 'ricarico_cessione', e.target.value)} className="mt-1 block w-full text-sm rounded-md border-gray-300"/></div><div><label className="text-xs font-medium text-gray-500">P. Cessione</label><input type="number" step="0.01" value={formData[`prezzo_cessione_${index}`] || 0} onChange={(e) => handlePriceChange(index, 'cessione', e.target.value)} className="mt-1 block w-full text-sm rounded-md border-gray-300"/></div><div><label className="text-xs font-medium text-gray-500">Ric. Pubblico %</label><input type="number" step="0.01" value={formData[`ricarico_pubblico_${index}`] || 0} onChange={(e) => handlePriceChange(index, 'ricarico_pubblico', e.target.value)} className="mt-1 block w-full text-sm rounded-md border-gray-300"/></div><div><label className="text-xs font-medium text-gray-500">P. Pubblico (IVA incl.)</label><input type="number" step="0.01" value={formData[`prezzo_pubblico_${index}`] || 0} onChange={(e) => handlePriceChange(index, 'pubblico', e.target.value)} className="mt-1 block w-full text-sm rounded-md border-gray-300"/></div></div>); })}</div>
+                    <div className="space-y-3">{[...Array(6)].map((_, i) => { const index = i + 1; return (<div key={index} className="grid grid-cols-5 gap-3 items-center p-3 border rounded-lg bg-gray-50">
+                        <div className="font-bold text-gray-700">Listino {index}</div>
+                        
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">Ric. Cessione %</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={formData[`ricarico_cessione_${index}`] || 0} 
+                                onChange={(e) => handleRicaricoChange(index, 'cessione', e.target.value)}
+                                className="mt-1 block w-full text-sm rounded-md border-gray-300"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">P. Cessione</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={formData[`prezzo_cessione_${index}`] || 0} 
+                                onChange={(e) => handlePrezzoChange(index, 'cessione', e.target.value)}
+                                className="mt-1 block w-full text-sm rounded-md border-gray-300"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">Ric. Pubblico %</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={formData[`ricarico_pubblico_${index}`] || 0} 
+                                onChange={(e) => handleRicaricoChange(index, 'pubblico', e.target.value)}
+                                className="mt-1 block w-full text-sm rounded-md border-gray-300"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">P. Pubblico (IVA incl.)</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={formData[`prezzo_pubblico_${index}`] || 0} 
+                                onChange={(e) => handlePrezzoChange(index, 'pubblico', e.target.value)}
+                                className="mt-1 block w-full text-sm rounded-md border-gray-300"
+                            />
+                        </div>
+                    </div>); })}</div>
                     <div className="mt-6 pt-4 border-t flex justify-end gap-4"><button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 rounded-md">Annulla</button><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Salva</button></div>
                 </form>
              </div>

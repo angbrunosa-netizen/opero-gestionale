@@ -39,42 +39,121 @@ export default function IndustrialLayout({ children, siteConfig }) {
         color: 'var(--header-text-color)',
         borderBottomColor: 'var(--primary-color)'
       }}>
-        <div className="container mx-auto px-4 h-20 flex items-center" style={{
-          justifyContent: logoPosition === 'center' ? 'center' : logoPosition === 'right' ? 'flex-end' : 'flex-start'
-        }}>
-          
-          <Link href="/" className="flex items-center gap-3">
-            {logo ? (
-              <img src={logo} alt={name} className="h-10 bg-white p-1 rounded-sm" />
-            ) : (
-              <div className="bg-[var(--primary-color)] text-slate-900 font-black px-3 py-1 text-xl uppercase tracking-tighter">
-                {name.substring(0, 3).toUpperCase()}
-                <span className="text-white bg-slate-800 px-1 ml-1">{name.substring(3)}</span>
+        <div className="container mx-auto px-4 h-20 flex items-center">
+
+          {/* Layout dinamico basato sulla posizione del logo */}
+          {logoPosition === 'center' ? (
+            // Logo centrato con menu ai lati
+            <>
+              <div className="flex items-center flex-1">
+                <button className="md:hidden text-white p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                  ☰
+                </button>
               </div>
-            )}
-          </Link>
 
-          {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-1">
-            {menuItems.map((item, idx) => (
-              <Link 
-                key={idx} 
-                href={item.href} 
-                className="px-4 py-2 hover:bg-slate-800 text-sm font-bold uppercase tracking-wide transition-colors border-r border-slate-800 last:border-r-0"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
+              <div className="flex items-center justify-center">
+                <Link href="/" className="flex items-center gap-3 px-4">
+                  {logo ? (
+                    <img src={logo} alt={name} className="h-10 bg-white p-1 rounded-sm" />
+                  ) : (
+                    <div className="bg-[var(--primary-color)] text-slate-900 font-black px-3 py-1 text-xl uppercase tracking-tighter">
+                      {name.substring(0, 3).toUpperCase()}
+                      <span className="text-white bg-slate-800 px-1 ml-1">{name.substring(3)}</span>
+                    </div>
+                  )}
+                </Link>
+              </div>
 
-          <div className="flex items-center gap-4">
-             <Link href="/login" className="hidden md:block bg-slate-700 hover:bg-slate-600 px-4 py-2 text-xs font-bold uppercase rounded-sm border border-slate-500">
-                Portale B2B
-             </Link>
-             <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-                ☰
-             </button>
-          </div>
+              <div className="flex items-center justify-end flex-1 gap-4">
+                <div className="hidden md:flex items-center space-x-1">
+                  {menuItems.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      href={item.href}
+                      className="px-4 py-2 hover:bg-slate-800 text-sm font-bold uppercase tracking-wide transition-colors border-r border-slate-800 last:border-r-0"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+                <Link href="/login" className="hidden md:block bg-slate-700 hover:bg-slate-600 px-4 py-2 text-xs font-bold uppercase rounded-sm border border-slate-500">
+                  Portale B2B
+                </Link>
+              </div>
+            </>
+          ) : logoPosition === 'right' ? (
+            // Logo a destra con menu a sinistra
+            <>
+              <div className="flex items-center gap-4 flex-1">
+                <button className="md:hidden text-white p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                  ☰
+                </button>
+                <div className="hidden md:flex items-center space-x-1">
+                  {menuItems.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      href={item.href}
+                      className="px-4 py-2 hover:bg-slate-800 text-sm font-bold uppercase tracking-wide transition-colors border-r border-slate-800 last:border-r-0"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+                <Link href="/login" className="hidden md:block bg-slate-700 hover:bg-slate-600 px-4 py-2 text-xs font-bold uppercase rounded-sm border border-slate-500">
+                  Portale B2B
+                </Link>
+              </div>
+
+              <div className="flex items-center pl-6">
+                <Link href="/" className="flex items-center gap-3">
+                  {logo ? (
+                    <img src={logo} alt={name} className="h-10 bg-white p-1 rounded-sm" />
+                  ) : (
+                    <div className="bg-[var(--primary-color)] text-slate-900 font-black px-3 py-1 text-xl uppercase tracking-tighter">
+                      {name.substring(0, 3).toUpperCase()}
+                      <span className="text-white bg-slate-800 px-1 ml-1">{name.substring(3)}</span>
+                    </div>
+                  )}
+                </Link>
+              </div>
+            </>
+          ) : (
+            // Logo a sinistra (default)
+            <>
+              <div className="flex items-center">
+                <button className="md:hidden text-white p-2 mr-4" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                  ☰
+                </button>
+                <Link href="/" className="flex items-center gap-3">
+                  {logo ? (
+                    <img src={logo} alt={name} className="h-10 bg-white p-1 rounded-sm" />
+                  ) : (
+                    <div className="bg-[var(--primary-color)] text-slate-900 font-black px-3 py-1 text-xl uppercase tracking-tighter">
+                      {name.substring(0, 3).toUpperCase()}
+                      <span className="text-white bg-slate-800 px-1 ml-1">{name.substring(3)}</span>
+                    </div>
+                  )}
+                </Link>
+              </div>
+
+              <div className="flex items-center space-x-1 flex-1 justify-end gap-4">
+                <div className="hidden md:flex items-center space-x-1">
+                  {menuItems.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      href={item.href}
+                      className="px-4 py-2 hover:bg-slate-800 text-sm font-bold uppercase tracking-wide transition-colors border-r border-slate-800 last:border-r-0"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+                <Link href="/login" className="hidden md:block bg-slate-700 hover:bg-slate-600 px-4 py-2 text-xs font-bold uppercase rounded-sm border border-slate-500">
+                  Portale B2B
+                </Link>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu */}

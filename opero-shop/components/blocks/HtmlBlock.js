@@ -18,13 +18,13 @@ export default function HtmlBlock({ config }) {
         fontFamily: fontFamily,
         fontSize: fontSize,
         color: textColor,
-        backgroundColor: backgroundColor || 'var(--block-background-color)',
+        backgroundColor: backgroundColor || 'transparent', // Rimuove lo sfondo di default
         textAlign: textAlign,
-        padding: '2rem',
+        padding: '0', // Rimuove il padding interno
         minHeight: '100px',
-        borderRadius: '0.5rem',
-        margin: '1rem auto',
-        maxWidth: '1200px',
+        borderRadius: '0', // Rimuove gli angoli arrotondati
+        margin: '0', // Rimuove il margine esterno
+        maxWidth: '100%', // Utilizza tutta la larghezza disponibile
         lineHeight: '1.6'
     };
 

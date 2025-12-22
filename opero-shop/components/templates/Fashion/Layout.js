@@ -47,40 +47,130 @@ export default function FashionLayout({ children, siteConfig }) {
             Spedizione gratuita per ordini superiori a 100€
         </div>
 
-        <div className="container mx-auto px-6 py-6 flex flex-col items-center justify-between md:flex-row">
-          
-          {/* Mobile Toggle (Left) */}
-          <button className="md:hidden absolute left-4 top-8" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-             <span className="text-2xl">☰</span>
-          </button>
+        <div className="container mx-auto px-6 py-6 flex items-center">
 
-          {/* Logo (Centered) */}
-          <Link href="/" className="mb-4 md:mb-0">
-            {logo ? (
-              <img src={logo} alt={name} className="h-12 object-contain" />
-            ) : (
-              <span className="text-3xl font-serif tracking-tighter uppercase border-2 border-black px-4 py-1">
-                {name}
-              </span>
-            )}
-          </Link>
+          {/* Layout dinamico basato sulla posizione del logo */}
+          {logoPosition === 'center' ? (
+            // Logo centrato con menu ai lati
+            <>
+              <div className="flex items-center flex-1">
+                <button
+                  className="md:hidden p-2"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                >
+                   <span className="text-2xl">☰</span>
+                </button>
+              </div>
 
-          {/* Menu Desktop (Right/Distributed) */}
-          <div className="hidden md:flex items-center space-x-8">
-            {menuItems.map((item, idx) => (
-              <Link 
-                key={idx} 
-                href={item.href} 
-                className="text-xs font-bold uppercase tracking-widest hover:text-[var(--primary-color)] transition-colors relative group"
-              >
-                {item.label}
-                <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-current transition-all group-hover:w-full"></span>
-              </Link>
-            ))}
-            <Link href="/login" className="text-xs font-bold uppercase border-b border-black pb-0.5 hover:text-gray-500">
-                Login
-            </Link>
-          </div>
+              <div className="flex items-center justify-center">
+                <Link href="/" className="flex items-center px-6">
+                  {logo ? (
+                    <img src={logo} alt={name} className="h-12 object-contain" />
+                  ) : (
+                    <span className="text-3xl font-serif tracking-tighter uppercase border-2 border-black px-4 py-1">
+                      {name}
+                    </span>
+                  )}
+                </Link>
+              </div>
+
+              <div className="flex items-center justify-end flex-1">
+                <div className="hidden md:flex items-center space-x-8">
+                  {menuItems.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      href={item.href}
+                      className="text-xs font-bold uppercase tracking-widest hover:text-[var(--primary-color)] transition-colors relative group"
+                    >
+                      {item.label}
+                      <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-current transition-all group-hover:w-full"></span>
+                    </Link>
+                  ))}
+                  <Link href="/login" className="text-xs font-bold uppercase border-b border-black pb-0.5 hover:text-gray-500">
+                      Login
+                  </Link>
+                </div>
+              </div>
+            </>
+          ) : logoPosition === 'right' ? (
+            // Logo a destra con menu a sinistra
+            <>
+              <div className="flex items-center gap-8 flex-1">
+                <button
+                  className="md:hidden p-2"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                >
+                   <span className="text-2xl">☰</span>
+                </button>
+                <div className="hidden md:flex items-center space-x-8">
+                  {menuItems.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      href={item.href}
+                      className="text-xs font-bold uppercase tracking-widest hover:text-[var(--primary-color)] transition-colors relative group"
+                    >
+                      {item.label}
+                      <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-current transition-all group-hover:w-full"></span>
+                    </Link>
+                  ))}
+                  <Link href="/login" className="text-xs font-bold uppercase border-b border-black pb-0.5 hover:text-gray-500">
+                      Login
+                  </Link>
+                </div>
+              </div>
+
+              <div className="flex items-center pl-8">
+                <Link href="/" className="flex items-center">
+                  {logo ? (
+                    <img src={logo} alt={name} className="h-12 object-contain" />
+                  ) : (
+                    <span className="text-3xl font-serif tracking-tighter uppercase border-2 border-black px-4 py-1">
+                      {name}
+                    </span>
+                  )}
+                </Link>
+              </div>
+            </>
+          ) : (
+            // Logo a sinistra (default)
+            <>
+              <div className="flex items-center">
+                <button
+                  className="md:hidden p-2 mr-4"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                >
+                   <span className="text-2xl">☰</span>
+                </button>
+                <Link href="/" className="flex items-center">
+                  {logo ? (
+                    <img src={logo} alt={name} className="h-12 object-contain" />
+                  ) : (
+                    <span className="text-3xl font-serif tracking-tighter uppercase border-2 border-black px-4 py-1">
+                      {name}
+                    </span>
+                  )}
+                </Link>
+              </div>
+
+              <div className="flex items-center space-x-8 flex-1 justify-end">
+                <div className="hidden md:flex items-center space-x-8">
+                  {menuItems.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      href={item.href}
+                      className="text-xs font-bold uppercase tracking-widest hover:text-[var(--primary-color)] transition-colors relative group"
+                    >
+                      {item.label}
+                      <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-current transition-all group-hover:w-full"></span>
+                    </Link>
+                  ))}
+                  <Link href="/login" className="text-xs font-bold uppercase border-b border-black pb-0.5 hover:text-gray-500">
+                      Login
+                  </Link>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Overlay */}

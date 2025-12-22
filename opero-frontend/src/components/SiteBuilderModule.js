@@ -12,6 +12,7 @@ import { api } from '../services/api'; // Import con graffe corretto
 import SiteConfig from './cms/SiteConfig';
 import PageManager from './cms/PageManager';
 import BlogManager from './cms/BlogManager';
+import PageConfigManager from './cms/PageConfigManager';
 import {
     GlobeAltIcon, Cog6ToothIcon, DocumentDuplicateIcon,
     BuildingOfficeIcon, ArrowLeftOnRectangleIcon, NewspaperIcon
@@ -28,6 +29,7 @@ const SiteBuilderModule = () => {
     const [isLoadingList, setIsLoadingList] = useState(false);
     
     const [activeTab, setActiveTab] = useState('config');
+    const [showPageConfigManager, setShowPageConfigManager] = useState(false);
 
     // 1. Determina i permessi
     const isSystemAdmin = user?.id_ruolo === 1;
@@ -197,6 +199,17 @@ const SiteBuilderModule = () => {
                         Pagine & Contenuti
                     </button>
                     <button
+                        onClick={() => setShowPageConfigManager(true)}
+                        className="py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 relative group"
+                    >
+                        <Cog6ToothIcon className="h-5 w-5" />
+                        Configurazione SEO
+                        <span className="absolute -top-1 -right-1 h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
+                        <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            Gestione avanzata SEO, menu e visibilità pagine
+                        </span>
+                    </button>
+                    <button
                         onClick={() => setActiveTab('blog')}
                         className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition ${
                             activeTab === 'blog'
@@ -216,6 +229,14 @@ const SiteBuilderModule = () => {
                 {activeTab === 'pages' && <PageManager dittaId={targetDitta.id} key={`pages-${targetDitta.id}`} />}
                 {activeTab === 'blog' && <BlogManager dittaId={targetDitta.id} key={`blog-${targetDitta.id}`} />}
             </div>
+
+            {/* PageConfigManager Modal */}
+            {showPageConfigManager && (
+                <PageConfigManager
+                    dittaId={targetDitta.id}
+                    onClose={() => setShowPageConfigManager(false)}
+                />
+            )}
         </div>
     );
 };

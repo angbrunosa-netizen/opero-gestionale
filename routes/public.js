@@ -154,17 +154,18 @@ const resolveTenant = async (req, res, next) => {
         const [rows] = await dbPool.query(
             `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario,
                     d.shop_colore_secondario, d.shop_colore_sfondo_blocchi,
+                    d.shop_colore_header_sfondo, d.shop_colore_header_testo, d.shop_logo_posizione,
                     COALESCE(t.codice, 'standard') as template_code
              FROM ditte d
              LEFT JOIN web_templates t ON d.id_web_template = t.id
              WHERE d.url_slug = ? AND d.shop_attivo = 1`,
             [slug]
         );
-        
+
         if (rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Sito non trovato o non attivo.' });
         }
-        
+
         req.shopDitta = rows[0];
         next();
     } catch (error) {
@@ -207,10 +208,10 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
         try {
             console.log("Querying navigation for ditta:", req.shopDitta.id);
             const [navResult] = await dbPool.query(
-                `SELECT slug, titolo_seo
+                `SELECT id, slug, titolo_seo, icona_menu, link_esterno, target_link, id_page_parent, livello_menu, ordine_menu
                  FROM web_pages
-                 WHERE id_ditta = ? AND pubblicata = 1
-                 ORDER BY id ASC`,
+                 WHERE id_ditta = ? AND pubblicata = 1 AND mostra_menu = 1
+                 ORDER BY livello_menu ASC, ordine_menu ASC, slug ASC`,
                 [req.shopDitta.id]
             );
             navigation = navResult || [];
@@ -482,7 +483,8 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
         // 1. Recupera i dati base della ditta
         const [ditte] = await dbPool.query(
             `SELECT id, ragione_sociale, url_slug, shop_colore_primario, shop_colore_secondario,
-                    shop_colore_sfondo_blocchi, shop_attivo, shop_banner_url, shop_descrizione_home,
+                    shop_colore_sfondo_blocchi, shop_colore_header_sfondo, shop_colore_header_testo,
+                    shop_logo_posizione, shop_attivo, shop_banner_url, shop_descrizione_home,
                     id_web_template, shop_template
              FROM ditte
              WHERE url_slug = ? AND shop_attivo = 1`,
