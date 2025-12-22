@@ -10,12 +10,9 @@ import Link from 'next/link';
 export default function StandardLayout({ children, siteConfig }) {
   const { name, logo, navigation } = siteConfig || {};
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState(new Set());
 
-  // DEBUG FORZATO - Rimuovi dopo aver testato
-  console.log('🎨🎨🎨 StandardLayout CALLED - siteConfig.colors:', siteConfig?.colors);
-  console.log('🎨🎨🎨 Header Background:', siteConfig?.colors?.headerBackground);
-  console.log('🎨🎨🎨 Header Text:', siteConfig?.colors?.headerText);
-  console.log('🎨🎨🎨 Logo Position:', siteConfig?.colors?.logoPosition);
+  // Rimuovi debug logging dopo aver verificato il funzionamento
 
   // Definisci le variabili CSS globali per i Client Components
   const themeStyles = {
@@ -89,6 +86,115 @@ export default function StandardLayout({ children, siteConfig }) {
       menuItems.unshift({ label: 'Home', href: '/' });
   }
 
+  // Funzione per toggle espansione menu mobile
+  const toggleMenuExpansion = (menuId) => {
+      setExpandedMenus(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(menuId)) {
+              newSet.delete(menuId);
+          } else {
+              newSet.add(menuId);
+          }
+          return newSet;
+      });
+  };
+
+  // Componente MobileMenuItem ricorsivo per menu hamburger
+  const MobileMenuItem = ({ item, level = 0 }) => {
+      const hasChildren = item.children && item.children.length > 0;
+      const isExpanded = expandedMenus.has(item.href);
+      const paddingLeft = level * 16 + 16; // 16px base + 16px per livello
+
+      if (hasChildren) {
+          return (
+              <div className="w-full">
+                  <button
+                      className="w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-left"
+                      style={{
+                          color: 'inherit',
+                          paddingLeft: `${paddingLeft}px`,
+                          backgroundColor: 'transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = `${siteConfig?.colors?.headerText || '#333333'}10`;
+                      }}
+                      onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = 'transparent';
+                      }}
+                      onClick={() => toggleMenuExpansion(item.href)}
+                  >
+                      <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-3">
+                              {item.icon && <span className="text-lg">{item.icon}</span>}
+                              <span>{item.label}</span>
+                          </div>
+                          <svg
+                              className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                          >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                      </div>
+                  </button>
+
+                  {/* Sottomenu espanso */}
+                  <div
+                      className={`overflow-hidden transition-all duration-300 ${
+                          isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                      }`}
+                  >
+                      <div className="py-2 space-y-1">
+                          {item.children.map((child, idx) => (
+                              <MobileMenuItem
+                                  key={`${item.href}-${idx}`}
+                                  item={child}
+                                  level={level + 1}
+                              />
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          );
+      }
+
+      // Menu item senza figli (link)
+      const LinkComponent = item.isExternal ? 'a' : Link;
+      const linkProps = item.isExternal
+          ? { href: item.externalHref, target: item.externalTarget, rel: 'noopener noreferrer' }
+          : { href: item.href };
+
+      return (
+          <LinkComponent
+              {...linkProps}
+              className="block py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              style={{
+                  color: 'inherit',
+                  paddingLeft: `${paddingLeft}px`,
+                  backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = `${siteConfig?.colors?.headerText || '#333333'}10`;
+              }}
+              onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = 'transparent';
+              }}
+              onClick={() => setIsMobileMenuOpen(false)}
+          >
+              <div className="flex items-center gap-3">
+                  {item.icon && <span className="text-lg">{item.icon}</span>}
+                  <span className="flex-1">{item.label}</span>
+                  {item.isExternal && (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                      </svg>
+                  )}
+              </div>
+          </LinkComponent>
+      );
+  };
+
   // Componente per renderizzare menu item con sotto-menu
   const MenuItem = ({ item, level = 0 }) => {
     const hasChildren = item.children && item.children.length > 0;
@@ -133,17 +239,23 @@ export default function StandardLayout({ children, siteConfig }) {
 
               {/* Sotto-menu dropdown */}
               <div className={`
-                absolute bg-white border border-gray-200 rounded-lg shadow-xl
+                absolute rounded-lg shadow-xl
                 transition-all duration-300 z-50
                 ${isNested
                   ? 'top-0 left-full ml-1 w-56' // Livelli > 1: a destra
                   : 'top-full left-0 mt-1 w-64' // Livello 1: sotto
                 }
                 opacity-0 invisible group-hover:opacity-100 group-hover:visible
-              `}>
+              `}
+              style={{
+                backgroundColor: siteConfig?.colors?.headerBackground || '#ffffff',
+                borderColor: siteConfig?.colors?.headerText || '#333333',
+                border: '1px solid'
+              }}>
                 <div className="py-1">
                   {item.children.map((child, idx) => (
-                    <div key={idx} className="border-b border-gray-100 last:border-b-0">
+                    <div key={idx} className="border-b last:border-b-0"
+                         style={{ borderColor: `${siteConfig?.colors?.headerText || '#333333'}20` }}>
                       {/* Ricorsione: usa MenuItem per il child */}
                       <MenuItem item={child} level={level + 1} />
                     </div>
@@ -222,7 +334,7 @@ export default function StandardLayout({ children, siteConfig }) {
                 </Link>
               </div>
 
-              <div className="flex items-center justify-end flex-1 gap-8">
+              <div className="hidden md:flex items-center justify-end flex-1 gap-8">
                 {menuItems.map((item, idx) => (
                   <MenuItem key={idx} item={item} />
                 ))}
@@ -238,7 +350,7 @@ export default function StandardLayout({ children, siteConfig }) {
           ) : logoPosition === 'right' ? (
             // Logo a destra con menu a sinistra
             <>
-              <div className="flex items-center gap-8 flex-1">
+              <div className="hidden md:flex items-center gap-8 flex-1">
                 {menuItems.map((item, idx) => (
                   <MenuItem key={idx} item={item} />
                 ))}
@@ -274,7 +386,7 @@ export default function StandardLayout({ children, siteConfig }) {
                 </Link>
               </div>
 
-              <div className="flex items-center gap-8 flex-1 justify-end">
+              <div className="hidden md:flex items-center gap-8 flex-1 justify-end">
                 {menuItems.map((item, idx) => (
                   <MenuItem key={idx} item={item} />
                 ))}
@@ -289,37 +401,92 @@ export default function StandardLayout({ children, siteConfig }) {
             </>
           )}
 
-          {/* Mobile Toggle - sempre visibile su mobile */}
+          {/* Mobile Hamburger Menu - sempre visibile su mobile */}
           <button
-            className="md:hidden p-2"
+            className="md:hidden p-2 relative z-50 transition-all duration-300"
             style={{ color: 'inherit' }}
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? 'Chiudi menu' : 'Apri menu'}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
+            <div className="w-6 h-5 relative flex flex-col justify-center">
+              <span className={`absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out origin-center ${
+                isMobileMenuOpen ? 'rotate-45 translate-y-0' : '-translate-y-2'
+              }`}></span>
+              <span className={`h-0.5 w-6 bg-current transition-all duration-300 ease-in-out ${
+                isMobileMenuOpen ? 'opacity-0' : 'opacity-100'
+              }`}></span>
+              <span className={`absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out origin-center ${
+                isMobileMenuOpen ? '-rotate-45 translate-y-0' : 'translate-y-2'
+              }`}></span>
+            </div>
           </button>
         </div>
 
-        {/* Mobile Menu Dropdown */}
-        {isMobileMenuOpen && (
-            <div className="md:hidden border-t border-gray-100 py-4 px-4 space-y-3 shadow-lg absolute w-full left-0" style={{
-                backgroundColor: 'var(--header-background-color)',
-                borderColor: 'var(--header-text-color)'
+        {/* Mobile Menu Dropdown - Hamburger Style */}
+        <div className={`md:hidden fixed inset-0 z-40 transition-all duration-300 ease-in-out ${
+            isMobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+        }`}>
+            {/* Backdrop */}
+            <div
+                className={`absolute inset-0 bg-black transition-opacity duration-300 ${
+                    isMobileMenuOpen ? 'opacity-50' : 'opacity-0'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+            ></div>
+
+            {/* Menu Panel */}
+            <div className={`absolute top-0 right-0 h-full w-80 max-w-full transition-transform duration-300 ease-in-out transform ${
+                isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}
+            style={{
+                backgroundColor: siteConfig?.colors?.headerBackground || '#ffffff'
             }}>
-                {menuItems.map((item, idx) => (
-                    <Link
-                        key={idx}
-                        href={item.href}
-                        className="block hover:text-[var(--primary-color)] transition-colors font-medium"
+                {/* Header del Menu Mobile */}
+                <div className="flex items-center justify-between p-4 border-b"
+                     style={{ borderColor: `${siteConfig?.colors?.headerText || '#333333'}20` }}>
+                    <h2 className="text-lg font-semibold" style={{ color: 'inherit' }}>
+                        Menu
+                    </h2>
+                    <button
+                        className="p-2 rounded-lg transition-colors duration-200"
                         style={{ color: 'inherit' }}
                         onClick={() => setIsMobileMenuOpen(false)}
+                        aria-label="Chiudi menu"
                     >
-                        {item.label}
-                    </Link>
-                ))}
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Menu Items con supporto sottomenu */}
+                <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-80px)]">
+                    {menuItems.map((item, idx) => (
+                        <MobileMenuItem
+                            key={`${item.href}-${idx}`}
+                            item={item}
+                            level={0}
+                        />
+                    ))}
+
+                    {/* Pulsante Area Riservata */}
+                    <div className="pt-4 mt-4 border-t"
+                         style={{ borderColor: `${siteConfig?.colors?.headerText || '#333333'}20` }}>
+                        <Link
+                            href="/login"
+                            className="w-full py-3 px-4 rounded-lg font-bold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                            style={{ backgroundColor: 'var(--primary-color)' }}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                            </svg>
+                            Area Riservata
+                        </Link>
+                    </div>
+                </nav>
             </div>
-        )}
+        </div>
       </nav>
 
       <main className="flex-grow">

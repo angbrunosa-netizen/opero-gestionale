@@ -550,6 +550,331 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
     }
 });
 
+// ============================================================
+// CATALOGO PUBBLICO API
+// ============================================================
+
+const catalogoService = require('../services/catalogoPublicService');
+
+/**
+ * GET /api/public/shop/:siteSlug/catalog
+ * Recupera catalogo prodotti con prezzi, giacenza e immagini S3
+ *
+ * Query params:
+ *   - categoria_id: ID categoria (opzionale)
+ *   - search_term: Stringa ricerca (opzionale)
+ *   - prezzo_min: Prezzo minimo (opzionale)
+ *   - prezzo_max: Prezzo massimo (opzionale)
+ *   - listino_tipo: 'pubblico' | 'cessione' (default da config)
+ *   - listino_index: 1-6 (default da config)
+ *   - mostra_esauriti: boolean (default true)
+ *   - page: Numero pagina (default 1)
+ *   - limit: Risultati per pagina (default 20, max 50)
+ *   - sort_by: 'descrizione' | 'prezzo' | 'giacenza' | 'codice'
+ *   - sort_order: 'ASC' | 'DESC'
+ */
+router.get('/shop/:siteSlug/catalog', async (req, res) => {
+    try {
+        const { siteSlug } = req.params;
+
+        // Recupera ID ditta da slug
+        const [ditta] = await dbPool.query(
+            'SELECT id, shop_attivo FROM ditte WHERE url_slug = ? AND id_tipo_ditta = 1',
+            [siteSlug]
+        );
+
+        if (!ditta.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        if (!ditta[0].shop_attivo) {
+            return res.status(403).json({
+                success: false,
+                error: 'Shop non attivo per questo sito'
+            });
+        }
+
+        const dittaId = ditta[0].id;
+
+        // Recupera configurazione listino dal sito
+        const configListino = await catalogoService.getConfigListino(dittaId);
+
+        // Parse query params con fallback dalla config
+        const {
+            categoria_id = null,
+            search_term = null,
+            prezzo_min = null,
+            prezzo_max = null,
+            listino_tipo = configListino.catalog_listino_tipo,
+            listino_index = configListino.catalog_listino_index,
+            mostra_esauriti = configListino.catalog_mostra_esauriti,
+            page = 1,
+            limit = 20,
+            sort_by = 'descrizione',
+            sort_order = 'ASC'
+        } = req.query;
+
+        // Validazione limit
+        const parsedLimit = Math.min(parseInt(limit) || 20, 50);
+
+        // Fetch prodotti
+        const prodotti = await catalogoService.getPublicCatalog(dittaId, {
+            listino_tipo,
+            listino_index: parseInt(listino_index),
+            categoria_id: categoria_id ? parseInt(categoria_id) : null,
+            search_term,
+            prezzo_min: prezzo_min ? parseFloat(prezzo_min) : null,
+            prezzo_max: prezzo_max ? parseFloat(prezzo_max) : null,
+            mostra_esauriti: mostra_esauriti === 'true' || mostra_esauriti === true,
+            page: parseInt(page),
+            limit: parsedLimit,
+            sort_by,
+            sort_order
+        });
+
+        // Conta totale per paginazione
+        const total = await catalogoService.countProdotti(dittaId, {
+            categoria_id: categoria_id ? parseInt(categoria_id) : null,
+            search_term,
+            prezzo_min: prezzo_min ? parseFloat(prezzo_min) : null,
+            prezzo_max: prezzo_max ? parseFloat(prezzo_max) : null,
+            listino_tipo,
+            listino_index: parseInt(listino_index),
+            mostra_esauriti: mostra_esauriti === 'true' || mostra_esauriti === true
+        });
+
+        res.json({
+            success: true,
+            data: prodotti,
+            meta: {
+                total,
+                page: parseInt(page),
+                limit: parsedLimit,
+                totalPages: Math.ceil(total / parsedLimit),
+                listino: {
+                    tipo: listino_tipo,
+                    index: parseInt(listino_index)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Errore catalogo pubblico:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero catalogo',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+/**
+ * GET /api/public/shop/:siteSlug/catalog/categories
+ * Recupera categorie catalogo per filtri
+ */
+router.get('/shop/:siteSlug/catalog/categories', async (req, res) => {
+    try {
+        const { siteSlug } = req.params;
+
+        const [ditta] = await dbPool.query(
+            'SELECT id FROM ditte WHERE url_slug = ? AND id_tipo_ditta = 1',
+            [siteSlug]
+        );
+
+        if (!ditta.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        const categorie = await catalogoService.getCategorie(ditta[0].id);
+
+        res.json({
+            success: true,
+            data: categorie
+        });
+
+    } catch (error) {
+        console.error('Errore recupero categorie:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero categorie'
+        });
+    }
+});
+
+/**
+ * GET /api/public/shop/:siteSlug/catalog/:prodottoId
+ * Recupera dettagli singolo prodotto
+ */
+router.get('/shop/:siteSlug/catalog/:prodottoId', async (req, res) => {
+    try {
+        const { siteSlug, prodottoId } = req.params;
+
+        const [ditta] = await dbPool.query(
+            'SELECT id FROM ditte WHERE url_slug = ? AND id_tipo_ditta = 1',
+            [siteSlug]
+        );
+
+        if (!ditta.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        const configListino = await catalogoService.getConfigListino(ditta[0].id);
+
+        const prodotti = await catalogoService.getPublicCatalog(ditta[0].id, {
+            listino_tipo: configListino.catalog_listino_tipo,
+            listino_index: configListino.catalog_listino_index,
+            page: 1,
+            limit: 1
+        });
+
+        const prodotto = prodotti.find(p => p.id === parseInt(prodottoId));
+
+        if (!prodotto) {
+            return res.status(404).json({
+                success: false,
+                error: 'Prodotto non trovato'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: prodotto
+        });
+
+    } catch (error) {
+        console.error('Errore recupero prodotto:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero prodotto'
+        });
+    }
+});
+
+// ============================================================
+// CATALOGO SELEZIONI API (PUBBLICHE)
+// ============================================================
+
+const selezioniService = require('../services/catalogoSelezioniService');
+
+/**
+ * GET /api/public/shop/:siteSlug/catalog/selezioni
+ * Recupera tutte le selezioni attive di un sito
+ */
+router.get('/shop/:siteSlug/catalog/selezioni', async (req, res) => {
+    try {
+        const { siteSlug } = req.params;
+
+        const [ditta] = await dbPool.query(
+            'SELECT id FROM ditte WHERE url_slug = ? AND id_tipo_ditta = 1',
+            [siteSlug]
+        );
+
+        if (!ditta.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        const selezioni = await selezioniService.getSelezioni(ditta[0].id);
+
+        // Filtra solo selezioni attive
+        const selezioniAttive = selezioni.filter(s => s.attivo);
+
+        res.json({
+            success: true,
+            data: selezioniAttive
+        });
+
+    } catch (error) {
+        console.error('Errore recupero selezioni pubbliche:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero selezioni'
+        });
+    }
+});
+
+/**
+ * GET /api/public/shop/:siteSlug/catalog/selezioni/:slug
+ * Recupera dettaglio selezione con articoli per slug
+ */
+router.get('/shop/:siteSlug/catalog/selezioni/:slug', async (req, res) => {
+    try {
+        const { siteSlug, slug } = req.params;
+
+        const [ditta] = await dbPool.query(
+            'SELECT id, catalog_listino_tipo, catalog_listino_index FROM ditte WHERE url_slug = ? AND id_tipo_ditta = 1',
+            [siteSlug]
+        );
+
+        if (!ditta.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'Sito non trovato'
+            });
+        }
+
+        const result = await selezioniService.getArticoliSelezioneBySlug(slug, {
+            listino_tipo: ditta[0].catalog_listino_tipo || 'pubblico',
+            listino_index: ditta[0].catalog_listino_index || 1
+        });
+
+        // Verifica che la selezione appartenga alla ditta corretta
+        if (result.selezione.id_ditta !== ditta[0].id) {
+            return res.status(404).json({
+                success: false,
+                error: 'Selezione non trovata'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('Errore recupero selezione pubblica:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Errore recupero selezione'
+        });
+    }
+});
+
+/**
+ * GET /api/public/catalog/selezioni/:selezioneId
+ * Recupera dettaglio selezione con articoli per ID (per blocchi CMS)
+ */
+router.get('/catalog/selezioni/:selezioneId', async (req, res) => {
+    try {
+        const { selezioneId } = req.params;
+
+        const result = await selezioniService.getArticoliSelezione(parseInt(selezioneId));
+
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('Errore recupero selezione pubblica:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Errore recupero selezione'
+        });
+    }
+});
+
 module.exports = router;
 
 

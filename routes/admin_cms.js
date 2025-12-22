@@ -459,6 +459,418 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
     }
 });
 
+// ============================================================
+// CATALOGO CONFIG API (ADMIN)
+// ============================================================
 
+const catalogoService = require('../services/catalogoPublicService');
+
+/**
+ * GET /api/admin/cms/:idDitta/catalog/config
+ * Recupera configurazione catalogo per ditta
+ */
+router.get('/:idDitta/catalog/config', async (req, res) => {
+    try {
+        const { idDitta } = req.params;
+
+        const config = await catalogoService.getConfigListino(idDitta);
+
+        res.json({
+            success: true,
+            data: config
+        });
+
+    } catch (error) {
+        console.error('Errore recupero config catalogo:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero configurazione catalogo'
+        });
+    }
+});
+
+/**
+ * PUT /api/admin/cms/:idDitta/catalog/config
+ * Aggiorna configurazione catalogo per ditta
+ */
+router.put('/:idDitta/catalog/config', async (req, res) => {
+    try {
+        const { idDitta } = req.params;
+        const config = req.body;
+
+        await catalogoService.saveConfigListino(idDitta, config);
+
+        res.json({
+            success: true,
+            message: 'Configurazione catalogo aggiornata con successo'
+        });
+
+    } catch (error) {
+        console.error('Errore salvataggio config catalogo:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore salvataggio configurazione catalogo'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/cms/:idDitta/catalog/categories
+ * Recupera categorie catalogo per ditta
+ */
+router.get('/:idDitta/catalog/categories', async (req, res) => {
+    try {
+        const { idDitta } = req.params;
+
+        const categorie = await catalogoService.getCategorie(idDitta);
+
+        res.json({
+            success: true,
+            data: categorie
+        });
+
+    } catch (error) {
+        console.error('Errore recupero categorie catalogo:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero categorie catalogo'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/cms/:idDitta/catalog/products
+ * Recupera prodotti catalogo per admin (pagination, filters)
+ */
+router.get('/:idDitta/catalog/products', async (req, res) => {
+    try {
+        const { idDitta } = req.params;
+        const {
+            categoria_id = null,
+            search_term = null,
+            page = 1,
+            limit = 50,
+            listino_tipo = 'pubblico',
+            listino_index = 1
+        } = req.query;
+
+        const prodotti = await catalogoService.getPublicCatalog(idDitta, {
+            listino_tipo,
+            listino_index: parseInt(listino_index),
+            categoria_id: categoria_id ? parseInt(categoria_id) : null,
+            search_term,
+            page: parseInt(page),
+            limit: Math.min(parseInt(limit), 100),
+            mostra_esauriti: true
+        });
+
+        const total = await catalogoService.countProdotti(idDitta, {
+            categoria_id: categoria_id ? parseInt(categoria_id) : null,
+            search_term,
+            listino_tipo,
+            listino_index: parseInt(listino_index),
+            mostra_esauriti: true
+        });
+
+        res.json({
+            success: true,
+            data: prodotti,
+            meta: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / parseInt(limit))
+            }
+        });
+
+    } catch (error) {
+        console.error('Errore recupero prodotti catalogo:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero prodotti catalogo'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/cms/:idDitta/catalog/:prodottoId/images
+ * Recupera immagini di un prodotto
+ */
+router.get('/:idDitta/catalog/:prodottoId/images', async (req, res) => {
+    try {
+        const { idDitta, prodottoId } = req.params;
+
+        const immagini = await catalogoService.getImmaginiProdotto(parseInt(idDitta), parseInt(prodottoId));
+
+        res.json({
+            success: true,
+            data: immagini
+        });
+
+    } catch (error) {
+        console.error('Errore recupero immagini prodotto:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero immagini prodotto'
+        });
+    }
+});
+
+// ============================================================
+// CATALOGO SELEZIONI API (ADMIN)
+// ============================================================
+
+const selezioniService = require('../services/catalogoSelezioniService');
+
+/**
+ * GET /api/admin/cms/:idDitta/catalog/selezioni
+ * Recupera tutte le selezioni di una ditta
+ */
+router.get('/:idDitta/catalog/selezioni', async (req, res) => {
+    try {
+        const { idDitta } = req.params;
+
+        const selezioni = await selezioniService.getSelezioni(parseInt(idDitta));
+
+        res.json({
+            success: true,
+            data: selezioni
+        });
+
+    } catch (error) {
+        console.error('Errore recupero selezioni:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore recupero selezioni'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId
+ * Recupera dettaglio selezione con articoli
+ */
+router.get('/:idDitta/catalog/selezioni/:selezioneId', async (req, res) => {
+    try {
+        const { idDitta, selezioneId } = req.params;
+        const { listino_tipo, listino_index } = req.query;
+
+        const result = await selezioniService.getArticoliSelezione(
+            parseInt(selezioneId),
+            {
+                listino_tipo: listino_tipo || 'pubblico',
+                listino_index: parseInt(listino_index) || 1
+            }
+        );
+
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('Errore recupero selezione:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Errore recupero selezione'
+        });
+    }
+});
+
+/**
+ * POST /api/admin/cms/:idDitta/catalog/selezioni
+ * Crea nuova selezione
+ */
+router.post('/:idDitta/catalog/selezioni', async (req, res) => {
+    try {
+        const { idDitta } = req.params;
+        const data = req.body;
+
+        const id = await selezioniService.createSelezione(parseInt(idDitta), data);
+
+        res.json({
+            success: true,
+            data: { id },
+            message: 'Selezione creata con successo'
+        });
+
+    } catch (error) {
+        console.error('Errore creazione selezione:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore creazione selezione'
+        });
+    }
+});
+
+/**
+ * PUT /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId
+ * Aggiorna selezione
+ */
+router.put('/:idDitta/catalog/selezioni/:selezioneId', async (req, res) => {
+    try {
+        const { selezioneId } = req.params;
+        const data = req.body;
+
+        await selezioniService.updateSelezione(parseInt(selezioneId), data);
+
+        res.json({
+            success: true,
+            message: 'Selezione aggiornata con successo'
+        });
+
+    } catch (error) {
+        console.error('Errore aggiornamento selezione:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore aggiornamento selezione'
+        });
+    }
+});
+
+/**
+ * DELETE /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId
+ * Elimina selezione
+ */
+router.delete('/:idDitta/catalog/selezioni/:selezioneId', async (req, res) => {
+    try {
+        const { selezioneId } = req.params;
+
+        await selezioniService.deleteSelezione(parseInt(selezioneId));
+
+        res.json({
+            success: true,
+            message: 'Selezione eliminata con successo'
+        });
+
+    } catch (error) {
+        console.error('Errore eliminazione selezione:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore eliminazione selezione'
+        });
+    }
+});
+
+/**
+ * POST /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId/articoli
+ * Aggiunge articolo a selezione
+ */
+router.post('/:idDitta/catalog/selezioni/:selezioneId/articoli', async (req, res) => {
+    try {
+        const { idDitta, selezioneId } = req.params;
+        const { id_articolo, etichetta_personalizzata, in_evidenza, ordine } = req.body;
+
+        console.log(`[POST] Aggiunta articolo a selezione:`, {
+            idDitta,
+            selezioneId,
+            id_articolo,
+            etichetta_personalizzata,
+            in_evidenza,
+            ordine
+        });
+
+        await selezioniService.addArticoloToSelezione(
+            parseInt(selezioneId),
+            parseInt(id_articolo),
+            { etichetta_personalizzata, in_evidenza, ordine }
+        );
+
+        console.log(`[POST] Articolo ${id_articolo} aggiunto con successo alla selezione ${selezioneId}`);
+
+        res.json({
+            success: true,
+            message: 'Articolo aggiunto alla selezione'
+        });
+
+    } catch (error) {
+        console.error('Errore aggiunta articolo:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Errore aggiunta articolo'
+        });
+    }
+});
+
+/**
+ * DELETE /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId/articoli/:articoloId
+ * Rimuove articolo da selezione
+ */
+router.delete('/:idDitta/catalog/selezioni/:selezioneId/articoli/:articoloId', async (req, res) => {
+    try {
+        const { selezioneId, articoloId } = req.params;
+
+        await selezioniService.removeArticoloFromSelezione(
+            parseInt(selezioneId),
+            parseInt(articoloId)
+        );
+
+        res.json({
+            success: true,
+            message: 'Articolo rimosso dalla selezione'
+        });
+
+    } catch (error) {
+        console.error('Errore rimozione articolo:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore rimozione articolo'
+        });
+    }
+});
+
+/**
+ * PUT /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId/articoli/ordine
+ * Aggiorna ordine articoli nella selezione
+ */
+router.put('/:idDitta/catalog/selezioni/:selezioneId/articoli/ordine', async (req, res) => {
+    try {
+        const { selezioneId } = req.params;
+        const { articoli } = req.body; // Array [{id_articolo, ordine}]
+
+        await selezioniService.updateOrdineArticoli(parseInt(selezioneId), articoli);
+
+        res.json({
+            success: true,
+            message: 'Ordine articoli aggiornato'
+        });
+
+    } catch (error) {
+        console.error('Errore aggiornamento ordine:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore aggiornamento ordine'
+        });
+    }
+});
+
+/**
+ * PUT /api/admin/cms/:idDitta/catalog/selezioni/:selezioneId/articoli/:articoloId/options
+ * Aggiorna opzioni articolo nella selezione
+ */
+router.put('/:idDitta/catalog/selezioni/:selezioneId/articoli/:articoloId/options', async (req, res) => {
+    try {
+        const { selezioneId, articoloId } = req.params;
+        const options = req.body;
+
+        await selezioniService.updateArticoloOptions(
+            parseInt(selezioneId),
+            parseInt(articoloId),
+            options
+        );
+
+        res.json({
+            success: true,
+            message: 'Opzioni articolo aggiornate'
+        });
+
+    } catch (error) {
+        console.error('Errore aggiornamento options:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Errore aggiornamento options'
+        });
+    }
+});
 
 module.exports = router;

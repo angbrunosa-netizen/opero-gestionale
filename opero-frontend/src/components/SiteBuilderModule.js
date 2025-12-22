@@ -13,9 +13,11 @@ import SiteConfig from './cms/SiteConfig';
 import PageManager from './cms/PageManager';
 import BlogManager from './cms/BlogManager';
 import PageConfigManager from './cms/PageConfigManager';
+import CatalogManager from './cms/CatalogManager';
 import {
     GlobeAltIcon, Cog6ToothIcon, DocumentDuplicateIcon,
-    BuildingOfficeIcon, ArrowLeftOnRectangleIcon, NewspaperIcon
+    BuildingOfficeIcon, ArrowLeftOnRectangleIcon, NewspaperIcon,
+    ShoppingBagIcon
 } from '@heroicons/react/24/outline';
 
 const SiteBuilderModule = () => {
@@ -220,6 +222,17 @@ const SiteBuilderModule = () => {
                         <NewspaperIcon className="h-5 w-5" />
                         Blog & News
                     </button>
+                    <button
+                        onClick={() => setActiveTab('catalog')}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition ${
+                            activeTab === 'catalog'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                    >
+                        <ShoppingBagIcon className="h-5 w-5" />
+                        Catalogo Prodotti
+                    </button>
                 </nav>
             </div>
 
@@ -228,6 +241,7 @@ const SiteBuilderModule = () => {
                 {activeTab === 'config' && <SiteConfig dittaId={targetDitta.id} key={`conf-${targetDitta.id}`} />}
                 {activeTab === 'pages' && <PageManager dittaId={targetDitta.id} key={`pages-${targetDitta.id}`} />}
                 {activeTab === 'blog' && <BlogManager dittaId={targetDitta.id} key={`blog-${targetDitta.id}`} />}
+                {activeTab === 'catalog' && <CatalogManager dittaId={targetDitta.id} key={`catalog-${targetDitta.id}`} />}
             </div>
 
             {/* PageConfigManager Modal */}

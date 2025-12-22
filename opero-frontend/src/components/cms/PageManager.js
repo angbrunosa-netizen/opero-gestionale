@@ -17,9 +17,10 @@ import MediaPickerModal from '../../shared/MediaPickerModal';
 const PageManager = ({ dittaId }) => {
     const [pages, setPages] = useState([]);
     const [selectedPage, setSelectedPage] = useState(null);
-    const [components, setComponents] = useState([]); 
+    const [components, setComponents] = useState([]);
     const [loading, setLoading] = useState(false);
-    
+    const [selezioniOptions, setSelezioniOptions] = useState([]); // Selezione prodotti options
+
     // Stato per il Media Picker
     const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
     const [mediaPickerTarget, setMediaPickerTarget] = useState(null); // { compIndex, fieldKey, isArray, arrayIndex }
@@ -62,6 +63,36 @@ const PageManager = ({ dittaId }) => {
             backgroundColor: '#f3f4f6'
         } },
         { type: 'VETRINA', label: 'Vetrina Prodotti', icon: '🛍️', defaultData: { limit: 4, titolo: 'I Nostri Prodotti' } },
+        { type: 'CATALOG_SELECTION', label: 'Selezione Prodotti', icon: '📦', defaultData: {
+            selezione_id: null,
+            layout: 'grid',
+            prodotti_per_riga: 4,
+            mostra_prezzo: true,
+            mostra_giacenza: true,
+            mostra_descrizione: true,
+            mostra_ricerca: true,
+            mostra_filtri: true,
+            mostra_ordinamento: true,
+            mostra_titolo: true,
+            // Stili
+            colore_sfondo: '#ffffff',
+            colore_testo: '#1f2937',
+            colore_accento: '#3b82f6',
+            colore_sfondo_card: '#ffffff',
+            raggio_bordo: 8,
+            ombra: true,
+            // Animazioni
+            effetto_hover: 'scale',
+            animazione_caricamento: 'fade',
+            durata_transizione: 300,
+            // Badges
+            badge_sconto: true,
+            badge_nuovo: false,
+            badge_esaurito: true,
+            // Card
+            card_padding: 16,
+            card_aspect_ratio: 'square'
+        } },
         { type: 'HTML', label: 'Testo Formattato', icon: '📝', defaultData: {
             html: '<h3>Titolo Sezione</h3><p>Scrivi qui il tuo contenuto...</p>',
             fontFamily: 'Arial, sans-serif',
@@ -94,13 +125,22 @@ const PageManager = ({ dittaId }) => {
         { type: 'MEDIA_SOCIAL', label: 'Galleria & Social', icon: '📸', defaultData: { titolo: 'Seguici', layout: 'grid', facebook: '', instagram: '', images: [] } }
     ];
 
-    useEffect(() => { loadPages(); }, [dittaId]);
+    useEffect(() => { loadPages(); loadSelezioni(); }, [dittaId]);
 
     const loadPages = async () => {
         try {
             const res = await api.get(`/admin/cms/pages/${dittaId}`);
             setPages(res.data);
         } catch (error) { console.error("Errore pagine:", error); }
+    };
+
+    const loadSelezioni = async () => {
+        try {
+            const res = await api.get(`/admin/cms/${dittaId}/catalog/selezioni`);
+            if (res.data.success) {
+                setSelezioniOptions(res.data.data);
+            }
+        } catch (error) { console.error("Errore caricamento selezioni:", error); }
     };
 
     const selectPage = async (page) => {
@@ -847,6 +887,270 @@ const PageManager = ({ dittaId }) => {
                                         <p className="text-xs text-green-700">
                                             <strong>Nota:</strong> Questo blocco mostra automaticamente gli articoli più recenti del tuo blog. Per gestire gli articoli, vai nel tab "Blog & News".
                                         </p>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* --- CATALOG_SELECTION --- */}
+                            {comp.tipo_componente === 'CATALOG_SELECTION' && (
+                                <>
+                                    <div className="mb-4 p-4 bg-blue-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Selezione Prodotti</h4>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Seleziona una selezione prodotti</label>
+                                            <select
+                                                className="w-full border p-2 rounded text-sm"
+                                                value={comp.dati_config.selezione_id || ''}
+                                                onChange={e => updateConfig(i, 'selezione_id', parseInt(e.target.value))}
+                                            >
+                                                <option value="">-- Seleziona una selezione --</option>
+                                                {selezioniOptions.map(sel => (
+                                                    <option key={sel.id} value={sel.id}>{sel.nome}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                {comp.dati_config.selezione_id
+                                                    ? `Verrà mostrata la selezione: ${selezioniOptions.find(s => s.id === comp.dati_config.selezione_id)?.nome}`
+                                                    : 'Crea le selezioni nel tab "Catalogo Prodotti" → "Selezioni"'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Layout */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Layout</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Tipo Layout</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.layout || 'grid'}
+                                                    onChange={e => updateConfig(i, 'layout', e.target.value)}
+                                                >
+                                                    <option value="grid">Griglia</option>
+                                                    <option value="list">Lista</option>
+                                                    <option value="carousel">Carosello</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Prodotti per riga</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.prodotti_per_riga || 4}
+                                                    onChange={e => updateConfig(i, 'prodotti_per_riga', parseInt(e.target.value))}
+                                                >
+                                                    <option value={2}>2</option>
+                                                    <option value={3}>3</option>
+                                                    <option value={4}>4</option>
+                                                    <option value={6}>6</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Elementi Visibili */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Elementi Visibili</h4>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_prezzo !== false} onChange={e => updateConfig(i, 'mostra_prezzo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra prezzo</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_giacenza !== false} onChange={e => updateConfig(i, 'mostra_giacenza', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra giacenza</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_descrizione !== false} onChange={e => updateConfig(i, 'mostra_descrizione', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra descrizione</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_ricerca !== false} onChange={e => updateConfig(i, 'mostra_ricerca', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra ricerca</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_filtri !== false} onChange={e => updateConfig(i, 'mostra_filtri', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra filtri</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_ordinamento !== false} onChange={e => updateConfig(i, 'mostra_ordinamento', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra ordinamento</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostra_titolo !== false} onChange={e => updateConfig(i, 'mostra_titolo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra titolo</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Stili */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Colori e Stili</h4>
+                                        <div className="grid grid-cols-3 gap-4 mb-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore sfondo</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="color"
+                                                        className="w-12 h-8 border rounded cursor-pointer"
+                                                        value={comp.dati_config.colore_sfondo || '#ffffff'}
+                                                        onChange={e => updateConfig(i, 'colore_sfondo', e.target.value)}
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        className="flex-1 border p-2 rounded text-sm"
+                                                        value={comp.dati_config.colore_sfondo || '#ffffff'}
+                                                        onChange={e => updateConfig(i, 'colore_sfondo', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore testo</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="color"
+                                                        className="w-12 h-8 border rounded cursor-pointer"
+                                                        value={comp.dati_config.colore_testo || '#1f2937'}
+                                                        onChange={e => updateConfig(i, 'colore_testo', e.target.value)}
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        className="flex-1 border p-2 rounded text-sm"
+                                                        value={comp.dati_config.colore_testo || '#1f2937'}
+                                                        onChange={e => updateConfig(i, 'colore_testo', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore accento</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="color"
+                                                        className="w-12 h-8 border rounded cursor-pointer"
+                                                        value={comp.dati_config.colore_accento || '#3b82f6'}
+                                                        onChange={e => updateConfig(i, 'colore_accento', e.target.value)}
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        className="flex-1 border p-2 rounded text-sm"
+                                                        value={comp.dati_config.colore_accento || '#3b82f6'}
+                                                        onChange={e => updateConfig(i, 'colore_accento', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Raggio bordo (px)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="30"
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.raggio_bordo || 8}
+                                                    onChange={e => updateConfig(i, 'raggio_bordo', parseInt(e.target.value))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Padding card (px)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="50"
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.card_padding || 16}
+                                                    onChange={e => updateConfig(i, 'card_padding', parseInt(e.target.value))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="flex items-center">
+                                                    <input type="checkbox" checked={comp.dati_config.ombra !== false} onChange={e => updateConfig(i, 'ombra', e.target.checked)} className="mr-2" />
+                                                    <span className="text-sm">Ombra card</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Effetti */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Effetti e Animazioni</h4>
+                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Effetto hover</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.effetto_hover || 'scale'}
+                                                    onChange={e => updateConfig(i, 'effetto_hover', e.target.value)}
+                                                >
+                                                    <option value="scale">Ingrandimento</option>
+                                                    <option value="shadow">Ombra intensificata</option>
+                                                    <option value="lift">Elevazione</option>
+                                                    <option value="glow">Bagliore</option>
+                                                    <option value="none">Nessuno</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Animazione caricamento</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.animazione_caricamento || 'fade'}
+                                                    onChange={e => updateConfig(i, 'animazione_caricamento', e.target.value)}
+                                                >
+                                                    <option value="fade">Dissolvenza</option>
+                                                    <option value="slide">Scorrimento</option>
+                                                    <option value="stagger">A scalare</option>
+                                                    <option value="none">Nessuna</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Durata transizione (ms)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="1000"
+                                                step="50"
+                                                className="w-full border p-2 rounded text-sm"
+                                                value={comp.dati_config.durata_transizione || 300}
+                                                onChange={e => updateConfig(i, 'durata_transizione', parseInt(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Badges */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Badges</h4>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.badge_sconto !== false} onChange={e => updateConfig(i, 'badge_sconto', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra badge sconto (-XX%)</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.badge_nuovo || false} onChange={e => updateConfig(i, 'badge_nuovo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra badge "Nuovo"</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.badge_esaurito !== false} onChange={e => updateConfig(i, 'badge_esaurito', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra badge "Esaurito"</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Aspect Ratio */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Immagine Card</h4>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Proporzioni immagine</label>
+                                            <select
+                                                className="w-full border p-2 rounded text-sm"
+                                                value={comp.dati_config.card_aspect_ratio || 'square'}
+                                                onChange={e => updateConfig(i, 'card_aspect_ratio', e.target.value)}
+                                            >
+                                                <option value="square">Quadrata (1:1)</option>
+                                                <option value="portrait">Verticale (4:5)</option>
+                                                <option value="landscape">Orizzontale (16:9)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </>
                             )}

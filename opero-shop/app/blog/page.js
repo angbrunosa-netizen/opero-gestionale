@@ -171,14 +171,7 @@ export default async function BlogListingPage({ searchParams }) {
         '--header-text-color': siteConfig.colors.headerText || '#333333',
     };
 
-    // Debug: verifica i valori dell'header
-    console.log('🎨 DEBUG Header Variables - app/blog/page.js:');
-    console.log('  siteConfig.colors:', siteConfig.colors);
-    console.log('  siteConfig.colors.headerBackground:', siteConfig.colors.headerBackground);
-    console.log('  siteConfig.colors.headerText:', siteConfig.colors.headerText);
-    console.log('  siteConfig.colors.logoPosition:', siteConfig.colors.logoPosition);
-    console.log('  --header-background-color:', themeStyles['--header-background-color']);
-    console.log('  --header-text-color:', themeStyles['--header-text-color']);
+    // Header personalization implemented - debug removed
 
     
     const posts = postsResponse.ok ? (await postsResponse.json()).posts || [] : [];
