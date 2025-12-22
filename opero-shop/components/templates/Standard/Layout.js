@@ -204,7 +204,7 @@ export default function StandardLayout({ children, siteConfig }) {
       const isNested = level > 0;
 
       return (
-        <div className={`relative ${!isNested ? 'group' : ''}`}>
+        <div className={`relative group`}>
           <div className="flex items-center gap-1">
             {/* Link della pagina parent - sempre cliccabile */}
             <Link
@@ -218,8 +218,8 @@ export default function StandardLayout({ children, siteConfig }) {
               {item.label}
             </Link>
 
-            {/* Freccia per dropdown */}
-            <div className={`${!isNested ? 'group' : 'group'} relative`}>
+            {/* Freccia per dropdown - wrapper con group per hover cascade */}
+            <div className="group relative">
               <button
                 className="p-1 text-sm hover:text-[var(--primary-color)] transition-colors"
                 style={{ color: 'inherit' }}
@@ -227,7 +227,7 @@ export default function StandardLayout({ children, siteConfig }) {
               >
                 <svg
                   className={`w-3 h-3 transition-transform ${
-                    !isNested ? 'group-hover:rotate-180' : 'group-hover:rotate-90'
+                    isNested ? 'group-hover:rotate-90' : 'group-hover:rotate-180'
                   }`}
                   fill="none"
                   stroke="currentColor"

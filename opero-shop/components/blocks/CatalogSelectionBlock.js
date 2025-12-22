@@ -339,10 +339,10 @@ const CatalogSelectionBlock = ({
             >
                 {prodottiOrdinati.map((prodotto, index) => (
                     <div
-                        key={prodotto.id}
+                        key={`${prodotto.id}-${index}`}
                         className="product-card cursor-pointer"
                         style={getCardStyle(prodotto.id)}
-                        onMouseEnter={() => setHoveredProduct(prodotto.id)}
+                        onMouseEnter={() => setHoveredProduct(`${prodotto.id}-${index}`)}
                         onMouseLeave={() => setHoveredProduct(null)}
                         onClick={() => setSelectedProduct(prodotto)}
                     >
