@@ -131,7 +131,18 @@ const SiteBuilderModule = () => {
     }
 
     // --- VISTA 2: EDITOR DEL SITO (Configurazione e Pagine) ---
-    const previewUrl = `http://${targetDitta.url_slug || 'test'}.localhost:3000`;
+    // Determina il dominio base in base all'ambiente
+    const isDevelopment = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.port
+    );
+
+    const domain = isDevelopment
+        ? 'localhost:3000'  // Ambiente di sviluppo
+        : 'operocloud.it';  // Ambiente di produzione
+
+    const previewUrl = `http://${targetDitta.url_slug || 'test'}.${domain}`;
 
     return (
         <div className="flex flex-col h-full bg-gray-50">
@@ -161,17 +172,21 @@ const SiteBuilderModule = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {targetDitta.url_slug && (
-                        <a 
-                            href={previewUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition flex items-center gap-2"
-                        >
-                            <GlobeAltIcon className="h-4 w-4" />
-                            Anteprima Live
-                        </a>
-                    )}
+                    <a
+                        href={previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition flex items-center gap-2"
+                        title={targetDitta.url_slug ? "Apri il sito live in una nuova scheda" : "Configura l'URL slug prima di vedere l'anteprima"}
+                    >
+                        <GlobeAltIcon className="h-4 w-4" />
+                        Anteprima Live
+                        {!targetDitta.url_slug && (
+                            <span className="ml-1 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                                URL non configurato
+                            </span>
+                        )}
+                    </a>
                 </div>
             </div>
 
