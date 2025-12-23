@@ -1,6 +1,6 @@
 // #####################################################################
-// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v8.2
-// # Fix: Correzione rotta Admin CMS (admin-cms -> admin/cms)
+// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v9.0
+// # Fix: Avvio su Porta TCP 5000 in Produzione & Aggiunta Shop Public
 // #####################################################################
 require('dotenv').config(); // Carica le variabili d'ambiente dal file .env
 
@@ -43,9 +43,10 @@ const adminS3Routes = require('./routes/admin-s3');
 const websiteRoutes = require('./routes/website');
 const websiteGeneratorRoutes = require('./routes/website-generator');
 const quoteRoutes = require('./routes/quoteRoutes');
-const adminCmsRoutes = require('./routes/admin_cms'); // <-- NUOVA ROTTA ADMIN CMS
-const adminBlogRoutes = require('./routes/admin_blog'); // <-- NUOVA ROTTA ADMIN BLOG
-const adminCmsAdvancedRoutes = require('./routes/admin_cms_advanced'); // <-- ROTTA CMS AVANZATO
+const adminCmsRoutes = require('./routes/admin_cms');
+const adminBlogRoutes = require('./routes/admin_blog');
+const adminCmsAdvancedRoutes = require('./routes/admin_cms_advanced');
+const shopPublicRoutes = require('./routes/shop_public'); // <-- NUOVA ROTTA SHOP PUBBLICO
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
@@ -71,30 +72,20 @@ if (process.env.NODE_ENV === 'production') {
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:3002',
-    'http://192.168.1.80',
-    'http://192.168.1.80:8080',
-    'http://192.168.1.80:3000',
-    'http://192.168.1.80:3001',
-    'http://192.168.1.80:3002'
+    'http://127.0.0.1:5000', // Aggiunto per coerenza
+    'http://localhost:5000'
   ];
   const corsOptions = {
     origin: (origin, callback) => {
       if (!origin) {
         return callback(null, true);
       }
-      if (allowedOrigins.includes(origin)) {
+      // Permetti in dev o se in lista
+      if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
-        if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-          console.warn(`[CORS] Allowing origin ${origin} in development mode`);
-          callback(null, true);
-        } else {
-          console.error(`[CORS] Blocking origin ${origin} - not in allowed list`);
-          callback(new Error('Not allowed by CORS'));
-        }
+        console.error(`[CORS] Blocking origin ${origin} - not in allowed list`);
+        callback(new Error('Not allowed by CORS'));
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -115,6 +106,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/track', trackRoutes);
+app.use('/api/shop/public', shopPublicRoutes); // <-- MONTAGGIO ROTTA SHOP (Pubblica)
 
 // Rotte di test per debug (senza autenticazione)
 app.use('/api/archivio-test', archivioRoutes);
@@ -152,10 +144,9 @@ app.use('/api/ai-collaborative-assistant', verifyToken, require('./routes/ai-col
 app.use('/api/ai-content-generator', require('./routes/ai-content-generator'));
 app.use('/api/ai-website-builder', verifyToken, require('./routes/aiWebsiteBuilder'));
 
-// *** FIX QUI: Modificato da 'admin-cms' a 'admin/cms' per matchare il frontend ***
-app.use('/api/admin/cms', verifyToken, adminCmsAdvancedRoutes); // <-- ROTTA CMS AVANZATO (prima per specificity)
+app.use('/api/admin/cms', verifyToken, adminCmsAdvancedRoutes);
 app.use('/api/admin/cms', verifyToken, adminCmsRoutes);
-app.use('/api/admin/blog', verifyToken, adminBlogRoutes); // <-- NUOVA ROTTA ADMIN BLOG 
+app.use('/api/admin/blog', verifyToken, adminBlogRoutes);
 
 // --- 5. SERVE LOCAL UPLOADS (PDF, Immagini Blog) ---
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -168,9 +159,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// --- 6. AVVIO DEL SERVER ---
-if (process.env.NODE_ENV === 'production') {
-  const socketPath = path.join(__dirname, 'opero.sock');
+// --- 7. AVVIO DEL SERVER (MODIFICATO PER PORTA 5000) ---
+const PORT = process.env.PORT || 5000; // Default a 5000 se non specificato
+
+// Se SOCKET_PATH è definito nel .env ED ESISTE, usalo (retrocompatibilità). 
+// Altrimenti usa PORTA TCP.
+if (process.env.NODE_ENV === 'production' && process.env.SOCKET_PATH && !process.env.SOCKET_PATH.startsWith('#')) {
+  const socketPath = process.env.SOCKET_PATH;
   if (fs.existsSync(socketPath)) {
     fs.unlinkSync(socketPath);
   }
@@ -179,14 +174,11 @@ if (process.env.NODE_ENV === 'production') {
     console.log(`✅ Server Opero in PRODUZIONE avviato e in ascolto sul socket: ${socketPath}`);
   });
 } else {
-  const PORT = process.env.PORT || 3001;
-  if (require.main === module) {
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`💻 Server Opero in SVILUPPO avviato e in ascolto sulla porta: ${PORT}`);
-      console.log(`🔧 Header limit aumentato per risolvere errore 431`);
-    });
-    server.maxHeadersCount = 1000;
-  }
+  // AVVIO STANDARD SU PORTA TCP (Quello che vogliamo!)
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server Opero avviato e in ascolto sulla porta: ${PORT}`);
+    console.log(`🔧 Header limit aumentato per risolvere errore 431`);
+  });
 }
 
 module.exports = app;
