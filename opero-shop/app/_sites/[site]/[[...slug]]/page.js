@@ -18,7 +18,7 @@ const TEMPLATES = {
 
 async function getPageData(siteSlug, slugArray) {
   const pageSlug = slugArray.join('/'); // es. "chi-siamo"
-  const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/page/${pageSlug}`;
+  const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${siteSlug}/page/${pageSlug}`;
   
   try {
     const res = await fetch(apiUrl, { cache: 'no-store' });

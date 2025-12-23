@@ -56,7 +56,7 @@ export default function BlogListBlock({ config }) {
             setError(null);
 
             const site = getCurrentSite();
-            let url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${site}/blog/posts?limit=${limite}`;
+            let url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${site}/blog/posts?limit=${limite}`;
 
             console.log('🔍 BlogListBlock DEBUG - site:', site);
             console.log('🔍 BlogListBlock DEBUG - URL:', url);

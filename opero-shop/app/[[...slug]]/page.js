@@ -58,7 +58,7 @@ async function TenantPage({ site, slug }) {
 
   // Fetch dati dal backend CMS
   async function getPageData(siteSlug, pageSlug) {
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/page/${pageSlug}`;
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${siteSlug}/page/${pageSlug}`;
 
     try {
       const res = await fetch(apiUrl, { cache: 'no-store' });
@@ -82,7 +82,7 @@ async function TenantPage({ site, slug }) {
           Il backend CMS non è raggiungibile o il sito non esiste nel database.
         </p>
         <p style={{ fontSize: '0.8rem', color: '#999' }}>
-          Assicurati che il backend sia attivo su http://localhost:3001
+          Assicurati che il backend sia attivo su http://localhost:5000
         </p>
       </div>
     );

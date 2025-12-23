@@ -28,7 +28,7 @@ async function getSiteSlug() {
 async function getBlogCategories(siteSlug) {
     if (!siteSlug) return { categories: [] };
 
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/blog/categories`;
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${siteSlug}/blog/categories`;
 
     try {
         console.log(`🔍 Fetching blog categories: ${apiUrl}`);
@@ -65,7 +65,7 @@ async function getSiteConfig(siteSlug) {
         };
     }
 
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/config`;
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${siteSlug}/config`;
 
     try {
         console.log(`🔍 Fetching site config: ${apiUrl}`);

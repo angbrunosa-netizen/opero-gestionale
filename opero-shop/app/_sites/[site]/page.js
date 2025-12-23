@@ -20,8 +20,8 @@ const TEMPLATES = {
 
 // Funzione per chiamare l'API del Backend
 async function getPageData(siteSlug) {
-  // Nota: Assicurati che la porta qui sotto (3001) corrisponda al tuo Backend Node.js
-  const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/public/shop/${siteSlug}/page/home`;
+  // Nota: Assicurati che la porta qui sotto (5000) corrisponda al tuo Backend Node.js
+  const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${siteSlug}/page/home`;
   
   try {
     const res = await fetch(apiUrl, { cache: 'no-store' });
