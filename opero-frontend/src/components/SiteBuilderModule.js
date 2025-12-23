@@ -135,11 +135,13 @@ const SiteBuilderModule = () => {
     const isDevelopment = typeof window !== 'undefined' && (
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||
-        window.location.port
+        window.location.hostname.includes('localhost') ||
+        window.location.hostname === '192.168.1.19' || // IP locale rete
+        window.location.port && !window.location.hostname.includes('operocloud.it')
     );
 
     const domain = isDevelopment
-        ? 'localhost:3000'  // Ambiente di sviluppo
+        ? 'localhost:3000'  // Ambiente di sviluppo (opero-shop Next.js)
         : 'operocloud.it';  // Ambiente di produzione
 
     const previewUrl = `http://${targetDitta.url_slug || 'test'}.${domain}`;
