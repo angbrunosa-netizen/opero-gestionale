@@ -1,6 +1,6 @@
 // #####################################################################
-// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v9.0
-// # Fix: Avvio su Porta TCP 5000 in Produzione & Aggiunta Shop Public
+// # Backend Server - VERSIONE UNIVERSALE UNIFICATA v9.1
+// # Fix: RIMOSSA LOGICA SOCKET - Solo Porta TCP 5000 (Stabile)
 // #####################################################################
 require('dotenv').config(); // Carica le variabili d'ambiente dal file .env
 
@@ -46,7 +46,7 @@ const quoteRoutes = require('./routes/quoteRoutes');
 const adminCmsRoutes = require('./routes/admin_cms');
 const adminBlogRoutes = require('./routes/admin_blog');
 const adminCmsAdvancedRoutes = require('./routes/admin_cms_advanced');
-const shopPublicRoutes = require('./routes/shop_public'); // <-- NUOVA ROTTA SHOP PUBBLICO
+//const shopPublicRoutes = require('./routes/shop_public'); // <-- NUOVA ROTTA SHOP PUBBLICO
 
 // --- 2. CREAZIONE E CONFIGURAZIONE DELL'APPLICAZIONE EXPRESS ---
 const app = express();
@@ -106,7 +106,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/track', trackRoutes);
-app.use('/api/shop/public', shopPublicRoutes); // <-- MONTAGGIO ROTTA SHOP (Pubblica)
+//app.use('/api/shop/public', shopPublicRoutes); // <-- MONTAGGIO ROTTA SHOP (Pubblica)
 
 // Rotte di test per debug (senza autenticazione)
 app.use('/api/archivio-test', archivioRoutes);
@@ -159,26 +159,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// --- 7. AVVIO DEL SERVER (MODIFICATO PER PORTA 5000) ---
-const PORT = process.env.PORT || 5000; // Default a 5000 se non specificato
+// --- 7. AVVIO DEL SERVER (SOLO PORTA TCP) ---
+// Modifica v9.1: Rimosso completamente il supporto Socket per forzare l'uso della porta 5000
+const PORT = process.env.PORT || 5000;
 
-// Se SOCKET_PATH è definito nel .env ED ESISTE, usalo (retrocompatibilità). 
-// Altrimenti usa PORTA TCP.
-if (process.env.NODE_ENV === 'production' && process.env.SOCKET_PATH && !process.env.SOCKET_PATH.startsWith('#')) {
-  const socketPath = process.env.SOCKET_PATH;
-  if (fs.existsSync(socketPath)) {
-    fs.unlinkSync(socketPath);
-  }
-  app.listen(socketPath, () => {
-    fs.chmodSync(socketPath, '666');
-    console.log(`✅ Server Opero in PRODUZIONE avviato e in ascolto sul socket: ${socketPath}`);
-  });
-} else {
-  // AVVIO STANDARD SU PORTA TCP (Quello che vogliamo!)
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server Opero avviato e in ascolto sulla porta: ${PORT}`);
-    console.log(`🔧 Header limit aumentato per risolvere errore 431`);
-  });
-}
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server Opero avviato e in ascolto sulla porta: ${PORT}`);
+  console.log(`🔧 Header limit aumentato per risolvere errore 431`);
+});
 
 module.exports = app;
