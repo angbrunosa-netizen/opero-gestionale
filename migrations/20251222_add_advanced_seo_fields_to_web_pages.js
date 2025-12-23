@@ -94,12 +94,16 @@ exports.up = async function(knex) {
     });
 
     // Aggiungo indici per performance
-    const hasIndexParent = await knex.schema.hasColumn('web_pages', 'id_page_parent');
-    if (hasIndexParent) {
-        await knex.raw(`
-            CREATE INDEX IF NOT EXISTS idx_web_pages_parent_order
-            ON web_pages (id_page_parent, ordine_menu)
-        `);
+    // MODIFICA: Utilizziamo try/catch e sintassi nativa Knex invece di raw SQL
+    // per evitare errori su versioni MySQL che non supportano "CREATE INDEX IF NOT EXISTS"
+    try {
+        await knex.schema.table('web_pages', function(table) {
+             table.index(['id_page_parent', 'ordine_menu'], 'idx_web_pages_parent_order');
+        });
+        console.log('✅ Indice idx_web_pages_parent_order creato.');
+    } catch (error) {
+        // Ignoriamo l'errore se l'indice esiste già (codice errore comune per duplicate key/index)
+        console.log('⚡ Nota: L\'indice esiste già o non può essere creato (skipping).');
     }
 
     console.log('✅ Campi SEO avanzati aggiunti con successo!');
