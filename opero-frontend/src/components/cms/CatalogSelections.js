@@ -18,8 +18,7 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     MagnifyingGlassIcon,
-    FunnelIcon,
-    ChevronLeftIcon
+    FunnelIcon
 } from '@heroicons/react/24/outline';
 
 const CatalogSelections = ({ dittaId }) => {
@@ -52,6 +51,14 @@ const CatalogSelections = ({ dittaId }) => {
         sconto_percentuale: 0
     });
 
+    // Stato per Modale di Conferma personalizzata (sostituisce confirm nativo)
+    const [confirmDialog, setConfirmDialog] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null
+    });
+
     // Ricerca prodotti da aggiungere
     const [showAddProducts, setShowAddProducts] = useState(false);
     const [availableProducts, setAvailableProducts] = useState([]);
@@ -73,6 +80,21 @@ const CatalogSelections = ({ dittaId }) => {
         page: 1,
         totalPages: 0
     });
+
+    // Helper per mostrare la conferma
+    const showConfirm = (title, message, onConfirm) => {
+        setConfirmDialog({
+            isOpen: true,
+            title,
+            message,
+            onConfirm
+        });
+    };
+
+    // Helper per chiudere la conferma
+    const closeConfirm = () => {
+        setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null });
+    };
 
     // Carica categorie
     const loadCategories = async () => {
@@ -142,7 +164,6 @@ const CatalogSelections = ({ dittaId }) => {
 
             const res = await api.get(`/admin/cms/${dittaId}/catalog/products`, { params });
             if (res.data.success) {
-                // Mostra TUTTI i prodotti trovati (senza filtrare quelli già presenti)
                 setAvailableProducts(res.data.data);
                 setSearchPagination(res.data.meta);
             }
@@ -161,7 +182,6 @@ const CatalogSelections = ({ dittaId }) => {
         let errors = 0;
 
         try {
-            // Filtra prodotti già presenti
             const existingIds = articoliSelezione.map(a => a.id);
             const productsToAdd = selectedProductsToAdd.filter(id => !existingIds.includes(id));
 
@@ -173,24 +193,19 @@ const CatalogSelections = ({ dittaId }) => {
 
             skipped = selectedProductsToAdd.length - productsToAdd.length;
 
-            // Aggiungi ogni prodotto
             for (const productId of productsToAdd) {
                 try {
-                    console.log(`Aggiunta prodotto ${productId} alla selezione ${selectedSelezione.id}...`);
                     const response = await api.post(`/admin/cms/${dittaId}/catalog/selezioni/${selectedSelezione.id}/articoli`, {
                         id_articolo: productId,
                         in_evidenza: false
                     });
-                    console.log(`Risposta aggiunta prodotto ${productId}:`, response.data);
                     added++;
                 } catch (err) {
                     console.error(`Errore aggiunta prodotto ${productId}:`, err);
-                    console.error(`Dettagli errore:`, err.response?.data || err.message);
                     errors++;
                 }
             }
 
-            // Reset stato
             setSelectedProductsToAdd([]);
             setSelectAll(false);
             setShowAddProducts(false);
@@ -204,10 +219,8 @@ const CatalogSelections = ({ dittaId }) => {
             });
             setAvailableProducts([]);
 
-            // Ricarica articoli
             await loadArticoliSelezione(selectedSelezione.id);
 
-            // Feedback dettagliato
             let message = `${added} prodotti aggiunti con successo!`;
             if (skipped > 0) message += `\n${skipped} prodotti erano già presenti e sono stati saltati.`;
             if (errors > 0) message += `\n${errors} prodotti hanno dato errore.`;
@@ -275,35 +288,47 @@ const CatalogSelections = ({ dittaId }) => {
         }
     };
 
-    // Elimina selezione
-    const deleteSelezione = async (selezioneId) => {
-        if (!confirm('Sei sicuro di voler eliminare questa selezione?')) return;
-
-        try {
-            await api.delete(`/admin/cms/${dittaId}/catalog/selezioni/${selezioneId}`);
-            if (selectedSelezione?.id === selezioneId) {
-                setSelectedSelezione(null);
-                setArticoliSelezione([]);
+    // Elimina selezione (con modale custom)
+    const deleteSelezione = (selezioneId) => {
+        showConfirm(
+            'Elimina Selezione',
+            'Sei sicuro di voler eliminare questa selezione?',
+            async () => {
+                try {
+                    await api.delete(`/admin/cms/${dittaId}/catalog/selezioni/${selezioneId}`);
+                    if (selectedSelezione?.id === selezioneId) {
+                        setSelectedSelezione(null);
+                        setArticoliSelezione([]);
+                    }
+                    loadSelezioni();
+                    alert('Selezione eliminata con successo!');
+                    closeConfirm();
+                } catch (error) {
+                    console.error('Errore eliminazione selezione:', error);
+                    alert('Errore nell\'eliminazione della selezione');
+                    closeConfirm();
+                }
             }
-            loadSelezioni();
-            alert('Selezione eliminata con successo!');
-        } catch (error) {
-            console.error('Errore eliminazione selezione:', error);
-            alert('Errore nell\'eliminazione della selezione');
-        }
+        );
     };
 
-    // Rimuovi prodotto dalla selezione
-    const removeProductFromSelection = async (articoloId) => {
-        if (!confirm('Rimuovere questo prodotto dalla selezione?')) return;
-
-        try {
-            await api.delete(`/admin/cms/${dittaId}/catalog/selezioni/${selectedSelezione.id}/articoli/${articoloId}`);
-            loadArticoliSelezione(selectedSelezione.id);
-        } catch (error) {
-            console.error('Errore rimozione prodotto:', error);
-            alert('Errore nella rimozione del prodotto');
-        }
+    // Rimuovi prodotto dalla selezione (con modale custom)
+    const removeProductFromSelection = (articoloId) => {
+        showConfirm(
+            'Rimuovi Prodotto',
+            'Rimuovere questo prodotto dalla selezione?',
+            async () => {
+                try {
+                    await api.delete(`/admin/cms/${dittaId}/catalog/selezioni/${selectedSelezione.id}/articoli/${articoloId}`);
+                    loadArticoliSelezione(selectedSelezione.id);
+                    closeConfirm();
+                } catch (error) {
+                    console.error('Errore rimozione prodotto:', error);
+                    alert('Errore nella rimozione del prodotto');
+                    closeConfirm();
+                }
+            }
+        );
     };
 
     // Toggle evidenza prodotto
@@ -373,7 +398,6 @@ const CatalogSelections = ({ dittaId }) => {
     const openAddProducts = () => {
         setShowAddProducts(true);
         loadCategories();
-        // Reset filtri e mostra tutti i prodotti
         setSearchFilters({
             search_term: '',
             categoria_id: '',
@@ -394,14 +418,12 @@ const CatalogSelections = ({ dittaId }) => {
         }
     }, [dittaId]);
 
-    // Quando cambiano i filtri di ricerca o la pagina, esegui la ricerca
     useEffect(() => {
         if (showAddProducts) {
             searchAvailableProducts();
         }
     }, [searchFilters.page, searchFilters.sort_by, searchFilters.sort_order]);
 
-    // Debounce per la ricerca testuale
     useEffect(() => {
         if (showAddProducts) {
             const timeoutId = setTimeout(() => {
@@ -587,6 +609,38 @@ const CatalogSelections = ({ dittaId }) => {
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {saving ? 'Salvataggio...' : modalMode === 'create' ? 'Crea' : 'Salva'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal di Conferma Personalizzata */}
+            {confirmDialog.isOpen && (
+                <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+                        <div className="p-6 border-b">
+                            <h3 className="text-lg font-semibold text-gray-900">{confirmDialog.title}</h3>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-gray-700">{confirmDialog.message}</p>
+                        </div>
+                        <div className="p-6 border-t flex justify-end gap-3">
+                            <button
+                                onClick={closeConfirm}
+                                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+                            >
+                                Annulla
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (confirmDialog.onConfirm) {
+                                        confirmDialog.onConfirm();
+                                    }
+                                }}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                            >
+                                Conferma
                             </button>
                         </div>
                     </div>
@@ -889,14 +943,14 @@ const CatalogSelections = ({ dittaId }) => {
                                                                                         <CheckCircleIcon className="h-3 w-3" />
                                                                                         Disponibile
                                                                                     </span>
-                                                                            ) : (
-                                                                                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-                                                                                    <XCircleIcon className="h-3 w-3" />
-                                                                                    Esaurito
-                                                                                </span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
+                                                                                ) : (
+                                                                                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                                                                                        <XCircleIcon className="h-3 w-3" />
+                                                                                        Esaurito
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
                                                                     );
                                                                 })}
                                                             </tbody>
@@ -908,17 +962,17 @@ const CatalogSelections = ({ dittaId }) => {
                                                         <div className="flex justify-center gap-2">
                                                             <button
                                                                 onClick={() => setSearchFilters({ ...searchFilters, page: searchFilters.page - 1 })}
-                                                                disabled={searchFilters.page === 1}
+                                                                disabled={searchPagination.page === 1}
                                                                 className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
                                                             >
                                                                 Precedente
                                                             </button>
                                                             <span className="px-3 py-1 text-sm text-gray-600">
-                                                                Pagina {searchFilters.page} di {searchPagination.totalPages}
+                                                                Pagina {searchPagination.page} di {searchPagination.totalPages}
                                                             </span>
                                                             <button
                                                                 onClick={() => setSearchFilters({ ...searchFilters, page: searchFilters.page + 1 })}
-                                                                disabled={searchFilters.page === searchPagination.totalPages}
+                                                                disabled={searchPagination.page === searchPagination.totalPages}
                                                                 className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
                                                             >
                                                                 Successiva
