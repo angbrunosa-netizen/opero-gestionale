@@ -11,6 +11,8 @@ const express = require('express');
 const { dbPool } = require('../config/db');
 const { verifyToken, checkPermission } = require('../utils/auth');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 
 
 // Middleware di base: verifica auth per tutte le rotte
@@ -290,8 +292,6 @@ router.get('/media/:idDitta', async (req, res) => {
 // Questo endpoint serve per caricare un'immagine direttamente dal CMS
 // e salvarla in dm_files come se fosse un allegato generico del sito.
 const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
 
 // Assicurati che la cartella temp esista
 const tempDir = path.join(__dirname, '../uploads/temp');
@@ -303,25 +303,40 @@ const upload = multer({ dest: tempDir }); // Cartella temp
 
 router.post('/media/upload/:idDitta', upload.single('file'), async (req, res) => {
     const { idDitta } = req.params;
-    const { s3Upload } = require('../utils/s3Client'); // Assicurati che il percorso sia corretto
+    const { s3Upload } = require('../utils/s3Client');
+
+    console.log('[UPLOAD] Ricevuta richiesta upload per ditta:', idDitta);
+    console.log('[UPLOAD] File:', req.file);
+    console.log('[UPLOAD] User:', req.user);
 
     try {
-        if (!req.file) throw new Error("Nessun file caricato");
+        if (!req.file) {
+            console.error('[UPLOAD] Nessun file ricevuto');
+            throw new Error("Nessun file caricato");
+        }
+
+        if (!req.user || !req.user.id) {
+            console.error('[UPLOAD] Utente non autenticato');
+            throw new Error("Utente non autenticato");
+        }
 
         // 1. Upload su S3
         // Usiamo una struttura chiave dedicata al sito: ditta-{id}/website/{filename}
         const s3Key = `ditta-${idDitta}/website/${Date.now()}-${req.file.originalname}`;
-        
+        console.log('[UPLOAD] S3 Key:', s3Key);
+
         const fileStream = fs.createReadStream(req.file.path);
         await s3Upload(s3Key, fileStream, req.file.mimetype);
+        console.log('[UPLOAD] Upload S3 completato');
 
         // 2. Salva record in dm_files
         const [result] = await dbPool.query(
-            `INSERT INTO dm_files 
-            (id_ditta, id_utente_upload, file_name_originale, file_size_bytes, mime_type, privacy, s3_key) 
+            `INSERT INTO dm_files
+            (id_ditta, id_utente_upload, file_name_originale, file_size_bytes, mime_type, privacy, s3_key)
             VALUES (?, ?, ?, ?, ?, 'public', ?)`,
             [idDitta, req.user.id, req.file.originalname, req.file.size, req.file.mimetype, s3Key]
         );
+        console.log('[UPLOAD] Record salvato nel DB, ID:', result.insertId);
 
         // 3. (Opzionale) Collega a dm_allegati_link con entita 'website'
         await dbPool.query(
@@ -332,14 +347,16 @@ router.post('/media/upload/:idDitta', upload.single('file'), async (req, res) =>
         // Pulizia
         fs.unlink(req.file.path, () => {});
 
-        res.json({
+        const response = {
             success: true,
             url: `https://cdn.operocloud.it/operogo/${s3Key}`,
             id: result.insertId
-        });
+        };
+        console.log('[UPLOAD] Invio risposta:', response);
+        res.json(response);
 
     } catch (e) {
-        console.error("Errore upload media:", e);
+        console.error("[UPLOAD] Errore upload media:", e);
         if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         res.status(500).json({ error: e.message });
     }
