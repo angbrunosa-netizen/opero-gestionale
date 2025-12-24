@@ -18,6 +18,7 @@ const {
   DeleteObjectCommand
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+const fs = require('fs');
 
 // 1. Legge le variabili d'ambiente
 const S3_ENDPOINT = process.env.S3_ENDPOINT;
@@ -48,7 +49,26 @@ const s3Client = new S3Client({
   forcePathStyle: true, // FONDAMENTALE per la compatibilità
 });
 
-// 4. Esporta tutto il necessario
+// 4. Funzione helper per l'upload su S3
+/**
+ * Carica un file su S3
+ * @param {string} key - La chiave S3 (percorso del file)
+ * @param {Buffer|Stream} body - Il contenuto del file (Buffer o Stream)
+ * @param {string} contentType - Il MIME type del file
+ * @returns {Promise} - Restituisce il risultato dell'upload
+ */
+const s3Upload = async (key, body, contentType) => {
+  const command = new PutObjectCommand({
+    Bucket: S3_BUCKET_NAME,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+
+  return await s3Client.send(command);
+};
+
+// 5. Esporta tutto il necessario
 module.exports = {
   s3Client,
   S3_ENDPOINT, // <-- (NUOVO EXPORT v1.1)
@@ -56,6 +76,7 @@ module.exports = {
   GetObjectCommand,
   DeleteObjectCommand,
   getSignedUrl,
-  
+  s3Upload, // <-- (NUOVO EXPORT per l'upload)
+
   S3_BUCKET_NAME // Esportiamo anche il nome del bucket per comodità
 };

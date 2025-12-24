@@ -290,12 +290,20 @@ router.get('/media/:idDitta', async (req, res) => {
 // Questo endpoint serve per caricare un'immagine direttamente dal CMS
 // e salvarla in dm_files come se fosse un allegato generico del sito.
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/temp/' }); // Cartella temp
+const fs = require('fs');
+const path = require('path');
+
+// Assicurati che la cartella temp esista
+const tempDir = path.join(__dirname, '../uploads/temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
+
+const upload = multer({ dest: tempDir }); // Cartella temp
 
 router.post('/media/upload/:idDitta', upload.single('file'), async (req, res) => {
     const { idDitta } = req.params;
     const { s3Upload } = require('../utils/s3Client'); // Assicurati che il percorso sia corretto
-    const fs = require('fs');
 
     try {
         if (!req.file) throw new Error("Nessun file caricato");
