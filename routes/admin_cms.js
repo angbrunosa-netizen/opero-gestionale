@@ -325,8 +325,9 @@ router.post('/media/upload/:idDitta', upload.single('file'), async (req, res) =>
         const s3Key = `ditta-${idDitta}/website/${Date.now()}-${req.file.originalname}`;
         console.log('[UPLOAD] S3 Key:', s3Key);
 
-        const fileStream = fs.createReadStream(req.file.path);
-        await s3Upload(s3Key, fileStream, req.file.mimetype);
+        // Leggi il file come Buffer (non usare stream per evitare problemi SHA256)
+        const fileContent = fs.readFileSync(req.file.path);
+        await s3Upload(s3Key, fileContent, req.file.mimetype);
         console.log('[UPLOAD] Upload S3 completato');
 
         // 2. Salva record in dm_files
