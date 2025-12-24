@@ -13,6 +13,8 @@ const nextConfig = {
   env: {
     API_URL: process.env.API_URL || 'http://localhost:5000',
   },
+  // Risolve il warning del workspace root
+  outputFileTracingRoot: process.cwd(),
 };
 
 export default nextConfig;

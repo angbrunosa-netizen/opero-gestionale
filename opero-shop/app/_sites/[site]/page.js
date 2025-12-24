@@ -20,8 +20,10 @@ const TEMPLATES = {
 
 // Funzione per chiamare l'API del Backend
 async function getPageData(siteSlug) {
-  // Usa URL relativo per sfruttare il proxy Next.js (funziona sia in dev che in prod)
-  const apiUrl = `/api/public/shop/${siteSlug}/page/home`;
+  // Usa URL assoluto con la variabile d'ambiente API_URL (configurata in next.config.mjs)
+  // Lato server usa API_URL, lato client userebbe NEXT_PUBLIC_API_URL
+  const baseUrl = process.env.API_URL || 'http://localhost:5000';
+  const apiUrl = `${baseUrl}/api/public/shop/${siteSlug}/page/home`;
 
   try {
     const res = await fetch(apiUrl, { cache: 'no-store' });

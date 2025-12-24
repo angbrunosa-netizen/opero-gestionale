@@ -18,8 +18,9 @@ const TEMPLATES = {
 
 async function getPageData(siteSlug, slugArray) {
   const pageSlug = slugArray.join('/'); // es. "chi-siamo"
-  // Usa URL relativo per sfruttare il proxy Next.js
-  const apiUrl = `/api/public/shop/${siteSlug}/page/${pageSlug}`;
+  // Usa URL assoluto con la variabile d'ambiente API_URL
+  const baseUrl = process.env.API_URL || 'http://localhost:5000';
+  const apiUrl = `${baseUrl}/api/public/shop/${siteSlug}/page/${pageSlug}`;
 
   try {
     const res = await fetch(apiUrl, { cache: 'no-store' });

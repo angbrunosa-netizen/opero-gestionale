@@ -28,8 +28,9 @@ async function getSiteSlug() {
 async function getBlogCategories(siteSlug) {
     if (!siteSlug) return { categories: [] };
 
-    // Usa URL relativo per sfruttare il proxy Next.js
-    const apiUrl = `/api/public/shop/${siteSlug}/blog/categories`;
+    // Usa URL assoluto con la variabile d'ambiente API_URL
+    const baseUrl = process.env.API_URL || 'http://localhost:5000';
+    const apiUrl = `${baseUrl}/api/public/shop/${siteSlug}/blog/categories`;
 
     try {
         console.log(`🔍 Fetching blog categories: ${apiUrl}`);
@@ -66,8 +67,9 @@ async function getSiteConfig(siteSlug) {
         };
     }
 
-    // Usa URL relativo per sfruttare il proxy Next.js
-    const apiUrl = `/api/public/shop/${siteSlug}/config`;
+    // Usa URL assoluto con la variabile d'ambiente API_URL
+    const baseUrl = process.env.API_URL || 'http://localhost:5000';
+    const apiUrl = `${baseUrl}/api/public/shop/${siteSlug}/config`;
 
     try {
         console.log(`🔍 Fetching site config: ${apiUrl}`);
@@ -154,7 +156,7 @@ export default async function BlogListingPage({ searchParams }) {
     // Fetch dei dati del sito e dei post del blog
     const [siteConfigData, postsResponse] = await Promise.all([
         getSiteConfig(siteSlug),
-        fetch(`/api/public/shop/${siteSlug}/blog/posts?published=true`, {
+        fetch(`${process.env.API_URL || 'http://localhost:5000'}/api/public/shop/${siteSlug}/blog/posts?published=true`, {
             cache: 'no-store',
         })
     ]);

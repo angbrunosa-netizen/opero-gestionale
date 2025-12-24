@@ -13,7 +13,8 @@ export default async function BlogPostPage({ params, searchParams }) {
     const { site, slug } = await params;
 
     // 1. Fetch dati del sito e dell'articolo
-    const response = await fetch(`/api/public/shop/${site}/blog/post/${slug}`, {
+    const baseUrl = process.env.API_URL || 'http://localhost:5000';
+    const response = await fetch(`${baseUrl}/api/public/shop/${site}/blog/post/${slug}`, {
       cache: 'no-store', // Disable caching for fresh data
     });
 

@@ -66,11 +66,12 @@ export default async function BlogPostPage({ params }) {
     }
 
     // Fetch dei dati del sito e del post
+    const baseUrl = process.env.API_URL || 'http://localhost:5000';
     const [siteConfigResponse, response] = await Promise.all([
-        fetch(`/api/public/shop/${siteSlug}/config`, {
+        fetch(`${baseUrl}/api/public/shop/${siteSlug}/config`, {
             cache: 'no-store',
         }),
-        fetch(`/api/public/shop/${siteSlug}/blog/post/${postSlug}`, {
+        fetch(`${baseUrl}/api/public/shop/${siteSlug}/blog/post/${postSlug}`, {
             cache: 'no-store',
         })
     ]);
