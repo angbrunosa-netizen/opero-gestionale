@@ -37,12 +37,29 @@ router.get('/ditte', [verifyToken, isSystemAdmin], async (req, res) => {
 
 router.post('/ditte', [verifyToken, isSystemAdmin], async (req, res) => {
     const { id, ...dittaData } = req.body;
+
+    // Campi permessi per insert/update
+    const allowedFields = [
+        'ragione_sociale', 'p_iva', 'codice_fiscale', 'indirizzo', 'cap', 'citta', 'provincia',
+        'tel1', 'tel2', 'mail_1', 'mail_2', 'pec', 'sdi', 'logo_url',
+        'id_tipo_ditta', 'stato', 'max_utenti_interni', 'max_utenti_esterni',
+        'max_storage_mb', 'current_storage_bytes', 'email_amministratore'
+    ];
+
+    // Filtra solo i campi permessi
+    const sanitizedData = Object.keys(dittaData)
+        .filter(key => allowedFields.includes(key))
+        .reduce((obj, key) => {
+            obj[key] = dittaData[key];
+            return obj;
+        }, {});
+
     try {
         if (id) {
-            await knex('ditte').where({ id }).update(dittaData);
+            await knex('ditte').where({ id }).update(sanitizedData);
             res.json({ success: true, message: 'Ditta aggiornata con successo.', id_ditta: id });
         } else {
-            const [newId] = await knex('ditte').insert(dittaData);
+            const [newId] = await knex('ditte').insert(sanitizedData);
             res.status(201).json({ success: true, message: 'Ditta creata con successo.', id_ditta: newId });
         }
     } catch (error) {
@@ -65,8 +82,12 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
         provincia,
         cap,
         tel1,
+        tel2,
         mail_1, // ++ CAMBIATO DA 'email_gen' ++
+        mail_2, // ++ NUOVO ++
         pec,
+        sdi,    // ++ NUOVO ++
+        logo_url, // ++ NUOVO ++
         id_tipo_ditta,
         stato,
         max_utenti_interni,
@@ -85,9 +106,13 @@ router.patch('/ditte/:id', [verifyToken, isSystemAdmin], async (req, res) => {
     if (provincia !== undefined) dittaData.provincia = provincia;
     if (cap !== undefined) dittaData.cap = cap;
     if (tel1 !== undefined) dittaData.tel1 = tel1;
+    if (tel2 !== undefined) dittaData.tel2 = tel2;
     // ++ MODIFICA 2: Mappa 'mail_1' sul campo corretto del DB (probabilmente 'mail_1') ++
     if (mail_1 !== undefined) dittaData.mail_1 = mail_1; // Assicurati che la colonna nel DB sia 'mail_1'
+    if (mail_2 !== undefined) dittaData.mail_2 = mail_2; // ++ NUOVO ++
     if (pec !== undefined) dittaData.pec = pec;
+    if (sdi !== undefined) dittaData.sdi = sdi; // ++ NUOVO ++
+    if (logo_url !== undefined) dittaData.logo_url = logo_url; // ++ NUOVO ++
     if (id_tipo_ditta !== undefined) dittaData.id_tipo_ditta = id_tipo_ditta;
     if (stato !== undefined) dittaData.stato = stato;
     if (max_utenti_interni !== undefined) dittaData.max_utenti_interni = max_utenti_interni;

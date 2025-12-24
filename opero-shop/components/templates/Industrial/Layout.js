@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 
 export default function IndustrialLayout({ children, siteConfig }) {
-  const { name, logo, navigation } = siteConfig || {};
+  const { name, logo, navigation, contact, description } = siteConfig || {};
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Definisci le variabili CSS globali per i Client Components
@@ -173,7 +173,7 @@ export default function IndustrialLayout({ children, siteConfig }) {
         {children}
       </main>
 
-      {/* FOOTER INDUSTRIAL */}
+      {/* FOOTER INDUSTRIAL - Dinamico con dati dalla tabella ditte */}
       <footer className="text-slate-400 pt-12 pb-6 border-t-8" style={{
           backgroundColor: 'var(--secondary-color)',
           borderColor: 'var(--primary-color)'
@@ -181,8 +181,20 @@ export default function IndustrialLayout({ children, siteConfig }) {
         <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
             <div>
                 <h4 className="text-white font-bold uppercase mb-4">Azienda</h4>
-                <p>{name} - Soluzioni industriali.</p>
-                <p className="mt-2">P.IVA: 00000000000</p>
+                <p>{name}</p>
+                {description && (
+                    <p className="mt-2 text-xs text-slate-500">{description}</p>
+                )}
+
+                {/* Indirizzo dinamico */}
+                {contact?.indirizzo && (
+                    <p className="mt-2">
+                        📍 {contact.indirizzo}
+                        {contact.cap && `, ${contact.cap}`}
+                        {contact.citta && ` ${contact.citta}`}
+                        {contact.provincia && ` (${contact.provincia})`}
+                    </p>
+                )}
             </div>
             <div>
                 <h4 className="text-white font-bold uppercase mb-4">Navigazione</h4>
@@ -194,7 +206,29 @@ export default function IndustrialLayout({ children, siteConfig }) {
             </div>
             <div>
                  <h4 className="text-white font-bold uppercase mb-4">Contatti</h4>
-                 <p className="font-mono bg-slate-800 p-2 inline-block rounded">support@{name.toLowerCase().replace(/\s/g, '')}.com</p>
+                 <div className="space-y-2">
+                    {contact?.mail1 && (
+                        <p className="font-mono bg-slate-800 p-2 inline-block rounded">
+                            <a href={`mailto:${contact.mail1}`} className="hover:text-[var(--primary-color)]">
+                                ✉️ {contact.mail1}
+                            </a>
+                        </p>
+                    )}
+                    {contact?.tel1 && (
+                        <p className="font-mono bg-slate-800 p-2 inline-block rounded">
+                            <a href={`tel:${contact.tel1}`} className="hover:text-[var(--primary-color)]">
+                                📞 {contact.tel1}
+                            </a>
+                        </p>
+                    )}
+                    {contact?.pec && (
+                        <p className="font-mono bg-slate-800 p-2 inline-block rounded text-xs">
+                            <a href={`mailto:${contact.pec}`} className="hover:text-[var(--primary-color)]">
+                                📧 PEC: {contact.pec}
+                            </a>
+                        </p>
+                    )}
+                 </div>
             </div>
         </div>
       </footer>

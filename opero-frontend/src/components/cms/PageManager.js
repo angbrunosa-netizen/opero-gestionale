@@ -59,6 +59,9 @@ const PageManager = ({ dittaId }) => {
             immagineOpacita: 40,
             overlayColore: '#000000',
             overlayOpacita: 20,
+            // Altezza blocco
+            altezza: 'md',
+            altezzaCustom: null,
             // Sfondo sezione
             backgroundColor: '#f3f4f6'
         } },
@@ -122,7 +125,49 @@ const PageManager = ({ dittaId }) => {
             mostRecentOnly: false,
             categoriaSlug: ''
         } },
-        { type: 'MEDIA_SOCIAL', label: 'Galleria & Social', icon: '📸', defaultData: { titolo: 'Seguici', layout: 'grid', facebook: '', instagram: '', images: [] } }
+        { type: 'MEDIA_SOCIAL', label: 'Galleria & Social', icon: '📸', defaultData: { titolo: 'Seguici', layout: 'grid', facebook: '', instagram: '', images: [] } },
+        { type: 'FLIP_CARD_GALLERY', label: 'Galleria Flip Card', icon: '🎴', defaultData: {
+            titolo: 'La Nostra Galleria',
+            sottotitolo: 'Scopri i nostri servizi',
+            cards: [],
+            layout: 'grid',
+            colonne: 3,
+            coloreSfondo: '#ffffff',
+            coloreTesto: '#1f2937',
+            coloreTitolo: '#111827',
+            coloreCardSfondo: '#ffffff',
+            coloreCardTesto: '#6b7280',
+            raggioBordo: 12,
+            ombra: true,
+            effettoFlip: 'rotate',
+            durataTransizione: 600,
+            altezzaCard: 'md',
+            mostraTitolo: true,
+            mostraSottotitolo: true
+        } },
+        { type: 'DYNAMIC_IMAGE_GALLERY', label: 'Galleria Immagini Dinamica', icon: '🎨', defaultData: {
+            titolo: 'La Nostra Galleria',
+            sottotitolo: 'Scopri le nostre immagini',
+            immagini: [],
+            layout: 'carousel',
+            effettoTransizione: 'slide',
+            direzione: 'horizontal',
+            autoplay: true,
+            intervallo: 5000,
+            mostraNavigatorio: true,
+            mostraIndicatori: true,
+            infiniteLoop: true,
+            colonne: 3,
+            coloreSfondo: '#ffffff',
+            coloreTesto: '#1f2937',
+            coloreTitolo: '#111827',
+            raggioBordo: 12,
+            ombra: true,
+            altezza: 'md',
+            mostraTitolo: true,
+            mostraSottotitolo: true,
+            zoomOnHover: true
+        } }
     ];
 
     useEffect(() => { loadPages(); loadSelezioni(); }, [dittaId]);
@@ -191,6 +236,24 @@ const PageManager = ({ dittaId }) => {
             const imgArray = Array.isArray(currentImages) ? currentImages : [];
             imgArray.push({ src: url, caption: '' });
             newComps[compIndex].dati_config[fieldKey] = imgArray;
+            setComponents(newComps);
+        } else if (fieldKey.startsWith('cards_')) {
+            // Gestione immagini card FlipCardGallery (formato: cards_${cardIdx}_immagine)
+            const parts = fieldKey.split('_');
+            const cardIdx = parseInt(parts[1]);
+            const newComps = [...components];
+            if (!newComps[compIndex].dati_config.cards) newComps[compIndex].dati_config.cards = [];
+            if (!newComps[compIndex].dati_config.cards[cardIdx]) newComps[compIndex].dati_config.cards[cardIdx] = {};
+            newComps[compIndex].dati_config.cards[cardIdx].immagine = url;
+            setComponents(newComps);
+        } else if (fieldKey.startsWith('immagini_')) {
+            // Gestione immagini DynamicImageGallery (formato: immagini_${imgIdx}_src)
+            const parts = fieldKey.split('_');
+            const imgIdx = parseInt(parts[1]);
+            const newComps = [...components];
+            if (!newComps[compIndex].dati_config.immagini) newComps[compIndex].dati_config.immagini = [];
+            if (!newComps[compIndex].dati_config.immagini[imgIdx]) newComps[compIndex].dati_config.immagini[imgIdx] = {};
+            newComps[compIndex].dati_config.immagini[imgIdx].src = url;
             setComponents(newComps);
         } else {
             // Sostituisci campo singolo (es. Hero background)
@@ -518,6 +581,15 @@ const PageManager = ({ dittaId }) => {
                                                     <PhotoIcon className="h-4 w-4"/> Seleziona
                                                 </button>
                                             </div>
+                                            {/* Info dimensioni consigliate */}
+                                            <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                                <p className="text-xs text-blue-800">
+                                                    <span className="font-bold">💡 Dimensioni consigliate:</span> 1920×800px (rapporto 16:7)
+                                                </p>
+                                                <p className="text-xs text-blue-600 mt-1">
+                                                    L'immagine verrà adattata automaticamente mantenendo le proporzioni. Usa immagini orizzontali per il risultato migliore.
+                                                </p>
+                                            </div>
                                             {comp.dati_config.immagine_url && <img src={comp.dati_config.immagine_url} alt="Preview" className="h-20 mt-2 rounded border object-cover" />}
                                         </div>
 
@@ -589,6 +661,44 @@ const PageManager = ({ dittaId }) => {
                                                     onChange={e => updateConfig(i, 'backgroundColor', e.target.value)}
                                                 />
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Altezza Blocco */}
+                                    <div className="mb-4 p-4 bg-orange-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Altezza Blocco</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Altezza Predefinita</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.altezza || 'md'}
+                                                    onChange={e => updateConfig(i, 'altezza', e.target.value)}
+                                                >
+                                                    <option value="xs">Piccola (300px)</option>
+                                                    <option value="sm">Media-Piccola (400px)</option>
+                                                    <option value="md">Media (500px)</option>
+                                                    <option value="lg">Grande (600px)</option>
+                                                    <option value="xl">Molto Grande (700px)</option>
+                                                    <option value="2xl">Enorme (800px)</option>
+                                                    <option value="custom">Personalizzata</option>
+                                                </select>
+                                            </div>
+                                            {comp.dati_config.altezza === 'custom' && (
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Altezza Personalizzata (px)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={comp.dati_config.altezzaCustom || 500}
+                                                        onChange={e => updateConfig(i, 'altezzaCustom', parseInt(e.target.value) || 500)}
+                                                        min="200"
+                                                        max="1200"
+                                                        placeholder="500"
+                                                    />
+                                                    <p className="text-xs text-gray-500 mt-1">Min: 200px, Max: 1200px</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </>
@@ -1150,6 +1260,518 @@ const PageManager = ({ dittaId }) => {
                                                 <option value="portrait">Verticale (4:5)</option>
                                                 <option value="landscape">Orizzontale (16:9)</option>
                                             </select>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* --- FLIP_CARD_GALLERY --- */}
+                            {comp.tipo_componente === 'FLIP_CARD_GALLERY' && (
+                                <>
+                                    {/* Titolo Sezione */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Titolo Sezione</h4>
+                                        <div className="mb-3">
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Titolo</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.titolo || ''} onChange={e => updateConfig(i, 'titolo', e.target.value)} placeholder="La Nostra Galleria" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Sottotitolo</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.sottotitolo || ''} onChange={e => updateConfig(i, 'sottotitolo', e.target.value)} placeholder="Scopri i nostri servizi" />
+                                        </div>
+                                        <div className="mt-3 flex gap-4">
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostraTitolo !== false} onChange={e => updateConfig(i, 'mostraTitolo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra titolo</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostraSottotitolo !== false} onChange={e => updateConfig(i, 'mostraSottotitolo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra sottotitolo</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Layout */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Layout</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Numero Colonne</label>
+                                                <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.colonne || 3} onChange={e => updateConfig(i, 'colonne', parseInt(e.target.value))}>
+                                                    <option value={2}>2 Colonne</option>
+                                                    <option value={3}>3 Colonne</option>
+                                                    <option value={4}>4 Colonne</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Altezza Card</label>
+                                                <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.altezzaCard || 'md'} onChange={e => updateConfig(i, 'altezzaCard', e.target.value)}>
+                                                    <option value="sm">Piccola (192px)</option>
+                                                    <option value="md">Media (256px)</option>
+                                                    <option value="lg">Grande (320px)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Animazioni */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Effetto Transizione</h4>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Tipo di Effetto</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.effettoFlip || 'rotate'} onChange={e => updateConfig(i, 'effettoFlip', e.target.value)}>
+                                                <option value="rotate">Rotazione 3D (Flip)</option>
+                                                <option value="slide">Scorrimento Verticale</option>
+                                                <option value="fade">Dissolvenza</option>
+                                                <option value="zoom">Zoom</option>
+                                            </select>
+                                        </div>
+                                        <div className="mt-3">
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Durata Transizione (ms)</label>
+                                            <input type="number" min="200" max="2000" step="100" className="w-full border p-2 rounded text-sm" value={comp.dati_config.durataTransizione || 600} onChange={e => updateConfig(i, 'durataTransizione', parseInt(e.target.value))} />
+                                        </div>
+                                    </div>
+
+                                    {/* Colori e Stili */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Colori e Stili</h4>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Sfondo Sezione</label>
+                                                <div className="flex gap-2">
+                                                    <input type="color" className="w-12 h-8 border rounded cursor-pointer" value={comp.dati_config.coloreSfondo || '#ffffff'} onChange={e => updateConfig(i, 'coloreSfondo', e.target.value)} />
+                                                    <input type="text" className="flex-1 border p-2 rounded text-sm" value={comp.dati_config.coloreSfondo || '#ffffff'} onChange={e => updateConfig(i, 'coloreSfondo', e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Testo Sezione</label>
+                                                <div className="flex gap-2">
+                                                    <input type="color" className="w-12 h-8 border rounded cursor-pointer" value={comp.dati_config.coloreTesto || '#1f2937'} onChange={e => updateConfig(i, 'coloreTesto', e.target.value)} />
+                                                    <input type="text" className="flex-1 border p-2 rounded text-sm" value={comp.dati_config.coloreTesto || '#1f2937'} onChange={e => updateConfig(i, 'coloreTesto', e.target.value)} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Titolo Card</label>
+                                                <div className="flex gap-2">
+                                                    <input type="color" className="w-12 h-8 border rounded cursor-pointer" value={comp.dati_config.coloreTitolo || '#111827'} onChange={e => updateConfig(i, 'coloreTitolo', e.target.value)} />
+                                                    <input type="text" className="flex-1 border p-2 rounded text-sm" value={comp.dati_config.coloreTitolo || '#111827'} onChange={e => updateConfig(i, 'coloreTitolo', e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Testo Card</label>
+                                                <div className="flex gap-2">
+                                                    <input type="color" className="w-12 h-8 border rounded cursor-pointer" value={comp.dati_config.coloreCardTesto || '#6b7280'} onChange={e => updateConfig(i, 'coloreCardTesto', e.target.value)} />
+                                                    <input type="text" className="flex-1 border p-2 rounded text-sm" value={comp.dati_config.coloreCardTesto || '#6b7280'} onChange={e => updateConfig(i, 'coloreCardTesto', e.target.value)} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Sfondo Card</label>
+                                                <div className="flex gap-2">
+                                                    <input type="color" className="w-12 h-8 border rounded cursor-pointer" value={comp.dati_config.coloreCardSfondo || '#ffffff'} onChange={e => updateConfig(i, 'coloreCardSfondo', e.target.value)} />
+                                                    <input type="text" className="flex-1 border p-2 rounded text-sm" value={comp.dati_config.coloreCardSfondo || '#ffffff'} onChange={e => updateConfig(i, 'coloreCardSfondo', e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Raggio Bordo (px)</label>
+                                                <input type="number" min="0" max="30" className="w-full border p-2 rounded text-sm" value={comp.dati_config.raggioBordo || 12} onChange={e => updateConfig(i, 'raggioBordo', parseInt(e.target.value))} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.ombra !== false} onChange={e => updateConfig(i, 'ombra', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra ombra card</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Gestione Card */}
+                                    <div className="mb-4 p-4 bg-blue-50 rounded border">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="text-xs font-bold text-gray-700 uppercase">Card della Galleria</h4>
+                                            <button
+                                                onClick={() => {
+                                                    const newComps = [...components];
+                                                    if (!newComps[i].dati_config.cards) newComps[i].dati_config.cards = [];
+                                                    newComps[i].dati_config.cards.push({
+                                                        immagine: '',
+                                                        titolo: '',
+                                                        descrizione: '',
+                                                        link: ''
+                                                    });
+                                                    setComponents(newComps);
+                                                }}
+                                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
+                                            >
+                                                <PlusIcon className="h-3 w-3" /> Aggiungi Card
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {(comp.dati_config.cards || []).map((card, cardIdx) => (
+                                                <div key={cardIdx} className="p-3 bg-white rounded border">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs font-bold text-gray-700">Card {cardIdx + 1}</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                const newComps = [...components];
+                                                                newComps[i].dati_config.cards = newComps[i].dati_config.cards.filter((_, idx) => idx !== cardIdx);
+                                                                setComponents(newComps);
+                                                            }}
+                                                            className="text-red-600 hover:text-red-800"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Immagine</label>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    className="flex-1 border p-2 rounded text-sm bg-gray-50"
+                                                                    value={card.immagine || ''}
+                                                                    onChange={e => {
+                                                                        const newComps = [...components];
+                                                                        newComps[i].dati_config.cards[cardIdx].immagine = e.target.value;
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    readOnly
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setMediaPickerTarget({ compIndex: i, fieldKey: `cards_${cardIdx}_immagine`, isArray: false });
+                                                                        setIsMediaPickerOpen(true);
+                                                                    }}
+                                                                    className="bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium hover:bg-blue-200"
+                                                                >
+                                                                    <PhotoIcon className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Titolo</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                value={card.titolo || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.cards[cardIdx].titolo = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="Titolo della card"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Descrizione</label>
+                                                            <textarea
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                rows="3"
+                                                                value={card.descrizione || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.cards[cardIdx].descrizione = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="Descrizione che appare sul retro della card"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Link (opzionale)</label>
+                                                            <input
+                                                                type="url"
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                value={card.link || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.cards[cardIdx].link = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="https://esempio.com/pagina"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(!comp.dati_config.cards?.length) && (
+                                                <p className="text-xs text-gray-400 text-center py-4">
+                                                    Nessuna card aggiunta. Clicca "Aggiungi Card" per iniziare.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* --- DYNAMIC_IMAGE_GALLERY --- */}
+                            {comp.tipo_componente === 'DYNAMIC_IMAGE_GALLERY' && (
+                                <>
+                                    {/* Titolo Sezione */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Titolo Sezione</h4>
+                                        <div className="mb-3">
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Titolo</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.titolo || ''} onChange={e => updateConfig(i, 'titolo', e.target.value)} placeholder="La Nostra Galleria" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Sottotitolo</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.sottotitolo || ''} onChange={e => updateConfig(i, 'sottotitolo', e.target.value)} placeholder="Scopri le nostre immagini" />
+                                        </div>
+                                        <div className="mt-3 flex gap-4">
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostraTitolo !== false} onChange={e => updateConfig(i, 'mostraTitolo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra titolo</span>
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.mostraSottotitolo !== false} onChange={e => updateConfig(i, 'mostraSottotitolo', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra sottotitolo</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Layout e Tipo */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Layout e Visualizzazione</h4>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Tipo Layout</label>
+                                                <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.layout || 'carousel'} onChange={e => updateConfig(i, 'layout', e.target.value)}>
+                                                    <option value="carousel">Carosello</option>
+                                                    <option value="slider">Slider</option>
+                                                    <option value="grid">Griglia</option>
+                                                    <option value="masonry">Masonry</option>
+                                                    <option value="fullscreen">Fullscreen</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Effetto Transizione</label>
+                                                <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.effettoTransizione || 'slide'} onChange={e => updateConfig(i, 'effettoTransizione', e.target.value)}>
+                                                    <option value="slide">Scorrimento</option>
+                                                    <option value="fade">Dissolvenza</option>
+                                                    <option value="zoom">Zoom</option>
+                                                    <option value="blur">Blur</option>
+                                                    <option value="pixelate">Pixelate</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        {(comp.dati_config.layout === 'carousel' || comp.dati_config.layout === 'slider' || comp.dati_config.layout === 'fullscreen') && (
+                                            <div className="grid grid-cols-2 gap-4 mb-3">
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Direzione</label>
+                                                    <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.direzione || 'horizontal'} onChange={e => updateConfig(i, 'direzione', e.target.value)}>
+                                                        <option value="horizontal">Orizzontale</option>
+                                                        <option value="vertical">Verticale</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Altezza</label>
+                                                    <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.altezza || 'md'} onChange={e => updateConfig(i, 'altezza', e.target.value)}>
+                                                        <option value="sm">Piccola</option>
+                                                        <option value="md">Media</option>
+                                                        <option value="lg">Grande</option>
+                                                        <option value="xl">Molto Grande</option>
+                                                        <option value="fullscreen">Schermo Intero</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(comp.dati_config.layout === 'grid' || comp.dati_config.layout === 'masonry') && (
+                                            <div className="mb-3">
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Numero Colonne</label>
+                                                <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.colonne || 3} onChange={e => updateConfig(i, 'colonne', parseInt(e.target.value))}>
+                                                    <option value={2}>2 Colonne</option>
+                                                    <option value={3}>3 Colonne</option>
+                                                    <option value={4}>4 Colonne</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Opzioni Carosello/Slider */}
+                                    {(comp.dati_config.layout === 'carousel' || comp.dati_config.layout === 'slider' || comp.dati_config.layout === 'fullscreen') && (
+                                        <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                            <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Opzioni Animazione</h4>
+                                            <div className="space-y-2">
+                                                <label className="flex items-center">
+                                                    <input type="checkbox" checked={comp.dati_config.autoplay !== false} onChange={e => updateConfig(i, 'autoplay', e.target.checked)} className="mr-2" />
+                                                    <span className="text-sm">Autoplay</span>
+                                                </label>
+                                                {comp.dati_config.autoplay !== false && (
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Intervallo (ms)</label>
+                                                        <input type="number" min="1000" max="10000" step="500" className="w-full border p-2 rounded text-sm" value={comp.dati_config.intervallo || 5000} onChange={e => updateConfig(i, 'intervallo', parseInt(e.target.value))} />
+                                                    </div>
+                                                )}
+                                                <label className="flex items-center">
+                                                    <input type="checkbox" checked={comp.dati_config.mostraNavigatorio !== false} onChange={e => updateConfig(i, 'mostraNavigatorio', e.target.checked)} className="mr-2" />
+                                                    <span className="text-sm">Mostra frecce navigazione</span>
+                                                </label>
+                                                <label className="flex items-center">
+                                                    <input type="checkbox" checked={comp.dati_config.mostraIndicatori !== false} onChange={e => updateConfig(i, 'mostraIndicatori', e.target.checked)} className="mr-2" />
+                                                    <span className="text-sm">Mostra indicatori</span>
+                                                </label>
+                                                <label className="flex items-center">
+                                                    <input type="checkbox" checked={comp.dati_config.infiniteLoop !== false} onChange={e => updateConfig(i, 'infiniteLoop', e.target.checked)} className="mr-2" />
+                                                    <span className="text-sm">Ciclo infinito</span>
+                                                </label>
+                                                <label className="flex items-center">
+                                                    <input type="checkbox" checked={comp.dati_config.zoomOnHover !== false} onChange={e => updateConfig(i, 'zoomOnHover', e.target.checked)} className="mr-2" />
+                                                    <span className="text-sm">Zoom al passaggio del mouse</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Colori e Stili */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Colori e Stili</h4>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Sfondo</label>
+                                                <div className="flex gap-2">
+                                                    <input type="color" className="w-12 h-8 border rounded cursor-pointer" value={comp.dati_config.coloreSfondo || '#ffffff'} onChange={e => updateConfig(i, 'coloreSfondo', e.target.value)} />
+                                                    <input type="text" className="flex-1 border p-2 rounded text-sm" value={comp.dati_config.coloreSfondo || '#ffffff'} onChange={e => updateConfig(i, 'coloreSfondo', e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Raggio Bordo (px)</label>
+                                                <input type="number" min="0" max="30" className="w-full border p-2 rounded text-sm" value={comp.dati_config.raggioBordo || 12} onChange={e => updateConfig(i, 'raggioBordo', parseInt(e.target.value))} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="flex items-center">
+                                                <input type="checkbox" checked={comp.dati_config.ombra !== false} onChange={e => updateConfig(i, 'ombra', e.target.checked)} className="mr-2" />
+                                                <span className="text-sm">Mostra ombra</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Gestione Immagini */}
+                                    <div className="mb-4 p-4 bg-blue-50 rounded border">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="text-xs font-bold text-gray-700 uppercase">Immagini della Galleria</h4>
+                                            <button
+                                                onClick={() => {
+                                                    const newComps = [...components];
+                                                    if (!newComps[i].dati_config.immagini) newComps[i].dati_config.immagini = [];
+                                                    newComps[i].dati_config.immagini.push({
+                                                        src: '',
+                                                        alt: '',
+                                                        title: '',
+                                                        link: ''
+                                                    });
+                                                    setComponents(newComps);
+                                                }}
+                                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
+                                            >
+                                                <PlusIcon className="h-3 w-3" /> Aggiungi Immagine
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {(comp.dati_config.immagini || []).map((img, imgIdx) => (
+                                                <div key={imgIdx} className="p-3 bg-white rounded border">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs font-bold text-gray-700">Immagine {imgIdx + 1}</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                const newComps = [...components];
+                                                                newComps[i].dati_config.immagini = newComps[i].dati_config.immagini.filter((_, idx) => idx !== imgIdx);
+                                                                setComponents(newComps);
+                                                            }}
+                                                            className="text-red-600 hover:text-red-800"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">File Immagine</label>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    className="flex-1 border p-2 rounded text-sm bg-gray-50"
+                                                                    value={img.src || ''}
+                                                                    onChange={e => {
+                                                                        const newComps = [...components];
+                                                                        newComps[i].dati_config.immagini[imgIdx].src = e.target.value;
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    readOnly
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setMediaPickerTarget({ compIndex: i, fieldKey: `immagini_${imgIdx}_src`, isArray: false });
+                                                                        setIsMediaPickerOpen(true);
+                                                                    }}
+                                                                    className="bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium hover:bg-blue-200"
+                                                                >
+                                                                    <PhotoIcon className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Testo Alternativo (Alt)</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                value={img.alt || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.immagini[imgIdx].alt = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="Descrizione per accessibilità"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Titolo (opzionale)</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                value={img.title || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.immagini[imgIdx].title = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="Titolo mostrato sull'immagine"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Link (opzionale)</label>
+                                                            <input
+                                                                type="url"
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                value={img.link || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.immagini[imgIdx].link = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="https://esempio.com/pagina"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(!comp.dati_config.immagini?.length) && (
+                                                <p className="text-xs text-gray-400 text-center py-4">
+                                                    Nessuna immagine aggiunta. Clicca "Aggiungi Immagine" per iniziare.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </>

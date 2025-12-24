@@ -35,7 +35,10 @@
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
       "Bash(powershell:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(if exist .next rmdir /s /q .next)",
+      "Bash(if exist \"opero-shop\\\\.next\\\\dev\\\\lock\" del /F /Q \"opero-shop\\\\.next\\\\dev\\\\lock\")",
+      "Bash(cmd:*)"
     ],
     "deny": [],
     "ask": []

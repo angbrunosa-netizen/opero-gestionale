@@ -8,7 +8,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 
-export default function BlogListBlock({ config }) {
+export default function BlogListBlock({ config, dittaId }) {
     if (!config) return null;
 
     const {
@@ -26,64 +26,71 @@ export default function BlogListBlock({ config }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Recupera il sito corrente dall'URL
-    const getCurrentSite = () => {
-        if (typeof window !== 'undefined') {
-            const hostname = window.location.hostname;
-            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost';
-
-            console.log('🔍 BlogListBlock DEBUG - hostname:', hostname);
-            console.log('🔍 BlogListBlock DEBUG - rootDomain:', rootDomain);
-
-            if (hostname.includes(rootDomain) && hostname !== rootDomain) {
-                const site = hostname.replace(`.${rootDomain}`, '');
-                console.log('🔍 BlogListBlock DEBUG - site detected:', site);
-                return site;
-            } else {
-                console.log('🔍 BlogListBlock DEBUG - using default site');
-            }
-        }
-        return 'default';
-    };
-
     useEffect(() => {
         loadPosts();
-    }, [limite, categoriaSlug]);
+    }, [dittaId, limite, categoriaSlug]);
 
     const loadPosts = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const site = getCurrentSite();
-            let url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/public/shop/${site}/blog/posts?limit=${limite}`;
+            // Usa l'API backend esistente
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
-            console.log('🔍 BlogListBlock DEBUG - site:', site);
-            console.log('🔍 BlogListBlock DEBUG - URL:', url);
+            // Se non c'è un URL API configurato, non tentare la fetch
+            if (!baseUrl) {
+                console.warn('Blog API URL not configured, showing empty state');
+                setPosts([]);
+                setLoading(false);
+                return;
+            }
+
+            let url = `${baseUrl}/api/public/shop/${dittaId}/blog/posts?limit=${limite}`;
 
             if (categoriaSlug) {
                 url += `&category=${categoriaSlug}`;
-                console.log('🔍 BlogListBlock DEBUG - URL with category:', url);
             }
 
             const response = await fetch(url);
-            console.log('🔍 BlogListBlock DEBUG - response status:', response.status);
+
+            if (!response.ok) {
+                // Se l'API non risponde, mostra semplicemente nessun post invece di errore
+                console.warn('Blog API not available, showing empty state');
+                setPosts([]);
+                return;
+            }
 
             const data = await response.json();
-            console.log('🔍 BlogListBlock DEBUG - response data:', data);
 
-            if (data.success) {
+            if (data.success && data.posts) {
+                let filteredPosts = data.posts;
+
+                // Filtra per categoria se necessario (già fatto dall'API ma per sicurezza)
+                if (categoriaSlug) {
+                    filteredPosts = filteredPosts.filter(post =>
+                        post.categoria_slug === categoriaSlug
+                    );
+                }
+
+                // Limita il numero di post
+                if (filteredPosts.length > limite) {
+                    filteredPosts = filteredPosts.slice(0, limite);
+                }
+
                 // Se mostRecentOnly è true, mostra solo il primo post
-                const filteredPosts = mostRecentOnly ? [data.posts[0]] : data.posts;
-                setPosts(filteredPosts || []);
-                console.log('🔍 BlogListBlock DEBUG - posts loaded:', filteredPosts?.length || 0);
+                if (mostRecentOnly && filteredPosts.length > 1) {
+                    filteredPosts = [filteredPosts[0]];
+                }
+
+                setPosts(filteredPosts);
             } else {
-                console.error('🔍 BlogListBlock DEBUG - API returned error:', data);
-                setError('Impossibile caricare gli articoli');
+                setPosts([]);
             }
         } catch (err) {
-            console.error('🔍 BlogListBlock DEBUG - Errore caricamento posts:', err);
-            setError('Errore nel caricare gli articoli');
+            console.error('Errore caricamento posts:', err);
+            // Non mostrare errore, solo stato vuoto
+            setPosts([]);
         } finally {
             setLoading(false);
         }
@@ -206,10 +213,6 @@ export default function BlogListBlock({ config }) {
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                                 <p className="text-gray-600">Caricamento articoli...</p>
                             </div>
-                        ) : error ? (
-                            <div className="text-center py-8">
-                                <p className="text-red-600">{error}</p>
-                            </div>
                         ) : posts.length === 0 ? (
                             <div className="text-center py-8">
                                 <p className="text-gray-500">Nessun articolo disponibile</p>
@@ -260,10 +263,6 @@ export default function BlogListBlock({ config }) {
                         <div className="text-center py-8">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Caricamento articoli...</p>
-                        </div>
-                    ) : error ? (
-                        <div className="text-center py-8">
-                            <p className="text-red-600">{error}</p>
                         </div>
                     ) : posts.length === 0 ? (
                         <div className="text-center py-8">

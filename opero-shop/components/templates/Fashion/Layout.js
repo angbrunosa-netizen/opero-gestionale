@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 
 export default function FashionLayout({ children, siteConfig }) {
-  const { name, logo, navigation } = siteConfig || {};
+  const { name, logo, navigation, contact, description } = siteConfig || {};
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Definisci le variabili CSS globali per i Client Components
@@ -193,17 +193,54 @@ export default function FashionLayout({ children, siteConfig }) {
         {children}
       </main>
 
-      {/* FOOTER FASHION: Minimalista */}
+      {/* FOOTER FASHION: Minimalista con contatti dinamici */}
       <footer className="border-t pt-16 pb-8 text-center" style={{
           backgroundColor: 'var(--block-background-color)',
           borderColor: 'var(--primary-color)'
       }}>
         <h3 className="font-serif text-2xl mb-6">{name}</h3>
+
+        {/* Descrizione dinamica */}
+        {description && (
+            <p className="text-sm text-gray-600 mb-8 max-w-md mx-auto">
+                {description}
+            </p>
+        )}
+
         <div className="flex justify-center space-x-6 mb-8 text-xs uppercase tracking-widest text-gray-500">
             {menuItems.map((item, idx) => (
                 <Link key={idx} href={item.href} className="hover:text-black">{item.label}</Link>
             ))}
         </div>
+
+        {/* Contatti dinamici dalla tabella ditte */}
+        {(contact?.tel1 || contact?.mail1) && (
+            <div className="flex justify-center space-x-8 mb-8 text-sm text-gray-600">
+                {contact.tel1 && (
+                    <a href={`tel:${contact.tel1}`} className="hover:text-black transition-colors">
+                        📞 {contact.tel1}
+                    </a>
+                )}
+                {contact.mail1 && (
+                    <a href={`mailto:${contact.mail1}`} className="hover:text-black transition-colors">
+                        ✉️ {contact.mail1}
+                    </a>
+                )}
+            </div>
+        )}
+
+        {/* Indirizzo dinamico */}
+        {contact?.indirizzo && (
+            <div className="mb-8 text-sm text-gray-600">
+                <p>
+                    {contact.indirizzo}
+                    {contact.cap && `, ${contact.cap}`}
+                    {contact.citta && (` ${contact.citta}`)}
+                    {contact.provincia && ` (${contact.provincia})`}
+                </p>
+            </div>
+        )}
+
         <div className="text-[10px] text-gray-400">
             &copy; {new Date().getFullYear()} {name}. All rights reserved.
         </div>

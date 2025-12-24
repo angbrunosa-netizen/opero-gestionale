@@ -20,6 +20,7 @@ const SiteConfig = ({ dittaId }) => {
         shop_colore_header_sfondo: '#ffffff',
         shop_colore_header_testo: '#333333',
         shop_logo_posizione: 'left', // left, center, right
+        shop_descrizione_home: '', // Descrizione footer (azienda)
         shop_attivo: false
     });
     const [loading, setLoading] = useState(false);
@@ -317,6 +318,22 @@ const SiteConfig = ({ dittaId }) => {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Descrizione Azienda - Footer */}
+                        <div className="mt-6 border-t border-gray-200 pt-6">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Descrizione Azienda (Footer)</h3>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Testo Descrittivo</label>
+                                <textarea
+                                    value={config.shop_descrizione_home || ''}
+                                    onChange={e => setConfig({...config, shop_descrizione_home: e.target.value})}
+                                    rows={3}
+                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                    placeholder="Siamo impegnati a fornire le migliori soluzioni per i nostri clienti. Contattaci per scoprire come possiamo aiutarti a crescere."
+                                />
+                                <p className="mt-2 text-xs text-gray-500">Questo testo apparirà nel footer del sito web. Descrivi brevemente la tua azienda e i tuoi valori.</p>
                             </div>
                         </div>
                     </div>

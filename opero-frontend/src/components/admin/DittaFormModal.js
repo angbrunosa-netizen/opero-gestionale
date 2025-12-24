@@ -1,7 +1,12 @@
 /**
  * File: opero-frontend/src/components/admin/DittaFormModal.js
- * Versione: 1.4 (Correzione Campo Email)
- * Descrizione: Sostituito il campo 'email_gen' con 'mail_1' per allinearsi alla struttura del database.
+ * Versione: 2.0 (Aggiunta Campi: logo_url, mail_2, sdi, pec)
+ * Descrizione: Aggiunti campi logo_url, mail_2, sdi, pec per gestione completa anagrafica ditta.
+ *              - mail_1: Email principale (già presente)
+ *              - mail_2: Email secondaria (NUOVO)
+ *              - logo_url: URL del logo azienda (NUOVO)
+ *              - sdi: Sistema di Interscambio (max 7 caratteri) (NUOVO)
+ *              - pec: Posta Elettronica Certificata (NUOVO)
  */
 import React, { useState, useEffect } from 'react';
 
@@ -10,7 +15,7 @@ const DittaFormModal = ({ ditta, onSave, onCancel }) => {
 
     useEffect(() => {
         if (ditta) {
-            setFormData({ 
+            setFormData({
                 ...ditta,
                 max_utenti_interni: ditta.max_utenti_interni || 1,
                 max_utenti_esterni: ditta.max_utenti_esterni || 1
@@ -28,11 +33,16 @@ const DittaFormModal = ({ ditta, onSave, onCancel }) => {
                 tel1: '',
                 // ++ CAMPO EMAIL CORRETTO ++
                 mail_1: '',
+                // ++ NUOVI CAMPI ++
+                mail_2: '',
+                logo_url: '',
+                sdi: '',
+                pec: '',
                 id_tipo_ditta: 1,
                 stato: 1,
                 max_utenti_interni: 1,
                 max_utenti_esterni: 1,
-                email_amministratore: '', 
+                email_amministratore: '',
                 max_storage_mb :1000,
                 current_storage_bytes :0
             });
@@ -71,22 +81,28 @@ const DittaFormModal = ({ ditta, onSave, onCancel }) => {
                             <input type="text" name="citta" value={formData.citta || ''} onChange={handleChange} placeholder="Città" className="p-2 border rounded" />
                             <input type="text" name="provincia" value={formData.provincia || ''} onChange={handleChange} placeholder="Provincia (es. MI)" className="p-2 border rounded" />
                             <input type="tel" name="tel1" value={formData.tel1 || ''} onChange={handleChange} placeholder="Telefono" className="p-2 border rounded" />
-                            
-                            {/* ++ CAMPO EMAIL CORRETTO ++ */}
+
+                            {/* ++ CAMPO EMAIL PRINCIPALE ++ */}
                             <input type="email" name="mail_1" value={formData.mail_1 || ''} onChange={handleChange} placeholder="Email Principale" className="p-2 border rounded" />
-                            
+
+                            {/* ++ NUOVI CAMPI: Email Secondaria, SDI, PEC, Logo ++ */}
+                            <input type="email" name="mail_2" value={formData.mail_2 || ''} onChange={handleChange} placeholder="Email Secondaria" className="p-2 border rounded" />
+                            <input type="text" name="pec" value={formData.pec || ''} onChange={handleChange} placeholder="PEC (Posta Elettronica Certificata)" className="p-2 border rounded" />
+                            <input type="text" name="sdi" value={formData.sdi || ''} onChange={handleChange} placeholder="SDI (max 7 caratteri)" maxLength="7" className="p-2 border rounded" />
+                            <input type="url" name="logo_url" value={formData.logo_url || ''} onChange={handleChange} placeholder="URL Logo (es. https://...)" className="p-2 border rounded md:col-span-2" />
+
                             {isCreating && (
-                                <input 
-                                    type="email" 
-                                    name="email_amministratore" 
-                                    value={formData.email_amministratore || ''} 
-                                    onChange={handleChange} 
-                                    placeholder="Email Amministratore Ditta *" 
-                                    required 
-                                    className="p-2 border rounded" 
+                                <input
+                                    type="email"
+                                    name="email_amministratore"
+                                    value={formData.email_amministratore || ''}
+                                    onChange={handleChange}
+                                    placeholder="Email Amministratore Ditta *"
+                                    required
+                                    className="p-2 border rounded"
                                 />
                             )}
-                            
+
                              <select name="id_tipo_ditta" value={formData.id_tipo_ditta || ''} onChange={handleChange} className="w-full p-2 border rounded" disabled={!isCreating}>
                                  <option value="1">Proprietaria</option>
                              </select>

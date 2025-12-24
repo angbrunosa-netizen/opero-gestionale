@@ -48,7 +48,7 @@ router.get('/config/:idDitta', async (req, res) => {
     try {
         const [rows] = await dbPool.query(
             `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template, shop_colore_sfondo_blocchi,
-                    shop_colore_header_sfondo, shop_colore_header_testo, shop_logo_posizione
+                    shop_colore_header_sfondo, shop_colore_header_testo, shop_logo_posizione, shop_descrizione_home
              FROM ditte WHERE id = ?`,
             [req.params.idDitta]
         );
@@ -83,6 +83,7 @@ router.post('/config/:idDitta', async (req, res) => {
             shop_colore_header_sfondo,
             shop_colore_header_testo,
             shop_logo_posizione,
+            shop_descrizione_home,
             shop_attivo
         } = req.body;
         const idDitta = req.params.idDitta;
@@ -125,6 +126,7 @@ router.post('/config/:idDitta', async (req, res) => {
                 shop_colore_header_sfondo = ?,
                 shop_colore_header_testo = ?,
                 shop_logo_posizione = ?,
+                shop_descrizione_home = ?,
                 shop_attivo = ?
              WHERE id = ?`,
             [
@@ -136,6 +138,7 @@ router.post('/config/:idDitta', async (req, res) => {
                 shop_colore_header_sfondo,
                 shop_colore_header_testo,
                 shop_logo_posizione,
+                shop_descrizione_home || null,
                 shop_attivo ? 1 : 0,
                 idDitta
             ]

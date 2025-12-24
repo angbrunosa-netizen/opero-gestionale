@@ -155,6 +155,8 @@ const resolveTenant = async (req, res, next) => {
             `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario,
                     d.shop_colore_secondario, d.shop_colore_sfondo_blocchi,
                     d.shop_colore_header_sfondo, d.shop_colore_header_testo, d.shop_logo_posizione,
+                    d.shop_descrizione_home,
+                    d.tel1, d.mail_1, d.pec, d.indirizzo, d.cap, d.citta, d.provincia,
                     COALESCE(t.codice, 'standard') as template_code
              FROM ditte d
              LEFT JOIN web_templates t ON d.id_web_template = t.id
@@ -242,6 +244,7 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
             siteConfig: {
                 name: req.shopDitta.ragione_sociale,
                 logo: req.shopDitta.logo_url,
+                description: req.shopDitta.shop_descrizione_home || null,
                 colors: {
                     primary: req.shopDitta.shop_colore_primario,
                     secondary: req.shopDitta.shop_colore_secondario,
@@ -251,8 +254,19 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
                     headerText: req.shopDitta.shop_colore_header_testo || '#333333',
                     logoPosition: req.shopDitta.shop_logo_posizione || 'left' // left, center, right
                 },
-                template: req.shopDitta.template_code,
-                navigation: navigation // Passiamo la lista delle pagine al frontend
+                template: req.shopDitta.template_code || 'standard',
+                navigation: navigation, // Passiamo la lista delle pagine al frontend
+                // Contatti dinamici per footer
+                contact: {
+                    tel1: req.shopDitta.tel1 || null,
+                    mail1: req.shopDitta.mail_1 || null,
+                    pec: req.shopDitta.pec || null,
+                    indirizzo: req.shopDitta.indirizzo || null,
+                    cap: req.shopDitta.cap || null,
+                    citta: req.shopDitta.citta || null,
+                    provincia: req.shopDitta.provincia || null,
+                    logoUrl: req.shopDitta.logo_url || null
+                }
             },
             page: {
                 title: page.titolo_seo,
@@ -480,12 +494,13 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
     try {
         const { slug } = req.params;
 
-        // 1. Recupera i dati base della ditta
+        // 1. Recupera i dati base della ditta (inclusi contatti per footer)
         const [ditte] = await dbPool.query(
             `SELECT id, ragione_sociale, url_slug, shop_colore_primario, shop_colore_secondario,
                     shop_colore_sfondo_blocchi, shop_colore_header_sfondo, shop_colore_header_testo,
                     shop_logo_posizione, shop_attivo, shop_banner_url, shop_descrizione_home,
-                    id_web_template, shop_template
+                    id_web_template, shop_template,
+                    tel1, mail_1, indirizzo, cap, citta, provincia, pec, logo_url
              FROM ditte
              WHERE url_slug = ? AND shop_attivo = 1`,
             [slug]
@@ -512,9 +527,20 @@ router.get('/shop/:slug/config', resolveTenant, async (req, res) => {
                 logoPosition: ditta.shop_logo_posizione || 'left' // left, center, right
             },
             banner_url: ditta.shop_banner_url,
-            descrizione_home: ditta.shop_descrizione_home,
+            description: ditta.shop_descrizione_home || null,
             template_code: ditta.shop_template || 'default',
-            id_web_template: ditta.id_web_template
+            id_web_template: ditta.id_web_template,
+            // Contatti dinamici per footer
+            contact: {
+                tel1: ditta.tel1 || null,
+                mail1: ditta.mail_1 || null,
+                pec: ditta.pec || null,
+                indirizzo: ditta.indirizzo || null,
+                cap: ditta.cap || null,
+                citta: ditta.citta || null,
+                provincia: ditta.provincia || null,
+                logoUrl: ditta.logo_url || null
+            }
         };
 
         // 3. Recupera menu di navigazione (pagine pubblicate)

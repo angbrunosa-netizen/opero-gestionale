@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 
 export default function StandardLayout({ children, siteConfig }) {
-  const { name, logo, navigation } = siteConfig || {};
+  const { name, logo, navigation, contact, description } = siteConfig || {};
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState(new Set());
 
@@ -493,14 +493,14 @@ export default function StandardLayout({ children, siteConfig }) {
         {children}
       </main>
 
-      {/* FOOTER - In futuro rendilo dinamico dal CMS se vuoi */}
+      {/* FOOTER - Dinamico con dati dalla tabella ditte */}
       <footer className="text-white pt-16 pb-8" style={{ backgroundColor: 'var(--secondary-color)' }}>
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
             <div>
               <h3 className="font-bold text-xl mb-6 text-white">{name || 'Nome Azienda'}</h3>
               <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
-                Siamo impegnati a fornire le migliori soluzioni per i nostri clienti. Contattaci per scoprire come possiamo aiutarti a crescere.
+                {description || 'Siamo impegnati a fornire le migliori soluzioni per i nostri clienti. Contattaci per scoprire come possiamo aiutarti a crescere.'}
               </p>
             </div>
             <div>
@@ -518,15 +518,46 @@ export default function StandardLayout({ children, siteConfig }) {
             <div>
               <h4 className="font-bold text-lg mb-6 text-gray-200">Contatti</h4>
               <ul className="space-y-3 text-sm text-gray-400">
-                <li className="flex items-center gap-2">
-                  <span className="opacity-70">Email:</span> info@miaazienda.it
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="opacity-70">Tel:</span> +39 012 345 6789
-                </li>
+                {contact?.mail1 && (
+                  <li className="flex items-center gap-2">
+                    <span className="opacity-70">Email:</span>
+                    <a href={`mailto:${contact.mail1}`} className="hover:text-white transition-colors">
+                      {contact.mail1}
+                    </a>
+                  </li>
+                )}
+                {contact?.tel1 && (
+                  <li className="flex items-center gap-2">
+                    <span className="opacity-70">Tel:</span>
+                    <a href={`tel:${contact.tel1}`} className="hover:text-white transition-colors">
+                      {contact.tel1}
+                    </a>
+                  </li>
+                )}
+                {contact?.pec && (
+                  <li className="flex items-center gap-2">
+                    <span className="opacity-70">PEC:</span>
+                    <a href={`mailto:${contact.pec}`} className="hover:text-white transition-colors">
+                      {contact.pec}
+                    </a>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
+
+          {/* Indirizzo dinamico */}
+          {contact?.indirizzo && (
+            <div className="mb-8 text-sm text-gray-400 text-center">
+              <p>
+                📍 {contact.indirizzo}
+                {contact.cap && `, ${contact.cap}`}
+                {contact.citta && ` ${contact.citta}`}
+                {contact.provincia && ` (${contact.provincia})`}
+              </p>
+            </div>
+          )}
+
           <div className="text-center text-xs text-gray-600 border-t border-gray-800 pt-8">
             © {new Date().getFullYear()} {name || 'Nome Azienda'}. Powered by OperoCloud CMS.
           </div>

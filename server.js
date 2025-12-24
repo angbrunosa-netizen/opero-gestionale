@@ -84,8 +84,18 @@ if (process.env.NODE_ENV === 'production') {
       if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
-        console.error(`[CORS] Blocking origin ${origin} - not in allowed list`);
-        callback(new Error('Not allowed by CORS'));
+        // Check if origin is a subdomain on localhost port (e.g., http://mia-azienda.localhost:3000)
+        // or any localhost port
+        const localhostPattern = /^https?:\/\/([a-z0-9-]+\.)*localhost:\d{4}$/;
+        const localIpPattern = /^https?:\/\/([a-z0-9-]+\.)*127\.0\.0\.1:\d{4}$/;
+
+        if (localhostPattern.test(origin) || localIpPattern.test(origin)) {
+          console.log(`[CORS] Allowing localhost origin: ${origin}`);
+          callback(null, true);
+        } else {
+          console.error(`[CORS] Blocking origin ${origin} - not in allowed list`);
+          callback(new Error('Not allowed by CORS'));
+        }
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -27,12 +27,34 @@ export default function HeroBlock({ config }) {
     immagineOpacita = 40,
     overlayColore = '#000000',
     overlayOpacita = 20,
+    // Altezza blocco
+    altezza = 'md', // xs, sm, md, lg, xl, 2xl, custom
+    altezzaCustom = null, // in pixels (es. 600)
     // Sfondo sezione - usa tema come default
     backgroundColor = null // fallback to theme background
   } = config;
 
   const alignClass = allineamento === 'center' ? 'text-center' :
                        allineamento === 'right' ? 'text-right' : 'text-left';
+
+  // Mappa delle altezze predefinite
+  const altezze = {
+    xs: 'min-h-[300px]',
+    sm: 'min-h-[400px]',
+    md: 'min-h-[500px]',
+    lg: 'min-h-[600px]',
+    xl: 'min-h-[700px]',
+    '2xl': 'min-h-[800px]',
+    custom: '' // Usa minHeight personalizzato
+  };
+
+  // Calcola l'altezza del blocco
+  const getAltezzaClass = () => {
+    if (altezza === 'custom' && altezzaCustom) {
+      return '';
+    }
+    return altezze[altezza] || altezze.md;
+  };
 
   // Stili dinamici
   const titoloStyle = {
@@ -59,6 +81,8 @@ export default function HeroBlock({ config }) {
 
   const immagineStyle = {
     opacity: immagineOpacita / 100,
+    objectFit: 'cover',
+    objectPosition: 'center center',
   };
 
   const overlayStyle = {
@@ -69,15 +93,22 @@ export default function HeroBlock({ config }) {
     backgroundColor: immagine_url ? 'transparent' : (backgroundColor || 'var(--block-background-color)'),
   };
 
+  const containerStyle = {
+    ...backgroundStyle,
+    ...(altezza === 'custom' && altezzaCustom ? { minHeight: `${altezzaCustom}px` } : {})
+  };
+
+  const altezzaClass = getAltezzaClass();
+
   return (
-    <div className="relative py-24 px-4 overflow-hidden" style={backgroundStyle}>
+    <div className={`relative px-4 overflow-hidden flex items-center ${altezzaClass} py-24`} style={containerStyle}>
       {/* Immagine di sfondo con overlay */}
       {immagine_url && (
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 overflow-hidden">
           <img
             src={immagine_url}
             alt="Background Hero"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
             style={immagineStyle}
           />
           <div
