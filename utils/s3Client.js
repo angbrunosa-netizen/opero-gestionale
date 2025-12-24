@@ -63,6 +63,7 @@ const s3Upload = async (key, body, contentType) => {
     Key: key,
     Body: body,
     ContentType: contentType,
+    ACL: 'public-read', // Rende il file pubblicamente accessibile
   });
 
   return await s3Client.send(command);
