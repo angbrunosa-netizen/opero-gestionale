@@ -16,15 +16,15 @@ export default async function BlogArchivePage({ params, searchParams }) {
     // 1. Fetch dati del sito e articoli
     const [siteResponse, postsResponse, categoriesResponse] = await Promise.all([
       // Dati sito
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${site}/config`, {
+      fetch(`/api/public/shop/${site}/config`, {
         cache: 'no-store',
       }),
       // Articoli blog
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${site}/blog/posts?limit=${limit}&page=${page}${category ? `&category=${category}` : ''}`, {
+      fetch(`/api/public/shop/${site}/blog/posts?limit=${limit}&page=${page}${category ? `&category=${category}` : ''}`, {
         cache: 'no-store',
       }),
       // Categorie
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${site}/blog/categories`, {
+      fetch(`/api/public/shop/${site}/blog/categories`, {
         cache: 'no-store',
       }),
     ]);

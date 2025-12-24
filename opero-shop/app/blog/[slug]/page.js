@@ -67,10 +67,10 @@ export default async function BlogPostPage({ params }) {
 
     // Fetch dei dati del sito e del post
     const [siteConfigResponse, response] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${siteSlug}/config`, {
+        fetch(`/api/public/shop/${siteSlug}/config`, {
             cache: 'no-store',
         }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/public/shop/${siteSlug}/blog/post/${postSlug}`, {
+        fetch(`/api/public/shop/${siteSlug}/blog/post/${postSlug}`, {
             cache: 'no-store',
         })
     ]);
