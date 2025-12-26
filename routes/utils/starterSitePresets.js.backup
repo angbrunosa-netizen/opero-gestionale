@@ -1,0 +1,1591 @@
+/**
+ * Nome File: starterSitePresets.js
+ * Percorso: routes/utils/starterSitePresets.js
+ * Data: 25/12/2025
+ * Descrizione: Configurazioni predefinite per creazione siti starter
+ * Versione: 2.0 - Con immagini di alta qualità e palette colori ottimizzate
+ */
+
+const STARTER_SITE_PRESETS = {
+  // ============================================
+  // 1. ATTIVITÀ COMMERCIALI 🏪
+  // ============================================
+  commercial: {
+    name: "Negozio / E-commerce",
+    icon: "🏪",
+    description: "Per negozi, attività commerciali e e-commerce",
+    template: "standard",
+    pages: ["home", "negozio", "prodotti", "contatti"],
+    colors: {
+      primary: "#2563eb",           // Blue vibrante
+      secondary: "#1e40af",         // Blue scuro
+      accent: "#f59e0b",            // Ambra/Arancio per CTA
+      background: "#ffffff",
+      blockBackground: "#f1f5f9",   // Grigio molto chiaro
+      headerBackground: "#1e293b",  // Grigio scuro quasi nero
+      headerText: "#ffffff"
+    },
+    pagesStructure: {
+      home: {
+        title: "Home",
+        slug: "home",
+        isHomepage: true,
+        order: 1,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              titolo: "Benvenuti da [Nome Azienda]",
+              sottotitolo: "Qualità e convenienza per ogni tua esigenza",
+              cta_text: "Scopri le Offerte",
+              ctaLink: "/negozio",
+              immagine_url: "https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?w=1920&q=80",
+              backgroundColor: "#1e293b",
+              titoloColore: "#ffffff",
+              sottotitoloColore: "#f3f4f6",
+              ctaColoreTesto: "#ffffff",
+              ctaColoreSfondo: "#f59e0b",
+              ctaColoreSfondoHover: "#d97706",
+              overlayColore: "#000000",
+              overlayOpacita: 60,
+              allineamento: "center",
+              altezza: "lg"
+            }
+          },
+          {
+            tipo_componente: "VETRINA",
+            ordine: 2,
+            dati_config: {
+              title: "Perché Sceglierci",
+              subtitle: "4 motivi per affidarsi a noi",
+              layout: "grid-4",
+              items: [
+                {
+                  icon: "📦",
+                  title: "Prodotti di Qualità",
+                  description: "Solo i migliori brand selezionati per la tua soddisfazione",
+                  link: "/prodotti",
+                  color: "#2563eb"
+                },
+                {
+                  icon: "🚚",
+                  title: "Consegna Rapida",
+                  description: "Ricevi i tuoi ordini in 24/48 ore direttamente a casa tua",
+                  link: "/contatti",
+                  color: "#10b981"
+                },
+                {
+                  icon: "💳",
+                  title: "Pagamenti Sicuri",
+                  description: "Tutte le modalità di pagamento disponibili e sicure",
+                  link: "/prodotti",
+                  color: "#f59e0b"
+                },
+                {
+                  icon: "🎁",
+                  title: "Offerte Speciali",
+                  description: "Sconti esclusivi e promozioni riservate ai nostri clienti",
+                  link: "/negozio",
+                  color: "#ef4444"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "CATALOG_SELECTION",
+            ordine: 3,
+            dati_config: {
+              title: "Prodotti in Evidenza",
+              subtitle: "Le migliori offerte del momento",
+              layout: "grid-4",
+              maxItems: 4,
+              showPrices: true,
+              showAddToCart: true
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 4,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 4rem 2rem; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; border-radius: 12px; margin: 2rem 0; text-align: center;">
+                  <h2 style="font-size: 2.5rem; margin-bottom: 1rem; font-weight: bold;">Vieni a Trovarci</h2>
+                  <p style="font-size: 1.2rem; max-width: 700px; margin: 0 auto 2rem; opacity: 0.95;">
+                    Siamo aperti dal Lunedì al Venerdì: 9:00 - 13:00 / 15:30 - 19:30<br>
+                    Sabato: 9:00 - 13:00 / 15:00 - 19:00<br>
+                    Domenica chiusi
+                  </p>
+                  <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <a href="/contatti" style="display: inline-block; background: #f59e0b; color: #1e293b; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                      📞 Contattaci
+                    </a>
+                    <a href="https://maps.google.com" target="_blank" style="display: inline-block; background: rgba(255,255,255,0.2); color: white; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem; backdrop-filter: blur(10px);">
+                      📍 Mappa
+                    </a>
+                  </div>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "MEDIA_SOCIAL",
+            ordine: 5,
+            dati_config: {
+              title: "Seguici sui Social",
+              subtitle: "Rimani aggiornato su offerte e novità",
+              layout: "horizontal",
+              platforms: ["facebook", "instagram", "whatsapp"]
+            }
+          }
+        ]
+      },
+      negozio: {
+        title: "Negozio",
+        slug: "negozio",
+        order: 2,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Il Nostro Negozio",
+              subtitle: "Scopri tutti i nostri prodotti e servizi",
+              cta_text: "Vedi Offerte",
+              cta_link: "#offers",
+              backgroundImage: "https://images.unsplash.com/photo-1556912173-3bb406ef7e77?w=1920&q=80",
+              backgroundColor: "#1e293b",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "CATALOG_SELECTION",
+            ordine: 2,
+            dati_config: {
+              title: "Tutte le Offerte",
+              subtitle: "Sconti e promozioni imperdibili",
+              layout: "grid-4",
+              maxItems: 12,
+              showPrices: true,
+              showAddToCart: true,
+              showFilters: true
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 3,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 3rem 2rem; background: #f1f5f9; border-radius: 12px; margin: 2rem 0;">
+                  <div style="max-width: 900px; margin: 0 auto; text-align: center;">
+                    <h3 style="color: #1e40af; font-size: 2rem; margin-bottom: 1.5rem;">💡 Consigli per lo Shopping</h3>
+                    <ul style="color: #64748b; text-align: left; display: inline-block; line-height: 2;">
+                      <li style="margin-bottom: 0.75rem;">✓ Verifica la disponibilità dei prodotti in negozio</li>
+                      <li style="margin-bottom: 0.75rem;">✓ Approfitta delle nostre offerte stagionali</li>
+                      <li style="margin-bottom: 0.75rem;">✓ Chiedi informazioni sui nostri servizi personalizzati</li>
+                      <li style="margin-bottom: 0.75rem;">✓ Iscriviti alla newsletter per ricevere sconti esclusivi</li>
+                    </ul>
+                  </div>
+                </section>
+              `
+            }
+          }
+        ]
+      },
+      prodotti: {
+        title: "Prodotti",
+        slug: "prodotti",
+        order: 3,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "I Nostri Prodotti",
+              subtitle: "Qualità garantita per ogni esigenza",
+              cta_text: "Esplora Catalogo",
+              cta_link: "#catalog",
+              backgroundImage: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1920&q=80",
+              backgroundColor: "#1e293b",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "CATALOG_SELECTION",
+            ordine: 2,
+            dati_config: {
+              title: "Catalogo Completo",
+              subtitle: "Tutti i nostri prodotti organizzati per categoria",
+              layout: "grid-4",
+              maxItems: 24,
+              showPrices: true,
+              showAddToCart: true,
+              showFilters: true,
+              showCategories: true
+            }
+          }
+        ]
+      },
+      contatti: {
+        title: "Contatti",
+        slug: "contatti",
+        order: 4,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Contattaci",
+              subtitle: "Siamo a tua disposizione per ogni informazione",
+              cta_text: "",
+              cta_link: "",
+              backgroundImage: "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?w=1920&q=80",
+              backgroundColor: "#1e293b",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 3rem 2rem; max-width: 1000px; margin: 2rem auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                    <div>
+                      <h3 style="color: #1e40af; font-size: 1.8rem; margin-bottom: 1.5rem;">📍 Dove Siamo</h3>
+                      <p style="color: #64748b; line-height: 1.8; margin-bottom: 1rem;">
+                        <strong>Indirizzo:</strong><br>
+                        Via Roma 123<br>
+                        00100 Città (RM)<br><br>
+                        <strong>Orari:</strong><br>
+                        Lun-Ven: 9:00-13:00 / 15:30-19:30<br>
+                        Sab: 9:00-13:00 / 15:00-19:00<br>
+                        Dom: Chiuso
+                      </p>
+                    </div>
+                    <div>
+                      <h3 style="color: #1e40af; font-size: 1.8rem; margin-bottom: 1.5rem;">📞 Contatti Diretti</h3>
+                      <p style="color: #64748b; line-height: 1.8;">
+                        <strong>Telefono:</strong> 06 12345678<br><br>
+                        <strong>Email:</strong> info@tuaazienda.it<br><br>
+                        <strong>WhatsApp:</strong> +39 333 1234567
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "MAPS",
+            ordine: 3,
+            dati_config: {
+              title: "Mappa",
+              address: "Via Roma 123, Roma",
+              zoom: 15,
+              height: "400px"
+            }
+          },
+          {
+            tipo_componente: "MEDIA_SOCIAL",
+            ordine: 4,
+            dati_config: {
+              title: "Seguici sui Social",
+              subtitle: "Rimani sempre connesso con noi",
+              layout: "horizontal",
+              platforms: ["facebook", "instagram", "whatsapp", "telegram"]
+            }
+          }
+        ]
+      }
+    }
+  },
+
+  // ============================================
+  // 2. SERVIZI PROFESSIONALI 💼
+  // ============================================
+  services: {
+    name: "Servizi Professionali",
+    icon: "💼",
+    description: "Per studi professionali, consulenti e servizi B2B",
+    template: "standard",
+    pages: ["home", "servizi", "chi-siamo", "contatti"],
+    colors: {
+      primary: "#0f172a",           // Navy scuro elegante
+      secondary: "#334155",         // Grigio ardesia
+      accent: "#d97706",            // Oro/Ambrato premium
+      background: "#ffffff",
+      blockBackground: "#f8fafc",
+      headerBackground: "#0f172a",
+      headerText: "#ffffff"
+    },
+    pagesStructure: {
+      home: {
+        title: "Home",
+        slug: "home",
+        isHomepage: true,
+        order: 1,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Eccellenza e Professionalità",
+              subtitle: "Soluzioni su misura per la tua attività",
+              cta_text: "Scopri i Nostri Servizi",
+              cta_link: "/servizi",
+              backgroundImage: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1920&q=80",
+              backgroundColor: "#0f172a",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "VETRINA",
+            ordine: 2,
+            dati_config: {
+              title: "I Nostri Punti di Forza",
+              subtitle: "Perché scegliere i nostri servizi",
+              layout: "grid-4",
+              items: [
+                {
+                  icon: "🎯",
+                  title: "Consulenza Specializzata",
+                  description: "Anni di esperienza al servizio dei nostri clienti",
+                  link: "/servizi",
+                  color: "#0f172a"
+                },
+                {
+                  icon: "⚖️",
+                  title: "Affidabilità",
+                  description: "Trasparenza e correttezza in ogni interazione",
+                  link: "/chi-siamo",
+                  color: "#d97706"
+                },
+                {
+                  icon: "📊",
+                  title: "Risultati Misurabili",
+                  description: "KPI e reportistica dettagliata per ogni progetto",
+                  link: "/servizi",
+                  color: "#334155"
+                },
+                {
+                  icon: "🤝",
+                  title: "Supporto Dedicato",
+                  description: "Un team sempre disponibile per le tue esigenze",
+                  link: "/contatti",
+                  color: "#64748b"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "GUIDE",
+            ordine: 3,
+            dati_config: {
+              title: "Le Nostre Aree di Competenza",
+              subtitle: "Soluzioni complete per ogni esigenza",
+              tabs: [
+                {
+                  label: "Metodo",
+                  icon: "🔧",
+                  content: `
+                    <h4 style="color: #0f172a; margin-bottom: 1rem; font-size: 1.5rem;">Il Nostro Metodo di Lavoro</h4>
+                    <p style="color: #64748b; line-height: 1.8; margin-bottom: 1rem;">
+                      Utilizziamo un approccio strutturato basato su tre fasi:
+                    </p>
+                    <ol style="color: #64748b; line-height: 2; padding-left: 1.5rem;">
+                      <li style="margin-bottom: 0.75rem;"><strong>Analisi:</strong> Studiamo a fondo le tue esigenze e obiettivi</li>
+                      <li style="margin-bottom: 0.75rem;"><strong>Pianificazione:</strong> Elaboriamo una strategia personalizzata</li>
+                      <li style="margin-bottom: 0.75rem;"><strong>Esecuzione:</strong> Implementiamo con monitoraggio costante</li>
+                    </ol>
+                  `
+                },
+                {
+                  label: "Esperienza",
+                  icon: "⭐",
+                  content: `
+                    <h4 style="color: #0f172a; margin-bottom: 1rem; font-size: 1.5rem;">Anni di Esperienza</h4>
+                    <p style="color: #64748b; line-height: 1.8; margin-bottom: 1rem;">
+                      Operiamo nel settore da oltre 15 anni, seguendo centinaia di clienti con soddisfazione garantita.
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 2rem;">
+                      <div style="text-align: center; padding: 1.5rem; background: #f8fafc; border-radius: 8px;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: #d97706;">15+</div>
+                        <div style="color: #64748b; font-size: 0.9rem;">Anni di attività</div>
+                      </div>
+                      <div style="text-align: center; padding: 1.5rem; background: #f8fafc; border-radius: 8px;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: #d97706;">500+</div>
+                        <div style="color: #64748b; font-size: 0.9rem;">Clienti soddisfatti</div>
+                      </div>
+                      <div style="text-align: center; padding: 1.5rem; background: #f8fafc; border-radius: 8px;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: #d97706;">98%</div>
+                        <div style="color: #64748b; font-size: 0.9rem;">Tasso di soddisfazione</div>
+                      </div>
+                    </div>
+                  `
+                },
+                {
+                  label: "Certificazioni",
+                  icon: "🏆",
+                  content: `
+                    <h4 style="color: #0f172a; margin-bottom: 1rem; font-size: 1.5rem;">Certificazioni e Riconoscimenti</h4>
+                    <p style="color: #64748b; line-height: 1.8; margin-bottom: 1.5rem;">
+                      Il nostro team possiede le certificazioni più importanti del settore:
+                    </p>
+                    <ul style="color: #64748b; line-height: 2; padding-left: 1.5rem;">
+                      <li>Certificazione ISO 9001:2015</li>
+                      <li>Iscrizione Albo Professionale</li>
+                      <li>Formazione continua accreditata</li>
+                      <li>Partecipazione a conferenze internazionali</li>
+                    </ul>
+                  `
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 4,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 4rem 2rem; background: linear-gradient(135deg, #0f172a 0%, #334155 100%); color: white; border-radius: 12px; margin: 2rem 0; text-align: center;">
+                  <h2 style="font-size: 2.5rem; margin-bottom: 1rem; font-weight: bold;">Pronto per Iniziare?</h2>
+                  <p style="font-size: 1.2rem; max-width: 700px; margin: 0 auto 2rem; opacity: 0.95;">
+                    Contattaci oggi per una consulenza gratuita e scopri come possiamo aiutarti
+                  </p>
+                  <a href="/contatti" style="display: inline-block; background: #d97706; color: white; padding: 1rem 3rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    Richiedi Consulenza Gratuita
+                  </a>
+                </section>
+              `
+            }
+          }
+        ]
+      },
+      servizi: {
+        title: "Servizi",
+        slug: "servizi",
+        order: 2,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "I Nostri Servizi",
+              subtitle: "Soluzioni professionali per ogni esigenza",
+              cta_text: "Richiedi Preventivo",
+              cta_link: "/contatti",
+              backgroundImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1920&q=80",
+              backgroundColor: "#0f172a",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "VETRINA",
+            ordine: 2,
+            dati_config: {
+              title: "Servizi Principali",
+              subtitle: "Cosa possiamo fare per te",
+              layout: "grid-3",
+              items: [
+                {
+                  icon: "📋",
+                  title: "Consulenza Aziendale",
+                  description: "Analisi, pianificazione strategica e miglioramento processi",
+                  link: "#consulenza",
+                  color: "#0f172a"
+                },
+                {
+                  icon: "💰",
+                  title: "Consulenza Fiscale",
+                  description: "Pianificazione fiscale, dichiarazioni e ottimizzazione",
+                  link: "#fiscale",
+                  color: "#d97706"
+                },
+                {
+                  icon: "⚖️",
+                  title: "Servizi Legali",
+                  description: "Assistenza legale, contrattualistica e compliance",
+                  link: "#legale",
+                  color: "#334155"
+                },
+                {
+                  icon: "📈",
+                  title: "Business Planning",
+                  description: "Piani business, finanziamenti e sviluppo",
+                  link: "#business",
+                  color: "#64748b"
+                },
+                {
+                  icon: "👥",
+                  title: "Risorse Umane",
+                  description: "Recruiting, formazione e gestione del personale",
+                  link: "#hr",
+                  color: "#475569"
+                },
+                {
+                  icon: "💻",
+                  title: "Digital Transformation",
+                  description: "Implementazione tecnologie e processi digitali",
+                  link: "#digital",
+                  color: "#1e293b"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "chi-siamo": {
+        title: "Chi Siamo",
+        slug: "chi-siamo",
+        order: 3,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Chi Siamo",
+              subtitle: "Il nostro team, la nostra storia",
+              cta_text: "",
+              cta_link: "",
+              backgroundImage: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1920&q=80",
+              backgroundColor: "#0f172a",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 4rem 2rem; max-width: 1000px; margin: 2rem auto;">
+                  <div style="text-align: center; margin-bottom: 3rem;">
+                    <h2 style="color: #0f172a; font-size: 2.5rem; margin-bottom: 1rem;">La Nostra Storia</h2>
+                    <p style="color: #64748b; font-size: 1.1rem; line-height: 1.8;">
+                      Fondata nel [Anno], la nostra attività è cresciuta grazie alla passione e alla dedizione del nostro team.
+                      Oggi siamo un punto di riferimento per aziende e privati che cercano professionalità e competenza.
+                    </p>
+                  </div>
+                  <div style="background: #f8fafc; padding: 3rem; border-radius: 12px; margin: 2rem 0;">
+                    <h3 style="color: #0f172a; font-size: 2rem; margin-bottom: 2rem; text-align: center;">I Nostri Valori</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                      <div style="padding: 1.5rem; background: white; border-radius: 8px; border-left: 4px solid #d97706;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Eccellenza</h4>
+                        <p style="color: #64748b; font-size: 0.95rem;">Perseguiamo la qualità in ogni aspetto del nostro lavoro</p>
+                      </div>
+                      <div style="padding: 1.5rem; background: white; border-radius: 8px; border-left: 4px solid #d97706;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Integrità</h4>
+                        <p style="color: #64748b; font-size: 0.95rem;">Agiamo con trasparenza e onestà in ogni situazione</p>
+                      </div>
+                      <div style="padding: 1.5rem; background: white; border-radius: 8px; border-left: 4px solid #d97706;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Innovazione</h4>
+                        <p style="color: #64748b; font-size: 0.95rem;">Ci aggiorniamo costantemente per offrire le migliori soluzioni</p>
+                      </div>
+                      <div style="padding: 1.5rem; background: white; border-radius: 8px; border-left: 4px solid #d97706;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Cliente al Centro</h4>
+                        <p style="color: #64748b; font-size: 0.95rem;">Ogni cliente è unico e merita attenzione personalizzata</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "FLIP_CARD_GALLERY",
+            ordine: 3,
+            dati_config: {
+              title: "Il Nostro Team",
+              subtitle: "Professionisti esperti al tuo servizio",
+              items: [
+                {
+                  title: "Nome Cognome",
+                  role: "Fondatore & CEO",
+                  description: "15+ anni di esperienza nel settore",
+                  image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop"
+                },
+                {
+                  title: "Nome Cognome",
+                  role: "Consulente Senior",
+                  description: "Specialista in strategia aziendale",
+                  image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop"
+                },
+                {
+                  title: "Nome Cognome",
+                  role: "Consulente Fiscal",
+                  description: "Esperto contabile certificato",
+                  image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop"
+                },
+                {
+                  title: "Nome Cognome",
+                  role: "Legal Advisor",
+                  description: "Avvocato specializzato in diritto commerciale",
+                  image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      contatti: {
+        title: "Contatti",
+        slug: "contatti",
+        order: 4,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Contattaci",
+              subtitle: "Siamo a tua disposizione per una consulenza gratuita",
+              cta_text: "",
+              cta_link: "",
+              backgroundImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1920&q=80",
+              backgroundColor: "#0f172a",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 3rem 2rem; max-width: 1000px; margin: 2rem auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                    <div>
+                      <h3 style="color: #0f172a; font-size: 1.8rem; margin-bottom: 1.5rem;">📍 Uffici</h3>
+                      <p style="color: #64748b; line-height: 1.8; margin-bottom: 1.5rem;">
+                        <strong>Indirizzo:</strong><br>
+                        Corso Italia 456<br>
+                        00100 Roma (RM)<br><br>
+                        <strong>Orari:</strong><br>
+                        Lun - Ven: 9:00 - 13:00 / 14:30 - 18:30
+                      </p>
+                    </div>
+                    <div>
+                      <h3 style="color: #0f172a; font-size: 1.8rem; margin-bottom: 1.5rem;">📞 Contatti</h3>
+                      <p style="color: #64748b; line-height: 1.8;">
+                        <strong>Telefono:</strong> 06 12345678<br><br>
+                        <strong>Email:</strong> info@tuaazienda.it<br><br>
+                        <strong>PEC:</strong> tuaazienda@pec.it
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "MAPS",
+            ordine: 3,
+            dati_config: {
+              title: "Mappa",
+              address: "Corso Italia 456, Roma",
+              zoom: 15,
+              height: "400px"
+            }
+          },
+          {
+            tipo_componente: "MEDIA_SOCIAL",
+            ordine: 4,
+            dati_config: {
+              title: "Seguici sui Social",
+              subtitle: "Aggiornamenti e approfondimenti",
+              layout: "horizontal",
+              platforms: ["linkedin", "twitter", "facebook"]
+            }
+          }
+        ]
+      }
+    }
+  },
+
+  // ============================================
+  // 3. RISTORANTE / BAR 🍽️
+  // ============================================
+  restaurant: {
+    name: "Ristorante / Bar",
+    icon: "🍽️",
+    description: "Per ristoranti, bar, pizzerie e locali pubblici",
+    template: "fashion",
+    pages: ["home", "menu", "chi-siamo", "prenota"],
+    colors: {
+      primary: "#000000",           // Nero elegante
+      secondary: "#292524",         // Grigio molto scuro
+      accent: "#7c2d12",            // Bordeaux rosso scuro
+      background: "#fafaf9",
+      blockBackground: "#ffffff",
+      headerBackground: "#000000",
+      headerText: "#ffffff"
+    },
+    pagesStructure: {
+      home: {
+        title: "Home",
+        slug: "home",
+        isHomepage: true,
+        order: 1,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Benvenuti da [Nome Ristorante]",
+              subtitle: "L'arte del gusto in ogni piatto",
+              cta_text: "Scopri il Menu",
+              cta_link: "/menu",
+              backgroundImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1920&q=80",
+              backgroundColor: "#000000",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.6,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "DYNAMIC_IMAGE_GALLERY",
+            ordine: 2,
+            dati_config: {
+              title: "Le Nostre Specialità",
+              subtitle: "Un'anticipazione dei nostri piatti",
+              layout: "carousel",
+              autoplay: true,
+              interval: 4000,
+              images: [
+                {
+                  url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop",
+                  caption: "Primi piatti fatti in casa"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1544025162-d76694265947?w=800&h=600&fit=crop",
+                  caption: "Carni alla griglia"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&h=600&fit=crop",
+                  caption: "Pizza napoletana autentica"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=800&h=600&fit=crop",
+                  caption: "Dessert artigianali"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "VETRINA",
+            ordine: 3,
+            dati_config: {
+              title: "Perché Sceglierci",
+              subtitle: "L'esperienza che offriamo",
+              layout: "grid-3",
+              items: [
+                {
+                  icon: "🍝",
+                  title: "Cucina Autentica",
+                  description: "Ricette tradizionali con ingredienti freschi e locali",
+                  link: "/menu",
+                  color: "#7c2d12"
+                },
+                {
+                  icon: "🍷",
+                  title: "Carta dei Vini",
+                  description: "Selezione esclusiva di vini nazionali e internazionali",
+                  link: "/menu",
+                  color: "#000000"
+                },
+                {
+                  icon: "📍",
+                  title: "Atmosfera Unica",
+                  description: "Un ambiente elegante e accogliente nel cuore della città",
+                  link: "/chi-siamo",
+                  color: "#292524"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 4,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 4rem 2rem; background: #000000; color: white; border-radius: 12px; margin: 2rem 0; text-align: center;">
+                  <h2 style="font-size: 2.5rem; margin-bottom: 1rem; font-weight: bold;">Prenota il Tuo Tavolo</h2>
+                  <p style="font-size: 1.2rem; max-width: 600px; margin: 0 auto 2rem; opacity: 0.9;">
+                    Assicurati il posto perfetto per un'esperienza indimenticabile
+                  </p>
+                  <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <a href="/prenota" style="display: inline-block; background: #7c2d12; color: white; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">
+                      📅 Prenota Online
+                    </a>
+                    <a href="tel:+390612345678" style="display: inline-block; background: transparent; border: 2px solid white; color: white; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">
+                      📞 Chiama Ora
+                    </a>
+                  </div>
+                </section>
+              `
+            }
+          }
+        ]
+      },
+      menu: {
+        title: "Menu",
+        slug: "menu",
+        order: 2,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Il Nostro Menu",
+              subtitle: "Scopri le nostre proposte gastronomiche",
+              cta_text: "Prenota",
+              cta_link: "/prenota",
+              backgroundImage: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1920&q=80",
+              backgroundColor: "#000000",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "GUIDE",
+            ordine: 2,
+            dati_config: {
+              title: "Menu Completo",
+              subtitle: "Le nostre specialità",
+              tabs: [
+                {
+                  label: "Antipasti",
+                  icon: "🥗",
+                  content: `
+                    <h4 style="color: #000; margin-bottom: 1.5rem; font-size: 1.8rem;">Antipasti</h4>
+                    <div style="display: grid; gap: 1.5rem;">
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Bruschette Miste</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€8</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Pomodoro fresco, patè di olive, crema di carciofi</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Carpaccio di Manzo</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€12</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Rucola, parmigiano, granella di noci</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Tagliere del Contadino</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€15</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Salumi, formaggi, miele, composte</p>
+                      </div>
+                    </div>
+                  `
+                },
+                {
+                  label: "Primi",
+                  icon: "🍝",
+                  content: `
+                    <h4 style="color: #000; margin-bottom: 1.5rem; font-size: 1.8rem;">Primi Piatti</h4>
+                    <div style="display: grid; gap: 1.5rem;">
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Spaghetti Carbonara</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€14</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Guanciale croccante, pecorino, tuorlo d'uovo</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Tonnarelli Cacio e Pepe</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€13</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Pecorino romano DOP, pepe nero</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Risotto ai Funghi Porcini</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€16</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Funghi freschi, parmigiano, prezzemolo</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Gnocchi alla Sorrentina</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€14</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Pomodoro San Marzano, mozzarella di bufala, basilico</p>
+                      </div>
+                    </div>
+                  `
+                },
+                {
+                  label: "Secondi",
+                  icon: "🥩",
+                  content: `
+                    <h4 style="color: #000; margin-bottom: 1.5rem; font-size: 1.8rem;">Secondi Piatti</h4>
+                    <div style="display: grid; gap: 1.5rem;">
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Tagliata al Rosmarino</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€22</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Manzo, patate al forno, verdure grigliate</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Salmone alla Griglia</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€20</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Salmone fresco, asparagi, salsa al limone</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Ossobuco alla Milanese</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€24</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Risotto allo zafferano, gremolata</p>
+                      </div>
+                    </div>
+                  `
+                },
+                {
+                  label: "Dolci",
+                  icon: "🍰",
+                  content: `
+                    <h4 style="color: #000; margin-bottom: 1.5rem; font-size: 1.8rem;">Dolci Fatti in Casa</h4>
+                    <div style="display: grid; gap: 1.5rem;">
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Tiramisù Classico</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€7</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Mascarpone, savoiardi, caffè, cacao amaro</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Panna Cotta</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€6</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Coulis di frutti di bosco</p>
+                      </div>
+                      <div style="padding: 1rem; background: #fafaf9; border-radius: 8px; border-left: 3px solid #7c2d12;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                          <strong style="color: #000; font-size: 1.1rem;">Crostata di Frutta</strong>
+                          <span style="color: #7c2d12; font-weight: bold; font-size: 1.1rem;">€7</span>
+                        </div>
+                        <p style="color: #666; font-size: 0.9rem;">Pasta frolla al burro, frutta di stagione</p>
+                      </div>
+                    </div>
+                  `
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "chi-siamo": {
+        title: "Chi Siamo",
+        slug: "chi-siamo",
+        order: 3,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "La Nostra Storia",
+              subtitle: "Passione e tradizione dal [Anno]",
+              cta_text: "",
+              cta_link: "",
+              backgroundImage: "https://images.unsplash.com/photo-1559339352-11d035aa65de?w=1920&q=80",
+              backgroundColor: "#000000",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 4rem 2rem; max-width: 900px; margin: 2rem auto; text-align: center;">
+                  <h2 style="color: #000; font-size: 2.5rem; margin-bottom: 2rem;">La Nostra Filosofia</h2>
+                  <p style="color: #666; font-size: 1.1rem; line-height: 1.9; margin-bottom: 2rem;">
+                    Dal [Anno], il nostro ristorante porta in tavola la migliore tradizione culinaria italiana.
+                    Ogni piatto racconta una storia di passione, ricerca e rispetto per gli ingredienti.
+                  </p>
+                  <p style="color: #666; font-size: 1.1rem; line-height: 1.9; margin-bottom: 2rem;">
+                    Selezioniamo solo materie prime di eccellenza, lavorate con tecniche tradizionali
+                    e presentate con cura in ogni dettaglio.
+                  </p>
+                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem;">
+                    <div style="padding: 2rem; background: #fafaf9; border-radius: 8px;">
+                      <div style="font-size: 2.5rem; margin-bottom: 1rem;">🍅</div>
+                      <h3 style="color: #000; margin-bottom: 0.5rem;">Ingredienti Freschi</h3>
+                      <p style="color: #666; font-size: 0.9rem;">Da produttori locali ogni giorno</p>
+                    </div>
+                    <div style="padding: 2rem; background: #fafaf9; border-radius: 8px;">
+                      <div style="font-size: 2.5rem; margin-bottom: 1rem;">👨‍🍳</div>
+                      <h3 style="color: #000; margin-bottom: 0.5rem;">Chef Esperti</h3>
+                      <p style="color: #666; font-size: 0.9rem;">Anni di esperienza e passione</p>
+                    </div>
+                    <div style="padding: 2rem; background: #fafaf9; border-radius: 8px;">
+                      <div style="font-size: 2.5rem; margin-bottom: 1rem;">❤️</div>
+                      <h3 style="color: #000; margin-bottom: 0.5rem;">Amore per il Cibo</h3>
+                      <p style="color: #666; font-size: 0.9rem;">In ogni piatto che prepariamo</p>
+                    </div>
+                  </div>
+                </section>
+              `
+            }
+          }
+        ]
+      },
+      prenota: {
+        title: "Prenota",
+        slug: "prenota",
+        order: 4,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Prenota il Tuo Tavolo",
+              subtitle: "Assicurati un'esperienza indimenticabile",
+              cta_text: "",
+              cta_link: "",
+              backgroundImage: "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=1920&q=80",
+              backgroundColor: "#000000",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 3rem 2rem; max-width: 700px; margin: 2rem auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                  <h2 style="color: #000; font-size: 2rem; margin-bottom: 2rem; text-align: center;">Prenotazione Online</h2>
+                  <form style="display: grid; gap: 1.5rem;">
+                    <div>
+                      <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Nome *</label>
+                      <input type="text" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;" placeholder="Il tuo nome">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                      <div>
+                        <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Data *</label>
+                        <input type="date" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+                      </div>
+                      <div>
+                        <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Ora *</label>
+                        <select required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+                          <option value="">Seleziona orario</option>
+                          <option value="12:30">12:30</option>
+                          <option value="13:00">13:00</option>
+                          <option value="13:30">13:30</option>
+                          <option value="14:00">14:00</option>
+                          <option value="19:30">19:30</option>
+                          <option value="20:00">20:00</option>
+                          <option value="20:30">20:30</option>
+                          <option value="21:00">21:00</option>
+                          <option value="21:30">21:30</option>
+                          <option value="22:00">22:00</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Numero di Ospiti *</label>
+                      <select required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+                        <option value="">Seleziona numero</option>
+                        <option value="1">1 persona</option>
+                        <option value="2">2 persone</option>
+                        <option value="3">3 persone</option>
+                        <option value="4">4 persone</option>
+                        <option value="5">5 persone</option>
+                        <option value="6">6 persone</option>
+                        <option value="7+">7+ persone (contattaci via telefono)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Email</label>
+                      <input type="email" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;" placeholder="tua@email.it">
+                    </div>
+                    <div>
+                      <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Telefono *</label>
+                      <input type="tel" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;" placeholder="+39 333 1234567">
+                    </div>
+                    <div>
+                      <label style="display: block; color: #000; font-weight: bold; margin-bottom: 0.5rem;">Note</label>
+                      <textarea rows="3" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;" placeholder="Allergie, preferenze, occasioni speciali..."></textarea>
+                    </div>
+                    <button type="submit" style="width: 100%; background: #7c2d12; color: white; padding: 1rem; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer;">
+                      Conferma Prenotazione
+                    </button>
+                  </form>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "MEDIA_SOCIAL",
+            ordine: 3,
+            dati_config: {
+              title: "Seguici sui Social",
+              subtitle: "Resta aggiornato sul nostro menu e eventi",
+              layout: "horizontal",
+              platforms: ["instagram", "facebook", "tiktok"]
+            }
+          }
+        ]
+      }
+    }
+  },
+
+  // ============================================
+  // 4. ARTIGIANO / LABORATORIO 🛠️
+  // ============================================
+  craftsman: {
+    name: "Artigiano / Laboratorio",
+    icon: "🛠️",
+    description: "Per artigiani, laboratori e botteghe",
+    template: "industrial",
+    pages: ["home", "lavori", "prodotti", "contatti"],
+    colors: {
+      primary: "#ea580c",           // Arancione vibrante
+      secondary: "#292524",         // Grigio molto scuro quasi nero
+      accent: "#fbbf24",            // Oro ocra
+      background: "#fafaf9",
+      blockBackground: "#f5f5f4",
+      headerBackground: "#292524",
+      headerText: "#ffffff"
+    },
+    pagesStructure: {
+      home: {
+        title: "Home",
+        slug: "home",
+        isHomepage: true,
+        order: 1,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Artigianato Italiano dal [Anno]",
+              subtitle: "Lavoro a mano, qualità garantita",
+              cta_text: "Scopri i Nostri Lavori",
+              cta_link: "/lavori",
+              backgroundImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1920&q=80",
+              backgroundColor: "#292524",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.6,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "VETRINA",
+            ordine: 2,
+            dati_config: {
+              title: "Cosa Facciamo",
+              subtitle: "I nostri servizi artigianali",
+              layout: "grid-4",
+              items: [
+                {
+                  icon: "🔨",
+                  title: "Lavorazione Artigianale",
+                  description: "Ogni pezzo è unico, realizzato a mano con cura",
+                  link: "/lavori",
+                  color: "#ea580c"
+                },
+                {
+                  icon: "🪵",
+                  title: "Materiali Premium",
+                  description: "Solo legni pregiati e materiali di prima scelta",
+                  link: "/prodotti",
+                  color: "#fbbf24"
+                },
+                {
+                  icon: "📐",
+                  title: "Design su Misura",
+                  description: "Progettiamo insieme la soluzione perfetta",
+                  link: "/contatti",
+                  color: "#292524"
+                },
+                {
+                  icon: "✨",
+                  title: "Finiture Eccellenti",
+                  description: "Attenzione al dettaglio in ogni fase",
+                  link: "/lavori",
+                  color: "#78716c"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "DYNAMIC_IMAGE_GALLERY",
+            ordine: 3,
+            dati_config: {
+              title: "I Nostri Lavori",
+              subtitle: "Alcuni dei nostri progetti recenti",
+              layout: "grid",
+              columns: 3,
+              images: [
+                {
+                  url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop",
+                  caption: "Mobile su misura"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&h=400&fit=crop",
+                  caption: "Cucina artigianale"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=600&h=400&fit=crop",
+                  caption: "Tavolo in massello"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&h=400&fit=crop",
+                  caption: "Armadio su misura"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1595808563634-8f223f002d8b?w=600&h=400&fit=crop",
+                  caption: "Libreria design"
+                },
+                {
+                  url: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=400&fit=crop",
+                  caption: "Sedia artigianale"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 4,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 4rem 2rem; background: linear-gradient(135deg, #ea580c 0%, #f97316 100%); color: white; border-radius: 12px; margin: 2rem 0; text-align: center;">
+                  <h2 style="font-size: 2.5rem; margin-bottom: 1rem; font-weight: bold;">Hai un Progetto in Mente?</h2>
+                  <p style="font-size: 1.2rem; max-width: 700px; margin: 0 auto 2rem; opacity: 0.95;">
+                    Parliamone! Realizziamo insieme i tuoi desideri con la qualità dell'artigianato italiano
+                  </p>
+                  <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <a href="/contatti" style="display: inline-block; background: #292524; color: white; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">
+                      Richiedi Preventivo
+                    </a>
+                    <a href="tel:+390612345678" style="display: inline-block; background: white; color: #ea580c; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">
+                      📞 Chiama Ora
+                    </a>
+                  </div>
+                </section>
+              `
+            }
+          }
+        ]
+      },
+      lavori: {
+        title: "Lavori",
+        slug: "lavori",
+        order: 2,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "I Nostri Lavori",
+              subtitle: "Progetti realizzati con passione e maestria",
+              cta_text: "Contattaci",
+              cta_link: "/contatti",
+              backgroundImage: "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=1920&q=80",
+              backgroundColor: "#292524",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 3rem 2rem; max-width: 900px; margin: 2rem auto; text-align: center;">
+                  <h3 style="color: #292524; font-size: 2rem; margin-bottom: 1.5rem;">Il Nostro Processo di Lavoro</h3>
+                  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-top: 2rem;">
+                    <div>
+                      <div style="width: 60px; height: 60px; background: #ea580c; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; margin: 0 auto 1rem;">1</div>
+                      <h4 style="color: #292524; margin-bottom: 0.5rem;">Consulenza</h4>
+                      <p style="color: #78716c; font-size: 0.9rem;">Ascoltiamo le tue idee</p>
+                    </div>
+                    <div>
+                      <div style="width: 60px; height: 60px; background: #ea580c; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; margin: 0 auto 1rem;">2</div>
+                      <h4 style="color: #292524; margin-bottom: 0.5rem;">Progetto</h4>
+                      <p style="color: #78716c; font-size: 0.9rem;">Disegniamo insieme</p>
+                    </div>
+                    <div>
+                      <div style="width: 60px; height: 60px; background: #ea580c; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; margin: 0 auto 1rem;">3</div>
+                      <h4 style="color: #292524; margin-bottom: 0.5rem;">Realizzazione</h4>
+                      <p style="color: #78716c; font-size: 0.9rem;">Lavoriamo a mano</p>
+                    </div>
+                    <div>
+                      <div style="width: 60px; height: 60px; background: #ea580c; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; margin: 0 auto 1rem;">4</div>
+                      <h4 style="color: #292524; margin-bottom: 0.5rem;">Consegna</h4>
+                      <p style="color: #78716c; font-size: 0.9rem;">Soddisfazione garantita</p>
+                    </div>
+                  </div>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "FLIP_CARD_GALLERY",
+            ordine: 3,
+            dati_config: {
+              title: "Materiali e Tecniche",
+              subtitle: "Scopri come lavoriamo",
+              items: [
+                {
+                  title: "Legno Massello",
+                  role: "Materiale Primario",
+                  description: "Usiamo solo legni masselli certificati, stagionati naturalmente",
+                  image: "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=400&h=400&fit=crop"
+                },
+                {
+                  title: "Intaglio Artigianale",
+                  role: "Tecnica Tradizionale",
+                  description: "Ogni dettaglio è scolpito a mano con strumenti tradizionali",
+                  image: "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&h=400&fit=crop"
+                },
+                {
+                  title: "Finiture Naturali",
+                  role: "Verniciatura",
+                  description: "Utilizziamo solo vernici e oli naturali ecologici",
+                  image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop"
+                },
+                {
+                  title: "Assemblaggio",
+                  role: "Costruzione",
+                  description: "Giunzioni tradizionali senza colle o chiodi metallici",
+                  image: "https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=400&fit=crop"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "DYNAMIC_IMAGE_GALLERY",
+            ordine: 4,
+            dati_config: {
+              title: "Portfolio Completo",
+              subtitle: "Tutti i nostri progetti",
+              layout: "grid",
+              columns: 3,
+              images: [
+                { url: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&h=400&fit=crop", caption: "Cucina completa" },
+                { url: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=600&h=400&fit=crop", caption: "Tavolo dining" },
+                { url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&h=400&fit=crop", caption: "Armadio walk-in" },
+                { url: "https://images.unsplash.com/photo-1595808563634-8f223f002d8b?w=600&h=400&fit=crop", caption: "Libreria design" },
+                { url: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=400&fit=crop", caption: "Sedia artigianale" },
+                { url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop", caption: "Comò moderno" },
+                { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&h=400&fit=crop", caption: "Tavolo da lavoro" },
+                { url: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=600&h=400&fit=crop", caption: "Mobile bagno" },
+                { url: "https://images.unsplash.com/photo-1540932296774-1bed3605c6a5?w=600&h=400&fit=crop", caption: "Scrivania studio" }
+              ]
+            }
+          }
+        ]
+      },
+      prodotti: {
+        title: "Prodotti",
+        slug: "prodotti",
+        order: 3,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "I Nostri Prodotti",
+              subtitle: "Creazioni artigianali pronte per la tua casa",
+              cta_text: "Richiedi Info",
+              cta_link: "/contatti",
+              backgroundImage: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1920&q=80",
+              backgroundColor: "#292524",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "VETRINA",
+            ordine: 2,
+            dati_config: {
+              title: "Categorie Prodotti",
+              subtitle: "Scopri le nostre creazioni",
+              layout: "grid-3",
+              items: [
+                {
+                  icon: "🪑",
+                  title: "Sedie e Sgabelli",
+                  description: "Sedie artigianali in vari stili e finiture",
+                  link: "#",
+                  color: "#ea580c"
+                },
+                {
+                  icon: "🛋️",
+                  title: "Tavoli e Tavolini",
+                  description: "Tavoli da pranzo, lavoro e coffee table",
+                  link: "#",
+                  color: "#fbbf24"
+                },
+                {
+                  icon: "🗄️",
+                  title: "Armadi e Mobili",
+                  description: "Armadi, comò, credenze e librerie",
+                  link: "#",
+                  color: "#292524"
+                },
+                {
+                  icon: "🛏️",
+                  title: "Camera da Letto",
+                  description: "Letti, comodini e armadi cabina",
+                  link: "#",
+                  color: "#78716c"
+                },
+                {
+                  icon: "🍽️",
+                  title: "Cucina",
+                  description: "Mobili e accessori per la cucina",
+                  link: "#",
+                  color: "#ea580c"
+                },
+                {
+                  icon: "🖼️",
+                  title: "Accessori",
+                  description: "Cornici, specchi e oggetti decorativi",
+                  link: "#",
+                  color: "#fbbf24"
+                }
+              ]
+            }
+          },
+          {
+            tipo_componente: "CATALOG_SELECTION",
+            ordine: 3,
+            dati_config: {
+              title: "Prodotti Disponibili",
+              subtitle: "Pezzi unici pronti per la consegna",
+              layout: "grid-4",
+              maxItems: 8,
+              showPrices: true,
+              showFilters: true
+            }
+          }
+        ]
+      },
+      contatti: {
+        title: "Contatti",
+        slug: "contatti",
+        order: 4,
+        blocks: [
+          {
+            tipo_componente: "HERO",
+            ordine: 1,
+            dati_config: {
+              title: "Contattaci",
+              subtitle: "Richiedi un preventivo gratuito",
+              cta_text: "",
+              cta_link: "",
+              backgroundImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1920&q=80",
+              backgroundColor: "#292524",
+              textColor: "#ffffff",
+              overlay: true,
+              overlayOpacity: 0.7,
+              alignment: "center"
+            }
+          },
+          {
+            tipo_componente: "HTML",
+            ordine: 2,
+            dati_config: {
+              htmlContent: `
+                <section style="padding: 3rem 2rem; max-width: 900px; margin: 2rem auto; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                    <div>
+                      <h3 style="color: #292524; font-size: 1.8rem; margin-bottom: 1.5rem;">📍 Laboratorio</h3>
+                      <p style="color: #78716c; line-height: 1.8; margin-bottom: 1.5rem;">
+                        <strong>Indirizzo:</strong><br>
+                        Via dell'Artigiano 78<br>
+                        00100 Roma (RM)<br><br>
+                        <strong>Orari:</strong><br>
+                        Lun - Ven: 8:00 - 12:00 / 14:00 - 18:00<br>
+                        Sab: 9:00 - 12:00<br>
+                        Dom: Chiuso
+                      </p>
+                    </div>
+                    <div>
+                      <h3 style="color: #292524; font-size: 1.8rem; margin-bottom: 1.5rem;">📞 Contatti</h3>
+                      <p style="color: #78716c; line-height: 1.8;">
+                        <strong>Telefono:</strong> 06 12345678<br><br>
+                        <strong>Cellulare:</strong> +39 333 1234567<br><br>
+                        <strong>Email:</strong> info@tuaazienda.it<br><br>
+                        <strong>WhatsApp:</strong> +39 333 1234567
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              `
+            }
+          },
+          {
+            tipo_componente: "MAPS",
+            ordine: 3,
+            dati_config: {
+              title: "Mappa",
+              address: "Via dell'Artigiano 78, Roma",
+              zoom: 15,
+              height: "400px"
+            }
+          },
+          {
+            tipo_componente: "MEDIA_SOCIAL",
+            ordine: 4,
+            dati_config: {
+              title: "Seguici sui Social",
+              subtitle: "I nostri lavori in tempo reale",
+              layout: "horizontal",
+              platforms: ["instagram", "facebook", "pinterest"]
+            }
+          }
+        ]
+      }
+    }
+  }
+};
+
+module.exports = STARTER_SITE_PRESETS;

@@ -13,6 +13,7 @@ const { verifyToken, checkPermission } = require('../utils/auth');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const STARTER_SITE_PRESETS = require('./utils/starterSitePresets');
 
 
 // Middleware di base: verifica auth per tutte le rotte
@@ -25,15 +26,34 @@ router.use(verifyToken);
 // GET Elenco Ditte Candidabili (Tipo 1) per associazione sito
 router.get('/companies', async (req, res) => {
     try {
-        // Recupera tutte le ditte di tipo 1 (Proprietarie)
-        // Mostra anche se hanno già un sito attivo (url_slug)
-        const [companies] = await dbPool.query(
-            `SELECT id, ragione_sociale, url_slug, shop_attivo, logo_url
-             FROM ditte 
-             WHERE id_tipo_ditta = 1 
-             ORDER BY ragione_sociale ASC`
-        );
-        res.json(companies);
+        // Se l'utente ha solo COMPANY_SITE_BUILDER, ritorna solo la sua ditta
+        const hasCompanySiteBuilder = req.user.permissions?.includes('COMPANY_SITE_BUILDER');
+        const hasSiteBuilder = req.user.permissions?.includes('SITE_BUILDER');
+
+        if (hasCompanySiteBuilder && !hasSiteBuilder) {
+            // Admin Azienda: ritorna solo la sua ditta
+            const dittaId = req.user.id_ditta;
+            if (!dittaId) {
+                return res.status(403).json({ error: 'Utente non associato a nessuna ditta' });
+            }
+
+            const [companies] = await dbPool.query(
+                `SELECT id, ragione_sociale, url_slug, shop_attivo, logo_url
+                 FROM ditte
+                 WHERE id = ? AND id_tipo_ditta = 1`,
+                [dittaId]
+            );
+            res.json(companies);
+        } else {
+            // System Admin con SITE_BUILDER: recupera tutte le ditte di tipo 1 (Proprietarie)
+            const [companies] = await dbPool.query(
+                `SELECT id, ragione_sociale, url_slug, shop_attivo, logo_url
+                 FROM ditte
+                 WHERE id_tipo_ditta = 1
+                 ORDER BY ragione_sociale ASC`
+            );
+            res.json(companies);
+        }
     } catch (e) {
         console.error("Errore GET companies:", e);
         res.status(500).json({ error: e.message });
@@ -48,7 +68,8 @@ router.get('/config/:idDitta', async (req, res) => {
     try {
         const [rows] = await dbPool.query(
             `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template, shop_colore_sfondo_blocchi,
-                    shop_colore_header_sfondo, shop_colore_header_testo, shop_logo_posizione, shop_descrizione_home
+                    shop_colore_header_sfondo, shop_colore_header_testo, shop_logo_posizione, shop_descrizione_home,
+                    is_main_site, show_in_directory, directory_order, directory_description, directory_featured
              FROM ditte WHERE id = ?`,
             [req.params.idDitta]
         );
@@ -84,7 +105,13 @@ router.post('/config/:idDitta', async (req, res) => {
             shop_colore_header_testo,
             shop_logo_posizione,
             shop_descrizione_home,
-            shop_attivo
+            shop_attivo,
+            // Nuovi campi per sito principale e directory
+            is_main_site,
+            show_in_directory,
+            directory_order,
+            directory_description,
+            directory_featured
         } = req.body;
         const idDitta = req.params.idDitta;
         
@@ -127,7 +154,12 @@ router.post('/config/:idDitta', async (req, res) => {
                 shop_colore_header_testo = ?,
                 shop_logo_posizione = ?,
                 shop_descrizione_home = ?,
-                shop_attivo = ?
+                shop_attivo = ?,
+                is_main_site = ?,
+                show_in_directory = ?,
+                directory_order = ?,
+                directory_description = ?,
+                directory_featured = ?
              WHERE id = ?`,
             [
                 url_slug,
@@ -140,6 +172,11 @@ router.post('/config/:idDitta', async (req, res) => {
                 shop_logo_posizione,
                 shop_descrizione_home || null,
                 shop_attivo ? 1 : 0,
+                is_main_site ? 1 : 0,
+                show_in_directory !== undefined ? (show_in_directory ? 1 : 0) : 1,
+                directory_order || 100,
+                directory_description || null,
+                directory_featured ? 1 : 0,
                 idDitta
             ]
         );
@@ -900,6 +937,225 @@ router.put('/:idDitta/catalog/selezioni/:selezioneId/articoli/:articoloId/option
             error: 'Errore aggiornamento options'
         });
     }
+});
+
+// ----------------------------------------------------------------------
+// 10. CREAZIONE SITO STARTER (Site Starter Wizard)
+// ----------------------------------------------------------------------
+
+/**
+ * POST /api/admin/cms/create-starter-site
+ * Crea un sito completo basato su un preset selezionato
+ * Accessibile a System Admin (SITE_BUILDER) e Company Admin (COMPANY_SITE_BUILDER)
+ */
+router.post('/create-starter-site', async (req, res) => {
+    const connection = await dbPool.getConnection();
+
+    try {
+        const { idDitta, targetPreset } = req.body;
+
+        // Validazione parametri
+        if (!idDitta || !targetPreset) {
+            return res.status(400).json({
+                success: false,
+                error: 'Parametri mancanti: idDitta e targetPreset sono richiesti'
+            });
+        }
+
+        // Verifica permessi
+        const hasSiteBuilder = req.user.permissions?.includes('SITE_BUILDER');
+        const hasCompanySiteBuilder = req.user.permissions?.includes('COMPANY_SITE_BUILDER');
+
+        if (!hasSiteBuilder && !hasCompanySiteBuilder) {
+            return res.status(403).json({
+                success: false,
+                error: 'Non hai i permessi per creare siti starter'
+            });
+        }
+
+        // Se Company Admin, verifica che stia lavorando sulla sua ditta
+        if (hasCompanySiteBuilder && !hasSiteBuilder) {
+            if (req.user.id_ditta != idDitta) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Puoi creare siti solo per la tua azienda'
+                });
+            }
+        }
+
+        // Verifica che il preset esista
+        const preset = STARTER_SITE_PRESETS[targetPreset];
+        if (!preset) {
+            return res.status(400).json({
+                success: false,
+                error: `Preset "${targetPreset}" non valido. Preset disponibili: ${Object.keys(STARTER_SITE_PRESETS).join(', ')}`
+            });
+        }
+
+        // Verifica che la ditta esista
+        const [ditte] = await connection.query(
+            'SELECT id, ragione_sociale FROM ditte WHERE id = ?',
+            [idDitta]
+        );
+
+        if (ditte.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: `Ditta con ID ${idDitta} non trovata`
+            });
+        }
+
+        const ditta = ditte[0];
+
+        // Inizia transazione
+        await connection.beginTransaction();
+
+        // 1. Verifica se esistono già pagine per questa ditta
+        const [existingPages] = await connection.query(
+            'SELECT COUNT(*) as total FROM web_pages WHERE id_ditta = ?',
+            [idDitta]
+        );
+
+        const hasExistingContent = existingPages[0].total > 0;
+
+        if (hasExistingContent) {
+            // Elimina le pagine esistenti e i loro componenti
+            // I componenti verranno eliminati in cascata grazie a FOREIGN KEY
+            await connection.query(
+                'DELETE FROM web_pages WHERE id_ditta = ?',
+                [idDitta]
+            );
+        }
+
+        // 2. Applica il preset colori e template alla ditta
+        await connection.query(
+            `UPDATE ditte
+             SET id_web_template = (SELECT id FROM web_templates WHERE codice = ?),
+                 shop_colore_primario = ?,
+                 shop_colore_secondario = ?,
+                 shop_colore_sfondo_blocchi = ?,
+                 shop_colore_header_sfondo = ?,
+                 shop_colore_header_testo = ?,
+                 shop_attivo = 1
+             WHERE id = ?`,
+            [
+                preset.template,
+                preset.colors.primary,
+                preset.colors.secondary,
+                preset.colors.blockBackground || '#ffffff',
+                preset.colors.headerBackground || '#ffffff',
+                preset.colors.headerText || '#333333',
+                idDitta
+            ]
+        );
+
+        // 3. Crea le pagine e i componenti
+        const createdPages = [];
+
+        for (const [pageKey, pageConfig] of Object.entries(preset.pagesStructure)) {
+            // Crea la pagina
+            const [pageResult] = await connection.query(
+                `INSERT INTO web_pages (id_ditta, slug, titolo_seo, titolo_pagina, pubblicata, ordine_menu)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    idDitta,
+                    pageConfig.slug,
+                    pageConfig.title,
+                    pageConfig.title,
+                    1,
+                    pageConfig.order || 0
+                ]
+            );
+
+            const pageId = pageResult.insertId;
+
+            // Crea i componenti/blocchi della pagina
+            for (const blockConfig of pageConfig.blocks) {
+                const dati_config_json = typeof blockConfig.dati_config === 'string'
+                    ? blockConfig.dati_config
+                    : JSON.stringify(blockConfig.dati_config);
+
+                await connection.query(
+                    `INSERT INTO web_page_components
+                     (id_page, tipo_componente, ordine, dati_config)
+                     VALUES (?, ?, ?, ?)`,
+                    [
+                        pageId,
+                        blockConfig.tipo_componente,
+                        blockConfig.ordine,
+                        dati_config_json
+                    ]
+                );
+            }
+
+            createdPages.push({
+                id: pageId,
+                slug: pageConfig.slug,
+                title: pageConfig.title
+            });
+        }
+
+        // 4. Aggiorna il campo mostra_menu per tutte le pagine create
+        // In questo modo le pagine appariranno nel menu di navigazione
+        for (const [pageKey, pageConfig] of Object.entries(preset.pagesStructure)) {
+            await connection.query(
+                `UPDATE web_pages SET mostra_menu = 1 WHERE id_ditta = ? AND slug = ?`,
+                [idDitta, pageConfig.slug]
+            );
+        }
+
+        // Commit transazione
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: `Sito starter "${preset.name}" creato con successo per ${ditta.ragione_sociale}`,
+            data: {
+                preset: targetPreset,
+                presetName: preset.name,
+                template: preset.template,
+                pagesCreated: createdPages.length,
+                pages: createdPages,
+                hadExistingContent: hasExistingContent,
+                companyName: ditta.ragione_sociale
+            }
+        });
+
+    } catch (error) {
+        // Rollback in caso di errore
+        await connection.rollback();
+
+        console.error('Errore creazione sito starter:', error);
+
+        res.status(500).json({
+            success: false,
+            error: 'Errore durante la creazione del sito starter',
+            details: error.message
+        });
+    } finally {
+        connection.release();
+    }
+});
+
+/**
+ * GET /api/admin/cms/starter-presets
+ * Restituisce la lista dei preset disponibili
+ */
+router.get('/starter-presets', (req, res) => {
+    const presets = Object.keys(STARTER_SITE_PRESETS).map(key => ({
+        key,
+        name: STARTER_SITE_PRESETS[key].name,
+        icon: STARTER_SITE_PRESETS[key].icon,
+        description: STARTER_SITE_PRESETS[key].description,
+        template: STARTER_SITE_PRESETS[key].template,
+        colors: STARTER_SITE_PRESETS[key].colors,
+        pages: STARTER_SITE_PRESETS[key].pages
+    }));
+
+    res.json({
+        success: true,
+        presets
+    });
 });
 
 module.exports = router;

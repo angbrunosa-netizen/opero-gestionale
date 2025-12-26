@@ -11,6 +11,8 @@ import React, { useState } from 'react';
 const Icons = {
   Instagram: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>,
   Facebook: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>,
+  WhatsApp: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>,
+  Telegram: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>,
   Close: () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
   ArrowLeft: () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>,
   ArrowRight: () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -56,9 +58,24 @@ const Lightbox = ({ images, currentIndex, onClose, onNext, onPrev }) => {
 
 export default function MediaSocialBlock({ config }) {
     if (!config) return null;
-    const { titolo, layout, facebook, instagram, images } = config;
+    const { titolo, layout, platforms, customLinks, facebook, instagram, images } = config;
     const [lightboxIndex, setLightboxIndex] = useState(null);
-    
+
+    // Determine which platforms to show and their links
+    const socialPlatforms = platforms || [];
+    const socialLinks = customLinks || {};
+
+    // Fallback to legacy fields for backward compatibility
+    const hasInstagram = socialPlatforms.includes('instagram') || instagram;
+    const hasFacebook = socialPlatforms.includes('facebook') || facebook;
+    const hasWhatsApp = socialPlatforms.includes('whatsapp') && socialLinks.whatsapp;
+    const hasTelegram = socialPlatforms.includes('telegram') && socialLinks.telegram;
+
+    const instagramUrl = socialLinks.instagram || instagram;
+    const facebookUrl = socialLinks.facebook || facebook;
+    const whatsappUrl = hasWhatsApp ? `https://wa.me/${socialLinks.whatsapp.replace(/[^\d]/g, '')}` : null;
+    const telegramUrl = socialLinks.telegram;
+
     let imageList = [];
     try {
         imageList = Array.isArray(images) ? images : (typeof images === 'string' ? JSON.parse(images || '[]') : []);
@@ -69,7 +86,7 @@ export default function MediaSocialBlock({ config }) {
     const nextImage = () => setLightboxIndex((prev) => (prev + 1) % imageList.length);
     const prevImage = () => setLightboxIndex((prev) => (prev - 1 + imageList.length) % imageList.length);
 
-    if (!imageList.length && !facebook && !instagram) return null;
+    if (!imageList.length && !hasInstagram && !hasFacebook && !hasWhatsApp && !hasTelegram) return null;
 
     return (
         <section className="py-20 bg-white">
@@ -78,17 +95,27 @@ export default function MediaSocialBlock({ config }) {
                 {/* Intestazione */}
                 <div className="text-center mb-12">
                     {titolo && <h2 className="text-4xl font-bold text-[var(--primary-color)] mb-6">{titolo}</h2>}
-                    
-                    {(instagram || facebook) && (
+
+                    {(hasInstagram || hasFacebook || hasWhatsApp || hasTelegram) && (
                         <div className="flex justify-center gap-6">
-                            {instagram && (
-                                <a href={instagram} target="_blank" rel="noopener" className="p-3 rounded-full bg-gray-50 text-gray-600 hover:text-white hover:bg-gradient-to-tr hover:from-yellow-400 hover:via-red-500 hover:to-purple-500 transition-all transform hover:-translate-y-1 shadow-sm hover:shadow-md">
+                            {hasInstagram && instagramUrl && (
+                                <a href={instagramUrl} target="_blank" rel="noopener" className="p-3 rounded-full bg-gray-50 text-gray-600 hover:text-white hover:bg-gradient-to-tr hover:from-yellow-400 hover:via-red-500 hover:to-purple-500 transition-all transform hover:-translate-y-1 shadow-sm hover:shadow-md" title="Instagram">
                                     <Icons.Instagram />
                                 </a>
                             )}
-                            {facebook && (
-                                <a href={facebook} target="_blank" rel="noopener" className="p-3 rounded-full bg-gray-50 text-gray-600 hover:text-white hover:bg-[#1877F2] transition-all transform hover:-translate-y-1 shadow-sm hover:shadow-md">
+                            {hasFacebook && facebookUrl && (
+                                <a href={facebookUrl} target="_blank" rel="noopener" className="p-3 rounded-full bg-gray-50 text-gray-600 hover:text-white hover:bg-[#1877F2] transition-all transform hover:-translate-y-1 shadow-sm hover:shadow-md" title="Facebook">
                                     <Icons.Facebook />
+                                </a>
+                            )}
+                            {hasWhatsApp && whatsappUrl && (
+                                <a href={whatsappUrl} target="_blank" rel="noopener" className="p-3 rounded-full bg-gray-50 text-gray-600 hover:text-white hover:bg-[#25D366] transition-all transform hover:-translate-y-1 shadow-sm hover:shadow-md" title="WhatsApp">
+                                    <Icons.WhatsApp />
+                                </a>
+                            )}
+                            {hasTelegram && telegramUrl && (
+                                <a href={telegramUrl} target="_blank" rel="noopener" className="p-3 rounded-full bg-gray-50 text-gray-600 hover:text-white hover:bg-[#0088cc] transition-all transform hover:-translate-y-1 shadow-sm hover:shadow-md" title="Telegram">
+                                    <Icons.Telegram />
                                 </a>
                             )}
                         </div>

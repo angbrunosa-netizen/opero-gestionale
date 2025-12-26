@@ -139,6 +139,12 @@ export default function DynamicImageGalleryBlock({ config }) {
 
   // Layout: CAROUSEL / SLIDER / FULLSCREEN
   if (layout === 'carousel' || layout === 'slider' || layout === 'fullscreen') {
+    // Calcola l'altezza in base alla configurazione utente
+    const getHeightClass = () => {
+      if (layout === 'fullscreen') return '100vh';
+      return altezze[altezza] || altezze.md;
+    };
+
     return (
       <div className="py-8 px-4" style={{ backgroundColor: coloreSfondo }}>
         <div className="container mx-auto">
@@ -158,11 +164,10 @@ export default function DynamicImageGalleryBlock({ config }) {
 
           {/* Slider Container */}
           <div
-            className={`relative mx-auto overflow-hidden rounded-2xl`}
+            className={`relative mx-auto overflow-hidden rounded-2xl ${layout === 'fullscreen' ? '' : altezze[altezza] || altezze.md}`}
             style={{
-              height: layout === 'fullscreen' ? '100vh' : undefined,
-              maxHeight: layout === 'fullscreen' ? '100vh' : '600px',
-              minHeight: '300px',
+              height: layout === 'fullscreen' ? getHeightClass() : undefined,
+              maxHeight: layout === 'fullscreen' ? '100vh' : undefined,
               borderRadius: `${raggioBordo}px`,
               boxShadow: ombra ? '0 20px 40px rgba(0,0,0,0.15)' : 'none'
             }}
@@ -179,8 +184,13 @@ export default function DynamicImageGalleryBlock({ config }) {
                   alt={img.alt || `Slide ${index + 1}`}
                   className="w-full h-full object-cover"
                   style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
                     cursor: zoomOnHover ? 'zoom-in' : 'default',
-                    transition: 'transform 0.3s ease'
+                    transition: 'transform 0.3s ease',
+                    maxWidth: '100%',
+                    maxHeight: '100%'
                   }}
                   onMouseEnter={(e) => {
                     if (zoomOnHover) {
@@ -258,6 +268,15 @@ export default function DynamicImageGalleryBlock({ config }) {
   if (layout === 'grid') {
     const colonne = config.colonne || 3;
 
+    // Altezza massima per le immagini in grid in base all'impostazione utente
+    const gridHeight = {
+      sm: '250px',
+      md: '350px',
+      lg: '450px',
+      xl: '550px',
+      fullscreen: '400px'
+    };
+
     return (
       <div className="py-12 px-4" style={{ backgroundColor: coloreSfondo }}>
         <div className="container mx-auto">
@@ -284,7 +303,8 @@ export default function DynamicImageGalleryBlock({ config }) {
                 style={{
                   borderRadius: `${raggioBordo}px`,
                   boxShadow: ombra ? '0 10px 25px rgba(0,0,0,0.1)' : 'none',
-                  aspectRatio: '16/9'
+                  height: gridHeight[altezza] || gridHeight.md,
+                  maxHeight: gridHeight[altezza] || gridHeight.md
                 }}
                 onClick={() => {
                   if (img.link) {
@@ -297,6 +317,11 @@ export default function DynamicImageGalleryBlock({ config }) {
                   alt={img.alt || `Image ${index + 1}`}
                   className="w-full h-full object-cover transition-transform duration-500"
                   style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
                     transform: zoomOnHover ? 'scale(1)' : 'scale(1)'
                   }}
                   onMouseEnter={(e) => {
@@ -327,8 +352,19 @@ export default function DynamicImageGalleryBlock({ config }) {
     );
   }
 
-  // Layout: MASONRY
+  // Layout: MASONRY (Grid uniforme con celle identiche)
   if (layout === 'masonry') {
+    const colonne = config.colonne || 3;
+
+    // Altezza fissa per tutte le celle Masonry - identiche per tutte le immagini
+    const masonryHeight = {
+      sm: '280px',
+      md: '380px',
+      lg: '480px',
+      xl: '580px',
+      fullscreen: '450px'
+    };
+
     return (
       <div className="py-12 px-4" style={{ backgroundColor: coloreSfondo }}>
         <div className="container mx-auto">
@@ -346,15 +382,18 @@ export default function DynamicImageGalleryBlock({ config }) {
             </div>
           )}
 
-          {/* Masonry Grid */}
-          <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
+          {/* Masonry Grid - celle tutte identiche */}
+          <div className={`grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-${colonne}`}>
             {immagini.map((img, index) => (
               <div
                 key={index}
-                className="relative overflow-hidden rounded-xl break-inside-avoid group cursor-pointer"
+                className="relative overflow-hidden rounded-xl group cursor-pointer"
                 style={{
                   borderRadius: `${raggioBordo}px`,
-                  boxShadow: ombra ? '0 10px 25px rgba(0,0,0,0.1)' : 'none'
+                  boxShadow: ombra ? '0 10px 25px rgba(0,0,0,0.1)' : 'none',
+                  height: masonryHeight[altezza] || masonryHeight.md,
+                  maxHeight: masonryHeight[altezza] || masonryHeight.md,
+                  minHeight: masonryHeight[altezza] || masonryHeight.md
                 }}
                 onClick={() => {
                   if (img.link) {
@@ -365,8 +404,14 @@ export default function DynamicImageGalleryBlock({ config }) {
                 <img
                   src={img.src}
                   alt={img.alt || `Image ${index + 1}`}
-                  className="w-full transition-transform duration-500"
+                  className="w-full h-full object-cover transition-transform duration-500"
                   style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    display: 'block',
                     transform: zoomOnHover ? 'scale(1)' : 'scale(1)'
                   }}
                   onMouseEnter={(e) => {

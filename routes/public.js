@@ -176,6 +176,217 @@ const resolveTenant = async (req, res, next) => {
     }
 };
 
+// ----------------------------------------------------------------------
+// API SITO PRINCIPALE (operocloud.it)
+// ----------------------------------------------------------------------
+
+// GET: Recupera la ditta principale (is_main_site = true)
+router.get('/shop/main-site/company', async (req, res) => {
+    try {
+        const [companies] = await dbPool.query(
+            `SELECT d.id, d.ragione_sociale, d.url_slug, d.logo_url,
+                    d.shop_colore_primario, d.shop_colore_secondario, d.shop_colore_sfondo_blocchi,
+                    d.shop_colore_header_sfondo, d.shop_colore_header_testo, d.shop_logo_posizione,
+                    d.shop_descrizione_home, d.tel1, d.mail_1, d.pec, d.indirizzo, d.cap, d.citta, d.provincia,
+                    COALESCE(t.codice, 'standard') as template_code
+             FROM ditte d
+             LEFT JOIN web_templates t ON d.id_web_template = t.id
+             WHERE d.is_main_site = 1 AND d.shop_attivo = 1
+             LIMIT 1`
+        );
+
+        if (companies.length === 0) {
+            return res.json({ success: false, message: 'Nessuna ditta principale configurata' });
+        }
+
+        res.json({ success: true, company: companies[0] });
+    } catch (error) {
+        console.error('Errore recupero ditta principale:', error);
+        res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+});
+
+// GET: Recupera pagina del sito principale
+// Esempio: /api/public/shop/main-site/page/home
+router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
+    try {
+        const { pageSlug } = req.params;
+        const targetPage = pageSlug || 'home';
+
+        // 1. Recupera la ditta principale
+        const [companies] = await dbPool.query(
+            `SELECT d.id, d.ragione_sociale, d.logo_url, d.shop_colore_primario,
+                    d.shop_colore_secondario, d.shop_colore_sfondo_blocchi,
+                    d.shop_colore_header_sfondo, d.shop_colore_header_testo, d.shop_logo_posizione,
+                    d.shop_descrizione_home, d.tel1, d.mail_1, d.pec, d.indirizzo, d.cap, d.citta, d.provincia,
+                    COALESCE(t.codice, 'standard') as template_code
+             FROM ditte d
+             LEFT JOIN web_templates t ON d.id_web_template = t.id
+             WHERE d.is_main_site = 1 AND d.shop_attivo = 1
+             LIMIT 1`
+        );
+
+        if (companies.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sito principale non configurato' });
+        }
+
+        const company = companies[0];
+
+        // 2. Recupera i metadati della pagina
+        const [pages] = await dbPool.query(
+            `SELECT id, titolo_seo, descrizione_seo
+             FROM web_pages
+             WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`,
+            [company.id, targetPage]
+        );
+
+        if (pages.length === 0) {
+            return res.status(404).json({ success: false, message: 'Pagina non trovata' });
+        }
+        const page = pages[0];
+
+        // 3. Recupera i componenti ordinati
+        const [components] = await dbPool.query(
+            `SELECT tipo_componente, dati_config
+             FROM web_page_components
+             WHERE id_page = ?
+             ORDER BY ordine ASC`,
+            [page.id]
+        );
+
+        // 4. RECUPERA IL MENU DI NAVIGAZIONE
+        let navigation = [];
+        try {
+            const [navResult] = await dbPool.query(
+                `SELECT id, slug, titolo_seo, icona_menu, link_esterno, target_link, id_page_parent, livello_menu, ordine_menu
+                 FROM web_pages
+                 WHERE id_ditta = ? AND pubblicata = 1 AND mostra_menu = 1
+                 ORDER BY livello_menu ASC, ordine_menu ASC, slug ASC`,
+                [company.id]
+            );
+            navigation = navResult || [];
+        } catch (navError) {
+            console.error("Navigation error:", navError);
+            navigation = [];
+        }
+
+        // 5. Risposta strutturata
+        res.json({
+            success: true,
+            siteConfig: {
+                name: company.ragione_sociale,
+                logo: company.logo_url,
+                description: company.shop_descrizione_home || null,
+                colors: {
+                    primary: company.shop_colore_primario,
+                    secondary: company.shop_colore_secondario,
+                    blockBackground: company.shop_colore_sfondo_blocchi || '#ffffff',
+                    headerBackground: company.shop_colore_header_sfondo || '#ffffff',
+                    headerText: company.shop_colore_header_testo || '#333333',
+                    logoPosition: company.shop_logo_posizione || 'left'
+                },
+                template: company.template_code || 'standard',
+                navigation: navigation,
+                contact: {
+                    tel1: company.tel1 || null,
+                    mail1: company.mail_1 || null,
+                    pec: company.pec || null,
+                    indirizzo: company.indirizzo || null,
+                    cap: company.cap || null,
+                    citta: company.citta || null,
+                    provincia: company.provincia || null,
+                    logoUrl: company.logo_url || null
+                }
+            },
+            page: {
+                title: page.titolo_seo,
+                description: page.descrizione_seo
+            },
+            components: components
+        });
+
+    } catch (error) {
+        console.error('Errore recupero pagina sito principale:', error);
+        res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+});
+
+// ----------------------------------------------------------------------
+// API DIRECTORY DITTE
+// ----------------------------------------------------------------------
+
+// GET: Recupera la directory delle ditte visibili
+// Esempio: /api/public/shop/directory?featured=true
+router.get('/shop/directory', async (req, res) => {
+    try {
+        const { featured } = req.query;
+
+        let query = `
+            SELECT d.id, d.ragione_sociale, d.url_slug, d.logo_url,
+                   d.shop_descrizione_home, d.directory_description, d.directory_featured,
+                   d.tel1, d.mail_1, d.indirizzo, d.citta, d.provincia
+            FROM ditte d
+            WHERE d.shop_attivo = 1
+              AND d.show_in_directory = 1
+              AND d.is_main_site = 0
+        `;
+
+        const params = [];
+
+        // Filtra soloFeatured se richiesto
+        if (featured === 'true') {
+            query += ` AND d.directory_featured = 1`;
+        }
+
+        query += ` ORDER BY d.directory_order ASC, d.ragione_sociale ASC`;
+
+        const [companies] = await dbPool.query(query, params);
+
+        res.json({
+            success: true,
+            companies: companies,
+            count: companies.length
+        });
+    } catch (error) {
+        console.error('Errore recupero directory:', error);
+        res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+});
+
+// ----------------------------------------------------------------------
+// API VERIFICA SOTTODOMINIO
+// ----------------------------------------------------------------------
+
+// GET: Verifica se un sottodominio esiste
+// Esempio: /api/public/shop/exists/subdomain-name
+router.get('/shop/exists/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        const [rows] = await dbPool.query(
+            `SELECT url_slug, ragione_sociale
+             FROM ditte
+             WHERE url_slug = ? AND shop_attivo = 1`,
+            [slug]
+        );
+
+        if (rows.length === 0) {
+            return res.json({ exists: false });
+        }
+
+        res.json({
+            exists: true,
+            company: {
+                name: rows[0].ragione_sociale,
+                slug: rows[0].url_slug
+            }
+        });
+    } catch (error) {
+        console.error('Errore verifica sottodominio:', error);
+        res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+});
+
 // GET: Recupera la struttura completa di una pagina
 // Esempio: /api/public/shop/dittaprova/page/chi-siamo
 router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {

@@ -96,13 +96,35 @@ const PageManager = ({ dittaId }) => {
             card_padding: 16,
             card_aspect_ratio: 'square'
         } },
-        { type: 'HTML', label: 'Testo Formattato', icon: '📝', defaultData: {
+        { type: 'HTML', label: 'HTML / Widget', icon: '📝', defaultData: {
+            _activeTab: 'testo',
             html: '<h3>Titolo Sezione</h3><p>Scrivi qui il tuo contenuto...</p>',
+            rawHtmlCode: '',
             fontFamily: 'Arial, sans-serif',
             fontSize: '16px',
             textColor: '#333333',
             backgroundColor: '#ffffff',
-            textAlign: 'left'
+            textAlign: 'left',
+            // Social Media Embeds
+            socialEmbed: {
+                enabled: false,
+                type: 'facebook',
+                url: '',
+                width: '100%',
+                height: 'auto'
+            },
+            // Quick Actions
+            quickActions: [],
+            // Widgets
+            widget: {
+                enabled: false,
+                type: 'map',
+                url: '',
+                width: '100%',
+                height: '400px'
+            },
+            // Tracking & Analytics
+            tracking: []
         } },
         { type: 'MAPS', label: 'Mappa', icon: '📍', defaultData: {
             lat: 41.90,
@@ -167,6 +189,33 @@ const PageManager = ({ dittaId }) => {
             mostraTitolo: true,
             mostraSottotitolo: true,
             zoomOnHover: true
+        } },
+        { type: 'GUIDE', label: 'Guida Interattiva', icon: '📖', defaultData: {
+            title: 'Guida Interattiva',
+            subtitle: 'Scopri come utilizzare il nostro servizio',
+            theme: 'default',
+            showGuide: false, // Imposta a true per mostrare la guida all'uso del componente
+            tabs: [
+                {
+                    label: 'Panoramica',
+                    icon: '👁️',
+                    title: 'Panoramica Generale',
+                    description: 'Benvenuto in questa guida interattiva. Utilizza i tab qui sopra per navigare tra le diverse sezioni.',
+                    sections: [
+                        {
+                            title: 'Introduzione',
+                            icon: '👋',
+                            content: '<p>Questa guida ti aiuterà a capire tutte le funzionalità disponibili.</p>',
+                            points: [
+                                'Naviga tra i tab usando i pulsanti in alto',
+                                'Usa i pulsanti Precedente/Successivo in basso',
+                                'Segui gli esempi e i suggerimenti forniti'
+                            ]
+                        }
+                    ],
+                    tip: 'Clicca sui tab per navigare tra le sezioni della guida'
+                }
+            ]
         } }
     ];
 
@@ -704,150 +753,672 @@ const PageManager = ({ dittaId }) => {
                                 </>
                             )}
 
-                            {/* --- HTML --- */}
+                            {/* --- HTML / WIDGET --- */}
                             {comp.tipo_componente === 'HTML' && (
                                 <>
-                                    {/* Stile Testo */}
-                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
-                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Stile Testo</h4>
-                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 block mb-1">Font Family</label>
-                                                <select
-                                                    className="w-full border p-2 rounded text-sm"
-                                                    value={comp.dati_config.fontFamily || 'Arial, sans-serif'}
-                                                    onChange={e => updateConfig(i, 'fontFamily', e.target.value)}
-                                                >
-                                                    <option value="Arial, sans-serif">Arial</option>
-                                                    <option value="Helvetica, sans-serif">Helvetica</option>
-                                                    <option value="Times New Roman, serif">Times New Roman</option>
-                                                    <option value="Georgia, serif">Georgia</option>
-                                                    <option value="Courier New, monospace">Courier New</option>
-                                                    <option value="Verdana, sans-serif">Verdana</option>
-                                                    <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
-                                                    <option value="Palatino, serif">Palatino</option>
-                                                    <option value="Garamond, serif">Garamond</option>
-                                                    <option value="Comic Sans MS, cursive">Comic Sans MS</option>
-                                                    <option value="Impact, sans-serif">Impact</option>
-                                                    <option value="Lucida Console, monospace">Lucida Console</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 block mb-1">Dimensione Testo</label>
-                                                <div className="flex gap-2">
-                                                    <select
-                                                        className="flex-1 border p-2 rounded text-sm"
-                                                        value={comp.dati_config.fontSize || '16px'}
-                                                        onChange={e => updateConfig(i, 'fontSize', e.target.value)}
+                                    {/* Tabs per le diverse sezioni */}
+                                    <div className="mb-4 border-b">
+                                        <nav className="flex gap-4">
+                                            {['Testo', 'Codice HTML', 'Social Embed', 'Quick Actions', 'Widget', 'Tracking'].map((tab, idx) => {
+                                                const tabKeys = ['testo', 'codice', 'social', 'actions', 'widget', 'tracking'];
+                                                const activeTab = comp.dati_config._activeTab || 'testo';
+                                                return (
+                                                    <button
+                                                        key={tab}
+                                                        onClick={() => updateConfig(i, '_activeTab', tabKeys[idx])}
+                                                        className={`py-2 px-4 text-sm font-medium border-b-2 transition ${
+                                                            activeTab === tabKeys[idx]
+                                                                ? 'border-blue-500 text-blue-600'
+                                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        }`}
                                                     >
-                                                        <option value="12px">12px (Piccolo)</option>
-                                                        <option value="14px">14px</option>
-                                                        <option value="16px">16px (Normale)</option>
-                                                        <option value="18px">18px</option>
-                                                        <option value="20px">20px</option>
-                                                        <option value="24px">24px (Grande)</option>
-                                                        <option value="28px">28px</option>
-                                                        <option value="32px">32px (Molto Grande)</option>
-                                                    </select>
+                                                        {tab}
+                                                    </button>
+                                                );
+                                            })}
+                                        </nav>
+                                    </div>
+
+                                    {/* TAB: TESTO */}
+                                    {comp.dati_config._activeTab === 'testo' && (
+                                        <>
+                                            {/* Stile Testo */}
+                                            <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                                <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Stile Testo</h4>
+                                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Font Family</label>
+                                                        <select
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config.fontFamily || 'Arial, sans-serif'}
+                                                            onChange={e => updateConfig(i, 'fontFamily', e.target.value)}
+                                                        >
+                                                            <option value="Arial, sans-serif">Arial</option>
+                                                            <option value="Helvetica, sans-serif">Helvetica</option>
+                                                            <option value="Times New Roman, serif">Times New Roman</option>
+                                                            <option value="Georgia, serif">Georgia</option>
+                                                            <option value="Courier New, monospace">Courier New</option>
+                                                            <option value="Verdana, sans-serif">Verdana</option>
+                                                            <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Dimensione Testo</label>
+                                                        <select
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config.fontSize || '16px'}
+                                                            onChange={e => updateConfig(i, 'fontSize', e.target.value)}
+                                                        >
+                                                            <option value="12px">12px</option>
+                                                            <option value="14px">14px</option>
+                                                            <option value="16px">16px</option>
+                                                            <option value="18px">18px</option>
+                                                            <option value="20px">20px</option>
+                                                            <option value="24px">24px</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-4 mb-4">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Colore Testo</label>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="color"
+                                                                className="w-12 h-8 border rounded cursor-pointer"
+                                                                value={comp.dati_config.textColor || '#333333'}
+                                                                onChange={e => updateConfig(i, 'textColor', e.target.value)}
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                className="flex-1 border p-2 rounded text-sm"
+                                                                value={comp.dati_config.textColor || '#333333'}
+                                                                onChange={e => updateConfig(i, 'textColor', e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Colore Sfondo</label>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="color"
+                                                                className="w-12 h-8 border rounded cursor-pointer"
+                                                                value={comp.dati_config.backgroundColor || '#ffffff'}
+                                                                onChange={e => updateConfig(i, 'backgroundColor', e.target.value)}
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                className="flex-1 border p-2 rounded text-sm"
+                                                                value={comp.dati_config.backgroundColor || '#ffffff'}
+                                                                onChange={e => updateConfig(i, 'backgroundColor', e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Allineamento</label>
+                                                        <select
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config.textAlign || 'left'}
+                                                            onChange={e => updateConfig(i, 'textAlign', e.target.value)}
+                                                        >
+                                                            <option value="left">Sinistra</option>
+                                                            <option value="center">Centro</option>
+                                                            <option value="right">Destra</option>
+                                                            <option value="justify">Giustificato</option>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             </div>
+
+                                            {/* Editor HTML */}
+                                            <div className="h-64 mb-4">
+                                                <label className="text-xs font-bold text-gray-500 mb-1 block">CONTENUTO HTML</label>
+                                                <ReactQuill
+                                                    theme="snow"
+                                                    value={comp.dati_config.html || ''}
+                                                    onChange={(val) => updateConfig(i, 'html', val)}
+                                                    modules={quillModules}
+                                                    className="h-48"
+                                                />
+                                            </div>
+
+                                            {/* Anteprima */}
+                                            <div className="p-4 border rounded bg-white">
+                                                <h4 className="text-xs font-bold text-gray-700 mb-2 uppercase">Anteprima</h4>
+                                                <div
+                                                    style={{
+                                                        fontFamily: comp.dati_config.fontFamily || 'Arial, sans-serif',
+                                                        fontSize: comp.dati_config.fontSize || '16px',
+                                                        color: comp.dati_config.textColor || '#333333',
+                                                        backgroundColor: comp.dati_config.backgroundColor || '#ffffff',
+                                                        textAlign: comp.dati_config.textAlign || 'left',
+                                                        padding: '16px',
+                                                        borderRadius: '4px',
+                                                    }}
+                                                    dangerouslySetInnerHTML={{ __html: comp.dati_config.html || '<p>Anteprima...</p>' }}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* TAB: CODICE HTML (RAW CODE) */}
+                                    {comp.dati_config._activeTab === 'codice' && (
+                                        <div className="space-y-4">
+                                            <div className="p-4 bg-indigo-50 rounded border border-indigo-200">
+                                                <h4 className="text-sm font-bold text-indigo-900 mb-2">💻 Codice HTML Personalizzato</h4>
+                                                <p className="text-xs text-indigo-700">Inserisci codice HTML, iframe, script di terze parti o qualsiasi codice di embed</p>
+                                            </div>
+
+                                            {/* Editor Codice HTML */}
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Codice HTML / JavaScript / iframe</label>
+                                                <textarea
+                                                    className="w-full border p-3 rounded text-sm font-mono h-64 bg-gray-900 text-green-400"
+                                                    value={comp.dati_config.rawHtmlCode || ''}
+                                                    onChange={e => updateConfig(i, 'rawHtmlCode', e.target.value)}
+                                                    placeholder="<!-- Inserisci qui il tuo codice HTML -->&#10;<div>&#10;  <h1>Titolo</h1>&#10;  <p>Contenuto...</p>&#10;</div>&#;&#10;<script>&#10;  // Il tuo JavaScript&#10;</script>&#;&#10;<iframe src='...' ...></iframe>"
+                                                    spellCheck={false}
+                                                />
+                                                <p className="text-xs text-gray-500 mt-2">
+                                                    ⚠️ <strong>Attenzione:</strong> Il codice inserito verrà renderizzato così com'è. Usa con cautela.
+                                                    Puoi inserire: iframe, script, link, qualsiasi tag HTML.
+                                                </p>
+                                            </div>
+
+                                            {/* Esempi di codice */}
+                                            <div className="border rounded p-4 bg-gray-50">
+                                                <h5 className="text-xs font-bold text-gray-700 uppercase mb-3">Esempi di Codice</h5>
+
+                                                {/* Google Maps Embed */}
+                                                <details className="mb-3">
+                                                    <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                        📍 Google Maps Embed
+                                                    </summary>
+                                                    <pre className="mt-2 p-3 bg-white border rounded text-xs overflow-x-auto">
+{`<iframe
+  src="https://www.google.com/maps/embed?pb=..."
+  width="100%"
+  height="450"
+  style="border:0;"
+  allowfullscreen=""
+  loading="lazy">
+</iframe>`}
+                                                    </pre>
+                                                    <button
+                                                        onClick={() => updateConfig(i, 'rawHtmlCode', '<iframe src="https://www.google.com/maps/embed?pb=..." width="100%" height="450" style="border:0;" allowfullscreen loading="lazy"></iframe>')}
+                                                        className="mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                                                    >
+                                                        Usa questo esempio
+                                                    </button>
+                                                </details>
+
+                                                {/* YouTube Embed */}
+                                                <details className="mb-3">
+                                                    <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                        🎥 YouTube Video Embed
+                                                    </summary>
+                                                    <pre className="mt-2 p-3 bg-white border rounded text-xs overflow-x-auto">
+{`<iframe
+  width="560"
+  height="315"
+  src="https://www.youtube.com/embed/VIDEO_ID"
+  title="YouTube video"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen>
+</iframe>`}
+                                                    </pre>
+                                                    <button
+                                                        onClick={() => updateConfig(i, 'rawHtmlCode', '<iframe width="560" height="315" src="https://www.youtube.com/embed/VIDEO_ID" title="YouTube video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>')}
+                                                        className="mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                                                    >
+                                                        Usa questo esempio
+                                                    </button>
+                                                </details>
+
+                                                {/* Custom Script */}
+                                                <details className="mb-3">
+                                                    <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                        📜 Script JavaScript Personalizzato
+                                                    </summary>
+                                                    <pre className="mt-2 p-3 bg-white border rounded text-xs overflow-x-auto">
+{`<script>
+  console.log('Script eseguito!');
+  // Il tuo codice qui
+</script>`}
+                                                    </pre>
+                                                    <button
+                                                        onClick={() => updateConfig(i, 'rawHtmlCode', '<script>console.log("Script eseguito!");</script>')}
+                                                        className="mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                                                    >
+                                                        Usa questo esempio
+                                                    </button>
+                                                </details>
+
+                                                {/* Calendly Embed */}
+                                                <details>
+                                                    <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                        📅 Calendly Embed
+                                                    </summary>
+                                                    <pre className="mt-2 p-3 bg-white border rounded text-xs overflow-x-auto">
+{`<!-- Calendly inline widget begin -->
+<div class="calendly-inline-widget"
+  data-url="https://calendly.com/YOUR_LINK"
+  style="min-width:320px;height:630px;">
+</div>
+<script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js"></script>
+<!-- Calendly inline widget end -->`}
+                                                    </pre>
+                                                    <button
+                                                        onClick={() => updateConfig(i, 'rawHtmlCode', '<div class="calendly-inline-widget" data-url="https://calendly.com/YOUR_LINK" style="min-width:320px;height:630px;"></div><script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js"></script>')}
+                                                        className="mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                                                    >
+                                                        Usa questo esempio
+                                                    </button>
+                                                </details>
+                                            </div>
+
+                                            {/* Anteprima del codice */}
+                                            {comp.dati_config.rawHtmlCode && (
+                                                <div className="border rounded p-4 bg-white">
+                                                    <h5 className="text-xs font-bold text-gray-700 mb-3 uppercase">Anteprima Codice</h5>
+                                                    <div className="border rounded p-4 bg-gray-50 min-h-[100px]">
+                                                        <div dangerouslySetInnerHTML={{ __html: comp.dati_config.rawHtmlCode }} />
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        💡 L'anteprima mostra come apparirà il codice nella pagina
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="grid grid-cols-3 gap-4 mb-4">
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Testo</label>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="color"
-                                                        className="w-12 h-8 border rounded cursor-pointer"
-                                                        value={comp.dati_config.textColor || '#333333'}
-                                                        onChange={e => updateConfig(i, 'textColor', e.target.value)}
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        className="flex-1 border p-2 rounded text-sm"
-                                                        value={comp.dati_config.textColor || '#333333'}
-                                                        onChange={e => updateConfig(i, 'textColor', e.target.value)}
-                                                        placeholder="#333333"
-                                                    />
-                                                </div>
+                                    )}
+
+                                    {/* TAB: SOCIAL EMBED */}
+                                    {comp.dati_config._activeTab === 'social' && (
+                                        <div className="space-y-4">
+                                            <div className="p-4 bg-blue-50 rounded border border-blue-200">
+                                                <h4 className="text-sm font-bold text-blue-900 mb-2">📱 Social Media Embeds</h4>
+                                                <p className="text-xs text-blue-700">Incora post e contenuti da Facebook, Instagram, Twitter, YouTube, TikTok, LinkedIn, Pinterest</p>
                                             </div>
+
                                             <div>
-                                                <label className="text-xs font-bold text-gray-500 block mb-1">Colore Sfondo</label>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="color"
-                                                        className="w-12 h-8 border rounded cursor-pointer"
-                                                        value={comp.dati_config.backgroundColor || '#ffffff'}
-                                                        onChange={e => updateConfig(i, 'backgroundColor', e.target.value)}
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        className="flex-1 border p-2 rounded text-sm"
-                                                        value={comp.dati_config.backgroundColor || '#ffffff'}
-                                                        onChange={e => updateConfig(i, 'backgroundColor', e.target.value)}
-                                                        placeholder="#ffffff"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 block mb-1">Allineamento</label>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Piattaforma</label>
                                                 <select
                                                     className="w-full border p-2 rounded text-sm"
-                                                    value={comp.dati_config.textAlign || 'left'}
-                                                    onChange={e => updateConfig(i, 'textAlign', e.target.value)}
+                                                    value={comp.dati_config.socialEmbed?.type || 'facebook'}
+                                                    onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, type: e.target.value })}
                                                 >
-                                                    <option value="left">Sinistra</option>
-                                                    <option value="center">Centro</option>
-                                                    <option value="right">Destra</option>
-                                                    <option value="justify">Giustificato</option>
+                                                    <option value="facebook">Facebook</option>
+                                                    <option value="instagram">Instagram</option>
+                                                    <option value="twitter">Twitter/X</option>
+                                                    <option value="youtube">YouTube</option>
+                                                    <option value="tiktok">TikTok</option>
+                                                    <option value="linkedin">LinkedIn</option>
+                                                    <option value="pinterest">Pinterest</option>
                                                 </select>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    updateConfig(i, 'fontFamily', 'Arial, sans-serif');
-                                                    updateConfig(i, 'fontSize', '16px');
-                                                    updateConfig(i, 'textColor', '#333333');
-                                                    updateConfig(i, 'backgroundColor', '#ffffff');
-                                                    updateConfig(i, 'textAlign', 'left');
-                                                }}
-                                                className="text-xs bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700"
-                                            >
-                                                Reset Stile
-                                            </button>
-                                        </div>
-                                    </div>
 
-                                    {/* Editor Contenuto */}
-                                    <div className="h-64 mb-10">
-                                        <label className="text-xs font-bold text-gray-500 mb-1 block">CONTENUTO</label>
-                                        <ReactQuill
-                                            theme="snow"
-                                            value={comp.dati_config.html || ''}
-                                            onChange={(val) => updateConfig(i, 'html', val)}
-                                            modules={quillModules}
-                                            className="h-48"
-                                        />
-                                    </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">URL Post/Video</label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.socialEmbed?.url || ''}
+                                                    onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, url: e.target.value })}
+                                                    placeholder="https://www.facebook.com/posts/..."
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">Incolla l'URL del post o video da incorporare</p>
+                                            </div>
 
-                                    {/* Anteprima Stile */}
-                                    <div className="p-4 border rounded bg-white">
-                                        <h4 className="text-xs font-bold text-gray-700 mb-2 uppercase">Anteprima Stile</h4>
-                                        <div
-                                            style={{
-                                                fontFamily: comp.dati_config.fontFamily || 'Arial, sans-serif',
-                                                fontSize: comp.dati_config.fontSize || '16px',
-                                                color: comp.dati_config.textColor || '#333333',
-                                                backgroundColor: comp.dati_config.backgroundColor || '#ffffff',
-                                                textAlign: comp.dati_config.textAlign || 'left',
-                                                padding: '16px',
-                                                borderRadius: '4px',
-                                                border: '1px solid #e5e7eb'
-                                            }}
-                                            dangerouslySetInnerHTML={{ __html: comp.dati_config.html || '<p>Anteprima del contenuto...</p>' }}
-                                        />
-                                    </div>
+                                            {/* Dimensioni Embed */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Larghezza</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={comp.dati_config.socialEmbed?.width || '100%'}
+                                                        onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, width: e.target.value })}
+                                                    >
+                                                        <option value="100%">Automatica (100%)</option>
+                                                        <option value="320px">Piccola (320px) - Mobile</option>
+                                                        <option value="400px">Media (400px) - Post Standard</option>
+                                                        <option value="500px">Grande (500px) - Post HD</option>
+                                                        <option value="600px">Molto Grande (600px)</option>
+                                                        <option value="custom">Personalizzata</option>
+                                                    </select>
+                                                    {comp.dati_config.socialEmbed?.width === 'custom' && (
+                                                        <input
+                                                            type="number"
+                                                            className="w-full border p-2 rounded text-sm mt-2"
+                                                            value={comp.dati_config.socialEmbed?.widthCustom || 500}
+                                                            onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, widthCustom: e.target.value })}
+                                                            min="200"
+                                                            max="1200"
+                                                            placeholder="500"
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Altezza</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={comp.dati_config.socialEmbed?.height || 'auto'}
+                                                        onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, height: e.target.value })}
+                                                    >
+                                                        <option value="auto">Automatica (Auto)</option>
+                                                        <option value="400px">Piccola (400px)</option>
+                                                        <option value="500px">Media (500px)</option>
+                                                        <option value="600px">Grande (600px)</option>
+                                                        <option value="700px">Molto Grande (700px)</option>
+                                                        <option value="800px">Enorme (800px)</option>
+                                                        <option value="custom">Personalizzata</option>
+                                                    </select>
+                                                    {comp.dati_config.socialEmbed?.height === 'custom' && (
+                                                        <input
+                                                            type="number"
+                                                            className="w-full border p-2 rounded text-sm mt-2"
+                                                            value={comp.dati_config.socialEmbed?.heightCustom || 600}
+                                                            onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, heightCustom: e.target.value })}
+                                                            min="200"
+                                                            max="2000"
+                                                            placeholder="600"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Suggerimenti dimensioni */}
+                                            <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
+                                                <p className="text-xs font-bold text-yellow-800 mb-1">💡 Suggerimenti per piattaforma:</p>
+                                                <ul className="text-xs text-yellow-700 space-y-0.5">
+                                                    <li><strong>Instagram/Facebook Post:</strong> 400-500px larghezza, auto altezza</li>
+                                                    <li><strong>YouTube:</strong> 100% larghezza, 400-600px altezza</li>
+                                                    <li><strong>Twitter/X:</strong> 400-500px larghezza, auto altezza</li>
+                                                    <li><strong>LinkedIn:</strong> 400-600px larghezza, auto altezza</li>
+                                                </ul>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="socialEnabled"
+                                                    checked={comp.dati_config.socialEmbed?.enabled || false}
+                                                    onChange={e => updateConfig(i, 'socialEmbed', { ...comp.dati_config.socialEmbed, enabled: e.target.checked })}
+                                                    className="rounded"
+                                                />
+                                                <label htmlFor="socialEnabled" className="text-sm text-gray-700">Attiva Social Embed</label>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* TAB: QUICK ACTIONS */}
+                                    {comp.dati_config._activeTab === 'actions' && (
+                                        <div className="space-y-4">
+                                            <div className="p-4 bg-green-50 rounded border border-green-200">
+                                                <h4 className="text-sm font-bold text-green-900 mb-2">⚡ Quick Actions</h4>
+                                                <p className="text-xs text-green-700">Pulsanti per WhatsApp, Telefono, Email, Download, Link</p>
+                                            </div>
+
+                                            {/* Lista Quick Actions esistenti */}
+                                            {comp.dati_config.quickActions && comp.dati_config.quickActions.length > 0 && (
+                                                <div className="border rounded p-4 space-y-3">
+                                                    <h5 className="text-xs font-bold text-gray-700 uppercase">Quick Actions Configurate</h5>
+                                                    {comp.dati_config.quickActions.map((action, actionIdx) => (
+                                                        <div key={actionIdx} className="flex items-center gap-3 p-3 bg-gray-50 rounded border">
+                                                            <span className="text-2xl">{action.icon || '🔗'}</span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-medium text-sm truncate">{action.label}</div>
+                                                                <div className="text-xs text-gray-500 truncate">
+                                                                    {action.type}: {action.value}
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newActions = [...comp.dati_config.quickActions];
+                                                                    newActions.splice(actionIdx, 1);
+                                                                    updateConfig(i, 'quickActions', newActions);
+                                                                }}
+                                                                className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                                                title="Rimuovi"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Form Aggiungi Quick Action */}
+                                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                                                <h5 className="text-xs font-bold text-gray-700 uppercase mb-3">Aggiungi Nuova Quick Action</h5>
+
+                                                <div className="space-y-3">
+                                                    {/* Tipo */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Tipo Azione</label>
+                                                        <select
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config._newAction?.type || 'whatsapp'}
+                                                            onChange={e => updateConfig(i, '_newAction', { ...comp.dati_config._newAction, type: e.target.value })}
+                                                        >
+                                                            <option value="whatsapp">💬 WhatsApp</option>
+                                                            <option value="phone">📞 Telefono</option>
+                                                            <option value="email">✉️ Email</option>
+                                                            <option value="download">📥 Download</option>
+                                                            <option value="link">🔗 Link Esterno</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Label */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Testo Pulsante</label>
+                                                        <input
+                                                            type="text"
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config._newAction?.label || ''}
+                                                            onChange={e => updateConfig(i, '_newAction', { ...comp.dati_config._newAction, label: e.target.value })}
+                                                            placeholder="Es: Contattaci su WhatsApp"
+                                                        />
+                                                    </div>
+
+                                                    {/* Value */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">
+                                                            {comp.dati_config._newAction?.type === 'whatsapp' && 'Numero WhatsApp (con prefisso)'}
+                                                            {comp.dati_config._newAction?.type === 'phone' && 'Numero di Telefono'}
+                                                            {comp.dati_config._newAction?.type === 'email' && 'Indirizzo Email'}
+                                                            {comp.dati_config._newAction?.type === 'download' && 'URL File / PDF'}
+                                                            {comp.dati_config._newAction?.type === 'link' && 'URL Link'}
+                                                            {!comp.dati_config._newAction?.type && 'Valore'}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config._newAction?.value || ''}
+                                                            onChange={e => updateConfig(i, '_newAction', { ...comp.dati_config._newAction, value: e.target.value })}
+                                                            placeholder={
+                                                                comp.dati_config._newAction?.type === 'whatsapp' ? '+39123456789' :
+                                                                comp.dati_config._newAction?.type === 'phone' ? '+39123456789' :
+                                                                comp.dati_config._newAction?.type === 'email' ? 'info@azienda.it' :
+                                                                comp.dati_config._newAction?.type === 'download' ? 'https://...' :
+                                                                comp.dati_config._newAction?.type === 'link' ? 'https://...' :
+                                                                'Valore...'
+                                                            }
+                                                        />
+                                                    </div>
+
+                                                    {/* Icon */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Icona (Emoji)</label>
+                                                        <input
+                                                            type="text"
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config._newAction?.icon || '💬'}
+                                                            onChange={e => updateConfig(i, '_newAction', { ...comp.dati_config._newAction, icon: e.target.value })}
+                                                            placeholder="💬"
+                                                        />
+                                                        <p className="text-xs text-gray-500 mt-1">Suggerimenti: 💬 📞 ✉️ 📥 🔗 🌐 📱</p>
+                                                    </div>
+
+                                                    {/* Style */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Stile Pulsante</label>
+                                                        <select
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config._newAction?.style || 'primary'}
+                                                            onChange={e => updateConfig(i, '_newAction', { ...comp.dati_config._newAction, style: e.target.value })}
+                                                        >
+                                                            <option value="primary">Primary (Blu)</option>
+                                                            <option value="secondary">Secondary (Grigio)</option>
+                                                            <option value="success">Success (Verde)</option>
+                                                            <option value="danger">Danger (Rosso)</option>
+                                                            <option value="outline">Outline (Bordo)</option>
+                                                            <option value="ghost">Ghost (Trasparente)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Size */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-500 block mb-1">Dimensione</label>
+                                                        <select
+                                                            className="w-full border p-2 rounded text-sm"
+                                                            value={comp.dati_config._newAction?.size || 'medium'}
+                                                            onChange={e => updateConfig(i, '_newAction', { ...comp.dati_config._newAction, size: e.target.value })}
+                                                        >
+                                                            <option value="small">Piccolo</option>
+                                                            <option value="medium">Medio</option>
+                                                            <option value="large">Grande</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Pulsante Aggiungi */}
+                                                    <button
+                                                        onClick={() => {
+                                                            const newAction = {
+                                                                type: comp.dati_config._newAction?.type || 'whatsapp',
+                                                                label: comp.dati_config._newAction?.label || 'Contattaci',
+                                                                value: comp.dati_config._newAction?.value || '',
+                                                                icon: comp.dati_config._newAction?.icon || '💬',
+                                                                style: comp.dati_config._newAction?.style || 'primary',
+                                                                size: comp.dati_config._newAction?.size || 'medium'
+                                                            };
+
+                                                            if (!newAction.value) {
+                                                                alert('Inserisci il valore (numero, email o URL)');
+                                                                return;
+                                                            }
+
+                                                            const currentActions = comp.dati_config.quickActions || [];
+                                                            updateConfig(i, 'quickActions', [...currentActions, newAction]);
+                                                            updateConfig(i, '_newAction', {}); // Reset form
+                                                        }}
+                                                        className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition font-medium text-sm"
+                                                    >
+                                                        + Aggiungi Quick Action
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Anteprima */}
+                                            {(comp.dati_config.quickActions && comp.dati_config.quickActions.length > 0) && (
+                                                <div className="p-4 border rounded bg-white">
+                                                    <h5 className="text-xs font-bold text-gray-700 mb-3 uppercase">Anteprima Quick Actions</h5>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {comp.dati_config.quickActions.map((action, idx) => {
+                                                            const styleClasses = {
+                                                                primary: 'bg-blue-600 text-white hover:bg-blue-700',
+                                                                secondary: 'bg-gray-600 text-white hover:bg-gray-700',
+                                                                success: 'bg-green-600 text-white hover:bg-green-700',
+                                                                danger: 'bg-red-600 text-white hover:bg-red-700',
+                                                                outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50',
+                                                                ghost: 'bg-transparent text-gray-700 hover:bg-gray-100'
+                                                            };
+
+                                                            const sizeClasses = {
+                                                                small: 'px-3 py-1 text-sm',
+                                                                medium: 'px-4 py-2 text-base',
+                                                                large: 'px-6 py-3 text-lg'
+                                                            };
+
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    className={`flex items-center gap-2 rounded font-medium transition ${sizeClasses[action.size] || sizeClasses.medium} ${styleClasses[action.style] || styleClasses.primary}`}
+                                                                >
+                                                                    <span>{action.icon}</span>
+                                                                    {action.label}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* TAB: WIDGET */}
+                                    {comp.dati_config._activeTab === 'widget' && (
+                                        <div className="space-y-4">
+                                            <div className="p-4 bg-purple-50 rounded border border-purple-200">
+                                                <h4 className="text-sm font-bold text-purple-900 mb-2">🎨 Widgets</h4>
+                                                <p className="text-xs text-purple-700">Google Maps, Vimeo, Calendly, Typeform, ecc.</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">Tipo Widget</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={comp.dati_config.widget?.type || 'map'}
+                                                    onChange={e => updateConfig(i, 'widget', { ...comp.dati_config.widget, type: e.target.value })}
+                                                >
+                                                    <option value="map">Google Maps</option>
+                                                    <option value="vimeo">Vimeo Video</option>
+                                                    <option value="calendly">Calendly</option>
+                                                    <option value="typeform">Typeform</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-500 block mb-1">URL Widget / Embed Code</label>
+                                                <textarea
+                                                    className="w-full border p-2 rounded text-sm h-24"
+                                                    value={comp.dati_config.widget?.url || ''}
+                                                    onChange={e => updateConfig(i, 'widget', { ...comp.dati_config.widget, url: e.target.value })}
+                                                    placeholder="Incolla l'URL o codice embed..."
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="widgetEnabled"
+                                                    checked={comp.dati_config.widget?.enabled || false}
+                                                    onChange={e => updateConfig(i, 'widget', { ...comp.dati_config.widget, enabled: e.target.checked })}
+                                                    className="rounded"
+                                                />
+                                                <label htmlFor="widgetEnabled" className="text-sm text-gray-700">Attiva Widget</label>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* TAB: TRACKING */}
+                                    {comp.dati_config._activeTab === 'tracking' && (
+                                        <div className="space-y-4">
+                                            <div className="p-4 bg-orange-50 rounded border border-orange-200">
+                                                <h4 className="text-sm font-bold text-orange-900 mb-2">📊 Tracking & Analytics</h4>
+                                                <p className="text-xs text-orange-700">Google Analytics 4, Facebook Pixel, Hotjar, Script personalizzati</p>
+                                            </div>
+
+                                            <div className="border rounded p-4">
+                                                <p className="text-sm text-gray-500 text-center py-4">
+                                                    Tracking configuration coming soon...
+                                                    <br />
+                                                    <span className="text-xs">Configurazione tramite JSON nell'editor HTML</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
 
@@ -1770,6 +2341,387 @@ const PageManager = ({ dittaId }) => {
                                             {(!comp.dati_config.immagini?.length) && (
                                                 <p className="text-xs text-gray-400 text-center py-4">
                                                     Nessuna immagine aggiunta. Clicca "Aggiungi Immagine" per iniziare.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* --- GUIDE --- */}
+                            {comp.tipo_componente === 'GUIDE' && (
+                                <>
+                                    {/* Titolo e Sottotitolo */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Titolo Guida</h4>
+                                        <div className="mb-3">
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Titolo Principale</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.title || ''} onChange={e => updateConfig(i, 'title', e.target.value)} placeholder="Guida Interattiva" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Sottotitolo</label>
+                                            <input type="text" className="w-full border p-2 rounded text-sm" value={comp.dati_config.subtitle || ''} onChange={e => updateConfig(i, 'subtitle', e.target.value)} placeholder="Scopri come utilizzare il nostro servizio" />
+                                        </div>
+                                    </div>
+
+                                    {/* Tema */}
+                                    <div className="mb-4 p-4 bg-gray-50 rounded border">
+                                        <h4 className="text-xs font-bold text-gray-700 mb-3 uppercase">Aspetto Grafico</h4>
+                                        <div className="mb-3">
+                                            <label className="text-xs font-bold text-gray-500 block mb-1">Tema</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={comp.dati_config.theme || 'default'} onChange={e => updateConfig(i, 'theme', e.target.value)}>
+                                                <option value="default">Blu (Default)</option>
+                                                <option value="green">Verde</option>
+                                                <option value="purple">Viola</option>
+                                                <option value="dark">Scuro</option>
+                                            </select>
+                                        </div>
+                                        <div className="pt-3 border-t">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={comp.dati_config.showGuide || false}
+                                                    onChange={e => updateConfig(i, 'showGuide', e.target.checked)}
+                                                    className="w-4 h-4 text-blue-600 rounded"
+                                                />
+                                                <div>
+                                                    <span className="text-sm font-medium text-gray-700">🎓 Mostra Guida all'Uso</span>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        Attiva una guida interattiva che spiega come utilizzare questo componente
+                                                    </p>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Gestione Tab */}
+                                    <div className="mb-4 p-4 bg-blue-50 rounded border">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="text-xs font-bold text-gray-700 uppercase">Tab della Guida</h4>
+                                            <button
+                                                onClick={() => {
+                                                    const newComps = [...components];
+                                                    if (!newComps[i].dati_config.tabs) newComps[i].dati_config.tabs = [];
+                                                    newComps[i].dati_config.tabs.push({
+                                                        label: `Tab ${(newComps[i].dati_config.tabs.length + 1)}`,
+                                                        icon: '📄',
+                                                        title: '',
+                                                        description: '',
+                                                        sections: [],
+                                                        tip: '',
+                                                        note: ''
+                                                    });
+                                                    setComponents(newComps);
+                                                }}
+                                                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
+                                            >
+                                                <PlusIcon className="h-3 w-3" /> Aggiungi Tab
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {(comp.dati_config.tabs || []).map((tab, tabIdx) => (
+                                                <div key={tabIdx} className="p-4 bg-white rounded border">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <span className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                                            <span className="text-xl">{tab.icon || '📄'}</span>
+                                                            Tab {tabIdx + 1}: {tab.label || 'Senza nome'}
+                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newComps = [...components];
+                                                                    const tabs = [...newComps[i].dati_config.tabs];
+                                                                    [tabs[tabIdx], tabs[tabIdx - 1]] = [tabs[tabIdx - 1], tabs[tabIdx]];
+                                                                    newComps[i].dati_config.tabs = tabs;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                disabled={tabIdx === 0}
+                                                                className="p-1 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                title="Sposta su"
+                                                            >
+                                                                ⬆️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newComps = [...components];
+                                                                    const tabs = [...newComps[i].dati_config.tabs];
+                                                                    [tabs[tabIdx], tabs[tabIdx + 1]] = [tabs[tabIdx + 1], tabs[tabIdx]];
+                                                                    newComps[i].dati_config.tabs = tabs;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                disabled={tabIdx === (comp.dati_config.tabs?.length || 0) - 1}
+                                                                className="p-1 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                title="Sposta giù"
+                                                            >
+                                                                ⬇️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.tabs = newComps[i].dati_config.tabs.filter((_, idx) => idx !== tabIdx);
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                className="text-red-600 hover:text-red-800"
+                                                                title="Elimina tab"
+                                                            >
+                                                                <TrashIcon className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Configurazione Tab */}
+                                                    <div className="space-y-3">
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="text-xs font-bold text-gray-500 block mb-1">Etichetta Tab</label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={tab.label || ''}
+                                                                    onChange={e => {
+                                                                        const newComps = [...components];
+                                                                        newComps[i].dati_config.tabs[tabIdx].label = e.target.value;
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    placeholder="Panoramica"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs font-bold text-gray-500 block mb-1">Icona (emoji)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={tab.icon || ''}
+                                                                    onChange={e => {
+                                                                        const newComps = [...components];
+                                                                        newComps[i].dati_config.tabs[tabIdx].icon = e.target.value;
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    placeholder="👁️"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Titolo Contenuto</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full border p-2 rounded text-sm"
+                                                                value={tab.title || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.tabs[tabIdx].title = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="Panoramica Generale"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-500 block mb-1">Descrizione</label>
+                                                            <textarea
+                                                                className="w-full border p-2 rounded text-sm h-20"
+                                                                value={tab.description || ''}
+                                                                onChange={e => {
+                                                                    const newComps = [...components];
+                                                                    newComps[i].dati_config.tabs[tabIdx].description = e.target.value;
+                                                                    setComponents(newComps);
+                                                                }}
+                                                                placeholder="Descrizione del contenuto di questo tab..."
+                                                            />
+                                                        </div>
+
+                                                        {/* Sezioni del tab */}
+                                                        <div className="pt-2 border-t">
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <label className="text-xs font-bold text-gray-700">Sezioni</label>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newComps = [...components];
+                                                                        if (!newComps[i].dati_config.tabs[tabIdx].sections) {
+                                                                            newComps[i].dati_config.tabs[tabIdx].sections = [];
+                                                                        }
+                                                                        newComps[i].dati_config.tabs[tabIdx].sections.push({
+                                                                            title: '',
+                                                                            icon: '',
+                                                                            content: '',
+                                                                            points: [],
+                                                                            codeExample: '',
+                                                                            image: '',
+                                                                            imageCaption: ''
+                                                                        });
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                                                >
+                                                                    + Aggiungi Sezione
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="space-y-3">
+                                                                {(tab.sections || []).map((section, sectIdx) => (
+                                                                    <div key={sectIdx} className="p-3 bg-gray-50 rounded border">
+                                                                        <div className="flex justify-between items-center mb-2">
+                                                                            <span className="text-xs font-bold text-gray-700">Sezione {sectIdx + 1}</span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    const newComps = [...components];
+                                                                                    newComps[i].dati_config.tabs[tabIdx].sections = newComps[i].dati_config.tabs[tabIdx].sections.filter((_, idx) => idx !== sectIdx);
+                                                                                    setComponents(newComps);
+                                                                                }}
+                                                                                className="text-red-600 hover:text-red-800 text-xs"
+                                                                            >
+                                                                                Elimina
+                                                                            </button>
+                                                                        </div>
+
+                                                                        <div className="space-y-2">
+                                                                            <div className="grid grid-cols-3 gap-2">
+                                                                                <div className="col-span-2">
+                                                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Titolo Sezione</label>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        className="w-full border p-2 rounded text-sm"
+                                                                                        value={section.title || ''}
+                                                                                        onChange={e => {
+                                                                                            const newComps = [...components];
+                                                                                            newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].title = e.target.value;
+                                                                                            setComponents(newComps);
+                                                                                        }}
+                                                                                        placeholder="Titolo sezione"
+                                                                                    />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Icona</label>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        className="w-full border p-2 rounded text-sm"
+                                                                                        value={section.icon || ''}
+                                                                                        onChange={e => {
+                                                                                            const newComps = [...components];
+                                                                                            newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].icon = e.target.value;
+                                                                                            setComponents(newComps);
+                                                                                        }}
+                                                                                        placeholder="📌"
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="text-xs font-bold text-gray-500 block mb-1">Contenuto (HTML)</label>
+                                                                                <textarea
+                                                                                    className="w-full border p-2 rounded text-sm h-20 font-mono"
+                                                                                    value={section.content || ''}
+                                                                                    onChange={e => {
+                                                                                        const newComps = [...components];
+                                                                                        newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].content = e.target.value;
+                                                                                        setComponents(newComps);
+                                                                                    }}
+                                                                                    placeholder="<p>Contenuto della sezione...</p>"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="text-xs font-bold text-gray-500 block mb-1">Esempio di Codice</label>
+                                                                                <textarea
+                                                                                    className="w-full border p-2 rounded text-sm h-16 font-mono bg-gray-900 text-green-400 text-xs"
+                                                                                    value={section.codeExample || ''}
+                                                                                    onChange={e => {
+                                                                                        const newComps = [...components];
+                                                                                        newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].codeExample = e.target.value;
+                                                                                        setComponents(newComps);
+                                                                                    }}
+                                                                                    placeholder="// Esempio di codice"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="text-xs font-bold text-gray-500 block mb-1">Punti Elenco (uno per riga)</label>
+                                                                                <textarea
+                                                                                    className="w-full border p-2 rounded text-sm h-20"
+                                                                                    value={(section.points || []).join('\n')}
+                                                                                    onChange={e => {
+                                                                                        const newComps = [...components];
+                                                                                        newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].points = e.target.value.split('\n').filter(p => p.trim());
+                                                                                        setComponents(newComps);
+                                                                                    }}
+                                                                                    placeholder="Primo punto&#10;Secondo punto&#10;Terzo punto"
+                                                                                />
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <label className="text-xs font-bold text-gray-500 block mb-1">URL Immagine</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    className="w-full border p-2 rounded text-sm"
+                                                                                    value={section.image || ''}
+                                                                                    onChange={e => {
+                                                                                        const newComps = [...components];
+                                                                                        newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].image = e.target.value;
+                                                                                        setComponents(newComps);
+                                                                                    }}
+                                                                                    placeholder="https://esempio.com/immagine.jpg"
+                                                                                />
+                                                                            </div>
+
+                                                                            {section.image && (
+                                                                                <div>
+                                                                                    <label className="text-xs font-bold text-gray-500 block mb-1">Didascalia Immagine</label>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        className="w-full border p-2 rounded text-sm"
+                                                                                        value={section.imageCaption || ''}
+                                                                                        onChange={e => {
+                                                                                            const newComps = [...components];
+                                                                                            newComps[i].dati_config.tabs[tabIdx].sections[sectIdx].imageCaption = e.target.value;
+                                                                                            setComponents(newComps);
+                                                                                        }}
+                                                                                        placeholder="Didascalia dell'immagine"
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Note e Suggerimenti */}
+                                                        <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                                                            <div>
+                                                                <label className="text-xs font-bold text-gray-500 block mb-1">💡 Suggerimento</label>
+                                                                <textarea
+                                                                    className="w-full border p-2 rounded text-sm h-16"
+                                                                    value={tab.tip || ''}
+                                                                    onChange={e => {
+                                                                        const newComps = [...components];
+                                                                        newComps[i].dati_config.tabs[tabIdx].tip = e.target.value;
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    placeholder="Consiglio utile per l'utente..."
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs font-bold text-gray-500 block mb-1">⚠️ Nota Importante</label>
+                                                                <textarea
+                                                                    className="w-full border p-2 rounded text-sm h-16"
+                                                                    value={tab.note || ''}
+                                                                    onChange={e => {
+                                                                        const newComps = [...components];
+                                                                        newComps[i].dati_config.tabs[tabIdx].note = e.target.value;
+                                                                        setComponents(newComps);
+                                                                    }}
+                                                                    placeholder="Avvertenza importante..."
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(!comp.dati_config.tabs?.length) && (
+                                                <p className="text-xs text-gray-400 text-center py-4">
+                                                    Nessun tab aggiunto. Clicca "Aggiungi Tab" per iniziare.
                                                 </p>
                                             )}
                                         </div>

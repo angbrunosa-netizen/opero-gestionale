@@ -17,6 +17,7 @@ const BlogListBlock = dynamic(() => import('./blocks/BlogListBlock'));
 const CatalogSelectionBlock = dynamic(() => import('./blocks/CatalogSelectionBlock'));
 const FlipCardGalleryBlock = dynamic(() => import('./blocks/FlipCardGalleryBlock'));
 const DynamicImageGalleryBlock = dynamic(() => import('./blocks/DynamicImageGalleryBlock'));
+const GuideBlock = dynamic(() => import('./blocks/GuideBlock'));
 
 // Mappa: Nome nel Database -> Componente React
 export const BLOCK_REGISTRY = {
@@ -29,4 +30,5 @@ export const BLOCK_REGISTRY = {
   'CATALOG_SELECTION': CatalogSelectionBlock,
   'FLIP_CARD_GALLERY': FlipCardGalleryBlock,
   'DYNAMIC_IMAGE_GALLERY': DynamicImageGalleryBlock,
+  'GUIDE': GuideBlock,
 };

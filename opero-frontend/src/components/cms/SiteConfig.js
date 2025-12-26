@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import {api} from '../../services/api';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 
-const SiteConfig = ({ dittaId }) => {
+const SiteConfig = ({ dittaId, isSystemAdmin = true }) => {
     const [config, setConfig] = useState({
         url_slug: '',
         shop_template: 'standard',
@@ -21,7 +21,13 @@ const SiteConfig = ({ dittaId }) => {
         shop_colore_header_testo: '#333333',
         shop_logo_posizione: 'left', // left, center, right
         shop_descrizione_home: '', // Descrizione footer (azienda)
-        shop_attivo: false
+        shop_attivo: false,
+        // Nuovi campi per sito principale e directory
+        is_main_site: false,
+        show_in_directory: true,
+        directory_order: 100,
+        directory_description: '',
+        directory_featured: false
     });
     const [loading, setLoading] = useState(false);
     const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: '' }
@@ -73,7 +79,14 @@ const SiteConfig = ({ dittaId }) => {
                     {/* URL e Attivazione */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Indirizzo Web (Sottodominio)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Indirizzo Web (Sottodominio)
+                                {!isSystemAdmin && (
+                                    <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                                        Solo lettura
+                                    </span>
+                                )}
+                            </label>
                             <div className="mt-1 flex rounded-md shadow-sm">
                                 <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-100 text-gray-500 text-sm font-mono">
                                     http://
@@ -82,14 +95,23 @@ const SiteConfig = ({ dittaId }) => {
                                     type="text"
                                     value={config.url_slug || ''}
                                     onChange={e => setConfig({...config, url_slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
-                                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none border border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-semibold text-gray-800"
+                                    disabled={!isSystemAdmin}
+                                    className={`flex-1 min-w-0 block w-full px-3 py-2 rounded-none border border-gray-300 sm:text-sm font-semibold text-gray-800 ${
+                                        !isSystemAdmin
+                                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                            : 'focus:ring-blue-500 focus:border-blue-500'
+                                    }`}
                                     placeholder="nome-azienda"
                                 />
                                 <span className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-100 text-gray-500 text-sm font-mono">
                                     .operocloud.it
                                 </span>
                             </div>
-                            <p className="mt-2 text-xs text-gray-500">L'indirizzo che i clienti useranno per visitare il sito.</p>
+                            <p className="mt-2 text-xs text-gray-500">
+                                {isSystemAdmin
+                                    ? "L'indirizzo che i clienti useranno per visitare il sito."
+                                    : "L'indirizzo web è gestito dall'amministratore di sistema."}
+                            </p>
                         </div>
 
                         <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg border border-blue-100">
@@ -337,6 +359,115 @@ const SiteConfig = ({ dittaId }) => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Sezione Sito Principale e Directory - Solo System Admin */}
+                    {isSystemAdmin && (
+                        <>
+                            <div className="border-t border-gray-200"></div>
+
+                            {/* Sito Principale */}
+                            <div className="mt-6">
+                                <h4 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                    <span className="w-2 h-6 bg-purple-500 rounded-sm"></span>
+                                    Sito Principale (Dominio Root)
+                                </h4>
+                                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                                    <label className="flex items-center cursor-pointer justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <input
+                                                    type="checkbox"
+                                                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                                                    checked={Boolean(config.is_main_site)}
+                                                    onChange={e => setConfig({...config, is_main_site: e.target.checked})}
+                                                />
+                                                <span className="text-sm font-medium text-gray-900">Sito Principale</span>
+                                            </div>
+                                            <p className="text-xs text-gray-600 ml-6">
+                                                Se attivo, questo sito verrà mostrato sul dominio principale (es. operocloud.it).
+                                                Solo una ditta può essere il sito principale.
+                                            </p>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${config.is_main_site ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
+                                            {config.is_main_site ? 'Sito Principale' : 'Sito Standard'}
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Directory */}
+                            <div className="mt-6">
+                                <h4 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                    <span className="w-2 h-6 bg-green-500 rounded-sm"></span>
+                                    Directory Pubblica
+                                </h4>
+                                <div className="space-y-4">
+                                    {/* Visibilità Directory */}
+                                    <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-100">
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                                checked={Boolean(config.show_in_directory)}
+                                                onChange={e => setConfig({...config, show_in_directory: e.target.checked})}
+                                            />
+                                            <div>
+                                                <span className="text-sm font-medium text-gray-900">Mostra nella Directory</span>
+                                                <p className="text-xs text-gray-600">Visibilità nella directory pubblica dei siti</p>
+                                            </div>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${config.show_in_directory ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                                            {config.show_in_directory ? 'Visibile' : 'Nascosto'}
+                                        </span>
+                                    </div>
+
+                                    {/* Featured */}
+                                    <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 text-yellow-600 rounded focus:ring-yellow-500"
+                                            checked={Boolean(config.directory_featured)}
+                                            onChange={e => setConfig({...config, directory_featured: e.target.checked})}
+                                            disabled={!config.show_in_directory}
+                                        />
+                                        <div className="flex-1">
+                                            <span className="text-sm font-medium text-gray-900">In Evidenza</span>
+                                            <p className="text-xs text-gray-600">Evidenzia questo sito nella directory (in primo piano)</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Ordine */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Ordine Visualizzazione</label>
+                                            <input
+                                                type="number"
+                                                value={config.directory_order}
+                                                onChange={e => setConfig({...config, directory_order: parseInt(e.target.value) || 100})}
+                                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                                                min="1"
+                                                max="999"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">Valore più basso = appare prima (default: 100)</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione Directory</label>
+                                            <input
+                                                type="text"
+                                                value={config.directory_description || ''}
+                                                onChange={e => setConfig({...config, directory_description: e.target.value})}
+                                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                                                placeholder="Azienda leader nel settore..."
+                                                disabled={!config.show_in_directory}
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">Descrizione breve mostrata nella directory</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Footer Azioni */}

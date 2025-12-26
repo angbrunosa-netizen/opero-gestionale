@@ -14,57 +14,142 @@ import PageManager from './cms/PageManager';
 import BlogManager from './cms/BlogManager';
 import PageConfigManager from './cms/PageConfigManager';
 import CatalogManager from './cms/CatalogManager';
+import StarterSiteWizard from './cms/StarterSiteWizard';
 import {
     GlobeAltIcon, Cog6ToothIcon, DocumentDuplicateIcon,
     BuildingOfficeIcon, ArrowLeftOnRectangleIcon, NewspaperIcon,
-    ShoppingBagIcon
+    ShoppingBagIcon, SparklesIcon
 } from '@heroicons/react/24/outline';
 
 const SiteBuilderModule = () => {
-    const { user, ditta: currentSessionDitta } = useAuth();
-    
+    const { user, ditta: currentSessionDitta, permissions } = useAuth();
+
     // Stato per la ditta che stiamo effettivamente gestendo (Target)
     const [targetDitta, setTargetDitta] = useState(null);
-    
+
     // Lista ditte (solo per System Admin)
     const [availableCompanies, setAvailableCompanies] = useState([]);
     const [isLoadingList, setIsLoadingList] = useState(false);
-    
+
     const [activeTab, setActiveTab] = useState('config');
     const [showPageConfigManager, setShowPageConfigManager] = useState(false);
+    const [showStarterWizard, setShowStarterWizard] = useState(false);
+    const [siteConfigKey, setSiteConfigKey] = useState(0); // Key per forzare re-render SiteConfig
 
     // 1. Determina i permessi
     const isSystemAdmin = user?.id_ruolo === 1;
-    
-    // 2. All'avvio: Se NON è System Admin, il target è la ditta della sessione corrente.
-    // Se è System Admin, carichiamo la lista per fargli scegliere.
-    useEffect(() => {
-        if (!isSystemAdmin) {
-            // Utente normale: gestisce solo la sua ditta
-            if (currentSessionDitta?.id_tipo_ditta === 1) {
-                setTargetDitta(currentSessionDitta);
-            }
-        } else {
-            // System Admin: Carica lista ditte
-            loadCompanies();
-        }
-    }, [isSystemAdmin, currentSessionDitta]);
+    const hasSiteBuilderPermission = permissions?.includes('SITE_BUILDER');
+    const hasCompanySiteBuilderPermission = permissions?.includes('COMPANY_SITE_BUILDER');
 
-    const loadCompanies = async () => {
+    // System Admin con permesso SITE_BUILDER PUÏ accedere
+    // OPPURE chiunque abbia il permesso SITE_BUILDER (indipendentemente dal ruolo)
+    const canAccessAsSystemAdmin = hasSiteBuilderPermission;
+
+    // Admin Azienda con permesso COMPANY_SITE_BUILDER (ma NON SITE_BUILDER)
+    const canAccessAsCompanyAdmin = hasCompanySiteBuilderPermission && !hasSiteBuilderPermission;
+
+    // Verifica se l'utente può accedere al modulo
+    const canAccess = canAccessAsSystemAdmin || canAccessAsCompanyAdmin;
+
+    // 2. All'avvio: determina il target in base al ruolo
+    useEffect(() => {
+        console.log('[SiteBuilder] useEffect - Init');
+        console.log('[SiteBuilder] user:', user);
+        console.log('[SiteBuilder] permissions:', permissions);
+        console.log('[SiteBuilder] isSystemAdmin:', isSystemAdmin);
+        console.log('[SiteBuilder] hasSiteBuilderPermission:', hasSiteBuilderPermission);
+        console.log('[SiteBuilder] hasCompanySiteBuilderPermission:', hasCompanySiteBuilderPermission);
+        console.log('[SiteBuilder] canAccessAsSystemAdmin:', canAccessAsSystemAdmin);
+        console.log('[SiteBuilder] canAccessAsCompanyAdmin:', canAccessAsCompanyAdmin);
+        console.log('[SiteBuilder] canAccess:', canAccess);
+
+        if (!canAccess) return; // Non ha i permessi
+
+        // PRIORITÀ: System Admin ha la precedenza
+        if (canAccessAsSystemAdmin) {
+            // System Admin: Carica lista ditte
+            console.log('[SiteBuilder] Accesso come System Admin - carico ditte');
+            loadCompanies();
+        } else if (canAccessAsCompanyAdmin) {
+            // Admin Azienda: carica i dati completi della sua ditta dal backend
+            console.log('[SiteBuilder] Accesso come Company Admin - carico dati ditta');
+            loadCompanyData();
+        }
+    }, [canAccessAsSystemAdmin, canAccessAsCompanyAdmin, canAccess]);
+
+    // Funzione per caricare i dati completi della ditta per l'amministratore azienda
+    const loadCompanyData = async () => {
+        console.log('[SiteBuilder] Caricamento dati ditta...');
         setIsLoadingList(true);
         try {
             const res = await api.get('/admin/cms/companies');
+            console.log('[SiteBuilder] Ditte caricate:', res.data);
+
+            if (res.data && res.data.length > 0) {
+                const companyData = res.data[0];
+                console.log('[SiteBuilder] Ditta trovata:', companyData);
+                console.log('[SiteBuilder] URL slug:', companyData.url_slug);
+                setTargetDitta(companyData);
+            } else {
+                console.error('[SiteBuilder] Nessuna ditta trovata per questo utente');
+                alert('Non è stata trovata nessuna ditta associata al tuo account.');
+            }
+        } catch (error) {
+            console.error("[SiteBuilder] Errore caricamento dati ditta:", error);
+            alert("Impossibile caricare i dati della tua ditta.");
+        } finally {
+            setIsLoadingList(false);
+        }
+    };
+
+    const loadCompanies = async () => {
+        console.log('[SiteBuilder] Caricamento ditte...');
+        console.log('[SiteBuilder] Permessi utente:', permissions);
+        console.log('[SiteBuilder] canAccessAsSystemAdmin:', canAccessAsSystemAdmin);
+        setIsLoadingList(true);
+        try {
+            const res = await api.get('/admin/cms/companies');
+            console.log('[SiteBuilder] Ditte caricate:', res.data);
             setAvailableCompanies(res.data);
         } catch (error) {
-            console.error("Errore caricamento ditte:", error);
+            console.error("[SiteBuilder] Errore caricamento ditte:", error);
             alert("Impossibile caricare la lista delle ditte.");
         } finally {
             setIsLoadingList(false);
         }
     };
 
-    // --- VISTA 1: SELETTORE DITTA (Solo System Admin e nessun target selezionato) ---
-    if (isSystemAdmin && !targetDitta) {
+    // --- VISTA 0: UTENTE NON AUTORIZZATO ---
+    if (!canAccess) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full p-10 text-center bg-gray-50">
+                <div className="bg-white p-8 rounded-lg shadow-md">
+                    <h2 className="text-xl font-bold text-gray-900">Accesso Negato</h2>
+                    <p className="text-gray-600 mt-2">
+                        {!isSystemAdmin
+                            ? "Non hai i permessi necessari per accedere al Costruttore Siti."
+                            : "Il tuo ruolo non è abilitato alla gestione dei siti web."}
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // --- VISTA 1: SELETTORE DITTA (Solo System Admin con permesso SITE_BUILDER e nessun target selezionato) ---
+    // --- VISTA 1B: CARICAMENTO DATI DITTA (Admin Azienda) ---
+    if (canAccessAsCompanyAdmin && !targetDitta) {
+        return (
+            <div className="p-8 bg-gray-50 h-full flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+                    <p className="mt-6 text-lg font-medium text-gray-700">Caricamento dati della tua azienda...</p>
+                    <p className="mt-2 text-sm text-gray-500">Stiamo recuperando le informazioni del sito web</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (canAccessAsSystemAdmin && !targetDitta) {
         return (
             <div className="p-8 bg-gray-50 h-full overflow-auto">
                 <div className="max-w-5xl mx-auto">
@@ -152,8 +237,8 @@ const SiteBuilderModule = () => {
             <div className="bg-white border-b px-8 py-4 shadow-sm flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     {/* Pulsante Indietro (Solo per System Admin) */}
-                    {isSystemAdmin && (
-                        <button 
+                    {canAccessAsSystemAdmin && (
+                        <button
                             onClick={() => { setTargetDitta(null); setActiveTab('config'); }}
                             className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition"
                             title="Torna alla lista ditte"
@@ -253,10 +338,71 @@ const SiteBuilderModule = () => {
                 </nav>
             </div>
 
-            {/* Area Contenuto - Passiamo l'ID della ditta target, NON quella di sessione */}
+            {/* Area Contenuto - Passiamo l'ID della ditta target e se è System Admin */}
             <div className="flex-1 overflow-auto p-8">
-                {activeTab === 'config' && <SiteConfig dittaId={targetDitta.id} key={`conf-${targetDitta.id}`} />}
-                {activeTab === 'pages' && <PageManager dittaId={targetDitta.id} key={`pages-${targetDitta.id}`} />}
+                {activeTab === 'config' && (
+                    <div className="space-y-6">
+                        {/* Starter Site Wizard - Prominente in cima alla tab Configurazione */}
+                        {!showStarterWizard ? (
+                            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className="h-16 w-16 bg-purple-600 rounded-xl flex items-center justify-center text-white">
+                                            <SparklesIcon className="h-10 w-10" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900">
+                                                Crea il tuo Sito Starter
+                                            </h3>
+                                            <p className="text-gray-600 mt-1">
+                                                Crea automaticamente un sito completo di 4 pagine ottimizzato per il tuo tipo di attività
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowStarterWizard(true)}
+                                        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition flex items-center gap-2 shadow-lg hover:shadow-xl"
+                                    >
+                                        <SparklesIcon className="h-5 w-5" />
+                                        Avvia Wizard
+                                    </button>
+                                </div>
+                                <div className="mt-4 flex items-center gap-6 text-sm text-gray-600">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-green-600 font-bold">✓</span>
+                                        <span>4 pagine pronte all'uso</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-green-600 font-bold">✓</span>
+                                        <span>Contenuti di esempio in italiano</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-green-600 font-bold">✓</span>
+                                        <span>Colori e template ottimizzati</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <StarterSiteWizard
+                                dittaId={targetDitta.id}
+                                dittaName={targetDitta.ragione_sociale}
+                                onCreateComplete={(result) => {
+                                    setShowStarterWizard(false);
+                                    setSiteConfigKey(prev => prev + 1); // Forza re-render SiteConfig
+                                    setActiveTab('pages'); // Passa automaticamente alla tab Pagine
+                                }}
+                            />
+                        )}
+
+                        {/* Configurazione Sito Esistente */}
+                        <SiteConfig
+                            dittaId={targetDitta.id}
+                            isSystemAdmin={canAccessAsSystemAdmin}
+                            key={`conf-${targetDitta.id}-${siteConfigKey}`}
+                        />
+                    </div>
+                )}
+                {activeTab === 'pages' && <PageManager dittaId={targetDitta.id} key={`pages-${targetDitta.id}-${siteConfigKey}`} />}
                 {activeTab === 'blog' && <BlogManager dittaId={targetDitta.id} key={`blog-${targetDitta.id}`} />}
                 {activeTab === 'catalog' && <CatalogManager dittaId={targetDitta.id} key={`catalog-${targetDitta.id}`} />}
             </div>

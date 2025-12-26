@@ -44,7 +44,7 @@ export default function FashionLayout({ children, siteConfig }) {
         
         {/* Top Bar (Promo) */}
         <div className="bg-black text-white text-[10px] py-1 text-center tracking-widest uppercase">
-            Spedizione gratuita per ordini superiori a 100€
+            Sai di Essere speciale per noi 
         </div>
 
         <div className="container mx-auto px-6 py-6 flex items-center">
