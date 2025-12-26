@@ -1,16 +1,16 @@
 /**
  * File: opero-frontend/src/components/admin/DittaFormModal.js
- * Versione: 2.0 (Aggiunta Campi: logo_url, mail_2, sdi, pec)
- * Descrizione: Aggiunti campi logo_url, mail_2, sdi, pec per gestione completa anagrafica ditta.
- *              - mail_1: Email principale (già presente)
- *              - mail_2: Email secondaria (NUOVO)
- *              - logo_url: URL del logo azienda (NUOVO)
- *              - sdi: Sistema di Interscambio (max 7 caratteri) (NUOVO)
- *              - pec: Posta Elettronica Certificata (NUOVO)
+ * Versione: 3.0 (Con Controllo Accessi per Ruolo)
+ * Descrizione:
+ * - SUPER_ADMIN: Può modificare tutti i campi
+ * - Altri ruoli: NON possono modificare ragione sociale e altri campi critici
  */
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 
 const DittaFormModal = ({ ditta, onSave, onCancel }) => {
+    const { hasPermission } = useAuth();
+    const isSystemAdmin = hasPermission('SUPER_ADMIN');
     const [formData, setFormData] = useState({});
 
     useEffect(() => {
@@ -68,13 +68,44 @@ const DittaFormModal = ({ ditta, onSave, onCancel }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
                 <h3 className="text-xl font-bold mb-6">{isCreating ? 'Nuova Ditta Proprietaria' : 'Modifica Ditta'}</h3>
+
+                {/* Avviso per non-amministratori */}
+                {!isSystemAdmin && !isCreating && (
+                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <p className="text-sm text-yellow-800">
+                            <strong>Nota:</strong> Alcuni campi (Ragione Sociale, Partita IVA) possono essere modificati solo dagli amministratori di sistema.
+                        </p>
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                     
                     <fieldset className="border p-4 rounded-md">
                         <legend className="text-lg font-semibold px-2">Anagrafica Ditta</legend>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="text" name="ragione_sociale" value={formData.ragione_sociale || ''} onChange={handleChange} placeholder="Ragione Sociale *" required className="p-2 border rounded" />
-                            <input type="text" name="p_iva" value={formData.p_iva || ''} onChange={handleChange} placeholder="Partita IVA *" required className="p-2 border rounded" />
+                            {/* Campi critici: modificabili solo da SUPER_ADMIN */}
+                            <input
+                                type="text"
+                                name="ragione_sociale"
+                                value={formData.ragione_sociale || ''}
+                                onChange={handleChange}
+                                placeholder="Ragione Sociale *"
+                                required
+                                disabled={!isSystemAdmin && !isCreating}
+                                className={`p-2 border rounded ${!isSystemAdmin && !isCreating ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                title={!isSystemAdmin && !isCreating ? 'Solo gli amministratori di sistema possono modificare la ragione sociale' : ''}
+                            />
+                            <input
+                                type="text"
+                                name="p_iva"
+                                value={formData.p_iva || ''}
+                                onChange={handleChange}
+                                placeholder="Partita IVA *"
+                                required
+                                disabled={!isSystemAdmin && !isCreating}
+                                className={`p-2 border rounded ${!isSystemAdmin && !isCreating ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                title={!isSystemAdmin && !isCreating ? 'Solo gli amministratori di sistema possono modificare la P.IVA' : ''}
+                            />
                             <input type="text" name="codice_fiscale" value={formData.codice_fiscale || ''} onChange={handleChange} placeholder="Codice Fiscale" className="p-2 border rounded" />
                             <input type="text" name="indirizzo" value={formData.indirizzo || ''} onChange={handleChange} placeholder="Indirizzo" className="p-2 border rounded" />
                             <input type="text" name="cap" value={formData.cap || ''} onChange={handleChange} placeholder="CAP" className="p-2 border rounded" />

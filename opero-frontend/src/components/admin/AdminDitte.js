@@ -1,28 +1,33 @@
 /**
  * File: opero-frontend/src/components/admin/AdminDitte.js
- * Versione: 4.2 (Con Visualizzazione e Toggle Stato)
- * Descrizione: Aggiunta visualizzazione dello stato e pulsante per cambiarlo.
+ * Versione: 5.0 (Con Controllo Accessi per Ruolo)
+ * Descrizione:
+ * - SUPER_ADMIN: Accesso a tutte le ditte, può modificare tutto
+ * - Altri ruoli: Accesso solo alla propria ditta, NON possono modificare nome sito
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTable } from 'react-table';
 import { toast } from 'react-toastify';
 import { api } from '../../services/api';
-import { 
-    PlusIcon, 
-    PencilIcon, 
-    LinkIcon, 
+import { useAuth } from '../../context/AuthContext';
+import {
+    PlusIcon,
+    PencilIcon,
+    LinkIcon,
     ClipboardDocumentIcon,
-    // ++ ICONE PER IL TOGGLE STATO ++
-    LockClosedIcon, // Icona per sospendere (stato = 1)
-    LockOpenIcon    // Icona per attivare (stato = 0)
+    LockClosedIcon,
+    LockOpenIcon
 } from '@heroicons/react/24/outline';
 import DittaFormModal from './DittaFormModal';
 
 const AdminDitte = () => {
+    const { user, hasPermission } = useAuth();
+    const isSystemAdmin = hasPermission('SUPER_ADMIN');
+
     const [ditte, setDitte] = useState([]);
     const [loading, setLoading] = useState(false);
     const [filtroTipo, setFiltroTipo] = useState('tutte');
-    
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingDitta, setEditingDitta] = useState(null);
 
@@ -33,14 +38,21 @@ const AdminDitte = () => {
         setLoading(true);
         try {
             const response = await api.get('/admin/ditte');
-            setDitte(response.data.ditte || []);
+            let allDitte = response.data.ditte || [];
+
+            // Se NON è super admin, filtra solo la propria ditta
+            if (!isSystemAdmin && user?.id_ditta) {
+                allDitte = allDitte.filter(d => d.id === user.id_ditta);
+            }
+
+            setDitte(allDitte);
         } catch (error) {
             toast.error("Errore nel caricamento delle ditte.");
             console.error(error);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isSystemAdmin, user?.id_ditta]);
 
     useEffect(() => {
         fetchDitte();
@@ -167,34 +179,47 @@ const AdminDitte = () => {
             id: 'actions',
             Cell: ({ row }) => (
                 <div className="flex items-center space-x-2">
-                    <button onClick={() => handleEditDitta(row.original)} className="text-gray-500 hover:text-blue-600 p-1 rounded-full transition-colors" title="Modifica Ditta">
-                        <PencilIcon className="h-5 w-5" />
-                    </button>
+                    {/* Solo SUPER_ADMIN può modificare la ditta */}
+                    {isSystemAdmin && (
+                        <button
+                            onClick={() => handleEditDitta(row.original)}
+                            className="text-gray-500 hover:text-blue-600 p-1 rounded-full transition-colors"
+                            title="Modifica Ditta"
+                        >
+                            <PencilIcon className="h-5 w-5" />
+                        </button>
+                    )}
 
-                    {/* ++ NUOVO PULSANTE PER IL TOGGLE STATO ++ */}
-                    <button 
-                        onClick={() => handleToggleStato(row.original)} 
-                        className={`p-1 rounded-full transition-colors ${
-                            row.original.stato === 1 
-                                ? 'text-yellow-600 hover:text-yellow-800' 
-                                : 'text-green-600 hover:text-green-800'
-                        }`} 
-                        title={row.original.stato === 1 ? 'Sospendi Ditta' : 'Attiva Ditta'}
+                    {/* Solo SUPER_ADMIN può cambiare lo stato */}
+                    {isSystemAdmin && (
+                        <button
+                            onClick={() => handleToggleStato(row.original)}
+                            className={`p-1 rounded-full transition-colors ${
+                                row.original.stato === 1
+                                    ? 'text-yellow-600 hover:text-yellow-800'
+                                    : 'text-green-600 hover:text-green-800'
+                            }`}
+                            title={row.original.stato === 1 ? 'Sospendi Ditta' : 'Attiva Ditta'}
+                        >
+                            {row.original.stato === 1 ? (
+                                <LockClosedIcon className="h-5 w-5" />
+                            ) : (
+                                <LockOpenIcon className="h-5 w-5" />
+                            )}
+                        </button>
+                    )}
+
+                    <button
+                        onClick={() => handleGeneraLink(row.original.id)}
+                        className="text-gray-500 hover:text-green-600 p-1 rounded-full transition-colors"
+                        title="Genera link di registrazione"
                     >
-                        {row.original.stato === 1 ? (
-                            <LockClosedIcon className="h-5 w-5" />
-                        ) : (
-                            <LockOpenIcon className="h-5 w-5" />
-                        )}
-                    </button>
-
-                    <button onClick={() => handleGeneraLink(row.original.id)} className="text-gray-500 hover:text-green-600 p-1 rounded-full transition-colors" title="Genera link di registrazione">
                         <LinkIcon className="h-5 w-5" />
                     </button>
                 </div>
             ),
         },
-    ], [handleEditDitta, handleGeneraLink, handleToggleStato]); // Aggiungi handleToggleStato alle dipendenze
+    ], [handleEditDitta, handleGeneraLink, handleToggleStato, isSystemAdmin]); // Aggiungi isSystemAdmin alle dipendenze
 
     const {
         getTableProps,
@@ -218,10 +243,13 @@ const AdminDitte = () => {
                     <FiltroButton label="Proprietarie" tipo="proprietarie" attivo={filtroTipo === 'proprietarie'} />
                     <FiltroButton label="Clienti" tipo="clienti" attivo={filtroTipo === 'clienti'} />
                 </div>
-                 <button onClick={handleNewDitta} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                    <PlusIcon className="h-5 w-5" />
-                    <span>Nuova Ditta</span>
-                </button>
+                {/* Solo SUPER_ADMIN può creare nuove ditte */}
+                {isSystemAdmin && (
+                    <button onClick={handleNewDitta} className="flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                        <PlusIcon className="h-5 w-5" />
+                        <span>Nuova Ditta</span>
+                    </button>
+                )}
             </div>
 
             <div className="overflow-x-auto bg-white rounded-lg shadow">

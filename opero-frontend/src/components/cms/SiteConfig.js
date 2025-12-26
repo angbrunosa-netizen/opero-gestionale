@@ -2,14 +2,19 @@
  * Nome File: SiteConfig.js
  * Posizione: src/components/cms/SiteConfig.js
  * Data: 16/12/2025
+ * Versione: 2.0 (Con Controllo Accessi per Ruolo)
  * Descrizione: Pannello per configurare URL, Template grafico e colori.
- * Include gestione stato di caricamento e feedback utente.
+ * - SUPER_ADMIN: Può modificare URL slug e tutti i campi
+ * - Altri ruoli: NON possono modificare URL slug (nome sito)
  */
 import React, { useState, useEffect } from 'react';
 import {api} from '../../services/api';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import { useAuth } from '../../context/AuthContext';
 
-const SiteConfig = ({ dittaId, isSystemAdmin = true }) => {
+const SiteConfig = ({ dittaId }) => {
+    const { hasPermission } = useAuth();
+    const isSystemAdmin = hasPermission('SUPER_ADMIN');
     const [config, setConfig] = useState({
         url_slug: '',
         shop_template: 'standard',
