@@ -70,6 +70,19 @@ router.post('/register/:token', async (req, res) => {
     }
 
     const connection = await dbPool.getConnection();
+    let connectionReleased = false;
+
+    const releaseConnection = async () => {
+        if (!connectionReleased) {
+            try {
+                await connection.rollback();
+                connection.release();
+                connectionReleased = true;
+            } catch (e) {
+                console.error('[REGISTER] Errore nel rilascio della connessione:', e);
+            }
+        }
+    };
 
     try {
         await connection.beginTransaction();
@@ -85,8 +98,7 @@ router.post('/register/:token', async (req, res) => {
 
         if (tokenRows.length === 0) {
             console.log('[REGISTER] Token non valido o scaduto');
-            await connection.rollback();
-            connection.release();
+            await releaseConnection();
             return res.status(400).json({ success: false, message: 'Link di registrazione non valido o scaduto.' });
         }
 
@@ -97,8 +109,7 @@ router.post('/register/:token', async (req, res) => {
 
         if (!id_ruolo) {
             console.log('[REGISTER] id_ruolo mancante nel token');
-            await connection.rollback();
-            connection.release();
+            await releaseConnection();
             return res.status(400).json({ success: false, message: 'Il link di invito non è configurato correttamente. Contattare l\'amministratore.' });
         }
 
@@ -124,15 +135,14 @@ router.post('/register/:token', async (req, res) => {
 
             if (existingAssociation.length > 0) {
                 console.log('[REGISTER] Associazione già esistente');
-                await connection.rollback();
-                connection.release();
+                await releaseConnection();
                 return res.status(400).json({ success: false, message: 'Questo utente è già associato a questa azienda.' });
             }
 
             // Aggiungi l'associazione
             console.log('[REGISTER] Creazione associazione utente-ditta...');
             await connection.query(
-                'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato, data_assegnazione) VALUES (?, ?, ?, ?, NOW())',
+                'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato) VALUES (?, ?, ?, ?)',
                 [userId, id_ditta, id_ruolo, 'attivo']
             );
 
@@ -143,6 +153,7 @@ router.post('/register/:token', async (req, res) => {
             );
 
             await connection.commit();
+            connectionReleased = true;
             connection.release();
             console.log('[REGISTER] Registrazione utente esistente completata');
             return res.status(201).json({ success: true, message: 'Utente esistente aggiunto all\'azienda con successo!' });
@@ -176,7 +187,7 @@ router.post('/register/:token', async (req, res) => {
 
         // 4. Aggiungi l'associazione in ad_utenti_ditte
         await connection.query(
-            'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato, data_assegnazione) VALUES (?, ?, ?, ?, NOW())',
+            'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato) VALUES (?, ?, ?, ?)',
             [newUserId, id_ditta, id_ruolo, 'attivo']
         );
 
@@ -187,14 +198,14 @@ router.post('/register/:token', async (req, res) => {
         );
 
         await connection.commit();
+        connectionReleased = true;
         connection.release();
 
         console.log('[REGISTER] Registrazione completata con successo');
         res.status(201).json({ success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' });
 
     } catch (error) {
-        await connection.rollback();
-        connection.release();
+        await releaseConnection();
         console.error("[REGISTER] Errore durante la registrazione:", error);
         res.status(500).json({ success: false, message: error.message || 'Errore durante la registrazione.' });
     }
