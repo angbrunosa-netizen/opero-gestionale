@@ -7,7 +7,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
-const { dbPool, knex } = require('../config/db');
+const { dbPool } = require('../config/db');
 const router = express.Router();
 
 // --- GET (Recupera dati per la pagina di registrazione) ---
@@ -65,98 +65,115 @@ router.post('/register/:token', async (req, res) => {
         return res.status(400).json({ success: false, message: 'Tutti i campi obbligatori devono essere compilati.' });
     }
 
+    const connection = await dbPool.getConnection();
+
     try {
-        // Usa la transazione Knex corretta
-        await knex.transaction(async (trx) => {
-            // 1. Verifica il token di registrazione
-            const [tokenRows] = await trx('registration_tokens')
-                .where({ token, utilizzato: 0 })
-                .where('scadenza', '>', knex.fn.now())
-                .select('*');
+        await connection.beginTransaction();
 
-            if (tokenRows.length === 0) {
-                throw new Error('Link di registrazione non valido o scaduto.');
+        // 1. Verifica il token di registrazione
+        const [tokenRows] = await connection.query(
+            'SELECT * FROM registration_tokens WHERE token = ? AND utilizzato = 0 AND scadenza > NOW()',
+            [token]
+        );
+
+        if (tokenRows.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ success: false, message: 'Link di registrazione non valido o scaduto.' });
+        }
+
+        const tokenRow = tokenRows[0];
+        const { id_ditta, id_ruolo } = tokenRow;
+
+        if (!id_ruolo) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ success: false, message: 'Il link di invito non è configurato correttamente. Contattare l\'amministratore.' });
+        }
+
+        // 2. Verifica se l'utente esiste già
+        const [existingUsers] = await connection.query(
+            'SELECT id FROM utenti WHERE email = ?',
+            [email]
+        );
+
+        if (existingUsers.length > 0) {
+            // L'utente esiste già: aggiungilo solo alla tabella ad_utenti_ditte
+            const userId = existingUsers[0].id;
+
+            // Verifica se l'associazione esiste già
+            const [existingAssociation] = await connection.query(
+                'SELECT * FROM ad_utenti_ditte WHERE id_utente = ? AND id_ditta = ?',
+                [userId, id_ditta]
+            );
+
+            if (existingAssociation.length > 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ success: false, message: 'Questo utente è già associato a questa azienda.' });
             }
 
-            const tokenRow = tokenRows[0];
-            const { id_ditta, id_ruolo } = tokenRow;
+            // Aggiungi l'associazione
+            await connection.query(
+                'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato, data_assegnazione) VALUES (?, ?, ?, ?, NOW())',
+                [userId, id_ditta, id_ruolo, 'attivo']
+            );
 
-            if (!id_ruolo) {
-                throw new Error('Il link di invito non è configurato correttamente. Contattare l\'amministratore.');
-            }
+            // Marca il token come utilizzato
+            await connection.query(
+                'UPDATE registration_tokens SET utilizzato = 1 WHERE token = ?',
+                [token]
+            );
 
-            // 2. Verifica se l'utente esiste già
-            const [existingUsers] = await trx('utenti').where({ email }).select('id');
+            await connection.commit();
+            connection.release();
+            return res.status(201).json({ success: true, message: 'Utente esistente aggiunto all\'azienda con successo!' });
+        }
 
-            if (existingUsers.length > 0) {
-                // L'utente esiste già: aggiungilo solo alla tabella ad_utenti_ditte
-                const userId = existingUsers[0].id;
+        // 3. Nuovo utente: crea l'utente
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-                // Verifica se l'associazione esiste già
-                const [existingAssociation] = await trx('ad_utenti_ditte')
-                    .where({ id_utente: userId, id_ditta })
-                    .select('*');
-
-                if (existingAssociation.length > 0) {
-                    throw new Error('Questo utente è già associato a questa azienda.');
-                }
-
-                // Aggiungi l'associazione
-                await trx('ad_utenti_ditte').insert({
-                    id_utente: userId,
-                    id_ditta: id_ditta,
-                    id_ruolo: id_ruolo,
-                    stato: 'attivo',
-                    data_assegnazione: new Date()
-                });
-
-                // Marca il token come utilizzato
-                await trx('registration_tokens')
-                    .where({ token })
-                    .update({ utilizzato: 1 });
-
-                return { success: true, message: 'Utente esistente aggiunto all\'azienda con successo!' };
-            }
-
-            // 3. Nuovo utente: crea l'utente
-            const hashedPassword = await bcrypt.hash(password, 10);
-
-            const [newUser] = await trx('utenti').insert({
+        const [newUserResult] = await connection.query(
+            'INSERT INTO utenti (nome, cognome, email, password, id_ditta, id_ruolo, stato, privacy, codice_fiscale, telefono, indirizzo, citta, cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
                 nome,
                 cognome,
                 email,
-                password: hashedPassword,
+                hashedPassword,
                 id_ditta,
                 id_ruolo,
-                stato: 'attivo',
-                privacy: privacy ? 1 : 0,
-                codice_fiscale: altriDati.codice_fiscale || null,
-                telefono: altriDati.telefono || null,
-                indirizzo: altriDati.indirizzo || null,
-                citta: altriDati.citta || null,
-                cap: altriDati.cap || null
-            }, 'id');
+                'attivo',
+                privacy ? 1 : 0,
+                altriDati.codice_fiscale || null,
+                altriDati.telefono || null,
+                altriDati.indirizzo || null,
+                altriDati.citta || null,
+                altriDati.cap || null
+            ]
+        );
 
-            // 4. Aggiungi l'associazione in ad_utenti_ditte
-            await trx('ad_utenti_ditte').insert({
-                id_utente: newUser[0],
-                id_ditta: id_ditta,
-                id_ruolo: id_ruolo,
-                stato: 'attivo',
-                data_assegnazione: new Date()
-            });
+        const newUserId = newUserResult.insertId;
 
-            // 5. Marca il token come utilizzato
-            await trx('registration_tokens')
-                .where({ token })
-                .update({ utilizzato: 1 });
+        // 4. Aggiungi l'associazione in ad_utenti_ditte
+        await connection.query(
+            'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato, data_assegnazione) VALUES (?, ?, ?, ?, NOW())',
+            [newUserId, id_ditta, id_ruolo, 'attivo']
+        );
 
-            return { success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' };
-        });
+        // 5. Marca il token come utilizzato
+        await connection.query(
+            'UPDATE registration_tokens SET utilizzato = 1 WHERE token = ?',
+            [token]
+        );
+
+        await connection.commit();
+        connection.release();
 
         res.status(201).json({ success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' });
 
     } catch (error) {
+        await connection.rollback();
+        connection.release();
         console.error("Errore durante la registrazione:", error);
         res.status(500).json({ success: false, message: error.message || 'Errore durante la registrazione.' });
     }
