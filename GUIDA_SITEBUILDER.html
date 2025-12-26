@@ -1331,16 +1331,982 @@ Massimo: 2MB per caricamento veloce</pre>
             </div>
         </section>
 
-        <!-- Continue with more blocks sections... -->
+        <!-- Section 10: Vetrina Block -->
+        <section id="vetrina" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">10</span>
+                VETRINA_BLOCK - Mostra i Tuoi Punti di Forza
+            </h2>
 
-        <!-- Placeholder for remaining sections -->
-        <section class="mb-16 text-center py-12">
-            <p class="text-gray-500 text-lg">
-                📚 <strong>La guida continua...</strong>
-            </p>
-            <p class="text-gray-400 text-sm mt-2">
-                Le sezioni rimanenti includono dettagli approfonditi su tutti gli altri blocchi, gestione menu, configurazione SEO, best practices e FAQ.
-            </p>
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">🏪 Vetrina Block</h3>
+                    <p class="opacity-90">Griglia di card per presentare servizi, prodotti o caratteristiche in modo organizzato e professionale</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Pagina "Chi Siamo"</strong> - Per mostrare i valori aziendali</li>
+                    <li>✅ <strong>Pagina Servizi</strong> - Per elencare i servizi principali</li>
+                    <li>✅ <strong>Homepage</strong> - Per evidenziare i vantaggi competitivi</li>
+                    <li>✅ <strong>Vetrina prodotti</strong> - Per mostrare categorie di prodotti</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Titolo Sezione</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempi: "I Nostri Servizi", "Perché Sceglierci", "I Nostri Punti di Forza"</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Sottotitolo</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempio: "4 motivi per affidarsi a noi"</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Layout</h5>
+                        <p class="text-gray-600 mb-3">Scegli come disporre le card:</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded text-center text-sm">
+                                <strong>grid-2</strong><br>2 colonne
+                            </div>
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded text-center text-sm">
+                                <strong>grid-3</strong><br>3 colonne
+                            </div>
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded text-center text-sm">
+                                <strong>grid-4</strong><br>4 colonne
+                            </div>
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded text-center text-sm">
+                                <strong>grid-6</strong><br>6 colonne
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-3">Item (Card Singole)</h5>
+                        <p class="text-gray-600 mb-3">Ogni card contiene:</p>
+                        <div class="space-y-2 text-sm">
+                            <div><strong>Icona:</strong> Emoji o icona (es: 📦, 🚚, 💳, 🎁)</div>
+                            <div><strong>Titolo:</strong> Nome breve (max 3-4 parole)</div>
+                            <div><strong>Descrizione:</strong> Spiegazione in 1 frase</div>
+                            <div><strong>Link (opzionale):</strong> URL a cui porta la card</div>
+                            <div><strong>Colore:</strong> Colore dell'icona in esadecimale</div>
+                        </div>
+                        <div class="code-block mt-3">
+                            <pre>Esempio Item:
+{
+  icon: "📦",
+  title: "Prodotti di Qualità",
+  description: "Solo i migliori brand selezionati",
+  link: "/prodotti",
+  color: "#2563eb"
+}</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tip-box mt-6">
+                    <strong>💡 Best Practice:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Usa da <strong>3 a 6 card</strong> per sezione</li>
+                        <li>• Mantieni i titoli <strong>brevi</strong> (max 40 caratteri)</li>
+                        <li>• Usa icone <strong>coerenti</strong> tra loro</li>
+                        <li>• Ogni card deve avere un <strong>valore chiaro</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 11: Flip Card Gallery -->
+        <section id="flip-card" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">11</span>
+                FLIP_CARD_GALLERY - Card Interattive
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">🎴 Flip Card Gallery</h3>
+                    <p class="opacity-90">Card che si girano al passaggio del mouse per mostrare fronte e retro - Perfetto per portfolio e team!</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Portfolio</strong> - Mostra progetto davanti, dettagli dietro</li>
+                    <li>✅ <strong>Team</strong> - Foto davanti, bio dietro</li>
+                    <li>✅ <strong>Categorie prodotti</strong> - Immagine davanti, descrizione dietro</li>
+                    <li>✅ <strong>Case study</strong> - Titolo davanti, risultati dietro</li>
+                </ul>
+
+                <div class="info-box mb-6">
+                    <strong>⚡ Interattività:</strong> Le card girano (flip) con un'animazione fluida quando l'utente ci passa sopra il mouse o le tocca su mobile!
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Titolo Sezione</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempi: "Il Nostro Team", "Categorie Prodotti", "Progetti Recenti"</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-3">Card (Fronte e Retro)</h5>
+                        <p class="text-gray-600 mb-3">Ogni card ha:</p>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div class="bg-blue-50 p-3 rounded">
+                                <strong>🖼️ FRONTE</strong>
+                                <ul class="text-sm mt-2 space-y-1">
+                                    <li>• <strong>Titolo:</strong> Nome breve</li>
+                                    <li>• <strong>Immagine:</strong> URL (800x600px consigliato)</li>
+                                    <li>• <strong>Colore sfondo:</strong> Es: #ffffff</li>
+                                </ul>
+                            </div>
+                            <div class="bg-green-50 p-3 rounded">
+                                <strong>📝 RETRO</strong>
+                                <ul class="text-sm mt-2 space-y-1">
+                                    <li>• <strong>Descrizione:</strong> Testo dettagliato</li>
+                                    <li>• <strong>Link (opzionale):</strong> "Scopri di più"</li>
+                                    <li>• <strong>Colore sfondo:</strong> Es: #f3f4f6</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="code-block mt-3">
+                            <pre>Esempio Card Team:
+{
+  titolo: "Mario Rossi",
+  immagine: "https://esempio.com/mario.jpg",
+  descrizione: "CEO e Fondatore con 20 anni di esperienza",
+  link: "/about/mario"
+}</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tip-box mt-6">
+                    <strong>💡 Suggerimenti:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Usa immagini <strong>quadrate o 4:3</strong> per risultato ottimale</li>
+                        <li>• Testa su <strong>mobile</strong> - il flip funziona con il tap</li>
+                        <li>• Aggiungi un <strong>call-to-action</strong> nel retro della card</li>
+                        <li>• Usa massimo <strong>6-8 card</strong> per non appesantire</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 12: Dynamic Image Gallery -->
+        <section id="dynamic-gallery" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">12</span>
+                DYNAMIC_IMAGE_GALLERY - Galleria Avanzata
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">🖼️ Dynamic Image Gallery</h3>
+                    <p class="opacity-90">Galleria immagini professionale con lightbox, grid masonry e layout personalizzabili</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Portfolio fotografico</strong> - Mostra lavori in modo elegante</li>
+                    <li>✅ <strong>Galleria prodotti</strong> - Showroom virtuale</li>
+                    <li>✅ <strong>Ambienti</strong> - Foto del locale, ufficio, laboratorio</li>
+                    <li>✅ <strong>Eventi</strong> - Foto di eventi aziendali</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Layout Disponibili</h4>
+
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h5 class="font-bold text-blue-900 mb-2">Grid Layout</h5>
+                        <p class="text-sm text-gray-600">Griglia regolare con colonne (2, 3, 4)</p>
+                        <div class="text-xs text-blue-600 mt-2">
+                            <strong>Perfetto per:</strong> Cataloghi prodotti uniformi
+                        </div>
+                    </div>
+
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h5 class="font-bold text-green-900 mb-2">Masonry Layout</h5>
+                        <p class="text-sm text-gray-600">Griglia a mosaico (stile Pinterest)</p>
+                        <div class="text-xs text-green-600 mt-2">
+                            <strong>Perfetto per:</strong> Portfolio, foto di diverse dimensioni
+                        </div>
+                    </div>
+
+                    <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <h5 class="font-bold text-purple-900 mb-2">Carousel Layout</h5>
+                        <p class="text-sm text-gray-600">Scorrimento orizzontale automatico</p>
+                        <div class="text-xs text-purple-600 mt-2">
+                            <strong>Perfetto per:</strong> Partner, brand, testimonianze
+                        </div>
+                    </div>
+
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <h5 class="font-bold text-orange-900 mb-2">Lightbox</h5>
+                        <p class="text-sm text-gray-600">Click per ingrandire con navigazione</p>
+                        <div class="text-xs text-orange-600 mt-2">
+                            <strong>Incluso in:</strong> Tutti i layout
+                        </div>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione Carousel</h4>
+
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+                    <p class="text-gray-600 mb-3">Se scegli il layout "carousel", puoi configurare:</p>
+                    <div class="space-y-2 text-sm">
+                        <div><strong>autoplay:</strong> true/false - Scorrimento automatico</div>
+                        <div><strong>interval:</strong> 3000-5000ms - Tempo tra una slide e l'altra</div>
+                        <div><strong>snap:</strong> true - Effetto magnetico allo scroll</div>
+                    </div>
+                </div>
+
+                <div class="success-box">
+                    <strong>✨ Caratteristiche:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• <strong>Lightbox integrato:</strong> Click per vedere a schermo intero</li>
+                        <li>• <strong>Navigazione frecce:</strong> Passa all'immagine successiva/precedente</li>
+                        <li>• <strong>Responsive:</strong> Si adatta automaticamente a mobile/tablet/desktop</li>
+                        <li>• <strong>Didascalie:</strong> Aggiungi titolo e descrizione a ogni immagine</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 13: HTML Block -->
+        <section id="html" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">13</span>
+                HTML_BLOCK - Contenuti Personalizzati
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-gray-600 to-gray-800 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">📝 HTML Block</h3>
+                    <p class="opacity-90">Editor HTML libero per creare sezioni completamente personalizzate</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Sezioni speciali</strong> - CTA personalizzati, banner promozionali</li>
+                    <li>✅ <strong>Testi lunghi</strong> - Storia aziendale, descrizioni dettagliate</li>
+                    <li>✅ <strong>Tabelle</strong> - Listini prezzi, orari, menu</li>
+                    <li>✅ <strong>Layout custom</strong> - Quando gli altri blocchi non bastano</li>
+                </ul>
+
+                <div class="warning-box mb-6">
+                    <strong>⚠️ Attenzione:</strong> Questo blocco richiede conoscenze HTML di base. Se non conosci l'HTML, usa gli altri blocchi preconfigurati!
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Come Funziona</h4>
+
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+                    <p class="text-gray-600 mb-3">Scrivi o incolla il tuo HTML nell'editor. Il codice verrà renderizzato direttamente nella pagina.</p>
+                    <div class="code-block">
+                        <pre>Esempio Sezione CTA:
+&lt;section style="padding: 4rem 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; border-radius: 12px;"&gt;
+  &lt;h2 style="font-size: 2.5rem; margin-bottom: 1rem;"&gt;Vieni a Trovarci&lt;/h2&gt;
+  &lt;p style="font-size: 1.2rem; margin-bottom: 2rem;"&gt;
+    Siamo aperti dal Lunedì al Venerdì: 9:00 - 18:00
+  &lt;/p&gt;
+  &lt;a href="/contatti" style="display: inline-block; background: #f59e0b; color: white; padding: 1rem 2rem; border-radius: 8px; text-decoration: none;"&gt;
+    Contattaci
+  &lt;/a&gt;
+&lt;/section&gt;</pre>
+                    </div>
+                </div>
+
+                <div class="tip-box">
+                    <strong>💡 Suggerimenti:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Usa <strong>style inline</strong> per gli stili CSS</li>
+                        <li>• Testa sempre su <strong>anteprima live</strong> prima di salvare</li>
+                        <li>• Puoi usare <strong>Tailwind CSS classes</strong> se conosci il framework</li>
+                        <li>• Per contenuti semplici, preferisci gli altri blocchi</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 14: Media Social Block -->
+        <section id="social" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">14</span>
+                MEDIA_SOCIAL_BLOCK - Social e Gallery
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">📱 Media Social Block</h3>
+                    <p class="opacity-90">Icone social media + galleria immagini con lightbox integrato - Tutto in uno!</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Footer</strong> - Link ai social + galleria foto</li>
+                    <li>✅ <strong>Pagina contatti</strong> - "Seguici sui social"</li>
+                    <li>✅ <strong>Showroom</strong> - Galleria Instagram-style</li>
+                    <li>✅ <strong>Eventi</strong> - Foto eventi + condivisione social</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Piattaforme Supportate</h4>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-pink-50 border border-pink-200 rounded-lg p-4 text-center">
+                        <div class="text-3xl mb-2">📸</div>
+                        <h5 class="font-bold text-pink-900">Instagram</h5>
+                        <p class="text-xs text-gray-600 mt-1">Gradient: Yellow→Red→Purple</p>
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                        <div class="text-3xl mb-2">👍</div>
+                        <h5 class="font-bold text-blue-900">Facebook</h5>
+                        <p class="text-xs text-gray-600 mt-1">Color: #1877F2</p>
+                    </div>
+
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                        <div class="text-3xl mb-2">💬</div>
+                        <h5 class="font-bold text-green-900">WhatsApp</h5>
+                        <p class="text-xs text-gray-600 mt-1">Color: #25D366</p>
+                    </div>
+
+                    <div class="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center">
+                        <div class="text-3xl mb-2">✈️</div>
+                        <h5 class="font-bold text-cyan-900">Telegram</h5>
+                        <p class="text-xs text-gray-600 mt-1">Color: #0088cc</p>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Link Social</h5>
+                        <p class="text-gray-600 mb-3">Inserisci gli URL completi dei tuoi profili:</p>
+                        <div class="code-block">
+                            <pre>Facebook: https://www.facebook.com/tua-pagina
+Instagram: https://www.instagram.com/tuo-profile
+WhatsApp: +393356738658 (solo numero, senza spazi)
+Telegram: https://t.me/tuo-canale</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Galleria Immagini</h5>
+                        <p class="text-gray-600 mb-3">Carica le immagini da mostrare:</p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• <strong>Layout grid:</strong> Griglia regolare</li>
+                            <li>• <strong>Layout carousel:</strong> Scorrevole orizzontalmente</li>
+                            <li>• <strong>Lightbox:</strong> Click per ingrandire</li>
+                            <li>• <strong>Dimensioni consigliate:</strong> 600x600px (quadrate)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="tip-box mt-6">
+                    <strong>💡 Best Practice:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Assicurati che i link social siano <strong>corretti e pubblici</strong></li>
+                        <li>• Per WhatsApp, usa il <strong>formato internazionale</strong> (+39 per Italia)</li>
+                        <li>• La galleria è perfetta per mostrare <strong>recensioni, prodotti, eventi</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 15: Guide Block -->
+        <section id="guide" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">15</span>
+                GUIDE_BLOCK - Guide Interattive
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">📚 Guide Block</h3>
+                    <p class="opacity-90">Crea guide interattive con tab navigabili - Perfetto per FAQ, manuali e documentazione!</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>FAQ</strong> - Domande frequenti organizzate per categoria</li>
+                    <li>✅ <strong>Menu ristorante</strong> - Antipasti, Primi, Secondi in tab separati</li>
+                    <li>✅ <strong>Manuali</strong> - Guide passo-passo per uso prodotti</li>
+                    <li>✅ <strong>Documentazione</strong> - Specifiche tecniche, istruzioni</li>
+                </ul>
+
+                <div class="info-box mb-6">
+                    <strong>🎯 Potenziale Illimitato:</strong> Ogni tab può contenere HTML, liste puntate, immagini, tabelle e sezioni nidificate!
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Struttura</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">1. Titolo Guida</h5>
+                        <p class="text-gray-600 mb-2">Il nome principale della guida</p>
+                        <div class="code-block">
+                            <pre>Esempio: "Guida Completa al Nostro Menu"</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">2. Tab (Schede)</h5>
+                        <p class="text-gray-600 mb-3">Ogni tab ha:</p>
+                        <ul class="text-sm space-y-1 text-gray-600">
+                            <li>• <strong>Etichetta:</strong> Nome breve sul bottone (es: "Antipasti")</li>
+                            <li>• <strong>Icona:</strong> Emoji rappresentativa (es: 🥗)</li>
+                            <li>• <strong>Titolo:</strong> Titolo completo del contenuto</li>
+                            <li>• <strong>Descrizione:</strong> Testo introduttivo</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">3. Sezioni (dentro ogni tab)</h5>
+                        <p class="text-gray-600 mb-3">Ogni tab può contenere più sezioni:</p>
+                        <ul class="text-sm space-y-1 text-gray-600">
+                            <li>• <strong>Titolo + Icona:</strong> Identificano la sezione</li>
+                            <li>• <strong>Contenuto HTML:</strong> Testo formattato</li>
+                            <li>• <strong>Punti elenco:</strong> Liste organizzate</li>
+                            <li>• <strong>Immagine:</strong> Con didascalia</li>
+                            <li>• <strong>Esempio codice:</strong> Per snippet tecnici</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="tip-box mt-6">
+                    <strong>💡 Esempio Menu Ristorante:</strong>
+                    <div class="mt-2 text-sm">
+                        <strong>Tab 1:</strong> "Antipasti" 🥗 → Lista antipasti con ingredienti e prezzi<br>
+                        <strong>Tab 2:</strong> "Primi" 🍝 → Ricette primi piatti<br>
+                        <strong>Tab 3:</strong> "Secondi" 🥩 → Carne, pesce, vegetariani<br>
+                        <strong>Tab 4:</strong> "Dolci" 🍰 → Dessert e bevande
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 16: Maps Block -->
+        <section id="maps" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">16</span>
+                MAPS_BLOCK - La Tua Posizione sulla Mappa
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">🗺️ Maps Block</h3>
+                    <p class="opacity-90">Mappa Google Maps interattiva con indicazioni stradali</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Pagina Contatti</strong> - Mostra dove sei</li>
+                    <li>✅ <strong>Pagina "Dove Siamo"</strong> - Indicazioni per raggiungerti</li>
+                    <li>✅ <strong>Multi-sede</strong> - Più sedi aziendali</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Indirizzo</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempio: Via Roma 123, 00100 Milano, Italia</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            Inserisci l'indirizzo completo. Google Maps lo geocoderà automaticamente.
+                        </p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Zoom</h5>
+                        <p class="text-gray-600 mb-3">Livello di zoom della mappa (1-20):</p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• <strong>10-12:</strong> Città intera</li>
+                            <li>• <strong>14-15:</strong> Quartiere</li>
+                            <li>• <strong>16-18:</strong> Via specifica (consigliato)</li>
+                            <li>• <strong>19-20:</strong> Dettaglio edificio</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Altezza Mappa</h5>
+                        <p class="text-gray-600 mb-2">Scegli l'altezza del blocco mappa:</p>
+                        <div class="code-block">
+                            <pre>Consigliato: 400px - 500px</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="warning-box mt-6">
+                    <strong>⚠️ Importante:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• La mappa richiede una <strong>Google Maps API Key</strong> configurata nel sistema</li>
+                        <li>• Verifica che l'indirizzo sia <strong>corretto</strong> testandolo prima su Google Maps</li>
+                        <li>• Per aziende con più sedi, considera di creare <strong>più blocchi mappa</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 17: Catalog Block -->
+        <section id="catalog" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">17</span>
+                CATALOG_BLOCK - Vetrina Prodotti
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">🛒 Catalog Block</h3>
+                    <p class="opacity-90">Mostra prodotti dal catalogo con filtri, layout diversi e opzioni di visualizzazione</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Vetrina prodotti</strong> - Mostra il catalogo completo</li>
+                    <li>✅ <strong>Categoria specifica</strong> - Filtra per categoria</li>
+                    <li>✅ <strong>Prodotti in evidenza</strong> - Mostra solo i bestseller</li>
+                    <li>✅ <strong>Nuovi arrivi</strong> - Ultimi prodotti aggiunti</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Opzioni di Visualizzazione</h4>
+
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h5 class="font-bold text-blue-900 mb-2">Grid Layout</h5>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• <strong>grid-3:</strong> 3 prodotti per riga</li>
+                            <li>• <strong>grid-4:</strong> 4 prodotti per riga (default)</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h5 class="font-bold text-green-900 mb-2">List Layout</h5>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• Visualizzazione elenco verticale</li>
+                            <li>• Più dettagli per prodotto</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Filtri e Opzioni</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-3">Configurazioni disponibili:</h5>
+                        <ul class="text-sm space-y-2 text-gray-600">
+                            <li><strong>Categoria:</strong> Filtra prodotti per categoria specifica</li>
+                            <li><strong>Max items:</strong> Numero massimo di prodotti da mostrare</li>
+                            <li><strong>Show prices:</strong> Mostra/nascondi prezzi</li>
+                            <li><strong>Show add to cart:</strong> Mostra pulsante "Aggiungi al carrello"</li>
+                            <li><strong>OrderBy:</strong> Ordina per prezzo, nome, data</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="tip-box mt-6">
+                    <strong>💡 Best Practice:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Usa <strong>immagini quadrate</strong> (1000x1000px) per i prodotti</li>
+                        <li>• Assicurati che i <strong>prezzi siano aggiornati</strong></li>
+                        <li>• Per e-commerce completo, usa il modulo Shop dedicato</li>
+                        <li>• Questo blocco è perfetto per <strong>vetrine</strong> senza carrello</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 18: Blog List Block -->
+        <section id="blog" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">18</span>
+                BLOG_LIST_BLOCK - Articoli Blog
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">📰 Blog List Block</h3>
+                    <p class="opacity-90">Mostra gli articoli del blog con anteprima e link all'articolo completo</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Pagina Blog</strong> - Lista tutti gli articoli</li>
+                    <li>✅ <strong>Homepage</strong> - Ultimi articoli in evidenza</li>
+                    <li>✅ <strong>Categoria blog</strong> - Articoli per argomento</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Numero Articoli</h5>
+                        <p class="text-gray-600 mb-2">Quanti articoli mostrare:</p>
+                        <div class="code-block">
+                            <pre>Esempio: 3 (homepage), 6-12 (pagina blog completa)</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Layout</h5>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• <strong>Grid:</strong> Griglia con card articolo</li>
+                            <li>• <strong>List:</strong> Elenco verticale</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Ordinamento</h5>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• <strong>Recenti:</strong> Ultimi pubblicati prima</li>
+                            <li>• <strong>Featured:</strong> Articoli in evidenza</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="info-box mt-6">
+                    <strong>📝 Nota:</strong> Gli articoli vengono gestiti dalla tab "Blog" del SiteBuilder. Questo blocco si limita a mostrarli.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 19: Menu Management -->
+        <section id="menu" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">19</span>
+                Gestione Menu e Navigazione
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🧭 Il Menu di Navigazione</h3>
+                <p class="text-gray-600 mb-6">
+                    Il menu di navigazione è generato automaticamente dalle pagine che crei. Puoi controllare <strong>ordine, posizione e nidificazione</strong> dei menu.
+                </p>
+
+                <h4 class="font-bold text-gray-800 mb-4">📋 Come Funziona</h4>
+
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+                    <p class="text-gray-600 mb-3">
+                        Ogni pagina creata appare automaticamente nel menu di navigazione principale. L'ordine delle pagine determina l'ordine dei link nel menu.
+                    </p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🔄 Riordinare le Pagine</h4>
+
+                <div class="info-box mb-4">
+                    <strong>Drag & Drop:</strong> Nella tab "Pagine", trascina le righe delle pagine verso l'alto o il basso per cambiare l'ordine!
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">📊 Menu Nidificati (Sottomenu)</h4>
+
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+                    <p class="text-gray-600 mb-3">
+                        Puoi creare sottomenu nidificati fino a 2 livelli di profondità:
+                    </p>
+                    <div class="nested-list">
+                        <div class="mb-2">
+                            <strong>Pagina Livello 1</strong> (apparirà nel menu principale)
+                        </div>
+                        <div class="nested-list">
+                            <div class="mb-2">
+                                <strong>Pagina Livello 2</strong> (sottomenu)
+                            </div>
+                            <div class="nested-list">
+                                <div>
+                                    <strong>Pagina Livello 3</strong> (sotto-sottomenu)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="code-block mt-3">
+                        <pre>Esempio Struttura:
+Servizi
+├── Consulenza Aziendale
+├── Marketing
+│   ├── SEO
+│   └── Social Media
+└── Formazione</pre>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">👁️ Visibilità Pagina</h4>
+
+                <div class="space-y-3">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-green-900 mb-2">Pagina Visibile</h5>
+                        <p class="text-sm text-gray-600">
+                            Appare nel menu di navigazione ed è accessibile a tutti. È la modalità predefinita.
+                        </p>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-900 mb-2">Pagina Nascosta</h5>
+                        <p class="text-sm text-gray-600">
+                            Non appare nel menu ma è accessibile tramite URL diretto. Utile per landing page, thank you page, contenuti speciali.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="tip-box mt-6">
+                    <strong>💡 Consigli:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Mantieni il menu <strong>semplice</strong> (max 6-7 voci principali)</li>
+                        <li>• Usa i sottomenu per organizzare contenuti correlati</li>
+                        <li>• Evita più di 2 livelli di nidificazione</li>
+                        <li>• Testa sempre su <strong>mobile</strong> - il menu diventa hamburger</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 20: SEO Configuration -->
+        <section id="page-seo" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">20</span>
+                Configurazione SEO Avanzata
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🔍 La Tab "SEO & Ottimizzazione"</h3>
+                <p class="text-gray-600 mb-6">
+                    Qui puoi configurare i meta tag e le impostazioni SEO per ogni pagina. Questo aiuta Google a indicizzare meglio il tuo sito.
+                </p>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Campi SEO</h4>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Meta Title</h5>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Il titolo che appare nei risultati di Google (max 60 caratteri)
+                        </p>
+                        <div class="code-block">
+                            <pre>Esempio: "Mia Azienda - Servizi di Consulenza a Milano"</pre>
+                        </div>
+                        <div class="tip-box mt-2">
+                            <strong>💡 Include:</strong> Nome brand + Parola chiave principale + Località (se rilevante)
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Meta Description</h5>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Descrizione che appare sotto il titolo nei risultati (max 160 caratteri)
+                        </p>
+                        <div class="code-block">
+                            <pre>Esempio: "Leader nella consulenza aziendale dal 1990. Aumenta i profitti con il nostro metodo innovativo. Contattaci per una consulenza gratuita."</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Keywords</h5>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Parole chiave separate da virgola (5-10 keywords)
+                        </p>
+                        <div class="code-block">
+                            <pre>Esempio: consulenza aziendale, servizi business, milano, corporate advisory</pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">OG Image (Open Graph)</h5>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Immagine che appare quando condividi il sito su social (1200x630px)
+                        </p>
+                        <div class="info-box">
+                            <strong>📱 Perché è importante:</strong> Quando qualcuno condivide il tuo sito su Facebook o LinkedIn, vedrà questa immagine invece di un thumbnail casuale.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="success-box mt-6">
+                    <strong>✅ SEO Best Practices:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• Ogni pagina deve avere un <strong>title unico</strong></li>
+                        <li>• La description deve essere <strong>accattivante</strong> per invogliare al click</li>
+                        <li>• Usa le <strong>keyword</strong> naturalmente, non forzare</li>
+                        <li>• Inserisci la <strong>località</strong> se sei un'attività locale</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 21: Best Practices -->
+        <section id="tips" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">21</span>
+                Best Practices e Consigli Utili
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">💡 Consigli Generali</h3>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 class="font-bold text-blue-900 mb-2">🎨 Design</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Scegli una <strong>palette coerente</strong> per tutto il sito</li>
+                            <li>• Usa <strong>max 2-3 colori</strong> principali</li>
+                            <li>• Mantieni <strong>spaziature uniformi</strong> tra le sezioni</li>
+                            <li>• Usa <strong>font leggibili</strong> (min 16px per il testo)</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 class="font-bold text-green-900 mb-2">📱 Mobile</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Testa sempre su <strong>smartphone</strong></li>
+                            <li>• Il <strong>50% del traffico</strong> è mobile</li>
+                            <li>• Evita popup e banner invasivi</li>
+                            <li>• Assicurati che i <strong>pulsanti siano grandi</strong> abbastanza</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <h4 class="font-bold text-purple-900 mb-2">✍️ Contenuti</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Scrivi per <strong>persone</strong>, non per robot</li>
+                            <li>• Usa frasi <strong>brevi e semplici</strong></li>
+                            <li>• Aggiorna regolarmente i contenuti</li>
+                            <li>• Usa <strong>call-to-action</strong> chiare</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <h4 class="font-bold text-orange-900 mb-2">🖼️ Immagini</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Ottimizza le immagini (<strong>max 500KB</strong>)</li>
+                            <li>• Usa il formato giusto (<strong>JPG</strong> per foto, <strong>PNG</strong> per grafica)</li>
+                            <li>• Aggiungi sempre <strong>ALT text</strong> per accessibilità</li>
+                            <li>• Usa immagini di <strong>alta qualità</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-700 mb-4 mt-8">🚫 Errori Comuni da Evitare</h3>
+
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                    <ul class="space-y-2 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span><strong>Non testare su mobile</strong> - Il sito deve essere perfetto su smartphone</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span><strong>Testi troppo lunghi</strong> - La gente scansiona, non legge</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span><strong>Immagini non ottimizzate</strong> - Rallentano il sito</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span><strong>Mancare di CTA</strong> - Dì sempre all'utente cosa fare</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span><strong>Non aggiornare i contenuti</strong> - Google penalizza i siti fermi</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="success-box">
+                    <strong>✅ Regola d'Oro:</strong>
+                    <p class="mt-2">
+                        <em>"Meno è più"</em> - È meglio un sito semplice con 5 pagine ben fatte che un sito complesso con 50 pagine vuote.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 22: FAQ -->
+        <section id="faq" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">22</span>
+                Domande Frequenti (FAQ)
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">❓ FAQ Tecniche</h3>
+
+                <div class="space-y-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-bold text-gray-800 mb-2">Posso cambiare il template dopo aver creato il sito?</h5>
+                        <p class="text-gray-600">
+                            Sì! Puoi modificare tutti i blocchi, i colori e il contenuto in qualsiasi momento. Tuttavia, se vuoi usare un diverso preset starter, dovrai ricrearlo.
+                        </p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-bold text-gray-800 mb-2">Quante pagine posso creare?</h5>
+                        <p class="text-gray-600">
+                            Non c'è un limite fisico. Puoi creare tutte le pagine che vuoi, ma ti consigliamo di mantenerne tra 5 e 15 per una navigazione ottimale.
+                        </p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-bold text-gray-800 mb-2">Posso usare il mio dominio?</h5>
+                        <p class="text-gray-600">
+                            Sì! Contatta il supporto Opero per configurare il tuo dominio personalizzato (es: www.tua-azienda.it).
+                        </p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-bold text-gray-800 mb-2">Il sito è responsive?</h5>
+                        <p class="text-gray-600">
+                            Sì, tutti i siti creati con SiteBuilder sono automaticamente responsive e si adattano a smartphone, tablet e desktop.
+                        </p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-bold text-gray-800 mb-2">Posso aggiungere codice JavaScript personalizzato?</h5>
+                        <p class="text-gray-600">
+                            Non direttamente per motivi di sicurezza. Se hai esigenze specifiche, contatta il supporto per valutare soluzioni custom.
+                        </p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-bold text-gray-800 mb-2">Come faccio a backup il sito?</h5>
+                        <p class="text-gray-600">
+                            Opero fa backup giornalieri automatici dei tuoi dati. Inoltre, puoi esportare i contenuti come PDF o JSON dalla dashboard.
+                        </p>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-700 mb-4 mt-8">🆘 Hai Bisogno di Aiuto?</h3>
+
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <div class="text-center">
+                            <div class="text-3xl mb-2">📧</div>
+                            <h5 class="font-bold text-gray-800">Email</h5>
+                            <p class="text-sm text-blue-600">clienti@operocloud.it</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl mb-2">💬</div>
+                            <h5 class="font-bold text-gray-800">WhatsApp</h5>
+                            <p class="text-sm text-blue-600">+39 335 673 8658</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl mb-2">🌐</div>
+                            <h5 class="font-bold text-gray-800">Website</h5>
+                            <p class="text-sm text-blue-600">www.operocloud.it</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Footer -->
