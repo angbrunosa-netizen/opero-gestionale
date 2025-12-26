@@ -3,11 +3,6 @@
  * Percorso: migrations/20251225_create_main_site.js
  * Data: 25/12/2025
  * Descrizione: Aggiunge supporto per sito principale (operocloud.it)
- * - Campo is_main_site nella tabella ditte per marcare la ditta principale
- * - Campo show_in_directory per visibilità nella directory
- * - Campo directory_order per ordinamento personalizzato directory
- * - Campo directory_description per descrizione personalizzata in directory
- * - Campo directory_featured per evidenziare aziende nella directory
  */
 
 exports.up = async function(knex) {
@@ -65,24 +60,52 @@ exports.up = async function(knex) {
 
     console.log('✅ Campi per sito principale e directory aggiunti!');
 
-    // Crea indice per sito principale (MariaDB non supporta indici parziali)
-    const exists = await knex.schema.hasColumn('ditte', 'is_main_site');
-    if (exists) {
-        await knex.raw(`
-            CREATE INDEX IF NOT EXISTS idx_ditte_is_main_site
-            ON ditte(is_main_site, shop_attivo)
+    // --- CORREZIONE INDICI (MySQL non supporta CREATE INDEX IF NOT EXISTS) ---
+
+    // 1. Crea indice per sito principale
+    const hasColumnMain = await knex.schema.hasColumn('ditte', 'is_main_site');
+    if (hasColumnMain) {
+        // Verifichiamo se l'indice esiste già interrogando information_schema
+        const [existingIndex] = await knex.raw(`
+            SELECT COUNT(*) as count 
+            FROM information_schema.statistics 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'ditte' 
+            AND index_name = 'idx_ditte_is_main_site'
         `);
-        console.log('✅ Indice is_main_site creato!');
+        
+        // existingIndex[0].count contiene il risultato. In mysql2 knex ritorna [rows, fields]
+        if (existingIndex[0].count === 0) {
+            await knex.raw(`
+                CREATE INDEX idx_ditte_is_main_site
+                ON ditte(is_main_site, shop_attivo)
+            `);
+            console.log('✅ Indice is_main_site creato!');
+        } else {
+            console.log('ℹ️ Indice is_main_site già esistente.');
+        }
     }
 
-    // Crea indice per directory (MariaDB non supporta indici parziali)
-    const hasShowInDirectoryNow = await knex.schema.hasColumn('ditte', 'show_in_directory');
-    if (hasShowInDirectoryNow) {
-        await knex.raw(`
-            CREATE INDEX IF NOT EXISTS idx_ditte_directory_visibility
-            ON ditte(show_in_directory, directory_order)
+    // 2. Crea indice per directory
+    const hasColumnDirectory = await knex.schema.hasColumn('ditte', 'show_in_directory');
+    if (hasColumnDirectory) {
+        const [existingIndexDir] = await knex.raw(`
+            SELECT COUNT(*) as count 
+            FROM information_schema.statistics 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'ditte' 
+            AND index_name = 'idx_ditte_directory_visibility'
         `);
-        console.log('✅ Indice directory_visibility creato!');
+
+        if (existingIndexDir[0].count === 0) {
+            await knex.raw(`
+                CREATE INDEX idx_ditte_directory_visibility
+                ON ditte(show_in_directory, directory_order)
+            `);
+            console.log('✅ Indice directory_visibility creato!');
+        } else {
+            console.log('ℹ️ Indice directory_visibility già esistente.');
+        }
     }
 };
 
@@ -97,9 +120,9 @@ exports.down = async function(knex) {
         table.dropColumnIfExists('directory_featured');
     });
 
-    // Rimuovi indici (Knex non supporta dropIndex con WHERE direttamente)
-    await knex.raw('DROP INDEX IF EXISTS idx_ditte_is_main_site');
-    await knex.raw('DROP INDEX IF EXISTS idx_ditte_directory_visibility');
+    // Nota: DROP INDEX IF EXISTS è supportato in MySQL
+    await knex.raw('DROP INDEX IF EXISTS idx_ditte_is_main_site ON ditte');
+    await knex.raw('DROP INDEX IF EXISTS idx_ditte_directory_visibility ON ditte');
 
     console.log('✅ Campi per sito principale e directory rimossi!');
 };

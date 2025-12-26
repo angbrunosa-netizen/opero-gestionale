@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guida Completa Opero SiteBuilder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            scroll-behavior: smooth;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            overflow-y: auto;
+            background: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+            z-index: 50;
+        }
+        .main-content {
+            margin-left: 280px;
+            padding: 40px;
+            max-width: 1200px;
+        }
+        @media (max-width: 1024px) {
+            .sidebar {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 20px;
+            }
+        }
+        .block-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+        }
+        .block-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1);
+        }
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .nested-list {
+            margin-left: 24px;
+            border-left: 3px solid #e2e8f0;
+            padding-left: 16px;
+        }
+        .tip-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-left: 4px solid #ef4444;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .success-box {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border-left: 4px solid #10b981;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-left: 4px solid #3b82f6;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .nav-link {
+            display: block;
+            padding: 12px 16px;
+            color: #475569;
+            text-decoration: none;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .nav-link:hover, .nav-link.active {
+            background: #e0e7ff;
+            border-left-color: #6366f1;
+            color: #3730a3;
+        }
+        .nav-section {
+            font-weight: 600;
+            color: #1e293b;
+            padding: 8px 16px;
+            margin-top: 16px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .example-screenshot {
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: #f1f5f9;
+            margin: 16px 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="p-6">
+            <h1 class="text-xl font-bold text-gray-800 mb-2">📘 Guida SiteBuilder</h1>
+            <p class="text-sm text-gray-600">Opero CMS - Documentazione Completa</p>
+        </div>
+
+        <nav class="mt-6">
+            <div class="nav-section">Introduzione</div>
+            <a href="#overview" class="nav-link active">Panoramica</a>
+            <a href="#access" class="nav-link">Permessi e Accesso</a>
+            <a href="#getting-started" class="nav-link">Inizio Guidato</a>
+
+            <div class="nav-section">Wizard Creazione</div>
+            <a href="#wizard" class="nav-link">Starter Site Wizard</a>
+            <a href="#presets" class="nav-link">I 4 Preset</a>
+            <a href="#pdf-guide" class="nav-link">Guida PDF</a>
+
+            <div class="nav-section">Configurazione Sito</div>
+            <a href="#site-config" class="nav-link">Configurazione Base</a>
+            <a href="#theme" class="nav-link">Tema e Colori</a>
+            <a href="#preview" class="nav-link">Anteprima Live</a>
+
+            <div class="nav-section">Gestione Pagine</div>
+            <a href="#pages" class="nav-link">Gestione Pagine</a>
+            <a href="#page-seo" class="nav-link">SEO Avanzata</a>
+            <a href="#menu" class="nav-link">Menu e Navigazione</a>
+
+            <div class="nav-section">Blocchi Contenuti</div>
+            <a href="#blocks-overview" class="nav-link">Panoramica Blocchi</a>
+            <a href="#hero" class="nav-link">Hero Block</a>
+            <a href="#vetrina" class="nav-link">Vetrina Block</a>
+            <a href="#flip-card" class="nav-link">Flip Card Gallery</a>
+            <a href="#dynamic-gallery" class="nav-link">Dynamic Image Gallery</a>
+            <a href="#html" class="nav-link">HTML Block</a>
+            <a href="#social" class="nav-link">Media Social Block</a>
+            <a href="#guide" class="nav-link">Guide Block</a>
+            <a href="#maps" class="nav-link">Maps Block</a>
+            <a href="#catalog" class="nav-link">Catalog Block</a>
+            <a href="#blog" class="nav-link">Blog List Block</a>
+
+            <div class="nav-section">Best Practices</div>
+            <a href="#tips" class="nav-link">Consigli Utili</a>
+            <a href="#examples" class="nav-link">Esempi Pratici</a>
+            <a href="#faq" class="nav-link">FAQ</a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="gradient-bg rounded-2xl p-12 mb-12 text-white">
+            <h1 class="text-4xl font-bold mb-4">🚀 Guida Completa Opero SiteBuilder</h1>
+            <p class="text-xl opacity-90 mb-6">
+                Crea e gestisci siti web professionali con il Costruttore Siti Opero
+            </p>
+            <div class="flex gap-4 flex-wrap">
+                <div class="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+                    <div class="text-sm opacity-75">Tempo di lettura</div>
+                    <div class="font-bold">25-30 minuti</div>
+                </div>
+                <div class="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+                    <div class="text-sm opacity-75">Livello</div>
+                    <div class="font-bold">Principiante - Esperto</div>
+                </div>
+                <div class="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+                    <div class="text-sm opacity-75">Aggiornata</div>
+                    <div class="font-bold">Dicembre 2025</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Section 1: Overview -->
+        <section id="overview" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">1</span>
+                Panoramica del SiteBuilder Module
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🎯 Cos'è il SiteBuilder?</h3>
+                <p class="text-gray-600 mb-6">
+                    Il <strong>SiteBuilder Module</strong> è il sistema CMS di Opero che ti permette di creare, configurare e gestire siti web completi senza conoscenze di programmazione. Attraverso un'interfaccia intuitiva basata su blocchi, puoi:
+                </p>
+
+                <div class="grid md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <h4 class="font-semibold text-blue-900 mb-2">✨ Creare siti da zero</h4>
+                        <p class="text-sm text-blue-700">Usa lo Starter Wizard per generare automaticamente 4 pagine ottimizzate</p>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4">
+                        <h4 class="font-semibold text-green-900 mb-2">🎨 Personalizzare il design</h4>
+                        <p class="text-sm text-green-700">Scegli colori, font e layout adatti al tuo brand</p>
+                    </div>
+                    <div class="bg-purple-50 rounded-lg p-4">
+                        <h4 class="font-semibold text-purple-900 mb-2">📝 Gestire i contenuti</h4>
+                        <p class="text-sm text-purple-700">Aggiungi e modifica testi, immagini e blocchi interattivi</p>
+                    </div>
+                    <div class="bg-orange-50 rounded-lg p-4">
+                        <h4 class="font-semibold text-orange-900 mb-2">🔍 Ottimizzare per la SEO</h4>
+                        <p class="text-sm text-orange-700">Configura meta tag, URL e visibilità su Google</p>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🏗️ Architettura del Modulo</h3>
+                <div class="code-block">
+                    <pre>SiteBuilderModule (Principale)
+├── SiteConfig - Configurazione base sito
+├── PageManager - Gestione pagine e blocchi
+├── PageConfigManager - SEO avanzata e menu
+├── BlogManager - Articoli blog
+├── CatalogManager - Catalogo prodotti
+└── StarterSiteWizard - Wizard creazione automatica</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Permissions -->
+        <section id="access" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">2</span>
+                Permessi e Accesso
+            </h2>
+
+            <div class="block-card">
+                <div class="warning-box">
+                    <strong>⚠️ Importante:</strong> L'accesso al SiteBuilder è controllato da permessi specifici. Non tutti gli utenti possono vedere e usare questo modulo.
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🔐 Tipi di Utente Autorizzati</h3>
+
+                <div class="space-y-6">
+                    <!-- System Admin -->
+                    <div class="border border-blue-200 rounded-lg p-6">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                SYSTEM ADMIN
+                            </div>
+                            <h4 class="text-lg font-bold text-gray-800">Ruolo ID: 1</h4>
+                        </div>
+                        <div class="info-box mb-4">
+                            <strong>Permesso richiesto:</strong> <code>SITE_BUILDER</code>
+                        </div>
+                        <ul class="space-y-2 text-gray-600">
+                            <li>✅ Può gestire siti di <strong>tutte le ditte</strong> (Tipo 1)</li>
+                            <li>✅ Vede una <strong>griglia di selezione</strong> delle ditte</li>
+                            <li>✅ Può passare da una ditta all'altra facilmente</li>
+                            <li>✅ Ha pieno controllo su ogni aspetto del sito</li>
+                        </ul>
+                        <div class="example-screenshot mt-4">
+                            <strong>Vista System Admin:</strong><br>
+                            Griglia con card di tutte le ditte → Click su una card → Apri editor sito
+                        </div>
+                    </div>
+
+                    <!-- Company Admin -->
+                    <div class="border border-green-200 rounded-lg p-6">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                AZIENDA ADMIN
+                            </div>
+                            <h4 class="text-lg font-bold text-gray-800">Ruolo: 2, 3, 4, ecc.</h4>
+                        </div>
+                        <div class="info-box mb-4">
+                            <strong>Permesso richiesto:</strong> <code>COMPANY_SITE_BUILDER</code> (ma NON <code>SITE_BUILDER</code>)
+                        </div>
+                        <ul class="space-y-2 text-gray-600">
+                            <li>✅ Può gestire <strong>solo la sua ditta</strong></li>
+                            <li>✅ Viene portato direttamente all'editor della sua ditta</li>
+                            <li>✅ Non vede il selettore ditte</li>
+                            <li>✅ Può modificare tutto il sito della sua azienda</li>
+                        </ul>
+                        <div class="tip-box mt-4">
+                            <strong>💡 Suggerimento:</strong> Per assegnare i permessi, vai su Gestione Utenti → Modifica Utente → Permessi → Seleziona <code>COMPANY_SITE_BUILDER</code>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-700 mb-4 mt-8">❌ Utenti Non Autorizzati</h3>
+                <div class="warning-box">
+                    Se un utente non ha i permessi corretti, vedrà questo messaggio:<br>
+                    <em>"Accesso Negato - Non hai i permessi necessari per accedere al Costruttore Siti"</em>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Getting Started -->
+        <section id="getting-started" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">3</span>
+                Inizio Guidato: Primi Passi
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🚀 Flusso di Lavoro Consigliato</h3>
+
+                <div class="space-y-6">
+                    <!-- Step 1 -->
+                    <div class="flex gap-4">
+                        <div class="step-number flex-shrink-0">1</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-800 mb-2">Accedi al SiteBuilder</h4>
+                            <p class="text-gray-600 mb-4">
+                                Dal menu principale di Opero, clicca su <strong>"Costruttore Siti"</strong> o <strong>"SiteBuilder"</strong>
+                            </p>
+                            <div class="info-box">
+                                <strong>📍 Posizione:</strong> Menu laterale → Icona Globo 🌍
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="flex gap-4">
+                        <div class="step-number flex-shrink-0">2</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-800 mb-2">Seleziona la Ditta (Solo System Admin)</h4>
+                            <p class="text-gray-600 mb-4">
+                                Se sei System Admin, vedrai una griglia con tutte le ditte. Clicca sulla card della ditta che vuoi gestire.
+                            </p>
+                            <div class="bg-gray-100 rounded-lg p-4">
+                                <strong>💡 Come riconoscere la ditta giusta:</strong>
+                                <ul class="mt-2 space-y-1 text-sm">
+                                    <li>• Controlla la <strong>ragione sociale</strong></li>
+                                    <li>• Verifica lo <strong>URL slug</strong> (es: "mia-azienda.operocloud.it")</li>
+                                    <li>• Guarda se è <strong>"Online"</strong> (verde) o "Non attivo" (grigio)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="flex gap-4">
+                        <div class="step-number flex-shrink-0">3</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-800 mb-2">Sei nell'Editor!</h4>
+                            <p class="text-gray-600 mb-4">
+                                Ora vedrai l'interfaccia principale con 5 tab nella parte superiore:
+                            </p>
+                            <div class="grid grid-cols-5 gap-2">
+                                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl mb-1">⚙️</div>
+                                    <div class="text-sm font-semibold text-blue-900">Configurazione</div>
+                                </div>
+                                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl mb-1">📄</div>
+                                    <div class="text-sm font-semibold text-purple-900">Pagine</div>
+                                </div>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl mb-1">🔍</div>
+                                    <div class="text-sm font-semibold text-green-900">SEO</div>
+                                </div>
+                                <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl mb-1">📰</div>
+                                    <div class="text-sm font-semibold text-orange-900">Blog</div>
+                                </div>
+                                <div class="bg-pink-50 border border-pink-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl mb-1">🛒</div>
+                                    <div class="text-sm font-semibold text-pink-900">Catalogo</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div class="flex gap-4">
+                        <div class="step-number flex-shrink-0">4</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-800 mb-2">Scegli il tuo Percorso</h4>
+                            <div class="success-box">
+                                <strong>🎯 Due opzioni:</strong><br>
+                                <strong>Opzione A - Principiante:</strong> Usa lo <a href="#wizard" style="text-decoration: underline;">Starter Wizard</a> per creare automaticamente un sito completo<br>
+                                <strong>Opzione B - Avanzato:</strong> Configura manualmente ogni parte partendo dalla tab "Configurazione"
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Starter Wizard -->
+        <section id="wizard" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">4</span>
+                Starter Site Wizard: Creazione Automatica
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">✨ Cos'è lo Starter Wizard?</h3>
+                <p class="text-gray-600 mb-6">
+                    Lo <strong>Starter Site Wizard</strong> è uno strumento magico che crea automaticamente un sito web completo di <strong>4 pagine</strong> in meno di 30 secondi!
+                </p>
+
+                <div class="tip-box">
+                    <strong>💡 Quando usarlo:</strong>
+                    <ul class="mt-2 space-y-1">
+                        <li>• È la prima volta che crei un sito</li>
+                        <li>• Vuoi partire da una base solida</li>
+                        <li>• Non sai da dove iniziare</li>
+                        <li>• Vuoi vedere come funziona il sistema</li>
+                    </ul>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-700 mb-4 mt-8">📋 I 4 Step del Wizard</h3>
+
+                <!-- STEP 1 -->
+                <div class="border-2 border-purple-200 rounded-lg p-6 mb-6 card-hover">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="bg-purple-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">1</div>
+                        <h4 class="text-lg font-bold text-gray-800">Selezione Preset</h4>
+                    </div>
+
+                    <p class="text-gray-600 mb-4">
+                        Scegli il tipo di attività che più si adatta alla tua azienda:
+                    </p>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <!-- Commercial -->
+                        <div class="border border-blue-200 rounded-lg p-4 hover:border-blue-400 transition-colors">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-2xl">🏪</span>
+                                <strong class="text-blue-900">Attività Commerciali</strong>
+                            </div>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>• Negozi e E-commerce</li>
+                                <li>• 4 pagine (Home, Negozio, Prodotti, Contatti)</li>
+                                <li>• 18 blocchi totali</li>
+                                <li>• Colori: Blu vibrante + Arancione</li>
+                            </ul>
+                            <div class="mt-3 text-xs text-gray-500">
+                                <strong>Includes:</strong> Catalogo prodotti, vetrina servizi, brand partner
+                            </div>
+                        </div>
+
+                        <!-- Services -->
+                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gray-400 transition-colors">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-2xl">💼</span>
+                                <strong class="text-gray-900">Servizi e Consulenza</strong>
+                            </div>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>• Professionisti e Studi</li>
+                                <li>• 4 pagine (Home, Servizi, Chi Siamo, Contatti)</li>
+                                <li>• 17 blocchi totali</li>
+                                <li>• Colori: Grigio scuro + Ambra</li>
+                            </ul>
+                            <div class="mt-3 text-xs text-gray-500">
+                                <strong>Includes:</strong> Vetrina competenze, case study, team, uffici
+                            </div>
+                        </div>
+
+                        <!-- Restaurant -->
+                        <div class="border border-black rounded-lg p-4 hover:border-gray-600 transition-colors">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-2xl">🍝</span>
+                                <strong class="text-black">Ristoranti e Bar</strong>
+                            </div>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>• Ristoranti, Pizzerie, Bar</li>
+                                <li>• 4 pagine (Home, Menu, Chi Siamo, Prenota)</li>
+                                <li>• 17 blocchi totali</li>
+                                <li>• Colori: Nero elegante + Rosso</li>
+                            </ul>
+                            <div class="mt-3 text-xs text-gray-500">
+                                <strong>Includes:</strong> Menu completo con ricette, ingredienti, vini, staff
+                            </div>
+                        </div>
+
+                        <!-- Craftsman -->
+                        <div class="border border-amber-200 rounded-lg p-4 hover:border-amber-400 transition-colors">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-2xl">🛠️</span>
+                                <strong class="text-amber-900">Artigiani e Laboratori</strong>
+                            </div>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>• Falegnami, Laboratori, Artigiani</li>
+                                <li>• 4 pagine (Home, Lavori, Prodotti, Contatti)</li>
+                                <li>• 15 blocchi totali</li>
+                                <li>• Colori: Marrone + Arancione ocra</li>
+                            </ul>
+                            <div class="mt-3 text-xs text-gray-500">
+                                <strong>Includes:</strong> Portfolio lavori, materiali e tecniche, catalogo
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                        <strong>👆 Azione:</strong> Clicca sulla card del preset che preferisci → Verrai evidenziato con un bordo colorato
+                    </div>
+                </div>
+
+                <!-- STEP 2 -->
+                <div class="border-2 border-yellow-200 rounded-lg p-6 mb-6 card-hover">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="bg-yellow-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">2</div>
+                        <h4 class="text-lg font-bold text-gray-800">Conferma e Avvertenze</h4>
+                    </div>
+
+                    <div class="warning-box mb-4">
+                        <strong>⚠️ ATTENZIONE - Leggi attentamente!</strong>
+                    </div>
+
+                    <p class="text-gray-600 mb-4">
+                        Il wizard ti avviserà che:
+                    </p>
+
+                    <ul class="space-y-2 text-gray-600 mb-4">
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span><strong>TUTTI i contenuti esistenti</strong> del sito verranno <strong>cancellati irreversibilmente</strong></span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-red-500 font-bold">✗</span>
+                            <span>Le pagine attuali verranno <strong>sovrascritte</strong></span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-green-500 font-bold">✓</span>
+                            <span>Verranno create <strong>4 nuove pagine</strong> ottimizzate</span>
+                        </li>
+                    </ul>
+
+                    <div class="success-box">
+                        <strong>💡 Consigliato:</strong> Prima di procedere, fai un backup dei contenuti importanti se vuoi preservarli!
+                    </div>
+
+                    <div class="mt-4 flex gap-3">
+                        <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+                            ← Torna indietro
+                        </button>
+                        <button class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                            Procedi →
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STEP 3 -->
+                <div class="border-2 border-blue-200 rounded-lg p-6 mb-6 card-hover">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">3</div>
+                        <h4 class="text-lg font-bold text-gray-800">Creazione in Corso...</h4>
+                    </div>
+
+                    <p class="text-gray-600 mb-4">
+                        Durante questo step vedrai:
+                    </p>
+
+                    <div class="flex items-center justify-center p-8 bg-blue-50 rounded-lg mb-4">
+                        <div class="text-center">
+                            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-4"></div>
+                            <h5 class="text-lg font-semibold text-gray-800">Creazione sito in corso...</h5>
+                            <p class="text-sm text-gray-600">Stiamo creando le pagine e i contenuti del tuo nuovo sito.</p>
+                            <p class="text-xs text-gray-500 mt-2">Questo richiede circa 10-30 secondi</p>
+                        </div>
+                    </div>
+
+                    <div class="info-box">
+                        <strong>🔧 Cosa succede dietro le quinte:</strong>
+                        <ul class="mt-2 space-y-1 text-sm">
+                            <li>• Creazione delle 4 pagine nel database</li>
+                            <li>• Generazione automatica dei blocchi per ogni pagina</li>
+                            <li>• Configurazione dei colori e del tema</li>
+                            <li>• Inserimento di contenuti di esempio in italiano</li>
+                            <li>• Upload di immagini placeholder da Unsplash</li>
+                            <li>• Configurazione del menu di navigazione</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- STEP 4 -->
+                <div class="border-2 border-green-200 rounded-lg p-6 card-hover">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="bg-green-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">4</div>
+                        <h4 class="text-lg font-bold text-gray-800">Sito Creato! ✅</h4>
+                    </div>
+
+                    <p class="text-gray-600 mb-4">
+                        Complimenti! Il tuo sito è stato creato con successo. Ecco cosa puoi fare ora:
+                    </p>
+
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                        <h5 class="font-semibold text-green-900 mb-3">📊 Riepilogo Creazione</h5>
+                        <ul class="space-y-2 text-sm text-green-800">
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-600">✓</span>
+                                <span><strong>Pagine create:</strong> 4 (Home, + altre in base al preset)</span>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-600">✓</span>
+                                <span><strong>Template applicato:</strong> [Nome preset selezionato]</span>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-600">✓</span>
+                                <span><strong>Blocchi generati:</strong> 15-18 blocchi automatici</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-300 rounded-2xl p-6 mb-6">
+                        <h5 class="text-xl font-bold text-gray-900 mb-3 text-center">📚 Scarica la Guida Completa!</h5>
+                        <p class="text-center text-gray-600 mb-4">
+                            Ottieni un PDF professionale con istruzioni dettagliate per personalizzare contenuti, immagini, testi e molto altro.
+                        </p>
+
+                        <div class="grid grid-cols-2 gap-3 text-left mb-4">
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-green-600">✓</span>
+                                <span>Linee guida testi</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-green-600">✓</span>
+                                <span>Dimensioni immagini</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-green-600">✓</span>
+                                <span>Consigli fotocamera</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-green-600">✓</span>
+                                <span>Siti foto gratis</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-green-600">✓</span>
+                                <span>Checklist completo</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-green-600">✓</span>
+                                <span>Supporto OperoCloud</span>
+                            </div>
+                        </div>
+
+                        <button class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold transition-all">
+                            📥 Scarica Guida PDF
+                        </button>
+                    </div>
+
+                    <div class="flex flex-col items-center">
+                        <button class="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition mb-2">
+                            Vai alla Gestione Sito →
+                        </button>
+                        <p class="text-sm text-gray-500">
+                            💡 Ti consigliamo di scaricare la guida prima di continuare!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Site Configuration -->
+        <section id="site-config" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">5</span>
+                Configurazione Base del Sito
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">⚙️ La Tab "Configurazione & Tema"</h3>
+                <p class="text-gray-600 mb-6">
+                    Questa è la prima tab che vedi quando accedi al SiteBuilder. Qui configuri le informazioni base del sito.
+                </p>
+
+                <h4 class="font-bold text-gray-800 mb-3">📝 Campi Configurabili</h4>
+
+                <div class="space-y-4">
+                    <!-- URL Slug -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h5 class="font-semibold text-gray-800">URL Slug</h5>
+                            <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded">Obbligatorio</span>
+                        </div>
+                        <div class="code-block mb-3">
+                            <pre>Esempio: mia-azienda</pre>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Questo diventa il dominio del tuo sito: <code>mia-azienda.operocloud.it</code>
+                        </p>
+                        <div class="tip-box">
+                            <strong>💡 Consigli:</strong>
+                            <ul class="mt-1 text-sm space-y-1">
+                                <li>• Usa solo <strong>lettere minuscole</strong>, numeri e trattini</li>
+                                <li>• Niente spazi, caratteri speciali o maiuscole</li>
+                                <li>• Breve e memorabile: <code>nome-azienda</code> è meglio di <code>la-mia-molto-lunga-azienda-srl</code></li>
+                                <li>• Se il nome è già occupato, aggiungi un numero: <code>mia-azienda-2</code></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Nome Sito -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Nome Sito</h5>
+                        <div class="code-block mb-3">
+                            <pre>Esempio: Mia Azienda S.r.l.</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            Il nome ufficiale che appare nel titolo del sito e nelle schede browser
+                        </p>
+                    </div>
+
+                    <!-- Descrizione -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Descrizione Sito</h5>
+                        <div class="code-block mb-3">
+                            <pre>Esempio: Leader nella vendita di prodotti di alta qualità dal 1990</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            Breve descrizione che appare nei risultati di Google (max 160 caratteri)
+                        </p>
+                    </div>
+
+                    <!-- Logo -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Logo Aziendale</h5>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Carica il logo della tua azienda. Formati supportati: PNG, JPG, SVG
+                        </p>
+                        <div class="info-box">
+                            <strong>📐 Dimensioni consigliate:</strong>
+                            <ul class="mt-1 text-sm">
+                                <li>• <strong>Logo header:</strong> 200-400px di larghezza</li>
+                                <li>• <strong>Formato:</strong> PNG con sfondo trasparente</li>
+                                <li>• <strong>Peso:</strong> Massimo 500KB per caricamento veloce</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Favicon -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Favicon</h5>
+                        <p class="text-sm text-gray-600 mb-3">
+                            La piccola icona che vedi nella scheda del browser (solitamente 32x32px)
+                        </p>
+                        <div class="tip-box">
+                            <strong>💡 Suggerimento:</strong> Usa una versione semplificata del tuo logo o le iniziali dell'azienda
+                        </div>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-3">💾 Salvataggio</h4>
+                <div class="success-box">
+                    Ricordati di cliccare su <strong>"Salva Modifiche"</strong> per applicare le configurazioni!
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Theme Customization -->
+        <section id="theme" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">6</span>
+                Personalizzazione Tema e Colori
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🎨 Come Funziona il Sistema Temi</h3>
+                <p class="text-gray-600 mb-6">
+                    Opero usa un sistema di variabili CSS che permette di cambiare i colori di tutto il sito istantaneamente.
+                </p>
+
+                <h4 class="font-bold text-gray-800 mb-3">🎯 Colori Personalizzabili</h4>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h5 class="font-semibold text-gray-800 mb-2">Primary Color (Colore Primario)</h5>
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-12 h-12 rounded-lg bg-blue-600" id="example-primary"></div>
+                                <input type="color" value="#2563eb" class="border rounded">
+                            </div>
+                            <p class="text-sm text-gray-600">
+                                Usato per: Pulsanti, link, bordi accesi, elementi principali
+                            </p>
+                            <div class="code-block text-xs">
+                                <pre>Esempi: #2563eb (blu), #dc2626 (rosso), #059669 (verde)</pre>
+                            </div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h5 class="font-semibold text-gray-800 mb-2">Secondary Color (Colore Secondario)</h5>
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-12 h-12 rounded-lg bg-orange-500" id="example-secondary"></div>
+                                <input type="color" value="#f97316" class="border rounded">
+                            </div>
+                            <p class="text-sm text-gray-600">
+                                Usato per: Accenti, hover, elementi secondari
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h5 class="font-semibold text-gray-800 mb-2">Background Color</h5>
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-12 h-12 rounded-lg bg-gray-50 border" id="example-background"></div>
+                                <input type="color" value="#f9fafb" class="border rounded">
+                            </div>
+                            <p class="text-sm text-gray-600">
+                                Sfondo delle pagine e delle sezioni
+                            </p>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h5 class="font-semibold text-gray-800 mb-2">Text Color</h5>
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-12 h-12 rounded-lg bg-gray-800" id="example-text"></div>
+                                <input type="color" value="#1f2937" class="border rounded">
+                            </div>
+                            <p class="text-sm text-gray-600">
+                                Colore del testo principale
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-3">🎭 Tipografia</h4>
+                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                    <p class="text-gray-600 mb-3">
+                        Puoi scegliere tra diversi font per il titolo e il testo:
+                    </p>
+                    <div class="space-y-2 text-sm">
+                        <div><strong>Titoli:</strong> Inter, Roboto, Poppins, Montserrat (font-weight: 700-800)</div>
+                        <div><strong>Testo:</strong> Inter, Roboto, Open Sans (font-weight: 400-500)</div>
+                    </div>
+                    <div class="tip-box mt-3">
+                        <strong>💡 Best Practice:</strong> Scegli font facili da leggere su tutti i dispositivi
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-3">🌐 Anteprima Live</h4>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p class="text-gray-600 mb-3">
+                        In alto a destra trovi il pulsante <strong>"Anteprima Live"</strong> che apre il tuo sito in una nuova scheda!
+                    </p>
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded">✓</span>
+                        <span>Le modifiche si vedono in tempo reale salvando</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm mt-2">
+                        <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">!</span>
+                        <span>Assicurati di aver configurato l'URL slug prima</span>
+                    </div>
+                    <div class="code-block mt-3">
+                        <pre>URL Anteprima: http://[tuo-slug].localhost:3000 (sviluppo)
+               http://[tuo-slug].operocloud.it (produzione)</pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Continue with more sections... -->
+
+        <!-- Section 7: Pages Management -->
+        <section id="pages" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">7</span>
+                Gestione delle Pagine
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">📄 La Tab "Pagine & Contenuti"</h3>
+                <p class="text-gray-600 mb-6">
+                    Qui puoi creare, modificare, riordinare e cancellare le pagine del sito. Ogni pagina è composta da una lista di <strong>blocchi</strong> che contengono i contenuti.
+                </p>
+
+                <h4 class="font-bold text-gray-800 mb-4">📋 Elenco delle Pagine</h4>
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+                    <p class="text-gray-600 mb-3">
+                        Vedrai tutte le pagine create con queste informazioni:
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">Titolo</th>
+                                    <th class="px-4 py-2 text-left">Slug</th>
+                                    <th class="px-4 py-2 text-left">Visibilità</th>
+                                    <th class="px-4 py-2 text-left">Blocchi</th>
+                                    <th class="px-4 py-2 text-left">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-t">
+                                    <td class="px-4 py-2">Home</td>
+                                    <td class="px-4 py-2 text-gray-600">/</td>
+                                    <td class="px-4 py-2"><span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Visibile</span></td>
+                                    <td class="px-4 py-2">5 blocchi</td>
+                                    <td class="px-4 py-2">Modifica | Elimina</td>
+                                </tr>
+                                <tr class="border-t">
+                                    <td class="px-4 py-2">Chi Siamo</td>
+                                    <td class="px-4 py-2 text-gray-600">/chi-siamo</td>
+                                    <td class="px-4 py-2"><span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Visibile</span></td>
+                                    <td class="px-4 py-2">3 blocchi</td>
+                                    <td class="px-4 py-2">Modifica | Elimina</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-4">➕ Creare una Nuova Pagina</h4>
+                <div class="info-box mb-4">
+                    <strong>Come fare:</strong> Clicca sul pulsante "Nuova Pagina" → Compila il modulo → Salva
+                </div>
+
+                <div class="space-y-4">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">1. Titolo Pagina</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempio: Servizi, Prodotti, Contatti</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            Il nome visibile nel menu e nel titolo della pagina
+                        </p>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">2. Slug (URL)</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempio: servizi, prodotti, contatti</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            Viene generato automaticamente dal titolo, ma puoi modificarlo
+                        </p>
+                        <div class="tip-box">
+                            <strong>💡 Importante per la SEO:</strong> Usa parole chiave relevanti nello slug!
+                            <br>Esempio: <code>/servizi-consultenza</code> è meglio di <code>/page1</code>
+                        </div>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">3. Visibilità</h5>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Scegli se rendere la pagina visibile a tutti o nasconderla:
+                        </p>
+                        <ul class="space-y-2 text-sm">
+                            <li class="flex items-center gap-2">
+                                <span class="w-4 h-4 rounded-full bg-green-500"></span>
+                                <span><strong>Visibile:</strong> La pagina appare nel menu ed è accessibile a tutti</span>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="w-4 h-4 rounded-full bg-gray-300"></span>
+                                <span><strong>Nascosta:</strong> La pagina non appare nel menu ma è accessibile tramite URL diretto</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-4">🔄 Riordinare le Pagine</h4>
+                <div class="tip-box mb-4">
+                    <strong>Drag & Drop:</strong> Trascina le righe delle pagine verso l'alto o il basso per cambiare l'ordine nel menu di navigazione!
+                </div>
+                <p class="text-gray-600">
+                    L'ordine delle pagine determina l'ordine dei link nel menu di navigazione principale del sito.
+                </p>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-4">✏️ Modificare una Pagina</h4>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                    <strong>Click su "Modifica"</strong> → Apri l'editor dei blocchi
+                </div>
+                <p class="text-gray-600 mb-4">
+                    Vedi la sezione successiva per详细了解 come modificare i blocchi!
+                </p>
+            </div>
+        </section>
+
+        <!-- Section 8: Blocks Overview -->
+        <section id="blocks-overview" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">8</span>
+                Panoramica dei Blocchi Disponibili
+            </h2>
+
+            <div class="block-card">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">🧩 Cosa sono i Blocchi?</h3>
+                <p class="text-gray-600 mb-6">
+                    I <strong>blocchi</strong> sono componenti preimpostati che puoi aggiungere alle pagine per creare i contenuti. Ogni blocco ha una funzione specifica e può essere personalizzato.
+                </p>
+
+                <div class="success-box mb-6">
+                    <strong>💡 Analogia:</strong> Immagina i blocchi come LEGO® - ogni pezzo ha una forma specifica e tu li assembli per creare qualcosa di unico!
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">📦 Lista Completa dei Blocchi</h4>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <!-- HERO -->
+                    <div class="border-2 border-blue-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('hero').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🖼️</span>
+                            <h5 class="font-bold text-blue-900">HERO_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Sezione principale in alto con immagine di sfondo, titolo e call-to-action
+                        </p>
+                        <div class="text-xs text-blue-600">
+                            <strong>Perfetto per:</strong> Homepage, landing page
+                        </div>
+                    </div>
+
+                    <!-- VETRINA -->
+                    <div class="border-2 border-purple-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('vetrina').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🏪</span>
+                            <h5 class="font-bold text-purple-900">VETRINA_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Griglia di card per mostrare servizi, prodotti o caratteristiche in modo organizzato
+                        </p>
+                        <div class="text-xs text-purple-600">
+                            <strong>Perfetto per:</strong> Vetrina servizi, catalogo sintetico
+                        </div>
+                    </div>
+
+                    <!-- FLIP CARD -->
+                    <div class="border-2 border-green-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('flip-card').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🎴</span>
+                            <h5 class="font-bold text-green-900">FLIP_CARD_GALLERY</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Card che si girano al passaggio del mouse mostrando fronte e retro
+                        </p>
+                        <div class="text-xs text-green-600">
+                            <strong>Perfetto per:</strong> Portfolio, team, showcase interattivo
+                        </div>
+                    </div>
+
+                    <!-- DYNAMIC GALLERY -->
+                    <div class="border-2 border-orange-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('dynamic-gallery').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🖼️</span>
+                            <h5 class="font-bold text-orange-900">DYNAMIC_IMAGE_GALLERY</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Galleria immagini avanzata con lightbox, grid masonry e filtri
+                        </p>
+                        <div class="text-xs text-orange-600">
+                            <strong>Perfetto per:</strong> Portfolio, gallery foto, showroom prodotti
+                        </div>
+                    </div>
+
+                    <!-- HTML -->
+                    <div class="border-2 border-gray-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('html').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">📝</span>
+                            <h5 class="font-bold text-gray-900">HTML_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Editor HTML libero per contenuti personalizzati
+                        </p>
+                        <div class="text-xs text-gray-600">
+                            <strong>Perfetto per:</strong> Sezioni personalizzate, descrizioni lunghe
+                        </div>
+                    </div>
+
+                    <!-- SOCIAL -->
+                    <div class="border-2 border-pink-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('social').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">📱</span>
+                            <h5 class="font-bold text-pink-900">MEDIA_SOCIAL_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Icone social media + galleria immagini con lightbox integrato
+                        </p>
+                        <div class="text-xs text-pink-600">
+                            <strong>Perfetto per:</strong> Social links, foto gallery
+                        </div>
+                    </div>
+
+                    <!-- GUIDE -->
+                    <div class="border-2 border-indigo-200 rounded-lg p-4 card-hover cursor-pointer" onclick="document.getElementById('guide').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">📚</span>
+                            <h5 class="font-bold text-indigo-900">GUIDE_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Guida interattiva a schede con tab per informazioni dettagliate
+                        </p>
+                        <div class="text-xs text-indigo-600">
+                            <strong>Perfetto per:</strong> FAQ, manuali, guide passo-passo
+                        </div>
+                    </div>
+
+                    <!-- MAPS -->
+                    <div class="border-2 border-red-200 rounded-lg p-4 card-hover cursor-pointer">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🗺️</span>
+                            <h5 class="font-bold text-red-900">MAPS_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Mappa Google Maps integrata con indicazioni stradali
+                        </p>
+                        <div class="text-xs text-red-600">
+                            <strong>Perfetto per:</strong> Pagina contatti, sede aziendale
+                        </div>
+                    </div>
+
+                    <!-- CATALOG -->
+                    <div class="border-2 border-cyan-200 rounded-lg p-4 card-hover">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🛒</span>
+                            <h5 class="font-bold text-cyan-900">CATALOG_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Mostra prodotti dal catalogo con filtri e layout diversi
+                        </p>
+                        <div class="text-xs text-cyan-600">
+                            <strong>Perfetto per:</strong> E-commerce, vetrina prodotti
+                        </div>
+                    </div>
+
+                    <!-- BLOG -->
+                    <div class="border-2 border-amber-200 rounded-lg p-4 card-hover">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">📰</span>
+                            <h5 class="font-bold text-amber-900">BLOG_LIST_BLOCK</h5>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">
+                            Lista articoli blog con anteprima e link all'articolo completo
+                        </p>
+                        <div class="text-xs text-amber-600">
+                            <strong>Perfetto per:</strong> Blog, news, aggiornamenti
+                        </div>
+                    </div>
+                </div>
+
+                <div class="warning-box mt-6">
+                    <strong>⚠️ Nota:</strong> I blocchi disponibili possono variare in base alle configurazioni del sistema. Contatta l'amministratore se hai bisogno di blocchi personalizzati.
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 9: Hero Block -->
+        <section id="hero" class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="step-number">9</span>
+                HERO_BLOCK - La Prima Impression
+            </h2>
+
+            <div class="block-card">
+                <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-6 mb-6">
+                    <h3 class="text-2xl font-bold mb-2">🖼️ Hero Block</h3>
+                    <p class="opacity-90">La sezione più importante di ogni pagina - Cattura l'attenzione subito!</p>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mb-4">🎯 Quando Usarlo</h4>
+                <ul class="space-y-2 text-gray-600 mb-6">
+                    <li>✅ <strong>Homepage</strong> - Obbligatorio per fare una buona prima impressione</li>
+                    <li>✅ <strong>Landing page</strong> - Per campagne marketing o promozioni</li>
+                    <li>✅ <strong>Page headers</strong> - Intestazione di qualsiasi pagina importante</li>
+                </ul>
+
+                <h4 class="font-bold text-gray-800 mb-4">⚙️ Configurazione</h4>
+
+                <div class="space-y-4">
+                    <!-- Title -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Titolo Principale</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempio: "Trasforma il Tuo Business con Noi"</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            <strong>Consiglio:</strong> Usa un titolo chiaro, accattivante e non più di 10 parole
+                        </p>
+                        <div class="tip-box">
+                            <strong>💡 Best Practice:</strong> Includi il beneficio principale per l'utente
+                            <br><em>Male:</em> "Benvenuti nel nostro sito"
+                            <br><em>Bene:</em> "Aumenta le Vendite del 30% con il Nostro Metodo"
+                        </div>
+                    </div>
+
+                    <!-- Subtitle -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Sottotitolo</h5>
+                        <div class="code-block mb-2">
+                            <pre>Esempio: "Soluzioni innovative per la tua azienda"</pre>
+                        </div>
+                        <p class="text-sm text-gray-600">
+                            Spiega meglio cosa offri in una frase
+                        </p>
+                    </div>
+
+                    <!-- Background Image -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Immagine di Sfondo</h5>
+                        <div class="info-box mb-3">
+                            <strong>📐 Dimensioni consigliate:</strong> 1920x800px (ratio 2.4:1)
+                        </div>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Carica un'immagine di alta qualità che rappresenti la tua attività
+                        </p>
+                        <div class="code-block">
+                            <pre>Formati accettati: JPG (foto), PNG (grafica con trasparenza)
+Massimo: 2MB per caricamento veloce</pre>
+                        </div>
+                        <div class="tip-box">
+                            <strong>💡 Suggerimento:</strong> Usa immagini di Unsplash se non hai foto professionali
+                        </div>
+                    </div>
+
+                    <!-- CTA Button -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Call-to-Action (CTA)</h5>
+                        <p class="text-gray-600 mb-3">
+                            Il pulsante che invita i visitatori a fare qualcosa
+                        </p>
+                        <div class="space-y-2">
+                            <div>
+                                <strong>Testo Bottone:</strong>
+                                <div class="code-block">
+                                    <pre>Esempi: "Scopri i Servizi", "Contattaci Ora", "Preventivo Gratuito"</pre>
+                                </div>
+                            </div>
+                            <div>
+                                <strong>Link Bottone:</strong>
+                                <div class="code-block">
+                                    <pre>- Se vuoi portare a una sezione: #servizi
+- Se vuoi aprire una pagina: /contatti
+- Se vuoi telefonare: tel:+393356738658</pre>
+                                </div>
+                            </div>
+                            <div>
+                                <strong>Stile Bottone:</strong>
+                                <div class="flex gap-2">
+                                    <div class="px-3 py-1 bg-blue-600 text-white rounded text-sm">Primario</div>
+                                    <div class="px-3 py-1 bg-white border border-blue-600 text-blue-600 rounded text-sm">Secondario</div>
+                                    <div class="px-3 py-1 bg-green-600 text-white rounded text-sm">Successo</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Overlay -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-gray-800 mb-2">Overlay (Sovrapposizione)</h5>
+                        <p class="text-gray-600 mb-3">
+                            Sfondo scuro sul testo per migliorare la leggibilità
+                        </p>
+                        <div class="flex gap-2">
+                            <div class="flex-1 p-3 bg-black bg-opacity-50 rounded text-white text-center">
+                                <div class="text-xs">Con Overlay</div>
+                                <div class="font-bold">Testo leggibile</div>
+                            </div>
+                            <div class="flex-1 p-3 bg-white rounded text-center border">
+                                <div class="text-xs">Senza Overlay</div>
+                                <div class="font-bold">Testo poco leggibile</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h4 class="font-bold text-gray-800 mt-8 mb-4">🎨 Esempi di Configurazioni</h4>
+
+                <div class="space-y-6">
+                    <!-- Esempio 1: Business -->
+                    <div class="border-2 border-blue-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-blue-900 mb-3">💼 Esempio: Azienda Servizi</h5>
+                        <div class="space-y-2 text-sm">
+                            <div><strong>Titolo:</strong> "Cresci con il Nostro Metodo Innovativo"</div>
+                            <div><strong>Sottotitolo:</strong> "Consulenza strategica per PMI da 10+ anni"</div>
+                            <div><strong>CTA:</strong> "Richiedi Consulenza Gratuita" → Link a #contatti</div>
+                            <div><strong>Immagine:</strong> Ufficio professionale o team al lavoro</div>
+                        </div>
+                    </div>
+
+                    <!-- Esempio 2: Restaurant -->
+                    <div class="border-2 border-red-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-red-900 mb-3">🍝 Esempio: Ristorante</h5>
+                        <div class="space-y-2 text-sm">
+                            <div><strong>Titolo:</strong> "Gusto Autentico dalla Tradizione"</div>
+                            <div><strong>Sottotitolo:</strong> "Cucina tipica regionale dal 1985"</div>
+                            <div><strong>CTA:</strong> "Prenota un Tavolo" → Link a #prenota</div>
+                            <div><strong>Immagine:</strong> Piatto decorato ben fotografato</div>
+                        </div>
+                    </div>
+
+                    <!-- Esempio 3: E-commerce -->
+                    <div class="border-2 border-green-200 rounded-lg p-4">
+                        <h5 class="font-semibold text-green-900 mb-3">🛒 Esempio: E-commerce</h5>
+                        <div class="space-y-2 text-sm">
+                            <div><strong>Titolo:</strong> "Sconti fino al 50% - Solo Oggi!"</div>
+                            <div><strong>Sottotitolo:</strong> "Approfitta delle offerte stagionali"</div>
+                            <div><strong>CTA:</strong> "Vai allo Shop" → Link a /negozio</div>
+                            <div><strong>Immagine:</strong> Prodotti in evidenza o lifestyle</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Continue with more blocks sections... -->
+
+        <!-- Placeholder for remaining sections -->
+        <section class="mb-16 text-center py-12">
+            <p class="text-gray-500 text-lg">
+                📚 <strong>La guida continua...</strong>
+            </p>
+            <p class="text-gray-400 text-sm mt-2">
+                Le sezioni rimanenti includono dettagli approfonditi su tutti gli altri blocchi, gestione menu, configurazione SEO, best practices e FAQ.
+            </p>
+        </section>
+
+        <!-- Footer -->
+        <footer class="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl p-8 mt-16">
+            <div class="text-center">
+                <h3 class="text-2xl font-bold mb-4">🚀 Sei Pronto per Creare il Tuo Sito!</h3>
+                <p class="opacity-90 mb-6">
+                    Con questa guida hai tutto quello che ti serve per utilizzare al meglio il SiteBuilder Opero
+                </p>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+                        <div class="text-sm opacity-75">Hai bisogno di aiuto?</div>
+                        <div class="font-bold">clienti@operocloud.it</div>
+                    </div>
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+                        <div class="text-sm opacity-75">WhatsApp</div>
+                        <div class="font-bold">+39 335 673 8658</div>
+                    </div>
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+                        <div class="text-sm opacity-75">Documentazione</div>
+                        <div class="font-bold">www.operocloud.it</div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 pt-6 border-t border-white/30 text-sm opacity-75">
+                Guida creata da Abanexus - OperoCMS © 2025 | Tutti i diritti riservati
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        // Smooth scroll for navigation
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+
+                    // Update active nav link
+                    document.querySelectorAll('.nav-link').forEach(link => {
+                        link.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                }
+            });
+        });
+
+        // Intersection Observer for active section highlighting
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    navLinks.forEach(link => {
+                        link.classList.remove('active');
+                        if (link.getAttribute('href') === `#${entry.target.id}`) {
+                            link.classList.add('active');
+                        }
+                    });
+                }
+            });
+        }, { threshold: 0.3 });
+
+        sections.forEach(section => {
+            observer.observe(section);
+        });
+    </script>
+</body>
+</html>
