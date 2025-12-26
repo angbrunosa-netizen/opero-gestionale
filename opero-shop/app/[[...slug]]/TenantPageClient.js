@@ -24,9 +24,9 @@ export default function TenantPageClient({ site, slug }) {
     const loadContent = async () => {
         setLoading(true);
         try {
-            const baseUrl = process.env.API_URL || 'http://localhost:5000';
+            // Usa percorso relativo per client-side (nginx reverse proxy)
             const pageSlug = slug || 'home';
-            const apiUrl = `${baseUrl}/api/public/shop/${site}/page/${pageSlug}`;
+            const apiUrl = `/api/public/shop/${site}/page/${pageSlug}`;
 
             const res = await fetch(apiUrl, { cache: 'no-store' });
             const result = await res.json();
@@ -34,7 +34,7 @@ export default function TenantPageClient({ site, slug }) {
 
             // Se non c'è contenuto, carica la directory per la pagina 404
             if (!result || !result.success) {
-                const dirRes = await fetch(`${baseUrl}/api/public/shop/directory`, { cache: 'no-store' });
+                const dirRes = await fetch(`/api/public/shop/directory`, { cache: 'no-store' });
                 const dirResult = await dirRes.json();
                 setDirectory(dirResult.success ? dirResult.companies : []);
             }
@@ -42,8 +42,7 @@ export default function TenantPageClient({ site, slug }) {
             console.error("Errore caricamento:", e);
             // Carica directory come fallback
             try {
-                const baseUrl = process.env.API_URL || 'http://localhost:5000';
-                const dirRes = await fetch(`${baseUrl}/api/public/shop/directory`, { cache: 'no-store' });
+                const dirRes = await fetch(`/api/public/shop/directory`, { cache: 'no-store' });
                 const dirResult = await dirRes.json();
                 setDirectory(dirResult.success ? dirResult.companies : []);
             } catch (err) {
