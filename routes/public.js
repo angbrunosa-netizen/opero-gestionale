@@ -272,7 +272,7 @@ router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
 
         // 2. Recupera i metadati della pagina (incluso Open Graph image)
         const [pages] = await dbPool.query(
-            `SELECT id, titolo_seo, descrizione_seo, immagine_sociale
+            `SELECT id, titolo_seo, descrizione_seo, immagine_social
              FROM web_pages
              WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`,
             [company.id, targetPage]
@@ -339,7 +339,7 @@ router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
             page: {
                 title: page.titolo_seo,
                 description: page.descrizione_seo,
-                og_image: page.immagine_sociale || null // Immagine Open Graph per social
+                og_image: page.immagine_social || null // Immagine Open Graph per social
             },
             components: components
         });
@@ -435,7 +435,7 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
 
         // 1. Recupera i metadati della pagina (incluso Open Graph image)
         const [pages] = await dbPool.query(
-            `SELECT id, titolo_seo, descrizione_seo, immagine_sociale
+            `SELECT id, titolo_seo, descrizione_seo, immagine_social
              FROM web_pages
              WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`,
             [req.shopDitta.id, targetPage]
@@ -521,7 +521,7 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
             page: {
                 title: page.titolo_seo,
                 description: page.descrizione_seo,
-                og_image: page.immagine_sociale || null // Immagine Open Graph per social
+                og_image: page.immagine_social || null // Immagine Open Graph per social
             },
             components: components // L'array di blocchi da renderizzare
         });
