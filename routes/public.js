@@ -61,7 +61,11 @@ router.post('/register/:token', async (req, res) => {
     const { token } = req.params;
     const { nome, cognome, email, password, privacy, ...altriDati } = req.body;
 
+    console.log('[REGISTER] Tentativo di registrazione con token:', token);
+    console.log('[REGISTER] Dati ricevuti:', { nome, cognome, email, privacy: !!privacy });
+
     if (!nome || !cognome || !email || !password || !privacy) {
+        console.log('[REGISTER] Campi mancanti:', { nome: !!nome, cognome: !!cognome, email: !!email, password: !!password, privacy: !!privacy });
         return res.status(400).json({ success: false, message: 'Tutti i campi obbligatori devono essere compilati.' });
     }
 
@@ -71,12 +75,16 @@ router.post('/register/:token', async (req, res) => {
         await connection.beginTransaction();
 
         // 1. Verifica il token di registrazione
+        console.log('[REGISTER] Verifica token...');
         const [tokenRows] = await connection.query(
             'SELECT * FROM registration_tokens WHERE token = ? AND utilizzato = 0 AND scadenza > NOW()',
             [token]
         );
 
+        console.log('[REGISTER] Token trovati:', tokenRows.length);
+
         if (tokenRows.length === 0) {
+            console.log('[REGISTER] Token non valido o scaduto');
             await connection.rollback();
             connection.release();
             return res.status(400).json({ success: false, message: 'Link di registrazione non valido o scaduto.' });
@@ -85,21 +93,28 @@ router.post('/register/:token', async (req, res) => {
         const tokenRow = tokenRows[0];
         const { id_ditta, id_ruolo } = tokenRow;
 
+        console.log('[REGISTER] Token valido - id_ditta:', id_ditta, 'id_ruolo:', id_ruolo);
+
         if (!id_ruolo) {
+            console.log('[REGISTER] id_ruolo mancante nel token');
             await connection.rollback();
             connection.release();
             return res.status(400).json({ success: false, message: 'Il link di invito non è configurato correttamente. Contattare l\'amministratore.' });
         }
 
         // 2. Verifica se l'utente esiste già
+        console.log('[REGISTER] Verifica esistenza utente:', email);
         const [existingUsers] = await connection.query(
             'SELECT id FROM utenti WHERE email = ?',
             [email]
         );
 
+        console.log('[REGISTER] Utenti esistenti:', existingUsers.length);
+
         if (existingUsers.length > 0) {
             // L'utente esiste già: aggiungilo solo alla tabella ad_utenti_ditte
             const userId = existingUsers[0].id;
+            console.log('[REGISTER] Utente esistente con ID:', userId);
 
             // Verifica se l'associazione esiste già
             const [existingAssociation] = await connection.query(
@@ -108,12 +123,14 @@ router.post('/register/:token', async (req, res) => {
             );
 
             if (existingAssociation.length > 0) {
+                console.log('[REGISTER] Associazione già esistente');
                 await connection.rollback();
                 connection.release();
                 return res.status(400).json({ success: false, message: 'Questo utente è già associato a questa azienda.' });
             }
 
             // Aggiungi l'associazione
+            console.log('[REGISTER] Creazione associazione utente-ditta...');
             await connection.query(
                 'INSERT INTO ad_utenti_ditte (id_utente, id_ditta, id_ruolo, stato, data_assegnazione) VALUES (?, ?, ?, ?, NOW())',
                 [userId, id_ditta, id_ruolo, 'attivo']
@@ -127,10 +144,12 @@ router.post('/register/:token', async (req, res) => {
 
             await connection.commit();
             connection.release();
+            console.log('[REGISTER] Registrazione utente esistente completata');
             return res.status(201).json({ success: true, message: 'Utente esistente aggiunto all\'azienda con successo!' });
         }
 
         // 3. Nuovo utente: crea l'utente
+        console.log('[REGISTER] Creazione nuovo utente...');
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const [newUserResult] = await connection.query(
@@ -153,6 +172,7 @@ router.post('/register/:token', async (req, res) => {
         );
 
         const newUserId = newUserResult.insertId;
+        console.log('[REGISTER] Nuovo utente creato con ID:', newUserId);
 
         // 4. Aggiungi l'associazione in ad_utenti_ditte
         await connection.query(
@@ -169,12 +189,13 @@ router.post('/register/:token', async (req, res) => {
         await connection.commit();
         connection.release();
 
+        console.log('[REGISTER] Registrazione completata con successo');
         res.status(201).json({ success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' });
 
     } catch (error) {
         await connection.rollback();
         connection.release();
-        console.error("Errore durante la registrazione:", error);
+        console.error("[REGISTER] Errore durante la registrazione:", error);
         res.status(500).json({ success: false, message: error.message || 'Errore durante la registrazione.' });
     }
 });
