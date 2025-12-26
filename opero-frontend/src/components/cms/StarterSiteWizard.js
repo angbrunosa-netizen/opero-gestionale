@@ -76,9 +76,9 @@ const StarterSiteWizard = ({ dittaId, dittaName, onCreateComplete }) => {
         }
     };
 
-    const handleDownloadPDF = () => {
+    const handleDownloadPDF = async () => {
         const preset = presets.find(p => p.key === selectedPreset);
-        generateContentGuidePDF(preset, dittaName);
+        await generateContentGuidePDF(preset, dittaName);
         setPdfDownloaded(true);
     };
 
