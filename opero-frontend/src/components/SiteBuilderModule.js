@@ -37,16 +37,15 @@ const SiteBuilderModule = () => {
     const [siteConfigKey, setSiteConfigKey] = useState(0); // Key per forzare re-render SiteConfig
 
     // 1. Determina i permessi
-    const isSystemAdmin = user?.id_ruolo === 1;
+    const isSuperAdmin = permissions?.includes('SUPER_ADMIN');
     const hasSiteBuilderPermission = permissions?.includes('SITE_BUILDER');
     const hasCompanySiteBuilderPermission = permissions?.includes('COMPANY_SITE_BUILDER');
 
-    // System Admin con permesso SITE_BUILDER PUÏ accedere
-    // OPPURE chiunque abbia il permesso SITE_BUILDER (indipendentemente dal ruolo)
-    const canAccessAsSystemAdmin = hasSiteBuilderPermission;
+    // Solo SUPER_ADMIN con permesso SITE_BUILDER può accedere come System Admin
+    const canAccessAsSystemAdmin = isSuperAdmin && hasSiteBuilderPermission;
 
-    // Admin Azienda con permesso COMPANY_SITE_BUILDER (ma NON SITE_BUILDER)
-    const canAccessAsCompanyAdmin = hasCompanySiteBuilderPermission && !hasSiteBuilderPermission;
+    // Admin Azienda con permesso COMPANY_SITE_BUILDER (ma NON SUPER_ADMIN con SITE_BUILDER)
+    const canAccessAsCompanyAdmin = hasCompanySiteBuilderPermission && !canAccessAsSystemAdmin;
 
     // Verifica se l'utente può accedere al modulo
     const canAccess = canAccessAsSystemAdmin || canAccessAsCompanyAdmin;
@@ -56,7 +55,7 @@ const SiteBuilderModule = () => {
         console.log('[SiteBuilder] useEffect - Init');
         console.log('[SiteBuilder] user:', user);
         console.log('[SiteBuilder] permissions:', permissions);
-        console.log('[SiteBuilder] isSystemAdmin:', isSystemAdmin);
+        console.log('[SiteBuilder] isSuperAdmin:', isSuperAdmin);
         console.log('[SiteBuilder] hasSiteBuilderPermission:', hasSiteBuilderPermission);
         console.log('[SiteBuilder] hasCompanySiteBuilderPermission:', hasCompanySiteBuilderPermission);
         console.log('[SiteBuilder] canAccessAsSystemAdmin:', canAccessAsSystemAdmin);
@@ -126,7 +125,7 @@ const SiteBuilderModule = () => {
                 <div className="bg-white p-8 rounded-lg shadow-md">
                     <h2 className="text-xl font-bold text-gray-900">Accesso Negato</h2>
                     <p className="text-gray-600 mt-2">
-                        {!isSystemAdmin
+                        {!isSuperAdmin
                             ? "Non hai i permessi necessari per accedere al Costruttore Siti."
                             : "Il tuo ruolo non è abilitato alla gestione dei siti web."}
                     </p>

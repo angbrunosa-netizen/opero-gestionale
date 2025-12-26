@@ -26,12 +26,22 @@ router.use(verifyToken);
 // GET Elenco Ditte Candidabili (Tipo 1) per associazione sito
 router.get('/companies', async (req, res) => {
     try {
-        // Se l'utente ha solo COMPANY_SITE_BUILDER, ritorna solo la sua ditta
-        const hasCompanySiteBuilder = req.user.permissions?.includes('COMPANY_SITE_BUILDER');
+        // Solo SUPER_ADMIN con SITE_BUILDER può vedere tutte le ditte
+        const isSuperAdmin = req.user.permissions?.includes('SUPER_ADMIN');
         const hasSiteBuilder = req.user.permissions?.includes('SITE_BUILDER');
+        const hasCompanySiteBuilder = req.user.permissions?.includes('COMPANY_SITE_BUILDER');
 
-        if (hasCompanySiteBuilder && !hasSiteBuilder) {
-            // Admin Azienda: ritorna solo la sua ditta
+        // SUPER_ADMIN con SITE_BUILDER: vede tutte le ditte
+        if (isSuperAdmin && hasSiteBuilder) {
+            const [companies] = await dbPool.query(
+                `SELECT id, ragione_sociale, url_slug, shop_attivo, logo_url
+                 FROM ditte
+                 WHERE id_tipo_ditta = 1
+                 ORDER BY ragione_sociale ASC`
+            );
+            res.json(companies);
+        } else if (hasCompanySiteBuilder) {
+            // Admin Azienda con COMPANY_SITE_BUILDER: vede solo la sua ditta
             const dittaId = req.user.id_ditta;
             if (!dittaId) {
                 return res.status(403).json({ error: 'Utente non associato a nessuna ditta' });
@@ -45,14 +55,8 @@ router.get('/companies', async (req, res) => {
             );
             res.json(companies);
         } else {
-            // System Admin con SITE_BUILDER: recupera tutte le ditte di tipo 1 (Proprietarie)
-            const [companies] = await dbPool.query(
-                `SELECT id, ragione_sociale, url_slug, shop_attivo, logo_url
-                 FROM ditte
-                 WHERE id_tipo_ditta = 1
-                 ORDER BY ragione_sociale ASC`
-            );
-            res.json(companies);
+            // Nessun permesso appropriato
+            return res.status(403).json({ error: 'Permessi insufficienti per accedere alla lista ditte' });
         }
     } catch (e) {
         console.error("Errore GET companies:", e);

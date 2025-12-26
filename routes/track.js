@@ -7,7 +7,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { verifyToken } = require('../utils/auth');
-const { dbPool, knex } = require('../config/db');
+const { dbPool } = require('../config/db');
 const s3Service = require('../services/s3Service');
 const emailVisualizationService = require('../services/emailVisualizationService');
 const router = express.Router();
@@ -604,15 +604,11 @@ router.post('/log-action', verifyToken, async (req, res) => {
     }
 
     try {
-        await knex('log_azioni').insert({
-            id_utente: id_utente,
-            id_ditta: id_ditta,
-            azione: azione,
-            dettagli: dettagli || '',
-            modulo: modulo || null,
-            funzione: funzione || null
-            // 'timestamp' di solito viene gestito automaticamente dal DB (DEFAULT CURRENT_TIMESTAMP)
-        });
+        // Usa dbPool invece di knex per maggiore affidabilità
+        await dbPool.query(
+            'INSERT INTO log_azioni (id_utente, id_ditta, azione, dettagli, modulo, funzione) VALUES (?, ?, ?, ?, ?, ?)',
+            [id_utente, id_ditta, azione, dettagli || '', modulo || null, funzione || null]
+        );
         res.status(200).json({ success: true, message: 'Azione registrata.' });
     } catch (error) {
         const sqlError = error.sqlMessage ? ` (SQL: ${error.sqlMessage})` : '';
