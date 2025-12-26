@@ -56,16 +56,72 @@ export async function generateMetadata() {
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost";
   const isSubdomain = hostname.includes(rootDomain) && hostname !== rootDomain;
 
+  // URL completo della pagina
+  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+  const fullUrl = `${protocol}://${hostname}`;
+
   if (isSubdomain) {
     const subdomain = hostname.replace(`.${rootDomain}`, "");
+    const title = `${subdomain} - Opero Shop`;
+    const description = `Sito e-commerce di ${subdomain} su piattaforma Opero Shop`;
+
     return {
-      title: `${subdomain} - Opero Shop`,
-      description: `Sito e-commerce di ${subdomain} su piattaforma Opero Shop`,
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        url: fullUrl,
+        siteName: subdomain, // Nome del sito invece di "Opero Shop"
+        type: 'website',
+        locale: 'it_IT',
+        // Immagine di default (puoi personalizzarla in seguito)
+        images: [
+          {
+            url: `https://${hostname}/og-image.jpg`, // Immagine Open Graph
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: [`https://${hostname}/og-image.jpg`],
+      },
     };
   }
 
+  // Sito principale (main.operocloud.it)
+  const title = 'Opero Cloud - Piattaforma E-commerce Multi-Tenant';
+  const description = 'Sistema multi-tenant per creare siti e-commerce personalizzati';
+
   return {
-    title: 'Opero Shop - Piattaforma E-commerce Multi-Tenant',
-    description: 'Sistema multi-tenant per creare siti e-commerce personalizzati',
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: fullUrl,
+      siteName: 'Opero Cloud', // Nome corretto del sito principale
+      type: 'website',
+      locale: 'it_IT',
+      images: [
+        {
+          url: `${fullUrl}/og-image.jpg`, // Immagine Open Graph del sito principale
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [`${fullUrl}/og-image.jpg`],
+    },
   };
 }

@@ -57,70 +57,108 @@ router.get('/register/:token', async (req, res) => {
 
 
 // --- POST (Completa la registrazione utente) ---
-// --- POST (Completa la registrazione utente) ---
-// --- POST (Completa la registrazione utente) ---
-// --- POST (Completa la registrazione dell'utente) ---
 router.post('/register/:token', async (req, res) => {
     const { token } = req.params;
     const { nome, cognome, email, password, privacy, ...altriDati } = req.body;
-    let connection;
 
     if (!nome || !cognome || !email || !password || !privacy) {
         return res.status(400).json({ success: false, message: 'Tutti i campi obbligatori devono essere compilati.' });
     }
 
     try {
-        connection = await knex.client.acquireConnection();
-        await connection.beginTransaction();
+        // Usa la transazione Knex corretta
+        await knex.transaction(async (trx) => {
+            // 1. Verifica il token di registrazione
+            const [tokenRows] = await trx('registration_tokens')
+                .where({ token, utilizzato: 0 })
+                .where('scadenza', '>', knex.fn.now())
+                .select('*');
 
-        const [tokenRows] = await connection.execute('SELECT * FROM registration_tokens WHERE token = ? AND utilizzato = 0 AND scadenza > NOW()', [token]);
-        if (tokenRows.length === 0) {
-            throw new Error('Link di registrazione non valido o scaduto.');
-        }
-        const tokenRow = tokenRows[0];
-        const { id_ditta, id_ruolo } = tokenRow; // <-- LETTURA DINAMICA DEL RUOLO
+            if (tokenRows.length === 0) {
+                throw new Error('Link di registrazione non valido o scaduto.');
+            }
 
-        if (!id_ruolo) {
-            throw new Error('Il link di invito non è configurato correttamente. Contattare l\'amministratore.');
-        }
+            const tokenRow = tokenRows[0];
+            const { id_ditta, id_ruolo } = tokenRow;
 
-        const [existingUsers] = await connection.execute('SELECT id FROM utenti WHERE email = ?', [email]);
-        if (existingUsers.length > 0) {
-            throw new Error('Un utente con questa email esiste già.');
-        }
+            if (!id_ruolo) {
+                throw new Error('Il link di invito non è configurato correttamente. Contattare l\'amministratore.');
+            }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+            // 2. Verifica se l'utente esiste già
+            const [existingUsers] = await trx('utenti').where({ email }).select('id');
 
-        const newUser = {
-            nome, cognome, email, password: hashedPassword,
-            id_ditta,
-            id_ruolo, // <-- ASSEGNAZIONE DINAMICA DEL RUOLO
-            stato: 'attivo',
-            privacy: privacy ? 1 : 0,
-            ...altriDati
-        };
-        
-        await connection.execute(
-            `INSERT INTO utenti (nome, cognome, email, password, id_ditta, id_ruolo, stato, privacy, codice_fiscale, telefono, indirizzo, citta, cap) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                newUser.nome, newUser.cognome, newUser.email, newUser.password, newUser.id_ditta,
-                newUser.id_ruolo, newUser.stato, newUser.privacy, newUser.codice_fiscale || null,
-                newUser.telefono || null, newUser.indirizzo || null, newUser.citta || null, newUser.cap || null
-            ]
-        );
+            if (existingUsers.length > 0) {
+                // L'utente esiste già: aggiungilo solo alla tabella ad_utenti_ditte
+                const userId = existingUsers[0].id;
 
-        await connection.execute('UPDATE registration_tokens SET utilizzato = 1 WHERE token = ?', [token]);
+                // Verifica se l'associazione esiste già
+                const [existingAssociation] = await trx('ad_utenti_ditte')
+                    .where({ id_utente: userId, id_ditta })
+                    .select('*');
 
-        await connection.commit();
+                if (existingAssociation.length > 0) {
+                    throw new Error('Questo utente è già associato a questa azienda.');
+                }
+
+                // Aggiungi l'associazione
+                await trx('ad_utenti_ditte').insert({
+                    id_utente: userId,
+                    id_ditta: id_ditta,
+                    id_ruolo: id_ruolo,
+                    stato: 'attivo',
+                    data_assegnazione: new Date()
+                });
+
+                // Marca il token come utilizzato
+                await trx('registration_tokens')
+                    .where({ token })
+                    .update({ utilizzato: 1 });
+
+                return { success: true, message: 'Utente esistente aggiunto all\'azienda con successo!' };
+            }
+
+            // 3. Nuovo utente: crea l'utente
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            const [newUser] = await trx('utenti').insert({
+                nome,
+                cognome,
+                email,
+                password: hashedPassword,
+                id_ditta,
+                id_ruolo,
+                stato: 'attivo',
+                privacy: privacy ? 1 : 0,
+                codice_fiscale: altriDati.codice_fiscale || null,
+                telefono: altriDati.telefono || null,
+                indirizzo: altriDati.indirizzo || null,
+                citta: altriDati.citta || null,
+                cap: altriDati.cap || null
+            }, 'id');
+
+            // 4. Aggiungi l'associazione in ad_utenti_ditte
+            await trx('ad_utenti_ditte').insert({
+                id_utente: newUser[0],
+                id_ditta: id_ditta,
+                id_ruolo: id_ruolo,
+                stato: 'attivo',
+                data_assegnazione: new Date()
+            });
+
+            // 5. Marca il token come utilizzato
+            await trx('registration_tokens')
+                .where({ token })
+                .update({ utilizzato: 1 });
+
+            return { success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' };
+        });
+
         res.status(201).json({ success: true, message: 'Registrazione completata con successo! Ora puoi accedere.' });
 
     } catch (error) {
-        if (connection) await connection.rollback();
         console.error("Errore durante la registrazione:", error);
         res.status(500).json({ success: false, message: error.message || 'Errore durante la registrazione.' });
-    } finally {
-        if (connection) connection.release();
     }
 });
 // --- GET (Verifica Email e attiva Privacy) ---
@@ -232,9 +270,9 @@ router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
 
         const company = companies[0];
 
-        // 2. Recupera i metadati della pagina
+        // 2. Recupera i metadati della pagina (incluso Open Graph image)
         const [pages] = await dbPool.query(
-            `SELECT id, titolo_seo, descrizione_seo
+            `SELECT id, titolo_seo, descrizione_seo, immagine_sociale
              FROM web_pages
              WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`,
             [company.id, targetPage]
@@ -300,7 +338,8 @@ router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
             },
             page: {
                 title: page.titolo_seo,
-                description: page.descrizione_seo
+                description: page.descrizione_seo,
+                og_image: page.immagine_sociale || null // Immagine Open Graph per social
             },
             components: components
         });
@@ -394,11 +433,11 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
         const { pageSlug } = req.params;
         const targetPage = pageSlug || 'home'; // Default alla home se slug vuoto
 
-        // 1. Recupera i metadati della pagina
+        // 1. Recupera i metadati della pagina (incluso Open Graph image)
         const [pages] = await dbPool.query(
-            `SELECT id, titolo_seo, descrizione_seo 
-             FROM web_pages 
-             WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`, 
+            `SELECT id, titolo_seo, descrizione_seo, immagine_sociale
+             FROM web_pages
+             WHERE id_ditta = ? AND slug = ? AND pubblicata = 1`,
             [req.shopDitta.id, targetPage]
         );
 
@@ -481,7 +520,8 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
             },
             page: {
                 title: page.titolo_seo,
-                description: page.descrizione_seo
+                description: page.descrizione_seo,
+                og_image: page.immagine_sociale || null // Immagine Open Graph per social
             },
             components: components // L'array di blocchi da renderizzare
         });

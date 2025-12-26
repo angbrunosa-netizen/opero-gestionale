@@ -33,9 +33,42 @@ export async function generateMetadata({ params }) {
     const { site, slug } = params;
     const data = await getPageData(site, slug);
     if (!data || !data.success) return { title: 'Pagina non trovata' };
+
+    const title = `${data.page.title} | ${data.siteConfig.name}`;
+    const description = data.page.description || '';
+    const pageSlug = slug.join('/');
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost";
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const fullUrl = `${protocol}://${site}.${rootDomain}/${pageSlug}`;
+
+    // Recupera l'immagine Open Graph dalla configurazione SEO della pagina
+    const ogImage = data.page.og_image || `${protocol}://${site}.${rootDomain}/og-image.jpg`;
+
     return {
-        title: `${data.page.title} | ${data.siteConfig.name}`,
-        description: data.page.description,
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            url: fullUrl,
+            siteName: data.siteConfig.name,
+            type: 'website',
+            locale: 'it_IT',
+            images: [
+                {
+                    url: ogImage,
+                    width: 1200,
+                    height: 630,
+                    alt: title,
+                },
+            ],
+        },
+        twitter: {
+            card: 'summary_large_image',
+            title,
+            description,
+            images: [ogImage],
+        },
     };
 }
 
