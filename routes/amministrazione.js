@@ -657,9 +657,10 @@ router.post('/mail-accounts/test', [verifyToken, checkMailPermission], async (re
 // Un System Admin può specificare l'id_ditta, altrimenti usa quella dell'utente.
 router.post('/utenti/genera-link-registrazione', verifyToken, async (req, res) => {
     const { id_ruolo, id_ditta: dittaUtenteLoggato } = req.user;
-    const { id_ditta: dittaTarget } = req.body; // id_ditta dal corpo della richiesta
+    const { id_ditta: dittaTarget, ruolo: ruoloTarget } = req.body; // id_ditta e ruolo dal corpo della richiesta
 
     let dittaId;
+    let ruoloId = ruoloTarget || 2; // Default: 2 (Amministratore Azienda) se non specificato
 
     // Un System Admin può generare un link per qualsiasi ditta.
     if (id_ruolo === 1 && dittaTarget) {
@@ -672,17 +673,17 @@ router.post('/utenti/genera-link-registrazione', verifyToken, async (req, res) =
     if (!dittaId) {
         return res.status(400).json({ success: false, message: 'ID ditta non specificato o non valido.' });
     }
-    
+
     try {
         const token = uuidv4();
         const scadenza = new Date();
         scadenza.setDate(scadenza.getDate() + 7); // Il link scade tra 7 giorni
 
-        await knex('registration_tokens').insert({
-            id_ditta: dittaId,
-            token: token,
-            scadenza: scadenza
-        });
+        // FIX: Includiamo id_ruolo nel token
+        await dbPool.query(
+            'INSERT INTO registration_tokens (id_ditta, token, scadenza, id_ruolo) VALUES (?, ?, ?, ?)',
+            [dittaId, token, scadenza, ruoloId]
+        );
 
         // Utilizza una variabile d'ambiente per l'URL del frontend, con un fallback per lo sviluppo.
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
