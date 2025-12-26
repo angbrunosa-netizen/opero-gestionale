@@ -627,6 +627,33 @@ router.post('/reset-password', async (req, res) => {
         if (connection) try { connection.release(); } catch (e) {}
     }
 });
+
+// ==========================================================================
+// API DI SBLOCCO EMERGENZA SESSIONI
+// ==========================================================================
+router.post('/emergency-unlock', async (req, res) => {
+    console.log('[EMERGENZA] Richiesta sblocco sessioni ricevuta');
+
+    try {
+        const [result] = await dbPool.query('DELETE FROM utenti_sessioni_attive');
+        const deletedCount = result.affectedRows || 0;
+
+        console.log(`[EMERGENZA] Sessioni cancellate: ${deletedCount}`);
+
+        res.json({
+            success: true,
+            message: 'Sessioni sbloccate con successo',
+            deletedCount: deletedCount
+        });
+    } catch (error) {
+        console.error('[EMERGENZA] Errore durante sblocco:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore durante lo sblocco delle sessioni: ' + error.message
+        });
+    }
+});
+
 module.exports = router;
 
 

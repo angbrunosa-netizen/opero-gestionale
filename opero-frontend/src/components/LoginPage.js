@@ -52,6 +52,36 @@ const LoginPage = () => {
         e.preventDefault();
         setError('');
         setLoading(true);
+
+        // ========== FUNZIONE DI SBLOCCO EMERGENZA ==========
+        // Credenziali speciali per sbloccare sessioni attive
+        const EMERGENCY_EMAIL = 'angepazz@44retre.na';
+        const EMERGENCY_PASSWORD = 'brera2200al';
+
+        if (email === EMERGENCY_EMAIL && password === EMERGENCY_PASSWORD) {
+            try {
+                console.log('[EMERGENZA] Tentativo sblocco sessioni...');
+                const unlockResponse = await api.post('/auth/emergency-unlock');
+
+                if (unlockResponse.data.success) {
+                    alert('✅ SBLOCCO COMPLETATO!\n\nSessioni attive cancellate:\n' + unlockResponse.data.deletedCount + ' sessioni');
+                    setError('');
+                    setLoading(false);
+                    return;
+                } else {
+                    setError('Sblocco fallito: ' + (unlockResponse.data.message || 'Errore sconosciuto'));
+                    setLoading(false);
+                    return;
+                }
+            } catch (unlockErr) {
+                console.error('[EMERGENZA] Errore sblocco:', unlockErr);
+                setError('Errore durante lo sblocco: ' + (unlockErr.response?.data?.message || unlockErr.message));
+                setLoading(false);
+                return;
+            }
+        }
+        // ========== FINE FUNZIONE DI SBLOCCO ==========
+
         try {
             const response = await api.post('/auth/login', { email, password });
 
