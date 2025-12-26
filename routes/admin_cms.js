@@ -73,7 +73,8 @@ router.get('/config/:idDitta', async (req, res) => {
         const [rows] = await dbPool.query(
             `SELECT url_slug, id_web_template, shop_colore_primario, shop_colore_secondario, shop_attivo, shop_template, shop_colore_sfondo_blocchi,
                     shop_colore_header_sfondo, shop_colore_header_testo, shop_logo_posizione, shop_descrizione_home,
-                    is_main_site, show_in_directory, directory_order, directory_description, directory_featured
+                    is_main_site, show_in_directory, directory_order, directory_description, directory_featured,
+                    favicon_url
              FROM ditte WHERE id = ?`,
             [req.params.idDitta]
         );

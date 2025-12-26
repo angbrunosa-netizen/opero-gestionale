@@ -363,6 +363,7 @@ router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
             siteConfig: {
                 name: company.ragione_sociale,
                 logo: company.logo_url,
+                favicon: company.favicon_url || null,
                 description: company.shop_descrizione_home || null,
                 colors: {
                     primary: company.shop_colore_primario,
@@ -388,7 +389,7 @@ router.get('/shop/main-site/page/:pageSlug?', async (req, res) => {
             page: {
                 title: page.titolo_seo,
                 description: page.descrizione_seo,
-                og_image: page.immagine_social || null // Immagine Open Graph per social
+                og_image: page.immagine_social ? (page.immagine_social.startsWith('http') ? page.immagine_social : `${process.env.CDN_URL || 'https://r3-it.storage.cloud.it'}/${page.immagine_social}`) : null
             },
             components: components
         });
@@ -570,7 +571,7 @@ router.get('/shop/:slug/page/:pageSlug?', resolveTenant, async (req, res) => {
             page: {
                 title: page.titolo_seo,
                 description: page.descrizione_seo,
-                og_image: page.immagine_social || null // Immagine Open Graph per social
+                og_image: page.immagine_social ? (page.immagine_social.startsWith('http') ? page.immagine_social : `${process.env.CDN_URL || 'https://r3-it.storage.cloud.it'}/${page.immagine_social}`) : null
             },
             components: components // L'array di blocchi da renderizzare
         });
