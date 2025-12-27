@@ -17,6 +17,7 @@ const SiteConfig = ({ dittaId }) => {
     const isSystemAdmin = hasPermission('SUPER_ADMIN');
     const [config, setConfig] = useState({
         url_slug: '',
+        favicon_url: '', // URL favicon personalizzata
         shop_template: 'standard',
         shop_colore_primario: '#000000',
         shop_colore_secondario: '#ffffff',
@@ -117,6 +118,41 @@ const SiteConfig = ({ dittaId }) => {
                                     ? "L'indirizzo che i clienti useranno per visitare il sito."
                                     : "L'indirizzo web è gestito dall'amministratore di sistema."}
                             </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Favicon Personalizzata
+                            </label>
+                            <input
+                                type="text"
+                                value={config.favicon_url || ''}
+                                onChange={e => setConfig({...config, favicon_url: e.target.value})}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                placeholder="https://example.com/favicon.ico"
+                            />
+                            <p className="mt-2 text-xs text-gray-500">
+                                Inserisci l'URL completo dell'immagine della favicon (ico, png, jpg). Lascia vuoto per usare quella predefinita.
+                            </p>
+                            {config.favicon_url && (
+                                <div className="mt-2 flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+                                    <span className="text-xs text-gray-600">Anteprima:</span>
+                                    <img
+                                        src={config.favicon_url}
+                                        alt="Favicon preview"
+                                        className="w-6 h-6"
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            e.target.nextSibling.style.display = 'inline';
+                                        }}
+                                    />
+                                    <span className="text-xs text-red-500 hidden" ref={el => {
+                                        if (el && el.previousSibling && el.previousSibling.style.display === 'none') {
+                                            el.style.display = 'inline';
+                                        }
+                                    }}>Impossibile caricare l'immagine</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg border border-blue-100">

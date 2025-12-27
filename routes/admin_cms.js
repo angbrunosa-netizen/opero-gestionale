@@ -101,6 +101,7 @@ router.post('/config/:idDitta', async (req, res) => {
     try {
         const {
             url_slug,
+            favicon_url,
             shop_template,
             shop_colore_primario,
             shop_colore_secondario,
@@ -151,6 +152,7 @@ router.post('/config/:idDitta', async (req, res) => {
         await dbPool.query(
             `UPDATE ditte SET
                 url_slug = ?,
+                favicon_url = ?,
                 id_web_template = ?,
                 shop_colore_primario = ?,
                 shop_colore_secondario = ?,
@@ -168,6 +170,7 @@ router.post('/config/:idDitta', async (req, res) => {
              WHERE id = ?`,
             [
                 url_slug,
+                favicon_url || null,
                 id_web_template,
                 shop_colore_primario,
                 shop_colore_secondario,
