@@ -48,7 +48,7 @@ export const TEMPLATES = {
 };
 
 // Metadata dinamici per SEO
-export async function generateMetadata() {
+export async function generateMetadata({ params }) {
   const headersList = await headers();
   let hostname = headersList.get('host') || '';
   hostname = hostname.split(':')[0];
@@ -60,10 +60,56 @@ export async function generateMetadata() {
   const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
   const fullUrl = `${protocol}://${hostname}`;
 
+  // Unwrap params con await (Next.js 16 requirement)
+  const resolvedParams = await params;
+
+  // Funzione helper per estrarre lo slug in modo sicuro
+  const getSlug = () => {
+    if (resolvedParams && resolvedParams.slug && Array.isArray(resolvedParams.slug) && resolvedParams.slug.length > 0) {
+      return resolvedParams.slug.join('/');
+    }
+    return 'home';
+  };
+
+  const pageSlug = getSlug();
+
   if (isSubdomain) {
     const subdomain = hostname.replace(`.${rootDomain}`, "");
-    const title = `${subdomain} - Opero Shop`;
-    const description = `Sito e-commerce di ${subdomain} su piattaforma Opero Shop`;
+    let title = `${subdomain} - Opero Shop`;
+    let description = `Sito e-commerce di ${subdomain} su piattaforma Opero Shop`;
+    let ogImage = null;
+
+    // Recupera i dati della pagina dal backend per ottenere Open Graph
+    try {
+      const apiUrl = `${protocol}://${hostname}/api/public/shop/${subdomain}/page/${pageSlug}`;
+      const res = await fetch(apiUrl, { cache: 'no-store' });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success && result.page) {
+          const page = result.page;
+
+          // Usa i dati Open Graph dal backend se disponibili
+          if (page.og_title) {
+            title = page.og_title;
+          }
+          if (page.og_description) {
+            description = page.og_description;
+          }
+          if (page.og_image) {
+            ogImage = page.og_image;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Errore nel recupero dei metadati:', error);
+      // Usa i valori di default in caso di errore
+    }
+
+    // Se non c'è un'immagine Open Graph, usa quella di default
+    const images = ogImage
+      ? [{ url: ogImage, width: 1200, height: 630, alt: title }]
+      : [{ url: `https://${hostname}/og-image.jpg`, width: 1200, height: 630, alt: title }];
 
     return {
       title,
@@ -72,24 +118,16 @@ export async function generateMetadata() {
         title,
         description,
         url: fullUrl,
-        siteName: subdomain, // Nome del sito invece di "Opero Shop"
+        siteName: subdomain,
         type: 'website',
         locale: 'it_IT',
-        // Immagine di default (puoi personalizzarla in seguito)
-        images: [
-          {
-            url: `https://${hostname}/og-image.jpg`, // Immagine Open Graph
-            width: 1200,
-            height: 630,
-            alt: title,
-          },
-        ],
+        images,
       },
       twitter: {
         card: 'summary_large_image',
         title,
         description,
-        images: [`https://${hostname}/og-image.jpg`],
+        images: [ogImage || `https://${hostname}/og-image.jpg`],
       },
     };
   }
@@ -105,12 +143,12 @@ export async function generateMetadata() {
       title,
       description,
       url: fullUrl,
-      siteName: 'Opero Cloud', // Nome corretto del sito principale
+      siteName: 'Opero Cloud',
       type: 'website',
       locale: 'it_IT',
       images: [
         {
-          url: `${fullUrl}/og-image.jpg`, // Immagine Open Graph del sito principale
+          url: `${fullUrl}/og-image.jpg`,
           width: 1200,
           height: 630,
           alt: title,
